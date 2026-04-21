@@ -1,0 +1,12 @@
+{
+  "name": "sci-paper-doctor",
+  "displayName": "SciPaperDoctor",
+  "description": "领域 Doctor，负责核对实验结果、论文内容、编译链路和导师交付要求是否一致。",
+  "promptFile": "sci-paper-doctor-system-prompt.md",
+  "inheritBaseSkills": true,
+  "excludeBaseSkills": [
+    "bio-skills",
+    "OfficeCLI",
+    "WebCLI"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "engineer-cat",
+  "displayName": "EngineerCat",
+  "description": "实现型角色，承接 Inspector 的问题单，修复 runtime / skill，并在需要时调用 self-evolution 产出新 skill。",
+  "promptFile": "engineer-system-prompt.md",
+  "inheritBaseSkills": true,
+  "excludeBaseSkills": [
+    "bio-skills",
+    "OfficeCLI",
+    "WebCLI"
+  ]
+}
+

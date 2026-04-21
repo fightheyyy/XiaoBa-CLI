@@ -1,0 +1,40 @@
+node_modules/
+dist/
+release/
+.env
+*.log
+turnLogs/
+__pycache__/
+skills/_crafted/
+skills/_learned/
+skills/bio-skills/
+
+# 数据文件
+data/
+logs/
+files/
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# 打包文件
+*.dmg
+*.exe
+*.app
+*.deb
+*.rpm
+*.AppImage
+
+# 系统文件
+bash.exe.stackdump

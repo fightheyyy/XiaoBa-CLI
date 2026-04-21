@@ -1,0 +1,13 @@
+{
+  "name": "reviewer-cat",
+  "displayName": "ReviewerCat",
+  "description": "验收型角色，负责验证 Engineer 结果、决定 closed/reopened，并沉淀回写策略与闭环指标。",
+  "promptFile": "reviewer-system-prompt.md",
+  "inheritBaseSkills": true,
+  "excludeBaseSkills": [
+    "bio-skills",
+    "OfficeCLI",
+    "WebCLI"
+  ]
+}
+
