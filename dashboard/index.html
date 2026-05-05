@@ -735,6 +735,120 @@
       gap: 18px;
     }
 
+    .skill-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .skill-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .skill-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 2px 12px;
+      border-bottom: 1px solid var(--border-light);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .skill-group-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .skill-group-title .badge {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid rgba(59, 130, 246, 0.10);
+    }
+
+    .skill-group-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text2);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .skill-group-chevron {
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid var(--text3);
+      border-bottom: 2px solid var(--text3);
+      transform: rotate(45deg);
+      transition: transform 0.18s ease;
+      flex-shrink: 0;
+    }
+
+    .skill-group.collapsed .skill-group-chevron {
+      transform: rotate(-45deg);
+    }
+
+    .skill-group.collapsed .skills-grid {
+      display: none;
+    }
+
+    .roles-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .role-active-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: var(--green-light);
+      color: var(--green);
+      border: 1px solid rgba(30, 169, 113, 0.16);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .roles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 18px;
+    }
+
+    .role-card {
+      min-height: 220px;
+    }
+
+    .role-card.active {
+      border-color: rgba(30, 169, 113, 0.28);
+      box-shadow: var(--shadow-md), 0 0 0 1px rgba(30, 169, 113, 0.14) inset;
+    }
+
+    .role-card .skill-desc {
+      -webkit-line-clamp: 3;
+      min-height: 62px;
+    }
+
     .skill-card {
       border-radius: 24px;
       padding: 20px;
@@ -786,6 +900,53 @@
       font-weight: 800;
       flex-shrink: 0;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    }
+
+    .role-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(244, 242, 251, 0.62));
+      border: 1px solid rgba(255, 255, 255, 0.66);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 24px rgba(28, 30, 58, 0.08);
+    }
+
+    .role-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .role-avatar.sm {
+      width: 26px;
+      height: 26px;
+      border-radius: 9px;
+      box-shadow: none;
+    }
+
+    .role-avatar.lg {
+      width: 64px;
+      height: 64px;
+      border-radius: 20px;
+    }
+
+    .role-value {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .role-value span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .skill-card.disabled .skill-emoji {
@@ -1299,6 +1460,7 @@
         grid-template-columns: 1fr;
       }
 
+
       .config-row {
         flex-direction: column;
         align-items: stretch;
@@ -1390,6 +1552,9 @@
       <a class="nav-item" onclick="switchPage('skills')" data-page="skills">
         <span class="nav-icon">#</span> <span>Skills</span>
       </a>
+      <a class="nav-item" onclick="switchPage('roles')" data-page="roles">
+        <span class="nav-icon">@</span> <span>角色</span>
+      </a>
       <a class="nav-item" onclick="switchPage('store')" data-page="store">
         <span class="nav-icon">+</span> <span>商店</span>
       </a>
@@ -1432,7 +1597,16 @@
       <!-- Page: Skills -->
       <div class="page" id="page-skills">
         <div class="section-title">Skills <span class="badge" id="skill-count">0</span></div>
-        <div class="skills-grid" id="skills-grid"><div class="loading">加载中...</div></div>
+        <div id="skills-grid"><div class="loading">加载中...</div></div>
+      </div>
+
+      <!-- Page: Roles -->
+      <div class="page" id="page-roles">
+        <div class="roles-toolbar">
+          <div class="section-title" style="margin-bottom:0">角色 <span class="badge" id="role-count">0</span></div>
+          <div class="role-active-pill" id="active-role-pill">当前角色：Base</div>
+        </div>
+        <div class="roles-grid" id="roles-grid"><div class="loading">加载中...</div></div>
       </div>
 
       <!-- Page: Store -->
@@ -1461,7 +1635,19 @@
 
   <script>
     const API = '';
-    const pageTitles = { services:'服务', config:'配置', skills:'Skills', store:'商店' };
+    const pageTitles = { services:'服务', config:'配置', skills:'Skills', roles:'角色', store:'商店' };
+    let rolesState = { active: null, roles: [] };
+    let skillsState = [];
+    const skillGroupCollapsed = { role: false, runtime: false };
+    const roleAvatars = {
+      base: 'cat-icon.png',
+      default: 'cat-icon.png',
+      none: 'cat-icon.png',
+      'researcher-cat': 'role-icons/researcher-cat.png',
+      'inspector-cat': 'role-icons/inspector-cat.png',
+      'engineer-cat': 'role-icons/engineer-cat.png',
+      'reviewer-cat': 'role-icons/reviewer-cat.png',
+    };
 
     function switchPage(name) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1470,7 +1656,24 @@
       if (page) page.classList.add('active');
       const nav = document.querySelector('.nav-item[data-page="'+name+'"]');
       if (nav) nav.classList.add('active');
-      document.getElementById('topbar-title').textContent = pageTitles[name] || name;
+      const title = document.getElementById('topbar-title');
+      if (title) title.textContent = pageTitles[name] || name;
+      if (name === 'roles') fetchRoles();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    function getRoleAvatar(role) {
+      const name = typeof role === 'string' ? role : (role && role.name) || 'base';
+      return roleAvatars[name] || 'cat-icon.png';
+    }
+
+    function renderRoleAvatar(role, size) {
+      const src = getRoleAvatar(role);
+      const label = typeof role === 'string' ? role : (role && (role.displayName || role.name)) || 'Base';
+      return '<span class="role-avatar '+(size || '')+'"><img src="'+escapeHtml(src)+'" alt="'+escapeHtml(label)+' avatar" /></span>';
     }
 
     async function fetchStatus() {
@@ -1480,6 +1683,7 @@
         document.querySelector('.sidebar-brand-ver').textContent = 'v' + (data.version || '-');
         renderStatus(data);
         renderServices(data.services || []);
+        updateActiveRolePill(data.roleDetail || null);
         document.getElementById('footer-platform').textContent = data.platform || '-';
         document.getElementById('footer-node').textContent = data.nodeVersion || '-';
         document.getElementById('topbar-status').textContent = '在线';
@@ -1496,13 +1700,26 @@
       try {
         const res = await fetch(API+'/api/skills-all');
         const skills = await res.json();
-        renderSkills(skills);
+        skillsState = Array.isArray(skills) ? skills : [];
+        renderSkills(skillsState);
       } catch (e) { document.getElementById('skills-grid').innerHTML = '<div class="loading">无法加载</div>'; }
     }
 
+    async function fetchRoles() {
+      try {
+        const res = await fetch(API+'/api/roles');
+        rolesState = await res.json();
+        renderRoles(rolesState);
+      } catch (e) {
+        document.getElementById('roles-grid').innerHTML = '<div class="loading">无法加载角色</div>';
+      }
+    }
+
     function renderStatus(d) {
+      const roleName = d.roleDetail ? d.roleDetail.displayName : (d.role || 'Base');
       document.getElementById('status-grid').innerHTML =
         '<div class="status-card"><div class="label">Version</div><div class="value">'+d.version+'</div></div>'+
+        '<div class="status-card"><div class="label">Role</div><div class="value role-value">'+renderRoleAvatar(d.roleDetail || 'base', 'sm')+'<span>'+escapeHtml(roleName || 'Base')+'</span></div></div>'+
         '<div class="status-card"><div class="label">Provider</div><div class="value">'+(d.provider||'-')+'</div></div>'+
         '<div class="status-card"><div class="label">Host</div><div class="value">'+d.hostname+'</div></div>'+
         '<div class="status-card"><div class="label">Skills Path</div><div class="value" style="font-size:12px;word-break:break-all">'+d.skillsPath+'</div></div>';
@@ -1513,7 +1730,8 @@
       if (!svcs.length) { g.innerHTML = '<div class="loading">无服务</div>'; return; }
       g.innerHTML = svcs.map(s => {
         const r = s.status==='running', up = r&&s.uptime?formatUptime(s.uptime):'-';
-        return '<div class="service-card"><div class="service-header"><div class="service-name">'+s.label+'</div><span class="service-status '+s.status+'">'+s.status+'</span></div><div class="service-detail">'+(r?'<span>PID: '+s.pid+'</span><span>Uptime: '+up+'</span>':'')+(s.lastError?'<span style="color:var(--red)">'+s.lastError+'</span>':'')+'</div><div class="service-actions">'+(r?'<button class="btn btn-danger" onclick="svcAction(\''+s.name+'\',\'stop\')">停止</button><button class="btn" onclick="svcAction(\''+s.name+'\',\'restart\')">重启</button>':'<button class="btn btn-success" onclick="svcAction(\''+s.name+'\',\'start\')">启动</button>')+'<button class="btn" onclick="showLogs(\''+s.name+'\',\''+s.label+'\')">日志</button></div></div>';
+        const role = s.role ? '<span class="role-value">'+renderRoleAvatar(s.role, 'sm')+'<span>Role: '+escapeHtml(s.role)+'</span></span>' : '';
+        return '<div class="service-card"><div class="service-header"><div class="service-name">'+escapeHtml(s.label)+'</div><span class="service-status '+s.status+'">'+s.status+'</span></div><div class="service-detail">'+(r?'<span>PID: '+s.pid+'</span><span>Uptime: '+up+'</span>'+role:'')+(s.lastError?'<span style="color:var(--red)">'+escapeHtml(s.lastError)+'</span>':'')+'</div><div class="service-actions">'+(r?'<button class="btn btn-danger" onclick="svcAction(\''+s.name+'\',\'stop\')">停止</button><button class="btn" onclick="svcAction(\''+s.name+'\',\'restart\')">重启</button>':'<button class="btn btn-success" onclick="svcAction(\''+s.name+'\',\'start\')">启动</button>')+'<button class="btn" onclick="showLogs(\''+s.name+'\',\''+s.label+'\')">日志</button></div></div>';
       }).join('');
     }
 
@@ -1521,7 +1739,93 @@
       document.getElementById('skill-count').textContent = skills.length;
       const g = document.getElementById('skills-grid');
       if (!skills.length) { g.innerHTML = '<div class="loading">暂无 Skills</div>'; return; }
-      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">已禁用</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div><div class="skill-meta">'+(sk.userInvocable?'<span class="tag active">用户调用</span>':'')+(sk.autoInvocable?'<span class="tag active">自动调用</span>':'')+(sk.maxTurns?'<span class="tag">max '+sk.maxTurns+' turns</span>':'')+'</div>'+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+'<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+sk.name+'\',' +(sk.enabled!==false)+')">'+(sk.enabled===false?'启用':'禁用')+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+sk.name+'\')">删除</button></div></div>').join('');
+      const roleSkills = skills.filter(sk => sk.roleOwned);
+      const runtimeSkills = skills.filter(sk => !sk.roleOwned);
+      g.innerHTML = '<div class="skill-groups">'+
+        renderSkillGroup('role', '角色 Skills', '当前角色专属能力', roleSkills)+
+        renderSkillGroup('runtime', 'Runtime Skills', '基础运行时与通用能力', runtimeSkills)+
+      '</div>';
+    }
+
+    function renderSkillGroup(key, title, subtitle, skills) {
+      const collapsed = skillGroupCollapsed[key];
+      const cards = skills.length
+        ? '<div class="skills-grid">'+skills.map(renderSkillCard).join('')+'</div>'
+        : '<div class="loading">暂无 '+escapeHtml(title)+'</div>';
+      return '<section class="skill-group'+(collapsed?' collapsed':'')+'" id="skill-group-'+key+'">'+
+        '<div class="skill-group-header" onclick="toggleSkillGroup(\''+key+'\')">'+
+          '<div class="skill-group-title">'+escapeHtml(title)+' <span class="badge">'+skills.length+'</span></div>'+
+          '<div class="skill-group-meta"><span>'+escapeHtml(subtitle)+'</span><span class="skill-group-chevron"></span></div>'+
+        '</div>'+
+        cards+
+      '</section>';
+    }
+
+    function renderSkillCard(sk) {
+      const canManage = sk.enabled !== false;
+      const roleTag = sk.roleOwned ? '<span class="tag warm">角色</span>' : '<span class="tag gray">Runtime</span>';
+      return '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'">'+
+        '<div class="skill-name">'+escapeHtml(sk.name)+(sk.enabled===false?' <span class="tag red">已禁用</span>':'')+'</div>'+
+        '<div class="skill-desc">'+escapeHtml(sk.description||'')+'</div>'+
+        '<div class="skill-tags">'+roleTag+(sk.userInvocable?'<span class="tag green">用户调用</span>':'')+(sk.autoInvocable?'<span class="tag purple">自动调用</span>':'')+(sk.maxTurns?'<span class="tag gray">max '+sk.maxTurns+' turns</span>':'')+'</div>'+
+        (sk.aliases&&sk.aliases.length?'<div class="skill-files">Aliases: '+sk.aliases.map(escapeHtml).join(', ')+'</div>':'')+
+        (sk.files?'<div class="skill-files">'+sk.files.map(escapeHtml).join(', ')+'</div>':'')+
+        '<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+escapeHtml(sk.name)+'\','+canManage+')">'+(sk.enabled===false?'启用':'禁用')+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+escapeHtml(sk.name)+'\')">删除</button></div>'+
+      '</div>';
+    }
+
+    function toggleSkillGroup(key) {
+      skillGroupCollapsed[key] = !skillGroupCollapsed[key];
+      renderSkills(skillsState);
+    }
+
+    function updateActiveRolePill(role) {
+      const pill = document.getElementById('active-role-pill');
+      if (!pill) return;
+      const label = role && role.displayName ? role.displayName : 'Base';
+      pill.innerHTML = renderRoleAvatar(role || 'base', 'sm') + '<span>当前角色：' + escapeHtml(label) + '</span>';
+    }
+
+    function renderRoles(data) {
+      const roles = data.roles || [];
+      document.getElementById('role-count').textContent = roles.length;
+      const active = roles.find(r => r.active) || roles.find(r => r.name === 'base') || null;
+      updateActiveRolePill(active);
+      const g = document.getElementById('roles-grid');
+      if (!roles.length) { g.innerHTML = '<div class="loading">暂无角色</div>'; return; }
+      g.innerHTML = roles.map(role => {
+        const roleSkills = role.roleSkills || [];
+        const tags = [
+          role.active ? '<span class="tag green">当前</span>' : '',
+          role.inheritBaseSkills === false ? '<span class="tag gray">独立 skills</span>' : '<span class="tag purple">继承基础</span>',
+          role.roleSkillCount ? '<span class="tag warm">'+role.roleSkillCount+' role skills</span>' : '',
+        ].join('');
+        const skillPreview = roleSkills.slice(0, 5).map(s => '<span class="tag gray">'+escapeHtml(s.name)+'</span>').join('');
+        return '<div class="skill-card role-card'+(role.active?' active':'')+'">'+
+          '<div class="skill-header">'+renderRoleAvatar(role, 'lg')+'<div class="skill-title-block"><div class="skill-name">'+escapeHtml(role.displayName || role.name)+'</div><div class="skill-files">'+escapeHtml(role.name)+'</div></div></div>'+
+          '<div class="skill-desc">'+escapeHtml(role.description || '默认运行角色')+'</div>'+
+          '<div class="skill-tags">'+tags+'</div>'+
+          (skillPreview ? '<div class="skill-tags">'+skillPreview+'</div>' : '')+
+          (role.aliases&&role.aliases.length?'<div class="skill-files">Aliases: '+role.aliases.map(escapeHtml).join(', ')+'</div>':'')+
+          '<div class="skill-actions">'+(role.active?'<button class="btn" disabled>已启用</button>':'<button class="btn btn-primary" onclick="activateRole(\''+escapeHtml(role.name)+'\')">启用</button>')+'</div>'+
+        '</div>';
+      }).join('');
+    }
+
+    async function activateRole(roleName) {
+      try {
+        const res = await fetch(API+'/api/roles/active', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: roleName }) });
+        const data = await res.json();
+        if (data.error) { alert('切换失败: '+data.error); return; }
+        if (data.requiresRestart) {
+          alert('角色已切换。正在运行的服务需要重启后才会使用新角色。');
+        }
+        await fetchRoles();
+        await fetchStatus();
+        await fetchSkills();
+      } catch (e) {
+        alert('切换失败: '+e.message);
+      }
     }
 
     async function svcAction(n,a) { try{await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});setTimeout(fetchStatus,500);}catch(e){alert('操作失败: '+e.message);} }
@@ -1649,7 +1953,7 @@
     }
 
     // Init
-    fetchStatus();fetchSkills();fetchConfig();fetchStore();
+    fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();
     setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);
     document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLogs();});
     document.getElementById('logs-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLogs();});

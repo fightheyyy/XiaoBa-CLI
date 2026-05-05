@@ -1,23 +1,25 @@
 ---
-name: paper-reading-doctor
+name: paper-reader
 description: 逐章读取论文、审稿意见和图表证据，提炼 claim map、图表要点和可交给结果审计/稿件同步的结构化结论
+aliases:
+  - paper-reading-doctor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<论文或稿件路径> [结果路径] [审稿意见路径]"
 max-turns: 35
 ---
 
-# Paper Reading Doctor
+# Paper Reader
 
-把论文读懂，再交给后续 doctor 技能处理。
+把论文读懂，再交给后续研究工作流处理。
 
-这个 skill 吸收了旧 `paper-analysis` 的核心思路，但不依赖那套重解析流水线。它服务的是 `SciPaperDoctor` 的主链路：
+这个 skill 吸收了旧 `paper-analysis` 的核心思路，但不依赖那套重解析流水线。它服务的是 `ResearcherCat` 的主链路：
 
 - 先读论文和审稿意见
 - 再抽出 claim map、图表证据和风险点
-- 然后把结论交给 `experiment-result-auditor` 或 `manuscript-result-sync`
+- 然后把结论交给 `evidence-auditor` 或 `manuscript-sync`
 
 ## 触发条件
 
@@ -46,7 +48,7 @@ max-turns: 35
 2. 如果工作区里已有 `full.md`、章节分析或图表说明，优先利用这些结构化产物
 3. 只有在当前仓库确实存在解析链路时，才通过 `execute_shell` 调用外部解析脚本
 4. 不要把“作者写了什么”直接当成“结果已经支持”
-5. 每次输出都要明确哪些 claim 仍需要 `experiment-result-auditor` 继续核证
+5. 每次输出都要明确哪些 claim 仍需要 `evidence-auditor` 继续核证
 
 ## 推荐工作流
 
@@ -73,11 +75,11 @@ max-turns: 35
    - 需要什么证据支持
    - 目前是否已经有结果文件对应
 5. 输出移交建议：
-   - 哪些交给 `paper-outline-doctor`
-   - 哪些交给 `experiment-result-auditor`
-   - 哪些交给 `manuscript-result-sync`
-   - 哪些交给 `reviewer-response-doctor`
-   - 哪些属于 `latex-compile-doctor`
+   - 哪些交给 `paper-architect`
+   - 哪些交给 `evidence-auditor`
+   - 哪些交给 `manuscript-sync`
+   - 哪些交给 `revision-planner`
+   - 哪些属于 `latex-compiler`
 
 ## PDF 与解析策略
 
@@ -144,22 +146,22 @@ max-turns: 35
 - 导师交付点：
 
 ## 移交建议
-- 给 experiment-result-auditor：
-- 给 manuscript-result-sync：
-- 给 latex-compile-doctor：
+- 给 evidence-auditor：
+- 给 manuscript-sync：
+- 给 latex-compiler：
 ```
 
 ## 与其他技能的关系
 
-- 如果当前主要任务是先把论文结构和章节顺序搭出来，交给 `paper-outline-doctor`
-- 读懂论文后，结果核证交给 `experiment-result-auditor`
-- 需要把已确认结果落回稿件时，交给 `manuscript-result-sync`
-- 需要先拆审稿意见和回复策略时，交给 `reviewer-response-doctor`
-- 发现主要问题是编译、导出、表格排版时，交给 `latex-compile-doctor`
-- 发现主要问题是实验仍未产出、日志不稳、脚本未跑通时，交给 `experiment-runner-doctor`
+- 如果当前主要任务是先把论文结构和章节顺序搭出来，交给 `paper-architect`
+- 读懂论文后，结果核证交给 `evidence-auditor`
+- 需要把已确认结果落回稿件时，交给 `manuscript-sync`
+- 需要先拆审稿意见和回复策略时，交给 `revision-planner`
+- 发现主要问题是编译、导出、表格排版时，交给 `latex-compiler`
+- 发现主要问题是实验仍未产出、日志不稳、脚本未跑通时，交给 `experiment-runner`
 
 ## 注意事项
 
-- 这不是泛论文总结 skill，而是为论文交付服务的 doctor skill
+- 这不是泛论文总结 skill，而是为论文交付服务的研究阅读 skill
 - 不要花大量篇幅复述背景知识，重点是 claim、证据、风险和后续动作
 - 如果只有局部材料，也可以先做局部 claim map，但要明确范围

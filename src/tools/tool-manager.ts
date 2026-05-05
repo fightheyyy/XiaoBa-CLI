@@ -14,7 +14,6 @@ import { SpawnSubagentTool } from './spawn-subagent-tool';
 import { CheckSubagentTool } from './check-subagent-tool';
 import { StopSubagentTool } from './stop-subagent-tool';
 import { ResumeSubagentTool } from './resume-subagent-tool';
-import { getRoleSpecificTools } from '../roles/runtime-role-registry';
 
 /**
  * 工具名别名映射（Claude Code 工具名 → XiaoBa 内部注册名）
@@ -51,13 +50,16 @@ export class ToolManager implements ToolExecutor {
   private tools: Map<string, Tool> = new Map();
   private workingDirectory: string;
   private contextDefaults: Partial<ToolExecutionContext>;
+  private extraTools: Tool[];
 
   constructor(
     workingDirectory: string = process.cwd(),
     contextDefaults: Partial<ToolExecutionContext> = {},
+    extraTools: Tool[] = [],
   ) {
     this.workingDirectory = workingDirectory;
     this.contextDefaults = contextDefaults;
+    this.extraTools = extraTools;
     this.registerDefaultTools();
   }
 
@@ -86,8 +88,8 @@ export class ToolManager implements ToolExecutor {
     // Skill 调用 (1)
     this.registerTool(new SkillTool());
 
-    // 角色专属工具
-    for (const tool of getRoleSpecificTools()) {
+    // 额外工具由组合层注入，基础 runtime 不直接依赖 role registry。
+    for (const tool of this.extraTools) {
       this.registerTool(tool);
     }
   }

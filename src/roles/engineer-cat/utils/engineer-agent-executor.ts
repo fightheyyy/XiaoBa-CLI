@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRoleAwareToolManager } from '../../../bootstrap/tool-manager';
 import { AgentSession, AgentServices } from '../../../core/agent-session';
 import { SkillManager } from '../../../skills/skill-manager';
-import { ToolManager } from '../../../tools/tool-manager';
 import { AutoDevCaseDetail } from '../../../utils/autodev-client';
 import { AutoDevEngineerOutput, readJsonFile } from '../../../utils/autodev-loop-contract';
 import { AIService } from '../../../utils/ai-service';
@@ -68,7 +68,7 @@ export class EngineerAgentExecutionExecutor implements EngineerExecutionExecutor
 
     const services: AgentServices = {
       aiService: new AIService(),
-      toolManager: new ToolManager(this.repoRoot),
+      toolManager: createRoleAwareToolManager(this.repoRoot),
       skillManager,
     };
 

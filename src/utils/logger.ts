@@ -75,6 +75,14 @@ export class Logger {
     this.logStream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
   }
 
+  static setSilentMode(silent: boolean): void {
+    this.silentMode = silent;
+  }
+
+  static isSilentMode(): boolean {
+    return this.silentMode;
+  }
+
   static closeLogFile(): void {
     if (this.logStream) {
       this.logStream.end();
@@ -89,7 +97,9 @@ export class Logger {
 
   static success(message: string): void {
     this.writeToFile('SUCCESS', message);
-    console.log(styles.success(message));
+    if (!this.silentMode) {
+      console.log(styles.success(message));
+    }
   }
 
   static error(message: string): void {

@@ -1,11 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Lark from '@larksuiteoapi/node-sdk';
+import { createRoleAwareToolManager } from '../../../bootstrap/tool-manager';
 import { AgentSession, AgentServices } from '../../../core/agent-session';
 import { MessageSessionManager } from '../../../core/message-session-manager';
 import { MessageSender } from '../../../feishu/message-sender';
 import { SkillManager } from '../../../skills/skill-manager';
-import { ToolManager } from '../../../tools/tool-manager';
 import { ChannelCallbacks } from '../../../types/tool';
 import { AIService } from '../../../utils/ai-service';
 import { Logger } from '../../../utils/logger';
@@ -77,7 +77,7 @@ export class InspectorAgentReviewExecutor implements InspectorReviewExecutor {
 
     const services: AgentServices = {
       aiService: new AIService(),
-      toolManager: new ToolManager(caseDir),
+      toolManager: createRoleAwareToolManager(caseDir),
       skillManager,
     };
 

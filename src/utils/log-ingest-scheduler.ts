@@ -1,9 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
-import { RoleResolver } from './role-resolver';
 import { Logger } from './logger';
-import { AutoDevClient } from './autodev-client';
+import { AutoDevLogClient } from './autodev-log-client';
 import {
   getLogIngestAutoMaxFiles,
   getLogIngestAutoTime,
@@ -44,8 +43,10 @@ export class LogIngestScheduler {
   }
 
   static shouldStartForCurrentRuntime(): boolean {
-    const activeRole = RoleResolver.getActiveRoleName();
-    const normalizedRole = activeRole ? RoleResolver.normalizeRoleName(activeRole) : '';
+    const normalizedRole = String(process.env.XIAOBA_ROLE || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, '-');
     return LogIngestScheduler.isEnabled()
       && normalizedRole !== 'inspector-cat'
       && !!getLogIngestServerUrl();
@@ -91,7 +92,7 @@ export class LogIngestScheduler {
         return;
       }
 
-      const client = new AutoDevClient();
+      const client = new AutoDevLogClient();
       if (!client.isConfigured()) {
         Logger.warning('[LogIngest] AUTODEV_SERVER_URL not set, skipping');
         return;

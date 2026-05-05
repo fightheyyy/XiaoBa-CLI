@@ -46,6 +46,9 @@ export class SkillParser {
     const metadata: SkillMetadata = {
       name: data.name,
       description: data.description,
+      aliases: Array.isArray(data.aliases)
+        ? data.aliases.filter((alias: unknown): alias is string => typeof alias === 'string')
+        : undefined,
       argumentHint: data['argument-hint'] || data.argumentHint,
       userInvocable: data.invocable === 'user' || data.invocable === 'both',
       autoInvocable: data.autoInvocable !== false && data.invocable !== 'user',
@@ -74,6 +77,9 @@ export class SkillParser {
     const metadata: SkillMetadata = {
       name: data.name,
       description: data.description,
+      aliases: Array.isArray(data.aliases)
+        ? data.aliases.filter((alias: unknown): alias is string => typeof alias === 'string')
+        : undefined,
       argumentHint: data['argument-hint'],
       userInvocable: data['user-invocable'] !== false,
       autoInvocable: data['auto-invocable'] !== false,

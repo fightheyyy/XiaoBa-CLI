@@ -1,19 +1,21 @@
 ---
-name: experiment-result-auditor
+name: evidence-auditor
 description: 审计实验结果是否真的支持论文中的表格、结论和叙述
+aliases:
+  - experiment-result-auditor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<结果文件路径> [稿件路径]"
 max-turns: 25
 ---
 
-# Experiment Result Auditor
+# Evidence Auditor
 
 核对实验结果和论文陈述是否一致，防止“稿件已经写了，但结果其实不支持”。
 
-这是 `SciPaperDoctor` 的第一优先技能之一。凡是用户在问：
+这是 `ResearcherCat` 的第一优先技能之一。凡是用户在问：
 
 - 这些结果能不能写进论文
 - 表格是不是和实验一致
@@ -128,7 +130,7 @@ max-turns: 25
 
 - 目前缺哪块证据
 - 还不能写什么
-- 需要交给 `experiment-runner-doctor` 继续推进的部分
+- 需要交给 `experiment-runner` 继续推进的部分
 
 ## 输出格式
 
@@ -173,10 +175,10 @@ max-turns: 25
 
 ## 与其他技能的配合
 
-- 如果用户先给的是论文和审稿意见，还没形成 claim map：先转 `paper-reading-doctor`
-- 如果发现稿件没同步：转 `manuscript-result-sync`
-- 如果发现实验根本没跑完：转 `experiment-runner-doctor`
-- 如果结果文件本身就导不出来或编译链路有问题：转 `latex-compile-doctor`
+- 如果用户先给的是论文和审稿意见，还没形成 claim map：先转 `paper-reader`
+- 如果发现稿件没同步：转 `manuscript-sync`
+- 如果发现实验根本没跑完：转 `experiment-runner`
+- 如果结果文件本身就导不出来或编译链路有问题：转 `latex-compiler`
 - 如果问题更像 runtime/tool 缺陷：明确移交 `InspectorCat`
 
 ## 注意事项

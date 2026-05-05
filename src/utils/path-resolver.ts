@@ -1,13 +1,13 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { RoleResolver } from './role-resolver';
+import { ActiveRoleContext } from './active-role-context';
 
 /**
  * 路径解析工具类
  */
 export class PathResolver {
   static getProjectRoot(): string {
-    return RoleResolver.getProjectRoot();
+    return ActiveRoleContext.getProjectRoot();
   }
 
   static getPromptsPath(): string {
@@ -19,7 +19,7 @@ export class PathResolver {
   }
 
   static getActiveRolePath(): string | undefined {
-    return RoleResolver.getActiveRolePath();
+    return ActiveRoleContext.getActiveRolePath();
   }
 
   static getRoleSubPath(relativePath: string): string | undefined {

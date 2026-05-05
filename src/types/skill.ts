@@ -4,6 +4,7 @@
 export interface SkillMetadata {
   name: string;                    // skill 名称
   description: string;             // 描述（用于自动匹配）
+  aliases?: string[];              // 兼容旧名称或别名
   argumentHint?: string;           // 参数提示
   userInvocable?: boolean;         // 是否允许用户调用（默认 true）
   autoInvocable?: boolean;         // 是否允许自动调用（默认 true）

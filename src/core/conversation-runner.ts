@@ -174,7 +174,7 @@ export class ConversationRunner {
         const threshold = this.maxPromptTokens * 0.5;
         if (totalTokens > threshold) {
           Logger.info(`上下文使用率 ${usagePercent}%，触发压缩...`);
-          const compacted = await this.compressor.compact(messages);
+          const compacted = await this.compressor.compactWithFallback(messages);
           messages.length = 0;
           messages.push(...compacted);
         }
@@ -379,14 +379,24 @@ export class ConversationRunner {
    * 处理需要显示输出的工具
    */
   private handleToolDisplay(toolCall: ToolCall, content: string, callbacks?: RunnerCallbacks): void {
-    if (toolCall.function.name === 'task_planner' && callbacks?.onToolDisplay) {
+    const toolName = toolCall.function.name;
+    if (!callbacks?.onToolDisplay) {
+      return;
+    }
+
+    if (toolName.startsWith('codex_job_')) {
+      callbacks.onToolDisplay(toolName, content);
+      return;
+    }
+
+    if (toolName === 'task_planner') {
       try {
         const args = JSON.parse(toolCall.function.arguments);
         if (args.action === 'create' || args.action === 'update') {
-          callbacks.onToolDisplay(toolCall.function.name, content);
+          callbacks.onToolDisplay(toolName, content);
         }
       } catch {
-        callbacks.onToolDisplay(toolCall.function.name, content);
+        callbacks.onToolDisplay(toolName, content);
       }
     }
   }

@@ -8,12 +8,13 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import * as https from 'https';
 import * as http from 'http';
+import { getDashboardActiveRole, registerDashboardApiExtensions } from '../../bootstrap/dashboard-api';
 import { PathResolver } from '../../utils/path-resolver';
 import { RoleResolver } from '../../utils/role-resolver';
+import { SkillParser } from '../../skills/skill-parser';
 import matter from 'gray-matter';
 import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
-import { registerRoleSpecificApiRoutes } from '../../roles/runtime-role-registry';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
@@ -45,9 +46,11 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
   router.get('/status', (_req, res) => {
     const config = ConfigManager.getConfig();
     const services = serviceManager.getAll();
+    const activeRole = getDashboardActiveRole();
     res.json({
       version: APP_VERSION,
-      role: RoleResolver.getActiveRoleName() || null,
+      role: activeRole,
+      roleDetail: getRoleSummary(activeRole || 'base', activeRole),
       hostname: os.hostname(),
       platform: os.platform(),
       nodeVersion: process.version,
@@ -56,6 +59,72 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       skillsPath: PathResolver.getSkillsPath(),
       services,
     });
+  });
+
+  // ==================== 角色管理 ====================
+
+  router.get('/roles', async (_req, res) => {
+    try {
+      const activeRole = getDashboardActiveRole();
+      const roles = [
+        getBaseRoleSummary(activeRole),
+        ...RoleResolver.listAvailableRoles().map(roleName => getRoleSummary(roleName, activeRole)),
+      ];
+      res.json({
+        active: activeRole || null,
+        roles,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post('/roles/active', (req, res) => {
+    try {
+      const roleName = typeof req.body?.role === 'string' ? req.body.role.trim() : '';
+
+      if (!roleName || ['base', 'default', 'none'].includes(RoleResolver.normalizeRoleName(roleName))) {
+        RoleResolver.clearActiveRole();
+      } else {
+        RoleResolver.activateRole(roleName);
+      }
+
+      const activeRole = getDashboardActiveRole();
+      const runningServices = serviceManager.getAll().filter(service => service.status === 'running');
+      res.json({
+        ok: true,
+        active: activeRole || null,
+        role: getRoleSummary(activeRole || 'base', activeRole),
+        runningServices,
+        requiresRestart: runningServices.length > 0,
+      });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  router.get('/roles/:name/skills', async (req, res) => {
+    try {
+      const roleName = req.params.name;
+      const skills = await withTemporaryRole(roleName, async () => {
+        const manager = new SkillManager();
+        await manager.loadSkills();
+        return manager.getAllSkills().map(s => ({
+          name: s.metadata.name,
+          aliases: s.metadata.aliases || [],
+          description: s.metadata.description,
+          argumentHint: s.metadata.argumentHint || null,
+          userInvocable: s.metadata.userInvocable !== false,
+          autoInvocable: s.metadata.autoInvocable !== false,
+          maxTurns: s.metadata.maxTurns || null,
+          path: s.filePath,
+          roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
+        }));
+      });
+      res.json(skills);
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
   });
 
   // ==================== 服务管理 ====================
@@ -156,12 +225,14 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       await manager.loadSkills();
       const active = manager.getAllSkills().map(s => ({
         name: s.metadata.name,
+        aliases: s.metadata.aliases || [],
         description: s.metadata.description,
         argumentHint: s.metadata.argumentHint || null,
         userInvocable: s.metadata.userInvocable !== false,
         autoInvocable: s.metadata.autoInvocable !== false,
         maxTurns: s.metadata.maxTurns || null,
         path: s.filePath,
+        roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
         files: getSkillFiles(s.filePath),
         enabled: true,
       }));
@@ -178,12 +249,14 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       await manager.loadSkills();
       res.json(manager.getAllSkills().map(s => ({
         name: s.metadata.name,
+        aliases: s.metadata.aliases || [],
         description: s.metadata.description,
         argumentHint: s.metadata.argumentHint || null,
         userInvocable: s.metadata.userInvocable !== false,
         autoInvocable: s.metadata.autoInvocable !== false,
         maxTurns: s.metadata.maxTurns || null,
         path: s.filePath,
+        roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
         files: getSkillFiles(s.filePath),
       })));
     } catch (e: any) {
@@ -199,9 +272,11 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       if (!skill) return res.status(404).json({ error: 'Skill not found' });
       res.json({
         name: skill.metadata.name,
+        aliases: skill.metadata.aliases || [],
         description: skill.metadata.description,
         content: skill.content,
         path: skill.filePath,
+        roleOwned: skill.filePath.includes(`${path.sep}roles${path.sep}`),
         files: getSkillFiles(skill.filePath),
       });
     } catch (e: any) {
@@ -440,7 +515,7 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
   });
   */
 
-  registerRoleSpecificApiRoutes(router);
+  registerDashboardApiExtensions(router);
 
   return router;
 }
@@ -656,6 +731,118 @@ function getSkillFiles(skillFilePath: string): string[] {
     const dir = path.dirname(skillFilePath);
     return fs.readdirSync(dir).filter(e => !e.startsWith('.') && e !== '__pycache__');
   } catch { return []; }
+}
+
+function getBaseRoleSummary(activeRole?: string | null): any {
+  return {
+    name: 'base',
+    displayName: 'Base',
+    description: '默认 XiaoBa 角色，加载基础 prompt 和通用 skills。',
+    aliases: ['default', 'none'],
+    promptFile: 'system-prompt.md',
+    active: !activeRole,
+    path: null,
+    roleSkillCount: 0,
+    roleSkills: [],
+  };
+}
+
+function getRoleSummary(roleName: string, activeRole?: string | null): any {
+  if (['base', 'default', 'none', ''].includes(RoleResolver.normalizeRoleName(roleName))) {
+    return getBaseRoleSummary(activeRole);
+  }
+
+  const resolvedRoleName = RoleResolver.resolveRoleDirectoryName(roleName) || roleName;
+  const config = RoleResolver.getRoleConfig(resolvedRoleName);
+  const rolePath = path.join(RoleResolver.getRolesRoot(), resolvedRoleName);
+  const roleSkills = listRoleOwnedSkills(rolePath);
+
+  return {
+    name: resolvedRoleName,
+    displayName: config?.displayName || resolvedRoleName,
+    description: config?.description || '',
+    aliases: config?.aliases || [],
+    promptFile: config?.promptFile || null,
+    inheritBaseSkills: config?.inheritBaseSkills !== false,
+    excludeBaseSkills: config?.excludeBaseSkills || [],
+    active: !!activeRole && RoleResolver.normalizeRoleName(activeRole) === RoleResolver.normalizeRoleName(resolvedRoleName),
+    path: fs.existsSync(rolePath) ? rolePath : null,
+    roleSkillCount: roleSkills.length,
+    roleSkills,
+  };
+}
+
+function listRoleOwnedSkills(rolePath: string): any[] {
+  const skillsPath = path.join(rolePath, 'skills');
+  if (!fs.existsSync(skillsPath)) {
+    return [];
+  }
+
+  const results: any[] = [];
+  for (const filePath of findSkillMdFiles(skillsPath)) {
+    try {
+      const skill = SkillParser.parse(filePath);
+      results.push({
+        name: skill.metadata.name,
+        aliases: skill.metadata.aliases || [],
+        description: skill.metadata.description,
+        path: filePath,
+      });
+    } catch {
+      // 单个 skill 解析失败不影响角色列表。
+    }
+  }
+  return results.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function findSkillMdFiles(basePath: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(basePath)) {
+    return results;
+  }
+
+  for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
+    const fullPath = path.join(basePath, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...findSkillMdFiles(fullPath));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.toLowerCase() === 'skill.md') {
+      results.push(fullPath);
+    }
+  }
+
+  return results;
+}
+
+async function withTemporaryRole<T>(roleName: string, fn: () => Promise<T>): Promise<T> {
+  const previous = {
+    XIAOBA_ROLE: process.env.XIAOBA_ROLE,
+    CURRENT_ROLE: process.env.CURRENT_ROLE,
+    CURRENT_ROLE_DISPLAY_NAME: process.env.CURRENT_ROLE_DISPLAY_NAME,
+  };
+
+  try {
+    if (!roleName || ['base', 'default', 'none'].includes(RoleResolver.normalizeRoleName(roleName))) {
+      RoleResolver.clearActiveRole();
+    } else {
+      RoleResolver.activateRole(roleName);
+    }
+    return await fn();
+  } finally {
+    restoreEnvValue('XIAOBA_ROLE', previous.XIAOBA_ROLE);
+    restoreEnvValue('CURRENT_ROLE', previous.CURRENT_ROLE);
+    restoreEnvValue('CURRENT_ROLE_DISPLAY_NAME', previous.CURRENT_ROLE_DISPLAY_NAME);
+  }
+}
+
+function restoreEnvValue(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
 }
 
 function findDisabledSkillByName(basePath: string, name: string): string | null {

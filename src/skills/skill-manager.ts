@@ -1,6 +1,6 @@
 import { Skill } from '../types/skill';
 import { PathResolver } from '../utils/path-resolver';
-import { RoleResolver } from '../utils/role-resolver';
+import { ActiveRoleContext } from '../utils/active-role-context';
 import { SkillParser } from './skill-parser';
 import { Logger } from '../utils/logger';
 
@@ -9,10 +9,12 @@ import { Logger } from '../utils/logger';
  */
 export class SkillManager {
   private skills: Map<string, Skill>;
+  private skillAliases: Map<string, string>;
   private skillsPath: string;
 
   constructor() {
     this.skills = new Map();
+    this.skillAliases = new Map();
     this.skillsPath = PathResolver.getSkillsPath();
   }
 
@@ -21,8 +23,9 @@ export class SkillManager {
    */
   async loadSkills(): Promise<void> {
     this.skills.clear();
+    this.skillAliases.clear();
 
-    const roleConfig = RoleResolver.getActiveRoleConfig();
+    const roleConfig = ActiveRoleContext.getActiveRoleConfig();
     const inheritBaseSkills = roleConfig?.inheritBaseSkills !== false;
     const excludedBaseSkills = new Set(
       (roleConfig?.excludeBaseSkills || []).map(name => name.trim()).filter(Boolean)
@@ -56,6 +59,12 @@ export class SkillManager {
             continue;
           }
           this.skills.set(skill.metadata.name, skill);
+          for (const alias of skill.metadata.aliases || []) {
+            const normalizedAlias = this.normalizeSkillName(alias);
+            if (normalizedAlias && !this.skills.has(normalizedAlias)) {
+              this.skillAliases.set(normalizedAlias, skill.metadata.name);
+            }
+          }
         } catch (error: any) {
           Logger.warning(`Failed to load skill from ${filePath}: ${error.message}`);
         }
@@ -69,7 +78,8 @@ export class SkillManager {
    * 根据名称获取 skill
    */
   getSkill(name: string): Skill | undefined {
-    return this.skills.get(name);
+    const canonicalName = this.skillAliases.get(this.normalizeSkillName(name)) || name;
+    return this.skills.get(canonicalName);
   }
 
   /**
@@ -106,7 +116,10 @@ export class SkillManager {
     if (!normalizedText) return undefined;
 
     const candidates = this.getAutoInvocableSkills()
-      .filter(skill => this.isSkillMentioned(normalizedText, skill.metadata.name));
+      .filter(skill => [
+        skill.metadata.name,
+        ...(skill.metadata.aliases || []),
+      ].some(name => this.isSkillMentioned(normalizedText, name)));
 
     if (candidates.length === 0) {
       return undefined;
@@ -125,6 +138,10 @@ export class SkillManager {
 
   private normalizeText(text: string): string {
     return text.trim().toLowerCase();
+  }
+
+  private normalizeSkillName(name: string): string {
+    return name.trim().toLowerCase();
   }
 
   private isSkillMentioned(text: string, skillName: string): boolean {

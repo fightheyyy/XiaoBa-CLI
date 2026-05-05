@@ -1,8 +1,6 @@
-import { RoleRuntimeSupport, startRoleRuntimeServices } from '../roles/runtime-role-registry';
 import { LogIngestScheduler } from './log-ingest-scheduler';
 
 interface ActiveRuntimeSupport {
-  roleSupport: RoleRuntimeSupport | null;
   logIngestScheduler: LogIngestScheduler | null;
   stop(): Promise<void>;
 }
@@ -17,7 +15,6 @@ export async function startRuntimeCommandSupport(): Promise<ActiveRuntimeSupport
 
   if (!startPromise) {
     startPromise = (async () => {
-      const roleSupport = await startRoleRuntimeServices({ workingDirectory: process.cwd() });
       const logIngestScheduler = LogIngestScheduler.shouldStartForCurrentRuntime()
         ? new LogIngestScheduler(process.cwd())
         : null;
@@ -27,14 +24,10 @@ export async function startRuntimeCommandSupport(): Promise<ActiveRuntimeSupport
       }
 
       const support: ActiveRuntimeSupport = {
-        roleSupport,
         logIngestScheduler,
         async stop() {
           if (logIngestScheduler) {
             await logIngestScheduler.stop();
-          }
-          if (roleSupport) {
-            await roleSupport.stop();
           }
         },
       };

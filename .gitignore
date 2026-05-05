@@ -1,34 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build and release outputs
 dist/
 release/
+out/
+build/
+.tmp/
+.tmp-test-build/
+tmp/
+
+# Environment files
 .env
-*.log
+.env.*
+!.env.example
+
+# Runtime data and logs
+data/
+logs/
+files/
 turnLogs/
-__pycache__/
+memory/
+runtime-pr/
+*.log
+
+# Generated or local skill content
 skills/_crafted/
 skills/_learned/
 skills/bio-skills/
 
-# 数据文件
-data/
-logs/
-files/
+# Python caches
+__pycache__/
+*.py[cod]
 
-# 临时文件
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.sublime-*
-
-# 打包文件
+# Archives and packaged installers
+*.zip
+*.tar
+*.tar.gz
+*.tgz
 *.dmg
 *.exe
 *.app
@@ -36,5 +45,19 @@ Thumbs.db
 *.rpm
 *.AppImage
 
-# 系统文件
+# Editor and OS files
+.vscode/
+.idea/
+*.sublime-*
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
 bash.exe.stackdump
+
+# Personal scratch files
+*_resume.tex
+resume*.tex

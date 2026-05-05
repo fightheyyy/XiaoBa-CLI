@@ -2,9 +2,9 @@ import { CatsClient, MessageContext } from './client';
 import { CatsCompanyConfig, ParsedCatsMessage, CatsFileInfo } from './types';
 import { MessageSender } from './message-sender';
 import { extractContentBlocks } from './content-blocks';
+import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentServices, BUSY_MESSAGE } from '../core/agent-session';
 import { Logger } from '../utils/logger';
@@ -68,7 +68,7 @@ export class CatsCompanyBot {
     this.sender = new MessageSender(this.bot, config.httpBaseUrl, config.apiKey);
 
     const aiService = new AIService();
-    const toolManager = new ToolManager();
+    const toolManager = createRoleAwareToolManager();
 
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
     Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);

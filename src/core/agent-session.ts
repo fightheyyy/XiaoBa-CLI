@@ -182,7 +182,7 @@ export class AgentSession {
       if (this.compressor.needsCompaction(this.messages)) {
         Logger.info(`[${this.key}] 超过阈值，开始压缩...`);
         try {
-          this.messages = await this.compressor.compact(this.messages);
+          this.messages = await this.compressor.compactWithFallback(this.messages);
           Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
         } catch (err) {
           Logger.error(`[${this.key}] 压缩失败: ${err}`);
@@ -279,7 +279,7 @@ export class AgentSession {
         const usage = this.compressor.getUsageInfo(this.messages);
         Logger.info(`[${this.key}] 上下文即将压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
         try {
-          this.messages = await this.compressor.compact(this.messages);
+          this.messages = await this.compressor.compactWithFallback(this.messages);
           Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
         } catch (err) {
           Logger.error(`[${this.key}] 压缩失败: ${err}`);

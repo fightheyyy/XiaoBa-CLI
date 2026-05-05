@@ -12,6 +12,13 @@ import { AutoDevInspectorWorker } from './inspector-cat/utils/autodev-inspector-
 import { createInspectorApiRouter } from './inspector-cat/utils/inspector-api-router';
 import { InspectorHookRuntime, InspectorHookRuntimeOptions } from './inspector-cat/utils/inspector-runtime-support';
 import { AutoDevReviewerWorker } from './reviewer-cat/utils/autodev-reviewer-worker';
+import {
+  CodexJobCancelTool,
+  CodexJobResumeTool,
+  CodexJobStartTool,
+  CodexJobStatusTool,
+} from './reviewer-cat/tools/codex-job-tools';
+import { ReviewerModuleTestTool } from './reviewer-cat/tools/module-test-tool';
 
 export interface RoleRuntimeSupport {
   stop(): Promise<void>;
@@ -35,6 +42,15 @@ function isReviewerRole(): boolean {
 export function getRoleSpecificTools(): Tool[] {
   if (isInspectorRole()) {
     return [new AnalyzeLogTool(), new InspectPendingLogsTool(), new RunPendingLogBatchTool(), new RunInspectorBatchTool()];
+  }
+  if (isReviewerRole()) {
+    return [
+      new CodexJobStartTool(),
+      new CodexJobStatusTool(),
+      new CodexJobResumeTool(),
+      new CodexJobCancelTool(),
+      new ReviewerModuleTestTool(),
+    ];
   }
   return [];
 }

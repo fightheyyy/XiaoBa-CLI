@@ -1,15 +1,17 @@
 ---
-name: manuscript-result-sync
+name: manuscript-sync
 description: 根据最新实验结果同步论文中的表格、结果段和相关叙述
+aliases:
+  - manuscript-result-sync
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<稿件路径> <结果文件路径>"
 max-turns: 30
 ---
 
-# Manuscript Result Sync
+# Manuscript Sync
 
 把最新实验结果同步回论文稿件，避免“结果更新了，稿件没跟上”。
 
@@ -30,8 +32,8 @@ max-turns: 30
 ## 工作流程
 
 1. 读取稿件和结果文件
-2. 如果稿件结构、claim 或审稿压力还没理清，先调用 `paper-reading-doctor`
-3. 如果当前其实还在搭章节结构和写作顺序，先调用 `paper-outline-doctor`
+2. 如果稿件结构、claim 或审稿压力还没理清，先调用 `paper-reader`
+3. 如果当前其实还在搭章节结构和写作顺序，先调用 `paper-architect`
 4. 找出：
    - 表格
    - 结果段

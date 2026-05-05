@@ -2,9 +2,9 @@ import axios from 'axios';
 import { WeixinConfig, WeixinMessage } from './types';
 import { MessageHandler } from './message-handler';
 import { MessageSender } from './message-sender';
+import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentServices } from '../core/agent-session';
 import { Logger } from '../utils/logger';
@@ -31,7 +31,7 @@ export class WeixinBot {
     this.stateDir = config.stateDir || path.join(process.cwd(), 'data', 'weixin');
 
     const aiService = new AIService();
-    const toolManager = new ToolManager();
+    const toolManager = createRoleAwareToolManager();
     const skillManager = new SkillManager();
 
     this.agentServices = {

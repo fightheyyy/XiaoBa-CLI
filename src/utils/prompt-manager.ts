@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { PathResolver } from './path-resolver';
-import { RoleResolver } from './role-resolver';
+import { ActiveRoleContext } from './active-role-context';
 
 /**
  * System Prompt 管理器
@@ -68,7 +68,7 @@ export class PromptManager {
    */
   static getBaseSystemPrompt(): string {
     try {
-      const roleConfig = RoleResolver.getActiveRoleConfig();
+      const roleConfig = ActiveRoleContext.getActiveRoleConfig();
       const promptFile = roleConfig?.promptFile || 'system-prompt.md';
       const resolvedPath = this.resolvePromptFile(promptFile);
       if (resolvedPath) {
@@ -117,8 +117,8 @@ export class PromptManager {
       || process.env.BOT_BRIDGE_NAME
       || ''
     ).trim();
-    const roleName = RoleResolver.getActiveRoleName() || '';
-    const roleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME || RoleResolver.getActiveRoleConfig()?.displayName || roleName;
+    const roleName = ActiveRoleContext.getActiveRoleName() || '';
+    const roleDisplayName = ActiveRoleContext.getActiveRoleDisplayName() || roleName;
     const platform = process.env.CURRENT_PLATFORM || '';
     const today = new Date().toISOString().slice(0, 10);
     const runtimeEnvironmentInfo = this.getRuntimeEnvironmentInfo();

@@ -18,6 +18,7 @@ describe('Logger', () => {
 
   afterEach(async () => {
     Logger.closeLogFile();
+    Logger.setSilentMode(false);
     await waitForFlush();
     process.chdir(originalCwd);
     if (testRoot && fs.existsSync(testRoot)) {
@@ -28,6 +29,10 @@ describe('Logger', () => {
   test('runtime log lines include session_id from async context', async () => {
     Logger.openLogFile('test', undefined, true);
     const sessionLogger = new SessionTurnLogger('feishu', 'user:ou_demo');
+    const sessionLogPath = sessionLogger.getLogFilePath();
+    if (fs.existsSync(sessionLogPath)) {
+      fs.unlinkSync(sessionLogPath);
+    }
 
     Logger.info('outside context');
     await Logger.withSessionContext('user:ou_demo', sessionLogger, async () => {
@@ -37,7 +42,6 @@ describe('Logger', () => {
     });
 
     const globalLogPath = Logger.getLogFilePath();
-    const sessionLogPath = sessionLogger.getLogFilePath();
     assert.ok(globalLogPath);
     assert.ok(sessionLogPath);
 

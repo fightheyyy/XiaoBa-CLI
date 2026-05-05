@@ -1,15 +1,17 @@
 ---
-name: latex-compile-doctor
+name: latex-compiler
 description: 编译论文并诊断 LaTeX / Overleaf / 导出链路中的问题
+aliases:
+  - latex-compile-doctor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<稿件路径或项目目录>"
 max-turns: 25
 ---
 
-# LaTeX Compile Doctor
+# LaTeX Compiler
 
 编译论文、定位编译失败原因，并给出最短修复路径。
 

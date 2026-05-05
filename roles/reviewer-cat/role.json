@@ -1,7 +1,7 @@
 {
   "name": "reviewer-cat",
   "displayName": "ReviewerCat",
-  "description": "验收型角色，负责验证 Engineer 结果、决定 closed/reopened，并沉淀回写策略与闭环指标。",
+  "description": "Owner/Test 型角色，负责通过异步 Codex job 把 case 交给 Codex CLI 持续实现与返工，并独立验收 closed/reopened。",
   "promptFile": "reviewer-system-prompt.md",
   "inheritBaseSkills": true,
   "excludeBaseSkills": [
@@ -10,4 +10,3 @@
     "WebCLI"
   ]
 }
-

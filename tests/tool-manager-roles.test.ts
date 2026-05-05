@@ -3,6 +3,7 @@ import * as assert from 'node:assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { createRoleAwareToolManager } from '../src/bootstrap/tool-manager';
 import { ToolManager } from '../src/tools/tool-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
 
@@ -18,9 +19,15 @@ describe('ToolManager role-specific tools', () => {
     RoleResolver.clearActiveRole();
     testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-tool-role-'));
     fs.mkdirSync(path.join(testRoot, 'roles', 'InspectorCat'), { recursive: true });
+    fs.mkdirSync(path.join(testRoot, 'roles', 'reviewer-cat'), { recursive: true });
     fs.writeFileSync(
       path.join(testRoot, 'roles', 'InspectorCat', 'role.json'),
       JSON.stringify({ name: 'inspector-cat', displayName: 'InspectorCat' }, null, 2),
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(testRoot, 'roles', 'reviewer-cat', 'role.json'),
+      JSON.stringify({ name: 'reviewer-cat', displayName: 'ReviewerCat' }, null, 2),
       'utf-8',
     );
     process.chdir(testRoot);
@@ -56,9 +63,25 @@ describe('ToolManager role-specific tools', () => {
     assert.strictEqual(manager.getTool('analyze_log'), undefined);
   });
 
-  test('inspector-cat 角色注册 analyze_log', () => {
+  test('激活角色后基础 ToolManager 仍保持纯 runtime 工具集', () => {
     RoleResolver.activateRole('inspector-cat');
     const manager = new ToolManager();
+    assert.strictEqual(manager.getTool('analyze_log'), undefined);
+  });
+
+  test('inspector-cat 角色通过组合层注册 analyze_log', () => {
+    RoleResolver.activateRole('inspector-cat');
+    const manager = createRoleAwareToolManager();
     assert.ok(manager.getTool('analyze_log'));
+  });
+
+  test('reviewer-cat 角色通过组合层注册 Codex 和模块测试工具', () => {
+    RoleResolver.activateRole('reviewer-cat');
+    const manager = createRoleAwareToolManager();
+    assert.ok(manager.getTool('codex_job_start'));
+    assert.ok(manager.getTool('codex_job_status'));
+    assert.ok(manager.getTool('codex_job_resume'));
+    assert.ok(manager.getTool('codex_job_cancel'));
+    assert.ok(manager.getTool('reviewer_module_test'));
   });
 });

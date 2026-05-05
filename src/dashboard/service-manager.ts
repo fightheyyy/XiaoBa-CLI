@@ -12,6 +12,7 @@ export interface ServiceInfo {
   command: string;
   args: string[];
   status: 'stopped' | 'running' | 'error';
+  role?: string | null;
   pid?: number;
   startedAt?: number;
   uptime?: number;
@@ -156,6 +157,7 @@ export class ServiceManager extends EventEmitter {
 
     svc.process = child;
     svc.info.status = 'running';
+    svc.info.role = envVars.XIAOBA_ROLE || envVars.CURRENT_ROLE || null;
     svc.info.pid = child.pid;
     svc.info.startedAt = Date.now();
     svc.info.lastError = undefined;

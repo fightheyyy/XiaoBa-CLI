@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { createRoleAwareToolManager } from '../../../bootstrap/tool-manager';
 import { AgentSession, AgentServices } from '../../../core/agent-session';
 import { SkillManager } from '../../../skills/skill-manager';
-import { ToolManager } from '../../../tools/tool-manager';
 import { AutoDevCaseDetail } from '../../../utils/autodev-client';
 import { AutoDevReviewerOutput, readJsonFile } from '../../../utils/autodev-loop-contract';
 import { AIService } from '../../../utils/ai-service';
@@ -68,7 +68,7 @@ export class ReviewerAgentExecutionExecutor implements ReviewerExecutionExecutor
 
     const services: AgentServices = {
       aiService: new AIService(),
-      toolManager: new ToolManager(this.repoRoot),
+      toolManager: createRoleAwareToolManager(this.repoRoot),
       skillManager,
     };
 
@@ -80,19 +80,21 @@ export class ReviewerAgentExecutionExecutor implements ReviewerExecutionExecutor
       : '- 无已下载 artifacts';
 
     const taskMessage = [
-      '现在有一个 AutoDev case 转交给你，请你以 ReviewerCat 身份做验收。',
+      '现在有一个 AutoDev case 转交给你，请你以 ReviewerCat 身份做 Owner/Test Agent。',
       '',
       '你的任务：',
       '1. 先读取 case-detail.json、artifacts-manifest.json、Inspector assessment、Engineer implementation 和 patch。',
-      '2. 判断 EngineerCat 的结果是否真的解决了这个 case，或者应该重开。',
-      '3. 必须把验证结果落盘，不能只给一句结论。',
-      '4. 验证报告必须写到：',
+      '2. 如果已有实现不足、缺失或测试失败，必须优先调用 codex_job_start，把 case 交给 Codex CLI 继续实现或返工。',
+      '3. 你可以多轮调用 Codex job 工具：先用 codex_job_status 查结果，后续用 codex_job_resume 传新增失败信息和具体返工要求。',
+      '4. 判断最终工程结果是否真的解决了这个 case，或者应该重开。',
+      '5. 必须把验证结果落盘，不能只给一句结论。',
+      '6. 验证报告必须写到：',
       reviewPath,
-      '5. 结构化决策必须写到：',
+      '7. 结构化决策必须写到：',
       outputPath,
-      '6. closure note 建议写到：',
+      '8. closure note 建议写到：',
       closurePath,
-      '7. reviewer-output.json 必须至少包含这些字段：',
+      '9. reviewer-output.json 必须至少包含这些字段：',
       '{',
       '  "version": 1,',
       '  "summary": "一句话总结验证结论",',
@@ -107,14 +109,23 @@ export class ReviewerAgentExecutionExecutor implements ReviewerExecutionExecutor
       '    "enabled": true 或 false,',
       '    "reason": "是否应该回写到主系统",',
       '    "actions": []',
+      '  },',
+      '  "codingAgent": {',
+      '    "agent": "codex | none",',
+      '    "sessionId": "Codex 官方 session id",',
+      '    "jobIds": ["case 相关 codex job id"],',
+      '    "turns": 0,',
+      '    "status": "implemented | blocked | not_needed"',
       '  }',
       '}',
-      '8. 只有确认结果被验证通过时，才能 decision=closed；否则必须 reopened。',
-      '9. 你不能修改 case 状态，只负责写出验证结论文件。',
+      '10. 只有确认结果被验证通过时，才能 decision=closed；否则必须 reopened。',
+      '11. 你不能直接修改 case 状态，只负责驱动 coding agent、验收、写出验证结论文件。',
+      '12. 不要把 Codex 的自评当成验收证据，必须看 diff、测试结果、文件内容或日志。',
       '',
       `仓库根目录：${this.repoRoot}`,
       `Case 工作目录：${caseDir}`,
       `Case 详情文件：${caseDetailPath}`,
+      `建议 Codex job id 前缀：case-${caseId}`,
       '已下载输入材料：',
       artifactLines,
       '',

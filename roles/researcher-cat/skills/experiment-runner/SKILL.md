@@ -1,15 +1,17 @@
 ---
-name: experiment-runner-doctor
+name: experiment-runner
 description: 启动、监控和诊断长实验运行，减少编码、超时和日志跟踪问题
+aliases:
+  - experiment-runner-doctor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<实验命令或项目目录>"
 max-turns: 30
 ---
 
-# Experiment Runner Doctor
+# Experiment Runner
 
 规范地启动长实验，跟踪状态，并在失败时给出诊断，而不是靠临场 shell 硬试。
 

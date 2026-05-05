@@ -1,15 +1,17 @@
 ---
-name: paper-outline-doctor
+name: paper-architect
 description: 基于项目目标、实验结果、审稿约束和已有稿件，生成论文结构、章节任务分配和写作推进顺序
+aliases:
+  - paper-outline-doctor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<项目背景或稿件路径> [结果路径] [目标投稿信息]"
 max-turns: 30
 ---
 
-# Paper Outline Doctor
+# Paper Architect
 
 把一篇论文该怎么写、先写什么、哪些章节要等结果，拆成可执行的写作计划。
 
@@ -130,10 +132,10 @@ max-turns: 30
 
 ## 与其他技能的关系
 
-- 如果还没读清论文材料，先走 `paper-reading-doctor`
-- 如果某个 claim 是否成立还没确认，交给 `experiment-result-auditor`
-- 如果已经有成熟稿件要落地改写，交给 `manuscript-result-sync`
-- 如果实验证据还没产出，交给 `experiment-runner-doctor`
+- 如果还没读清论文材料，先走 `paper-reader`
+- 如果某个 claim 是否成立还没确认，交给 `evidence-auditor`
+- 如果已经有成熟稿件要落地改写，交给 `manuscript-sync`
+- 如果实验证据还没产出，交给 `experiment-runner`
 
 ## 注意事项
 

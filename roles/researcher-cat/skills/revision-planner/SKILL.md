@@ -1,15 +1,17 @@
 ---
-name: reviewer-response-doctor
+name: revision-planner
 description: 将审稿意见拆成修改任务、证据任务和回复策略，形成可执行的大修闭环
+aliases:
+  - reviewer-response-doctor
 version: 1.0.0
-author: SciPaperDoctor Team
+author: ResearcherCat Team
 user_invocable: true
 invocable: both
 argument-hint: "<审稿意见路径> [稿件路径] [结果路径]"
 max-turns: 35
 ---
 
-# Reviewer Response Doctor
+# Revision Planner
 
 把审稿意见从“长篇批评”拆成一组真正可执行的修改动作。
 
@@ -97,10 +99,10 @@ max-turns: 35
 
 ## 与其他技能的关系
 
-- 需要先读懂稿件和 claim 结构时，先走 `paper-reading-doctor`
-- 需要判断 reviewer 质疑是否被结果支持时，交给 `experiment-result-auditor`
-- 需要把修改真正落进稿件时，交给 `manuscript-result-sync`
-- 需要补实验或追踪新结果时，交给 `experiment-runner-doctor`
+- 需要先读懂稿件和 claim 结构时，先走 `paper-reader`
+- 需要判断 reviewer 质疑是否被结果支持时，交给 `evidence-auditor`
+- 需要把修改真正落进稿件时，交给 `manuscript-sync`
+- 需要补实验或追踪新结果时，交给 `experiment-runner`
 
 ## 注意事项
 

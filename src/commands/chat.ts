@@ -2,19 +2,22 @@ import * as readline from 'readline';
 import ora from 'ora';
 import { Logger } from '../utils/logger';
 import { AIService } from '../utils/ai-service';
+import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
+import { startCommandSupport, stopCommandSupport } from '../bootstrap/command-support';
 import { CommandOptions } from '../types';
 import { styles } from '../theme/colors';
 import { SkillManager } from '../skills/skill-manager';
-import { ToolManager } from '../tools/tool-manager';
 import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
-import { startRuntimeCommandSupport, stopRuntimeCommandSupport } from '../utils/runtime-command-support';
 
 export async function chatCommand(options: CommandOptions): Promise<void> {
+  const verboseChatLogs = isTruthyEnv(process.env.XIAOBA_CHAT_VERBOSE_LOGS);
+  Logger.openLogFile('chat', buildChatLogKey(options), !verboseChatLogs);
+
   const aiService = new AIService();
-  await startRuntimeCommandSupport();
+  await startCommandSupport();
 
   // 初始化 ToolManager
-  const toolManager = new ToolManager();
+  const toolManager = createRoleAwareToolManager();
   Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
   Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
 
@@ -43,6 +46,8 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     const activated = await session.activateSkill(options.skill);
     if (!activated) {
       Logger.error(`Skill "${options.skill}" 未找到，请通过 xiaoba skill list 查看可用 skills`);
+      await stopCommandSupport();
+      Logger.closeLogFile();
       return;
     }
     Logger.info(`已绑定 skill: ${options.skill}`);
@@ -50,8 +55,12 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
 
   // 单条消息模式
   if (options.message) {
-    await sendSingleMessage(session, options.message);
-    await stopRuntimeCommandSupport();
+    try {
+      await sendSingleMessage(session, options.message);
+    } finally {
+      await stopCommandSupport();
+      Logger.closeLogFile();
+    }
     return;
   }
 
@@ -137,10 +146,11 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     const cleanup = async () => {
       try {
         await session.cleanup();
-        await stopRuntimeCommandSupport();
+        await stopCommandSupport();
         Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {
+        Logger.closeLogFile();
         clearInterval(keepAliveTimer);
         originalExit(code);
       }
@@ -193,7 +203,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         }
         isExiting = true;
         rl.close();
-        await stopRuntimeCommandSupport();
+        await stopCommandSupport();
+        Logger.closeLogFile();
         originalExit(0);
         return;
       }
@@ -229,11 +240,12 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     // 处理退出命令（向后兼容）
     if (message.toLowerCase() === 'exit' || message.toLowerCase() === 'quit') {
       await session.summarizeAndDestroy();
-      await stopRuntimeCommandSupport();
+      await stopCommandSupport();
       console.log('\n' + styles.text('再见！期待下次与你对话。') + '\n');
       isExiting = true;
       rl.close();
       Logger.info('再见！期待下次与你对话。');
+      Logger.closeLogFile();
       originalExit(0);
       return;
     }
@@ -269,4 +281,18 @@ async function interactiveChat(session: AgentSession): Promise<void> {
 
   // 显示第一个提示符
   rl.prompt();
+}
+
+function buildChatLogKey(options: CommandOptions): string {
+  const mode = options.message ? 'single' : 'interactive';
+  const role = sanitizeLogKey(options.role || process.env.CURRENT_ROLE || 'default');
+  return `${mode}_${role}`;
+}
+
+function sanitizeLogKey(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'default';
+}
+
+function isTruthyEnv(value: string | undefined): boolean {
+  return /^(1|true|yes|on)$/i.test((value || '').trim());
 }

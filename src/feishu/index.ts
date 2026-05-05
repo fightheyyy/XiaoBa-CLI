@@ -4,9 +4,9 @@ import * as path from 'path';
 import { FeishuConfig } from './types';
 import { MessageHandler } from './message-handler';
 import { MessageSender } from './message-sender';
+import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentServices, BUSY_MESSAGE, ERROR_MESSAGE } from '../core/agent-session';
 import { Logger } from '../utils/logger';
@@ -118,7 +118,7 @@ export class FeishuBot {
     this.sender = new MessageSender(this.client);
 
     const aiService = new AIService();
-    const toolManager = new ToolManager();
+    const toolManager = createRoleAwareToolManager();
 
     // 加载同事档案 + 已知 chat_id（供 bridge 和 session 使用）
     const teammates = loadTeammateProfiles();
