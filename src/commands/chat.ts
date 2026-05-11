@@ -40,6 +40,9 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     skillManager,
   };
   const session = new AgentSession('cli', services, 'cli');
+  if (!options.message) {
+    session.restoreFromStore();
+  }
 
   // 启动时激活指定 skill
   if (options.skill) {
@@ -58,6 +61,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     try {
       await sendSingleMessage(session, options.message);
     } finally {
+      await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
       await stopCommandSupport();
       Logger.closeLogFile();
     }
@@ -145,7 +149,7 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     const keepAliveTimer = setInterval(() => {}, 100);
     const cleanup = async () => {
       try {
-        await session.cleanup();
+        await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
         await stopCommandSupport();
         Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));

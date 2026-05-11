@@ -1,8 +1,14 @@
 {
   "name": "engineer-cat",
   "displayName": "EngineerCat",
-  "description": "实现型角色，承接 Inspector 的问题单，修复 runtime / skill，并在需要时调用 self-evolution 产出新 skill。",
+  "description": "实现型角色，既承接 Inspector 的问题单，也可作为基于 OMC 调用 Claude Code / Codex 的高级工程师。",
   "promptFile": "engineer-system-prompt.md",
+  "aliases": [
+    "engineer",
+    "coder",
+    "omc-engineer",
+    "codex-engineer"
+  ],
   "inheritBaseSkills": true,
   "excludeBaseSkills": [
     "bio-skills",
@@ -10,4 +16,3 @@
     "WebCLI"
   ]
 }
-

@@ -34,16 +34,16 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/buildsense-ai/XiaoBa-CLI.git"
+    "url": "https://github.com/fightheyyy/XiaoBa-CLI.git"
   },
   "bugs": {
-    "url": "https://github.com/buildsense-ai/XiaoBa-CLI/issues"
+    "url": "https://github.com/fightheyyy/XiaoBa-CLI/issues"
   },
-  "homepage": "https://github.com/buildsense-ai/XiaoBa-CLI#readme",
+  "homepage": "https://github.com/fightheyyy/XiaoBa-CLI#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
     "@larksuiteoapi/node-sdk": "^1.58.0",
-    "axios": "^1.6.2",
+    "axios": "^1.16.0",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
     "deasync": "^0.1.31",
@@ -72,6 +72,14 @@
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },
+  "overrides": {
+    "axios": "$axios",
+    "brace-expansion": "2.0.3",
+    "lodash": "4.18.1",
+    "minimatch": "9.0.7",
+    "path-to-regexp": "8.4.2",
+    "protobufjs": "7.5.5"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
@@ -85,7 +93,7 @@
     "asar": false,
     "publish": {
       "provider": "github",
-      "owner": "buildsense-ai",
+      "owner": "fightheyyy",
       "repo": "XiaoBa-CLI"
     },
     "files": [

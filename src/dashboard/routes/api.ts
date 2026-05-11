@@ -9,6 +9,7 @@ import * as dotenv from 'dotenv';
 import * as https from 'https';
 import * as http from 'http';
 import { getDashboardActiveRole, registerDashboardApiExtensions } from '../../bootstrap/dashboard-api';
+import { createPetRouter } from '../../pet/channel';
 import { PathResolver } from '../../utils/path-resolver';
 import { RoleResolver } from '../../utils/role-resolver';
 import { SkillParser } from '../../skills/skill-parser';
@@ -40,6 +41,7 @@ function installSkillNpmDeps(skillDir: string): void {
 
 export function createApiRouter(serviceManager: ServiceManager): Router {
   const router = Router();
+  router.use(createPetRouter());
 
   // ==================== 总览 ====================
 

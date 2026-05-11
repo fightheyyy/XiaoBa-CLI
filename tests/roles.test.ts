@@ -11,6 +11,8 @@ const originalCwd = process.cwd();
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
+const originalAppRoot = process.env.XIAOBA_APP_ROOT;
+const originalRolesRoot = process.env.XIAOBA_ROLES_ROOT;
 
 function writeFile(targetPath: string, content: string): void {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -100,6 +102,16 @@ description: Role only skill
     } else {
       delete process.env.CURRENT_ROLE_DISPLAY_NAME;
     }
+    if (originalAppRoot) {
+      process.env.XIAOBA_APP_ROOT = originalAppRoot;
+    } else {
+      delete process.env.XIAOBA_APP_ROOT;
+    }
+    if (originalRolesRoot) {
+      process.env.XIAOBA_ROLES_ROOT = originalRolesRoot;
+    } else {
+      delete process.env.XIAOBA_ROLES_ROOT;
+    }
   });
 
   test('RoleResolver 应该支持规范化角色名并注入环境变量', () => {
@@ -116,6 +128,7 @@ description: Role only skill
     const systemPrompt = await PromptManager.buildSystemPrompt();
 
     assert.match(systemPrompt, /你是 InspectorCat/);
+    assert.match(systemPrompt, /基础行为约束/);
     assert.match(systemPrompt, /角色行为约束/);
     assert.match(systemPrompt, /当前角色：InspectorCat/);
     assert.doesNotMatch(systemPrompt, /你是基础角色/);
@@ -134,5 +147,31 @@ description: Role only skill
     assert.ok(sharedSkill);
     assert.match(sharedSkill!.content, /Role Shared Skill/);
     assert.strictEqual(manager.getSkill('hidden-skill'), undefined);
+  });
+
+  test('Electron cwd 为 userData 时应从 XIAOBA_APP_ROOT 回落读取内置 roles', () => {
+    const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-roles-app-root-'));
+    const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-roles-user-data-'));
+
+    writeFile(path.join(appRoot, 'roles', 'engineer-cat', 'role.json'), JSON.stringify({
+      name: 'engineer-cat',
+      displayName: 'EngineerCat',
+    }, null, 2));
+    writeFile(path.join(appRoot, 'roles', 'reviewer-cat', 'role.json'), JSON.stringify({
+      name: 'reviewer-cat',
+      displayName: 'ReviewerCat',
+    }, null, 2));
+
+    process.chdir(userData);
+    process.env.XIAOBA_APP_ROOT = appRoot;
+    delete process.env.XIAOBA_ROLES_ROOT;
+
+    assert.deepStrictEqual(RoleResolver.listAvailableRoles(), ['engineer-cat', 'reviewer-cat']);
+    RoleResolver.activateRole('engineer-cat');
+    assert.strictEqual(RoleResolver.getActiveRolePath(), path.join(appRoot, 'roles', 'engineer-cat'));
+
+    process.chdir(testRoot);
+    fs.rmSync(appRoot, { recursive: true, force: true });
+    fs.rmSync(userData, { recursive: true, force: true });
   });
 });

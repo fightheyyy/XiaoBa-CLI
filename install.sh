@@ -5,7 +5,7 @@ set -e
 #  XiaoBa 一键安装脚本 (macOS / Linux)
 # ============================================
 
-REPO_URL="https://github.com/buildsense-ai/XiaoBa-CLI.git"
+REPO_URL="https://github.com/fightheyyy/XiaoBa-CLI.git"
 INSTALL_DIR="$HOME/xiaoba"
 DASHBOARD_PORT=3800
 

@@ -4,6 +4,12 @@ import { Message } from '../types';
 import { Logger } from './logger';
 
 const SESSIONS_DIR = path.resolve(process.cwd(), 'data', 'sessions');
+const PERSISTENT_SYSTEM_PREFIXES = [
+  '[compact_boundary]',
+  '[session_memory]',
+  '[im_visible_transcript]',
+  '[last_turn_anchor]',
+];
 
 function ensureDir(): void {
   if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
@@ -15,6 +21,23 @@ function keyToFilename(key: string): string {
 
 function filePath(key: string): string {
   return path.join(SESSIONS_DIR, keyToFilename(key));
+}
+
+function shouldPersistMessage(message: Message): boolean {
+  if ((message as any).__injected) {
+    return false;
+  }
+
+  if (message.role !== 'system') {
+    return true;
+  }
+
+  const content = message.content;
+  if (typeof content !== 'string') {
+    return false;
+  }
+
+  return PERSISTENT_SYSTEM_PREFIXES.some(prefix => content.startsWith(prefix));
 }
 
 export class SessionStore {
@@ -31,8 +54,7 @@ export class SessionStore {
       ensureDir();
       const fp = filePath(sessionKey);
       const lines = messages
-        .filter(m => !(m as any).__injected) // 跳过注入的临时消息
-        .filter(m => m.role !== 'system') // 跳过系统消息，恢复时会重新生成
+        .filter(shouldPersistMessage)
         .map(m => JSON.stringify(m));
       fs.writeFileSync(fp, lines.join('\n') + '\n', 'utf-8');
     } catch (err) {

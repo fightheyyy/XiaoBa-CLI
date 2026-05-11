@@ -10,9 +10,11 @@ const DEFAULT_HOST = '127.0.0.1';
 export async function startDashboard(port: number = DEFAULT_PORT, host?: string): Promise<void> {
   const app = express();
   const projectRoot = process.cwd();
-  const serviceManager = new ServiceManager(projectRoot);
   const bodyLimit = process.env.XIAOBA_API_BODY_LIMIT || '50mb';
   const listenHost = host || process.env.XIAOBA_DASHBOARD_HOST || DEFAULT_HOST;
+  const advertisedHost = listenHost === '0.0.0.0' ? '127.0.0.1' : listenHost;
+  process.env.XIAOBA_DASHBOARD_URL = `http://${advertisedHost}:${port}`;
+  const serviceManager = new ServiceManager(projectRoot);
 
   app.use(express.json({ limit: bodyLimit }));
 
@@ -29,17 +31,19 @@ export async function startDashboard(port: number = DEFAULT_PORT, host?: string)
   });
 
   // 优雅退出
-  process.on('SIGINT', () => {
+  const shutdown = () => {
     serviceManager.stopAll();
     process.exit(0);
-  });
-  process.on('SIGTERM', () => {
-    serviceManager.stopAll();
-    process.exit(0);
-  });
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 
   app.listen(port, listenHost, () => {
     Logger.success(`\nXiaoBa Dashboard 已启动`);
-    Logger.info(`监听地址: http://${listenHost}:${port}\n`);
+    Logger.info(`访问地址: ${process.env.XIAOBA_DASHBOARD_URL}`);
+    if (listenHost !== advertisedHost) {
+      Logger.info(`监听地址: http://${listenHost}:${port}`);
+    }
+    Logger.info('');
   });
 }

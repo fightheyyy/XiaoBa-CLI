@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">XiaoBa-CLI Future Vision</title>
+  <desc id="desc">Future vision diagram showing personal agents maintained by everyone, entering IM group chats, collaborating agent to agent, and connecting to work tools, files, knowledge bases, and automation systems.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#172033" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#42566C"/>
+    </marker>
+    <style>
+      .bg { fill: #F7F8F5; }
+      .title { font: 700 42px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #182230; letter-spacing: 0; }
+      .subtitle { font: 400 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5B6574; letter-spacing: 0; }
+      .label { font: 700 23px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1D2735; letter-spacing: 0; }
+      .small { font: 500 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #536070; letter-spacing: 0; }
+      .tiny { font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #647184; letter-spacing: 0; }
+      .card { fill: #FFFFFF; stroke: #DDE4EC; stroke-width: 2; rx: 20; filter: url(#shadow); }
+      .agent { fill: #FFF4D9; stroke: #E6B85B; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .group { fill: #EAF8F7; stroke: #70C7C3; stroke-width: 2.5; rx: 26; filter: url(#shadow); }
+      .resource { fill: #F4F6FF; stroke: #A6B5E8; stroke-width: 2; rx: 16; }
+      .automation { fill: #F1FAF3; stroke: #95C7A2; stroke-width: 2; rx: 16; }
+      .arrow { fill: none; stroke: #42566C; stroke-width: 3; marker-end: url(#arrow); }
+      .arrow-soft { fill: none; stroke: #8CA0B3; stroke-width: 2.5; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .avatar { fill: #FFFFFF; stroke: #CAD5E1; stroke-width: 2; }
+      .cat { fill: #F6BC62; stroke: #141414; stroke-width: 7; stroke-linejoin: round; }
+      .cat-hair { fill: #141414; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <circle cx="240" cy="160" r="140" fill="#C8F7F0" opacity="0.5"/>
+  <circle cx="1400" cy="745" r="165" fill="#FFE3A0" opacity="0.55"/>
+
+  <text x="80" y="82" class="title">Future Vision: Personal Agents in IM</text>
+  <text x="80" y="118" class="subtitle">Everyone maintains a personal agent. Agents enter group chats, collaborate A2A, and connect daily work systems.</text>
+
+  <g transform="translate(80 220)">
+    <rect class="card" width="275" height="420"/>
+    <text x="30" y="48" class="label">People</text>
+    <text x="30" y="82" class="small">maintain their own agents</text>
+    <g transform="translate(42 122)">
+      <circle class="avatar" cx="38" cy="38" r="38"/>
+      <circle cx="38" cy="30" r="14" fill="#8FA3B8"/>
+      <path d="M16 62 Q38 42 60 62" fill="#8FA3B8"/>
+      <text x="90" y="32" class="small">User A</text>
+      <text x="90" y="58" class="tiny">profile · goals · rules</text>
+      <circle class="avatar" cx="38" cy="144" r="38"/>
+      <circle cx="38" cy="136" r="14" fill="#D79A4E"/>
+      <path d="M16 168 Q38 148 60 168" fill="#D79A4E"/>
+      <text x="90" y="138" class="small">User B</text>
+      <text x="90" y="164" class="tiny">preferences · context</text>
+      <circle class="avatar" cx="38" cy="250" r="38"/>
+      <circle cx="38" cy="242" r="14" fill="#78B6A6"/>
+      <path d="M16 274 Q38 254 60 274" fill="#78B6A6"/>
+      <text x="90" y="244" class="small">User C</text>
+      <text x="90" y="270" class="tiny">tasks · memory</text>
+    </g>
+  </g>
+
+  <g transform="translate(462 205)">
+    <rect class="agent" width="295" height="450"/>
+    <text x="34" y="50" class="label">Personal Agent</text>
+    <text x="34" y="84" class="small">XiaoBa Runtime + custom harness</text>
+    <g transform="translate(78 128)">
+      <path class="cat" d="M64 32 L88 6 L100 50 Q124 68 124 108 Q124 169 74 177 Q24 169 24 108 Q24 68 48 50 L58 6 Z"/>
+      <path class="cat-hair" d="M48 36 H100 V54 H91 V66 H80 V54 H68 V66 H58 V54 H48 Z"/>
+      <rect x="55" y="96" width="10" height="10" fill="#111"/>
+      <rect x="91" y="96" width="10" height="10" fill="#111"/>
+      <rect x="38" y="134" width="16" height="31" rx="7" fill="#E8A94E"/>
+      <rect x="99" y="134" width="16" height="31" rx="7" fill="#E8A94E"/>
+    </g>
+    <g transform="translate(36 330)">
+      <rect x="0" y="0" width="223" height="38" rx="19" fill="#FFFFFF" stroke="#E6C474" stroke-width="2"/>
+      <text x="22" y="25" class="small">persona · tools · memory</text>
+      <rect x="0" y="56" width="223" height="38" rx="19" fill="#FFFFFF" stroke="#E6C474" stroke-width="2"/>
+      <text x="22" y="81" class="small">works on behalf of user</text>
+    </g>
+  </g>
+
+  <g transform="translate(865 205)">
+    <rect class="group" width="360" height="450"/>
+    <text x="38" y="50" class="label">IM Group Chat</text>
+    <text x="38" y="84" class="small">WeChat · Feishu · project rooms</text>
+    <g transform="translate(44 126)">
+      <rect x="0" y="0" width="270" height="62" rx="24" fill="#FFFFFF"/>
+      <text x="24" y="38" class="small">Agent A: summarize &amp; assign</text>
+      <rect x="42" y="86" width="238" height="62" rx="24" fill="#DFF6F3"/>
+      <text x="66" y="124" class="small">Agent B: fetch files</text>
+      <rect x="0" y="172" width="280" height="62" rx="24" fill="#FFFFFF"/>
+      <text x="24" y="210" class="small">Agent C: schedule follow-up</text>
+      <rect x="42" y="258" width="238" height="62" rx="24" fill="#DFF6F3"/>
+      <text x="66" y="296" class="small">A2A: coordinate tasks</text>
+    </g>
+  </g>
+
+  <g transform="translate(1320 180)">
+    <rect class="card" width="205" height="520"/>
+    <text x="28" y="48" class="label">Connected Work</text>
+    <g transform="translate(24 82)">
+      <rect class="resource" width="157" height="52"/>
+      <text x="24" y="33" class="small">Tools</text>
+      <rect class="resource" y="72" width="157" height="52"/>
+      <text x="24" y="105" class="small">Files</text>
+      <rect class="resource" y="144" width="157" height="52"/>
+      <text x="24" y="177" class="small">Knowledge</text>
+      <rect class="automation" y="216" width="157" height="52"/>
+      <text x="24" y="249" class="small">Automation</text>
+      <rect class="automation" y="288" width="157" height="52"/>
+      <text x="24" y="321" class="small">Workflow</text>
+      <rect class="resource" y="360" width="157" height="52"/>
+      <text x="24" y="393" class="small">APIs</text>
+    </g>
+  </g>
+
+  <g transform="translate(602 730)">
+    <rect class="card" width="435" height="78"/>
+    <text x="30" y="34" class="label">Long-term direction</text>
+    <text x="30" y="60" class="small">from using software → maintaining agents that collaborate for us</text>
+  </g>
+
+  <path class="arrow" d="M355 430 C390 430 420 430 455 430"/>
+  <path class="arrow" d="M757 430 C796 430 825 430 858 430"/>
+  <path class="arrow" d="M1225 430 C1262 430 1288 430 1313 430"/>
+  <path class="arrow-soft" d="M742 310 C830 210 955 170 1055 235"/>
+  <path class="arrow-soft" d="M1048 656 C972 735 862 759 742 655"/>
+</svg>

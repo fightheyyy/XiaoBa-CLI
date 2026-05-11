@@ -118,6 +118,150 @@ describe('AutoDevEngineerWorker', () => {
     const workspaceDir = path.join(testRoot, 'data', 'autodev-engineer-cases', 'case-001');
     assert.ok(!fs.existsSync(workspaceDir));
   });
+
+  test('缺失 engineer-output 时必须 blocked 而不是推进 reviewing', async () => {
+    const caseEvents: any[] = [];
+    const stateTransitions: any[] = [];
+    const artifactUploads: Array<{ path: string; bodyText: string }> = [];
+
+    server = createAutoDevEngineerServer({
+      onCaseEvent(payload) {
+        caseEvents.push(payload);
+      },
+      onStateTransition(payload) {
+        stateTransitions.push(payload);
+      },
+      onArtifactUpload(targetPath, bodyText) {
+        artifactUploads.push({ path: targetPath, bodyText });
+      },
+    });
+
+    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+
+    process.env.AUTODEV_SERVER_URL = `http://127.0.0.1:${address.port}`;
+    process.env.AUTODEV_API_KEY = 'demo-key';
+
+    const executionExecutor: EngineerExecutionExecutor = {
+      async executeCase(detail, store) {
+        const caseDir = store.getCaseDir(detail.case.case_id);
+        fs.writeFileSync(path.join(caseDir, 'implementation.md'), '# Implementation without structured output\n', 'utf-8');
+
+        return {
+          generatedAt: new Date().toISOString(),
+          caseId: detail.case.case_id,
+          mode: 'agent_execute',
+          summary: {
+            overview: 'Engineer wrote prose but forgot structured output.',
+            artifactCount: 1,
+            nextState: 'reviewing',
+            implementationGenerated: true,
+          },
+          implementationNotePath: 'implementation.md',
+          finalText: 'done',
+        };
+      },
+    };
+
+    const worker = new AutoDevEngineerWorker({
+      workingDirectory: testRoot,
+      executionExecutor,
+    });
+
+    const result = await worker.runOnce();
+
+    assert.deepStrictEqual(result, { processed: 1, skipped: false });
+    assert.strictEqual(stateTransitions.length, 1);
+    assert.strictEqual(stateTransitions[0].to, 'blocked');
+    assert.strictEqual(stateTransitions[0].recommended_next_action, 'engineer_output_missing_or_incomplete');
+    assert.match(stateTransitions[0].reason, /structured output is missing/);
+
+    const workspaceDir = path.join(testRoot, 'data', 'autodev-engineer-cases', 'case-001');
+    assert.ok(fs.existsSync(workspaceDir));
+    const normalizedOutput = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'engineer-output.json'), 'utf-8'));
+    assert.strictEqual(normalizedOutput.nextState, 'blocked');
+    assert.strictEqual(normalizedOutput.resultType, 'blocked');
+    assert.match(normalizedOutput.overview, /Blocked reasons/);
+    assert.ok(artifactUploads.some(item => item.bodyText.includes('Engineer execution output')));
+    assert.strictEqual(caseEvents[1].payload.next_state, 'blocked');
+  });
+
+  test('缺失 implementation.md 时必须 blocked 而不是仅凭结构化输出推进 reviewing', async () => {
+    const caseEvents: any[] = [];
+    const stateTransitions: any[] = [];
+    const artifactUploads: Array<{ path: string; bodyText: string }> = [];
+
+    server = createAutoDevEngineerServer({
+      onCaseEvent(payload) {
+        caseEvents.push(payload);
+      },
+      onStateTransition(payload) {
+        stateTransitions.push(payload);
+      },
+      onArtifactUpload(targetPath, bodyText) {
+        artifactUploads.push({ path: targetPath, bodyText });
+      },
+    });
+
+    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+
+    process.env.AUTODEV_SERVER_URL = `http://127.0.0.1:${address.port}`;
+    process.env.AUTODEV_API_KEY = 'demo-key';
+
+    const executionExecutor: EngineerExecutionExecutor = {
+      async executeCase(detail, store) {
+        const caseDir = store.getCaseDir(detail.case.case_id);
+        fs.writeFileSync(path.join(caseDir, 'engineer-output.json'), JSON.stringify({
+          version: 1,
+          summary: 'Claims implementation is ready.',
+          overview: 'Claims implementation is ready for review.',
+          resultType: 'runtime_fix',
+          riskLevel: 'low',
+          nextState: 'reviewing',
+          recommendedNextAction: 'review_engineer_output',
+          changedFiles: ['src/tools/retry.ts'],
+          artifacts: [],
+        }, null, 2), 'utf-8');
+
+        return {
+          generatedAt: new Date().toISOString(),
+          caseId: detail.case.case_id,
+          mode: 'agent_execute',
+          summary: {
+            overview: 'Engineer wrote structured output but no handoff note.',
+            artifactCount: 1,
+            nextState: 'reviewing',
+            implementationGenerated: false,
+          },
+          outputFilePath: 'engineer-output.json',
+          finalText: 'done',
+        };
+      },
+    };
+
+    const worker = new AutoDevEngineerWorker({
+      workingDirectory: testRoot,
+      executionExecutor,
+    });
+
+    const result = await worker.runOnce();
+
+    assert.deepStrictEqual(result, { processed: 1, skipped: false });
+    assert.strictEqual(stateTransitions.length, 1);
+    assert.strictEqual(stateTransitions[0].to, 'blocked');
+    assert.match(stateTransitions[0].reason, /implementation note is missing/);
+    assert.strictEqual(stateTransitions[0].recommended_next_action, 'engineer_output_missing_or_incomplete');
+
+    const workspaceDir = path.join(testRoot, 'data', 'autodev-engineer-cases', 'case-001');
+    const normalizedOutput = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'engineer-output.json'), 'utf-8'));
+    assert.strictEqual(normalizedOutput.nextState, 'blocked');
+    assert.match(normalizedOutput.overview, /implementation note is missing/);
+    assert.ok(artifactUploads.some(item => item.bodyText.includes('Engineer execution output')));
+    assert.strictEqual(caseEvents[1].payload.next_state, 'blocked');
+  });
 });
 
 function createAutoDevEngineerServer(options: {

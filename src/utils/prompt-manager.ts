@@ -63,6 +63,23 @@ export class PromptManager {
     return fs.existsSync(basePromptPath) ? basePromptPath : undefined;
   }
 
+  private static getBasePromptPath(fileName: string): string | undefined {
+    const candidates = [
+      path.join(PathResolver.getPromptsPath(), fileName),
+      path.join(this.promptsDir, fileName),
+    ];
+
+    return candidates.find(candidate => fs.existsSync(candidate));
+  }
+
+  private static normalizeBehaviorPrompt(content: string | undefined): string {
+    const trimmed = (content || '').trim();
+    if (!trimmed || trimmed.includes('（在下方添加你的个性化设置）')) {
+      return '';
+    }
+    return trimmed;
+  }
+
   /**
    * 获取基础 system prompt
    */
@@ -91,16 +108,26 @@ export class PromptManager {
    */
   static getBehaviorPrompt(): string {
     try {
-      const resolvedPath = this.resolvePromptFile('behavior.md');
-      if (!resolvedPath) {
-        return '';
+      const paths = [
+        this.getBasePromptPath('behavior.md'),
+        PathResolver.getRoleSubPath(path.join('prompts', 'behavior.md')),
+      ].filter((item): item is string => Boolean(item));
+
+      const seen = new Set<string>();
+      const parts: string[] = [];
+      for (const promptPath of paths) {
+        const resolved = path.resolve(promptPath);
+        if (seen.has(resolved) || !fs.existsSync(resolved)) {
+          continue;
+        }
+        seen.add(resolved);
+        const content = this.normalizeBehaviorPrompt(this.readPromptFile(resolved));
+        if (content) {
+          parts.push(content);
+        }
       }
-      const content = fs.readFileSync(resolvedPath, 'utf-8').trim();
-      // 如果只有模板内容，返回空
-      if (content.includes('（在下方添加你的个性化设置）')) {
-        return '';
-      }
-      return content;
+
+      return parts.join('\n\n');
     } catch {
       return '';
     }

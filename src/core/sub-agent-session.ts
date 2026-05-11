@@ -229,6 +229,47 @@ export class SubAgentSession {
     return true;
   }
 
+  /**
+   * 挂起当前子智能体，向父会话请求输入。
+   */
+  async waitForParentInput(question: string): Promise<string> {
+    if (this.stopped) {
+      return '（任务已被停止）';
+    }
+    if (this.status === 'waiting_for_input') {
+      throw new Error('子智能体已经在等待输入');
+    }
+
+    this.status = 'waiting_for_input';
+    this.pendingQuestion = question;
+    this.reportProgress(`等待主会话输入：${question}`);
+
+    const waitPromise = new Promise<string>(resolve => {
+      this.pendingResolve = resolve;
+    });
+    this.pendingWaitPromise = waitPromise;
+
+    if (!this.options.notifyParent) {
+      this.status = 'running';
+      this.pendingQuestion = null;
+      this.pendingResolve = null;
+      this.pendingWaitPromise = null;
+      throw new Error('父会话回调不可用，无法请求输入');
+    }
+
+    try {
+      await this.options.notifyParent(this.id, this.taskDescription, question);
+    } catch (err) {
+      this.status = 'running';
+      this.pendingQuestion = null;
+      this.pendingResolve = null;
+      this.pendingWaitPromise = null;
+      throw err;
+    }
+
+    return waitPromise;
+  }
+
   getInfo(): SubAgentInfo {
     return {
       id: this.id,

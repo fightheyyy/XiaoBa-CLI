@@ -127,12 +127,12 @@ export class EngineerAgentExecutionExecutor implements EngineerExecutionExecutor
         .filter(filePath => fs.existsSync(filePath))
         .length
         + (Array.isArray(output?.artifacts) ? output!.artifacts.length : 0);
-      const nextState = output?.nextState === 'blocked' ? 'blocked' : 'reviewing';
+      const nextState = output?.nextState === 'reviewing' && implementationGenerated ? 'reviewing' : 'blocked';
       const overview = String(
         output?.overview
         || output?.summary
         || result.text
-        || 'EngineerCat completed execution for the AutoDev case.',
+        || 'EngineerCat did not produce complete structured execution evidence for the AutoDev case.',
       ).trim();
 
       return {

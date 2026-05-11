@@ -1,113 +1,130 @@
 <div align="center">
   <img src="assets/banner.png" alt="XiaoBa Banner" width="100%">
 
-  # 🐱 XiaoBa - 会成长的 AI Agent Runtime
+  # 🐱 XiaoBa - 活在 IM 里的 Agent Runtime
 
-  **统一 Runtime｜多角色协作｜日志驱动进化**
+  **IM-native Person Runtime｜职业角色｜越用越像你**
 
-  [![Release](https://img.shields.io/github/v/release/buildsense-ai/XiaoBa-CLI)](https://github.com/buildsense-ai/XiaoBa-CLI/releases)
+  [![CI](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/buildsense-ai/XiaoBa-CLI)
+  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [快速开始](#-快速开始) • [为什么不一样](#-为什么不一样) • [核心能力](#-核心能力) • [开发](#-开发) • [文档](#-文档)
+  [快速开始](#-快速开始) • [核心理念](#-核心理念) • [核心能力](#-核心能力) • [开发](#-开发) • [文档](#-文档) • [Project History](#project-history)
 </div>
+
+---
+
+> This fork continues XiaoBa-CLI independently after the original buildsense-ai version. New features and releases happen here.
 
 ---
 
 ## 💡 XiaoBa 是什么？
 
-`XiaoBa` 不是一个“接了很多模型的聊天壳子”，也不是“很多 prompt 的集合”。
+`XiaoBa` 不是一个“接了很多模型的聊天壳子”，也不是一个单纯的 coding agent。
 
-它更接近一个**统一的 AI Agent Runtime**：
+它的基础定位是一个 **IM-native 的人**：
 
-- 用一套 runtime 承载 `CLI`、飞书、微信、CatsCompany 等不同入口
-- 用 `roles / skills / tools` 做能力分层，而不是把所有事情塞给一个 Agent
-- 用真实运行日志驱动系统持续优化，而不是只靠静态 prompt
-- 用本地 `Dashboard` 管理服务启动、日志查看和运行状态
+- 活在飞书、微信、CatsCompany、群聊和私聊里
+- 有自己的身份、会话、记忆、工具和后台任务
+- 能接话、接任务、发文件、查进度、回来汇报
+- 能在不同场景切换成不同职业角色，比如工程师、审查员、研究员
 
 如果一句话概括：
 
-> `XiaoBa = 一个以统一 runtime 为核心、以角色分工为组织形式、以日志回流驱动持续进化的 AI Agent 系统。`
+> `XiaoBa = 一个让 Agent 像人一样长期活在 IM 里的 runtime。Roles 是职业身份，Skills / Tools 是它的手脚，整个 harness 会在使用中逐渐被你塑形。`
 
 ---
 
-## ✨ 为什么不一样？
+## ✨ 核心理念
 
-### 1. 不是“万能 Agent”，而是“统一 Runtime + 多角色分工”
+### 1. Runtime 是一个活在 IM 里的人
 
-复杂任务不应该长期由一个 Agent 独吞。
+大多数真实工作不是发生在 IDE 里，而是发生在 IM 里。
 
-`XiaoBa` 的核心思路是：
+你在群里沟通、在私聊里确认、把问题丢给 Claude Code / Codex、等结果、转述结论、推动别人、复盘问题。`XiaoBa` 要承载的是这一整套“人在组织里的行为”，而不是只做一次性的问答。
 
-- 公共能力放在 runtime
-- 角色差异放在 `roles`
-- 稳定工作流沉淀到 `skills`
-- 确定性能力下沉为 `tools`
+所以 XiaoBa 的基础 runtime 首先关心：
 
-这样做的好处是：
+- 它在哪个 IM surface 里说话
+- 它是在群聊还是私聊
+- 它该不该回复，还是只旁听
+- 它能不能把长任务放到后台
+- 它完成后能不能回到 IM 里自然汇报
 
-- 系统边界更清楚
-- 能力更容易复用
-- 场景更容易扩展
-- 演化成本更低
+### 2. Roles 不是 prompt，而是职业身份
 
-### 2. 真实日志高于漂亮概念
+`roles` 不是简单的“风格预设”。它们是这个人在不同工作场景里的职业身份。
 
-`XiaoBa` 不是闭门造车式 Agent。
+- `EngineerCat`：活在 IM 里的工程师，能读代码、拆任务、调 OMC / Codex / Claude Code、后台实现、验证并汇报
+- `ReviewerCat`：活在 IM 里的审查员，能提出需求、追问证据、跑验收、要求返工
+- `InspectorCat`：活在 IM 里的督察员，能看日志、发现问题、移交修复
+- `ResearcherCat`：活在 IM 里的研究员，能读论文、整理证据、推进研究工作流
 
-它会沉淀：
+角色决定职业能力和职责边界；真正持续存在的是同一个 runtime。
 
-- runtime `.log`
-- session `JSONL`
-- 工具调用记录
-- Token 消耗与会话轨迹
+### 3. Skills / Tools 是这个人的手脚
 
-这些数据不只是为了排查问题，也会进一步进入 `Inspector -> 修复 -> 验证 -> 回流` 的闭环，推动 runtime、skill 和 role 持续进化。
+`send_text` 是说话，`send_file` 是发材料，`spawn_subagent` 是去后台干活，`ask_parent` 是回来问你一句，`execute_shell` / `read_file` / `edit_file` 是工程动作。
 
-### 3. 不只会聊天，而是能跑系统
+XiaoBa 不把工具堆给用户看，而是把它们组织成一个人在 IM 里自然完成工作的动作。
 
-`XiaoBa` 关注的不是“回复像不像人”，而是：
+### 4. 越用越像你，不只是 Memory
 
-- 能不能在真实环境里稳定工作
-- 能不能接平台、接工具、接角色
-- 能不能在长链路任务里持续保持上下文
-- 能不能在出错后自己分析、修复、验证
+XiaoBa 的长期产品力不是模型参数，也不是单独一个 memory 模块。
+
+真正会变得像你的，是整个 harness：
+
+- 你的说话方式
+- 你的工程品味
+- 你的常用项目和工具链
+- 你的同事关系和群聊上下文
+- 你的承诺、待办、禁忌和失败教训
+- 你希望它自动做什么，什么必须先问你
+- 你在不同职业角色下如何判断、派活、验证和交付
+
+`memory` 负责沉淀事实和经验；`roles` 负责把这些经验组织成不同职业身份；`skills / tools` 负责把偏好落实成动作；`runtime harness` 负责在 IM 里决定何时说话、何时沉默、何时后台执行、何时请求确认。
+
+所以“越用越像你”不是记住更多资料，而是整个运行方式越来越接近你的工作习惯。
 
 ---
 
 ## 🚀 核心能力
 
-### 🧠 统一 Runtime
+### 🧍 IM-native Person Runtime
 
-- 一套 runtime 承载多入口与多角色，而不是为每个角色复制一套系统
-- 支持 `CLI` 使用，并接入飞书、微信、CatsCompany 等消息入口
-- 提供本地 `Dashboard` 启动看板与管理面板，便于服务启停和日志查看
+- 一套 runtime 承载 CLI、飞书、微信、CatsCompany、桌宠等入口
+- 区分群聊 / 私聊 / 本地桌面等 surface，保留对应会话上下文
+- 支持 IM 中的自然回复、文件收发、附件理解、任务进度汇报
+- 提供本地 `Dashboard` 管理服务启动、日志查看和运行状态
 
-### 🤖 多角色与 Skill 体系
+### 🎭 职业角色体系
 
-- 支持角色化扩展，让不同 Agent 拥有不同职责边界
-- 支持基于 `Markdown + frontmatter` 的声明式 Skill 插件
-- 支持 `Python / TypeScript` 双语言扩展能力
-- 支持官方 Skill Hub 与自定义 Skill 开发
+- 用 `roles` 描述职业身份，而不是复制多套 runtime
+- 不同角色拥有不同 prompt、skills、tools 和工作边界
+- 当前内置 `EngineerCat / ReviewerCat / InspectorCat / ResearcherCat`
+- 用户可以继续扩展自己的职业角色
 
-### 🔁 多 Agent 协作
+### 🧬 User-shaped Harness
 
-- 支持子 Agent 调度与复杂任务拆解
-- 支持 `A2A` 风格的任务交接、结果回传与协同扩展
-- 允许不同角色围绕同一个 case 分工处理，而不是单 Agent 强撑全链路
+- 沉淀 session `JSONL`、runtime `.log`、工具调用记录和 token 轨迹
+- 从真实对话中提取任务、事实、承诺、产物和风险
+- 通过 `roles` 把用户习惯组织成不同职业身份，而不是只存成静态记忆
+- 让 prompt、角色、工具调度、后台任务、权限边界和交付口径一起被用户塑形
+- 支持 working-memory 风格的上下文压缩，保留近期关键轮次
 
-### 🔍 日志驱动的自演化闭环
+### 🏃 后台任务与协作
 
-- 沉淀按 session 组织的全量 `JSONL` 日志
-- 支持 `ingest_log` 将 session 日志归档到 AutoDev
-- 支持围绕 `InspectorCat / EngineerCat / ReviewerCat` 构建问题发现、实现、验收与回写闭环
-- 让真实用户 case 成为系统成长素材
+- 主会话保持在 IM 里可响应
+- 长任务可以派给 subagent 后台执行
+- 支持进度查询、停止、继续、等待用户确认和完成后回报
+- 支持围绕同一个 case 进行 Inspector -> Engineer -> Reviewer 流转
 
-### 🧵 长链路上下文治理
+### 🛠️ 工具与 Coding Agent 调度
 
-- 支持 working-memory 风格的上下文压缩
-- 保留近期关键轮次，压缩旧上下文与超长工具输出
-- 控制 Prompt Budget，降低长对话中的上下文膨胀风险
+- 具备基础 coding agent 能力：读文件、改文件、跑命令、查日志、写文档
+- Engineer 角色可通过 OMC 调用 Codex / Claude Code / OMC team
+- 不重复造 Claude Code / Codex 的轮子，而是把它们当作 IM 工程师的外部工具
+- 外部 agent 输出需要被 XiaoBa 二次判断、整合和验证
 
 ### 🛡️ 稳定性与工程化
 
@@ -121,29 +138,50 @@
 
 ## 🖥️ 使用场景
 
-`XiaoBa` 适合的不只是“聊天”：
+`XiaoBa` 适合这些场景：
 
-- 个人开发与本地 AI Runtime
-- 飞书 / 微信中的任务型 Agent
-- 多角色协作的复杂任务处理
-- 长链路知识工作与上下文管理
-- 日志分析、问题定位与自动修复闭环
+- 在飞书 / 微信 / 群聊里长期存在的个人工作 agent
+- 活在 IM 里的工程师、审查员、研究员或其他职业角色
+- 把日常沟通、任务推进、文件产出和工具调用串起来
+- 把 Claude Code / Codex 等 coding agent 接入真实 IM 工作流
+- 通过真实使用日志持续沉淀个人化记忆和工作习惯
 
 ---
 
 ## 🚀 快速开始
 
-### Windows 用户
-1. 下载 [XiaoBa Setup](https://github.com/buildsense-ai/XiaoBa-CLI/releases/latest)
-2. 双击安装
-3. 启动应用，配置 API Key
-4. 在 `Dashboard` 中启动所需服务
+### 从源码启动
 
-### macOS 用户
-1. 下载 [XiaoBa for macOS](https://github.com/buildsense-ai/XiaoBa-CLI/releases/latest)
-2. 双击安装
-3. 启动应用，配置 API Key
-4. 在 `Dashboard` 中启动所需服务
+```bash
+git clone https://github.com/fightheyyy/XiaoBa-CLI.git
+cd XiaoBa-CLI
+npm install
+cp .env.example .env
+npm run dev -- chat -i
+```
+
+Windows PowerShell 可用下面的命令复制配置文件：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+如果你想启动桌面 Dashboard：
+
+```bash
+npm run electron:dev
+```
+
+### 选择职业角色
+
+```bash
+npm run dev -- chat -r engineer-cat -i
+npm run dev -- chat -r reviewer-cat -i
+```
+
+### 桌面安装包
+
+桌面安装包会通过 [GitHub Releases](https://github.com/fightheyyy/XiaoBa-CLI/releases) 发布。当前仓库进入首个正式 release 前，推荐先使用源码启动。
 
 ### 基础配置
 复制 `.env.example` 为 `.env`，填入配置：
@@ -182,16 +220,27 @@ npm run electron:build:linux
 ## 📚 文档
 
 - [Skill 开发指南](https://github.com/buildsense-ai/XiaoBa-Skill-Hub)
-- [API 文档](docs/API.md)
-- [配置说明](docs/CONFIG.md)
-- [XiaoBa World / Agent Loop](../AGENT_LOOP_XIAOBA_WORLD.md)
-- [XiaoBa World / Worldview](../XIAOBA_WORLD_WORLDVIEW.md)
+- [IM-native Runtime 设计](docs/minimal-message-native-runtime.md)
+- [数据飞轮 E2E](docs/DATA_FLYWHEEL_E2E.md)
+- [CD / Release](docs/CD_RELEASE.md)
+- [Auto Update](docs/AUTO_UPDATE.md)
+- [Roles 目录说明](roles/README.md)
+- [EngineerCat Spec](roles/engineer-cat/SPEC.md)
+- [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)
 
 ---
 
 ## 🏪 Skill Hub
 
-访问 [XiaoBa-Skill-Hub](https://github.com/buildsense-ai/XiaoBa-Skill-Hub) 获取更多社区 Skills。
+当前可参考原项目的 [XiaoBa-Skill-Hub](https://github.com/buildsense-ai/XiaoBa-Skill-Hub) 获取更多社区 Skills。本 fork 会继续保持兼容，并可在后续独立扩展新的 skills 与角色能力。
+
+---
+
+## Project History
+
+XiaoBa-CLI 最初来自 [buildsense-ai/XiaoBa-CLI](https://github.com/buildsense-ai/XiaoBa-CLI)。当前仓库由原项目参与者继续独立维护，用于探索新的功能方向、实验性能力和后续 release。
+
+本仓库的新功能、问题修复和发布节奏不会影响 `buildsense-ai` 组织下原版本的维护；如果你想跟进当前活跃版本，请以 [fightheyyy/XiaoBa-CLI](https://github.com/fightheyyy/XiaoBa-CLI) 为准。
 
 ---
 

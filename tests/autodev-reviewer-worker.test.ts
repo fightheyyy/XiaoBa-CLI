@@ -148,6 +148,81 @@ describe('AutoDevReviewerWorker', () => {
     const workspaceDir = path.join(testRoot, 'data', 'autodev-reviewer-cases', 'case-001');
     assert.ok(!fs.existsSync(workspaceDir));
   });
+
+  test('缺失 reviewer-output 时必须重开而不是默认关闭', async () => {
+    const caseEvents: any[] = [];
+    const stateTransitions: any[] = [];
+    const artifactUploads: Array<{ path: string; bodyText: string }> = [];
+
+    server = createAutoDevReviewerServer({
+      onCaseEvent(payload) {
+        caseEvents.push(payload);
+      },
+      onStateTransition(payload) {
+        stateTransitions.push(payload);
+      },
+      onArtifactUpload(targetPath, bodyText) {
+        artifactUploads.push({ path: targetPath, bodyText });
+      },
+    });
+
+    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+
+    process.env.AUTODEV_SERVER_URL = `http://127.0.0.1:${address.port}`;
+    process.env.AUTODEV_API_KEY = 'demo-key';
+
+    const executionExecutor: ReviewerExecutionExecutor = {
+      async executeCase(detail, store) {
+        const caseDir = store.getCaseDir(detail.case.case_id);
+        fs.writeFileSync(path.join(caseDir, 'review.md'), '# Review incomplete\n', 'utf-8');
+        return {
+          generatedAt: new Date().toISOString(),
+          caseId: detail.case.case_id,
+          mode: 'agent_review',
+          summary: {
+            overview: 'Reviewer text claimed closure but did not write structured evidence.',
+            artifactCount: 1,
+            decision: 'closed',
+            nextState: 'closed',
+          },
+          reviewFilePath: 'review.md',
+          finalText: 'done',
+        };
+      },
+    };
+
+    const writebackExecutor: ReviewerWritebackExecutor = {
+      async execute() {
+        throw new Error('writeback should not run for a reopened review');
+      },
+    };
+
+    const worker = new AutoDevReviewerWorker({
+      workingDirectory: testRoot,
+      executionExecutor,
+      writebackExecutor,
+    });
+
+    const result = await worker.runOnce();
+
+    assert.deepStrictEqual(result, { processed: 1, skipped: false });
+    assert.strictEqual(caseEvents.length, 2);
+    assert.strictEqual(caseEvents[0].kind, 'reviewer_validation_started');
+    assert.strictEqual(caseEvents[1].kind, 'reviewer_validation_completed');
+    assert.strictEqual(caseEvents[1].payload.decision, 'reopened');
+    assert.strictEqual(stateTransitions.length, 1);
+    assert.strictEqual(stateTransitions[0].to, 'reopened');
+    assert.match(stateTransitions[0].reason, /structured output is missing or invalid/);
+    assert.ok(artifactUploads.some(item => item.bodyText.includes('Reviewer structured decision')));
+    assert.ok(artifactUploads.some(item => item.bodyText.includes('"decision": "reopened"')));
+
+    const workspaceDir = path.join(testRoot, 'data', 'autodev-reviewer-cases', 'case-001');
+    assert.ok(fs.existsSync(workspaceDir));
+    const output = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'reviewer-output.json'), 'utf-8'));
+    assert.strictEqual(output.decision, 'reopened');
+  });
 });
 
 function createAutoDevReviewerServer(options: {

@@ -220,9 +220,13 @@ export class AutoDevEngineerWorker {
     const output = result.outputFilePath
       ? readJsonFile<AutoDevEngineerOutput>(path.resolve(workspaceDir, result.outputFilePath))
       : readJsonFile<AutoDevEngineerOutput>(path.join(workspaceDir, 'engineer-output.json'));
-    const uploadCount = await this.uploadExecutionArtifacts(prepared.detail, output);
-    const nextState = output?.nextState === 'blocked' ? 'blocked' : 'reviewing';
-    const reason = String(output?.summary || result.summary.overview || 'EngineerCat completed the implementation step.').trim();
+    const implementationNotePath = path.join(workspaceDir, 'implementation.md');
+    const normalizedOutput = this.normalizeEngineerOutput(output, result, fs.existsSync(implementationNotePath));
+    fs.writeFileSync(path.join(workspaceDir, 'engineer-output.json'), JSON.stringify(normalizedOutput, null, 2), 'utf-8');
+
+    const uploadCount = await this.uploadExecutionArtifacts(prepared.detail, normalizedOutput);
+    const nextState = normalizedOutput.nextState === 'reviewing' ? 'reviewing' : 'blocked';
+    const reason = String(normalizedOutput.summary || result.summary.overview || 'EngineerCat completed the implementation step.').trim();
 
     await this.client.appendEvent(caseId, {
       kind: 'engineer_execution_completed',
@@ -231,8 +235,8 @@ export class AutoDevEngineerWorker {
         overview: result.summary.overview,
         artifact_count: uploadCount,
         next_state: nextState,
-        result_type: output?.resultType || null,
-        risk_level: output?.riskLevel || null,
+        result_type: normalizedOutput.resultType || null,
+        risk_level: normalizedOutput.riskLevel || null,
       },
     });
 
@@ -242,11 +246,55 @@ export class AutoDevEngineerWorker {
       actor_id: 'engineer',
       reason,
       category: prepared.detail.case.category || undefined,
-      recommended_next_action: output?.recommendedNextAction
+      recommended_next_action: normalizedOutput.recommendedNextAction
         || (nextState === 'reviewing' ? 'review_engineer_output' : 'collect_more_signal'),
     });
 
     return nextState === 'reviewing' && !this.keepSuccessfulWorkdir;
+  }
+
+  private normalizeEngineerOutput(
+    output: AutoDevEngineerOutput | undefined,
+    result: EngineerAgentExecutionResult,
+    implementationGenerated: boolean,
+  ): AutoDevEngineerOutput {
+    const missingOutputReason = 'Engineer structured output is missing or invalid; case cannot enter reviewing without engineer-output.json evidence.';
+    const missingImplementationReason = 'Engineer implementation note is missing; case cannot enter reviewing without implementation.md handoff evidence.';
+    const requestedReviewing = output?.nextState === 'reviewing';
+    const nextState: AutoDevEngineerOutput['nextState'] = requestedReviewing && implementationGenerated ? 'reviewing' : 'blocked';
+    const blockReasons: string[] = [];
+
+    if (!output) {
+      blockReasons.push(missingOutputReason);
+    } else if (!requestedReviewing && output.nextState !== 'blocked') {
+      blockReasons.push('Engineer output did not explicitly request nextState=reviewing.');
+    }
+    if (!implementationGenerated) {
+      blockReasons.push(missingImplementationReason);
+    }
+
+    const summary = String(output?.summary || result.summary.overview || blockReasons[0] || 'EngineerCat completed execution.').trim();
+    const overview = String(output?.overview || result.summary.overview || summary).trim();
+
+    return {
+      version: 1,
+      summary: nextState === 'blocked' && blockReasons.length > 0
+        ? `${summary} Blocked: ${blockReasons.join(' ')}`
+        : summary,
+      overview: nextState === 'blocked' && blockReasons.length > 0
+        ? `${overview}\n\nBlocked reasons:\n${blockReasons.map(item => `- ${item}`).join('\n')}`
+        : overview,
+      resultType: output?.resultType || (nextState === 'blocked' ? 'blocked' : 'implementation'),
+      riskLevel: output?.riskLevel || (nextState === 'blocked' ? 'high' : 'medium'),
+      nextState,
+      recommendedNextAction: nextState === 'reviewing'
+        ? (output?.recommendedNextAction || 'review_engineer_output')
+        : (output?.nextState === 'blocked' && output?.recommendedNextAction
+          ? output.recommendedNextAction
+          : 'engineer_output_missing_or_incomplete'),
+      changedFiles: Array.isArray(output?.changedFiles) ? output!.changedFiles : [],
+      artifacts: Array.isArray(output?.artifacts) ? output!.artifacts : [],
+    };
   }
 
   private async uploadExecutionArtifacts(

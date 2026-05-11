@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XiaoBa Pet Widget</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .pet {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      cursor: grab;
+    }
+    .sprite {
+      width: 192px;
+      height: 208px;
+      image-rendering: pixelated;
+      animation: floaty 3.4s ease-in-out infinite;
+      filter: drop-shadow(0 14px 18px rgba(20, 28, 40, 0.22));
+      cursor: pointer;
+      transform-origin: 50% 82%;
+      will-change: transform, filter;
+      transition: filter 160ms ease;
+    }
+    .sprite:hover {
+      filter: drop-shadow(0 18px 22px rgba(20, 28, 40, 0.26));
+    }
+    body.dragging .pet {
+      cursor: grabbing;
+    }
+    body.dragging .sprite {
+      animation-play-state: running;
+      filter: drop-shadow(0 20px 24px rgba(20, 28, 40, 0.28));
+    }
+    .notice,
+    .prompt {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      z-index: 2;
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+    .notice {
+      top: 8px;
+      padding: 7px 9px;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: #202838;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(44, 67, 89, 0.12);
+      box-shadow: 0 10px 22px rgba(20, 28, 40, 0.16);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .notice.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .prompt {
+      bottom: 8px;
+      display: grid;
+      grid-template-columns: 1fr 32px 32px;
+      gap: 6px;
+      padding: 7px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(44, 67, 89, 0.12);
+      box-shadow: 0 12px 24px rgba(20, 28, 40, 0.18);
+    }
+    body.composing .prompt {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .prompt input {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #202838;
+      font: inherit;
+      font-size: 12px;
+      line-height: 22px;
+    }
+    .prompt button {
+      width: 32px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      color: #202838;
+      background: rgba(38, 52, 72, 0.08);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .prompt button:hover {
+      background: rgba(38, 52, 72, 0.14);
+    }
+    @keyframes floaty {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-4px) scale(1.01); }
+    }
+  </style>
+</head>
+<body>
+  <div class="pet">
+    <canvas class="sprite" id="sprite" width="192" height="208" title="打开 Pet 对话"></canvas>
+  </div>
+  <div class="notice" id="notice" title="打开 Pet 对话"></div>
+  <form class="prompt" id="prompt">
+    <input id="prompt-input" autocomplete="off" placeholder="交给小八..." />
+    <button type="submit" title="发送">↵</button>
+    <button type="button" id="open-chat" title="打开对话">↗</button>
+  </form>
+  <script src="/pet-runtime.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const chatUrl = params.get('chat') || '/';
+    const sprite = document.getElementById('sprite');
+    const notice = document.getElementById('notice');
+    const prompt = document.getElementById('prompt');
+    const promptInput = document.getElementById('prompt-input');
+    const openChatButton = document.getElementById('open-chat');
+    const client = new XiaoBaPetRuntime.PetClient();
+    const player = new XiaoBaPetRuntime.SpritePlayer(sprite);
+    let selectedPetId = '';
+    let events = null;
+    let noticeTimer = 0;
+    let promptIdleTimer = 0;
+    let stateTimer = 0;
+    let pointerDown = false;
+    let didDrag = false;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    const dragThreshold = 5;
+    const handlePetEvent = XiaoBaPetRuntime.createEventHandler({
+      setState: state => setPetState(state),
+      onText: (_event, text) => showNotice(text, 5200),
+      onToolStart: event => showNotice('正在使用工具: ' + event.name, 3600),
+      onToolEnd: event => showNotice('工具完成: ' + event.name, 2600),
+      onFile: event => showNotice('生成文件: ' + (event.fileName || '文件'), 6500),
+      onError: event => showNotice(event.message || '处理失败', 6500),
+      onDone: event => {
+        if (event.text) showNotice(event.text, 5200);
+      },
+    });
+
+    function openChat() {
+      if (window.xiaobaPet) {
+        window.xiaobaPet.openChat(chatUrl);
+      } else {
+        window.open(chatUrl, '_blank');
+      }
+    }
+
+    function showPrompt() {
+      document.body.classList.add('composing');
+      promptInput.focus();
+      promptInput.select();
+      resetPromptIdleTimer();
+    }
+
+    function hidePrompt() {
+      document.body.classList.remove('composing');
+      clearTimeout(promptIdleTimer);
+    }
+
+    function resetPromptIdleTimer() {
+      clearTimeout(promptIdleTimer);
+      promptIdleTimer = setTimeout(() => {
+        if (!promptInput.value.trim()) {
+          hidePrompt();
+          promptInput.blur();
+        }
+      }, 4500);
+    }
+
+    function setPetState(state, force = false, options = {}) {
+      clearTimeout(stateTimer);
+      player.setState(state, force);
+      const animation = XiaoBaPetRuntime.animations[state];
+      if (!animation) return;
+      if (options.hold) return;
+      if (state === 'waving' || state === 'jumping') {
+        const duration = animation.durations.reduce((sum, value) => sum + value, 0) + 180;
+        stateTimer = setTimeout(() => {
+          if (!pointerDown && player.getState() === state) {
+            player.setState('idle');
+          }
+        }, duration);
+      }
+    }
+
+    function showNotice(text, timeout = 4200) {
+      const compact = String(text || '').replace(/\s+/g, ' ').trim();
+      if (!compact) return;
+      notice.textContent = compact.length > 56 ? compact.slice(0, 55) + '...' : compact;
+      notice.classList.add('visible');
+      clearTimeout(noticeTimer);
+      noticeTimer = setTimeout(() => {
+        notice.classList.remove('visible');
+      }, timeout);
+    }
+
+    async function sendMessage(text) {
+      if (!selectedPetId || !text.trim()) return;
+      hidePrompt();
+      setPetState('waiting');
+      showNotice('已交给小八');
+      try {
+        await client.sendMessage(selectedPetId, text.trim(), undefined, { source: 'widget' });
+      } catch (err) {
+        setPetState('failed');
+        showNotice(err.message || '发送失败', 5200);
+      }
+    }
+
+    function connectEvents() {
+      if (events) events.close();
+      events = client.connect(selectedPetId, handlePetEvent);
+    }
+
+    async function init() {
+      const data = await client.getPets();
+      const pet = (data.pets || []).find(item => item.id === data.defaultPetId) || (data.pets || [])[0];
+      if (!pet) return;
+      selectedPetId = pet.id;
+      player.load(pet.spriteUrl);
+      connectEvents();
+    }
+
+    sprite.addEventListener('click', () => {
+      if (didDrag) return;
+      setPetState('waving');
+      showPrompt();
+    });
+
+    sprite.addEventListener('pointerenter', () => {
+      if (pointerDown) return;
+      setPetState('jumping', false, { hold: true });
+    });
+
+    sprite.addEventListener('pointerleave', () => {
+      if (pointerDown) return;
+      if (player.getState() === 'jumping') {
+        setPetState('idle');
+      }
+    });
+
+    notice.addEventListener('click', openChat);
+    openChatButton.addEventListener('click', openChat);
+    prompt.addEventListener('submit', event => {
+      event.preventDefault();
+      const text = promptInput.value;
+      promptInput.value = '';
+      void sendMessage(text);
+    });
+    promptInput.addEventListener('keydown', event => {
+      resetPromptIdleTimer();
+      if (event.key === 'Escape') {
+        hidePrompt();
+        promptInput.blur();
+      }
+    });
+    promptInput.addEventListener('input', resetPromptIdleTimer);
+    promptInput.addEventListener('blur', () => {
+      if (!promptInput.value.trim()) hidePrompt();
+    });
+
+    sprite.addEventListener('pointerdown', event => {
+      if (event.button !== 0) return;
+      pointerDown = true;
+      didDrag = false;
+      startX = event.screenX;
+      startY = event.screenY;
+      lastX = event.screenX;
+      sprite.setPointerCapture(event.pointerId);
+      if (window.xiaobaPet) {
+        window.xiaobaPet.dragStart({ x: event.screenX, y: event.screenY });
+      }
+    });
+
+    sprite.addEventListener('pointermove', event => {
+      if (!pointerDown) return;
+      const distance = Math.hypot(event.screenX - startX, event.screenY - startY);
+      if (distance > dragThreshold) {
+        didDrag = true;
+        document.body.classList.add('dragging');
+      }
+      if (didDrag) {
+        const deltaX = event.screenX - lastX;
+        setPetState(Math.abs(deltaX) > 1 ? (deltaX > 0 ? 'running-right' : 'running-left') : 'running');
+      }
+      lastX = event.screenX;
+      if (didDrag && window.xiaobaPet) {
+        window.xiaobaPet.dragMove({ x: event.screenX, y: event.screenY });
+      }
+    });
+
+    function finishDrag(event) {
+      if (!pointerDown) return;
+      pointerDown = false;
+      document.body.classList.remove('dragging');
+      if (window.xiaobaPet) {
+        window.xiaobaPet.dragEnd();
+      }
+      if (didDrag) setPetState('idle');
+      setTimeout(() => {
+        didDrag = false;
+      }, 0);
+      if (event && sprite.hasPointerCapture(event.pointerId)) {
+        sprite.releasePointerCapture(event.pointerId);
+      }
+    }
+
+    sprite.addEventListener('pointerup', finishDrag);
+    sprite.addEventListener('pointercancel', finishDrag);
+
+    init().catch(() => {
+      setPetState('failed');
+    });
+  </script>
+</body>
+</html>

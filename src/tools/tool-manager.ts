@@ -14,6 +14,7 @@ import { SpawnSubagentTool } from './spawn-subagent-tool';
 import { CheckSubagentTool } from './check-subagent-tool';
 import { StopSubagentTool } from './stop-subagent-tool';
 import { ResumeSubagentTool } from './resume-subagent-tool';
+import { AskParentTool } from './ask-parent-tool';
 
 /**
  * 工具名别名映射（Claude Code 工具名 → XiaoBa 内部注册名）
@@ -84,6 +85,7 @@ export class ToolManager implements ToolExecutor {
     this.registerTool(new CheckSubagentTool());
     this.registerTool(new StopSubagentTool());
     this.registerTool(new ResumeSubagentTool());
+    this.registerTool(new AskParentTool());
 
     // Skill 调用 (1)
     this.registerTool(new SkillTool());

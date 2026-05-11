@@ -78,10 +78,40 @@ describe('ToolManager role-specific tools', () => {
   test('reviewer-cat 角色通过组合层注册 Codex 和模块测试工具', () => {
     RoleResolver.activateRole('reviewer-cat');
     const manager = createRoleAwareToolManager();
+    assert.ok(manager.getTool('reviewer_eval_prepare'));
+    assert.ok(manager.getTool('reviewer_xiaoba_cli_e2e'));
     assert.ok(manager.getTool('codex_job_start'));
     assert.ok(manager.getTool('codex_job_status'));
     assert.ok(manager.getTool('codex_job_resume'));
     assert.ok(manager.getTool('codex_job_cancel'));
     assert.ok(manager.getTool('reviewer_module_test'));
+  });
+
+  test('reviewer-cat eval prepare 工具能通过 ToolManager 执行并落盘评估工件', async () => {
+    RoleResolver.activateRole('reviewer-cat');
+    fs.writeFileSync(
+      path.join(testRoot, 'package.json'),
+      JSON.stringify({ scripts: { test: 'node --test' } }, null, 2),
+      'utf-8',
+    );
+
+    const manager = createRoleAwareToolManager(testRoot);
+    const result = await manager.executeTool({
+      id: 'eval-prepare-1',
+      type: 'function',
+      function: {
+        name: 'reviewer_eval_prepare',
+        arguments: JSON.stringify({
+          review_id: 'runtime-channel',
+          request: 'Verify reviewer eval runtime channel.',
+          changed_files: ['src/example.ts'],
+        }),
+      },
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.match(String(result.content), /reviewer_eval_prepare: status=prepared/);
+    assert.ok(fs.existsSync(path.join(testRoot, 'data', 'reviewer-runs', 'runtime-channel', 'review-eval-plan.md')));
+    assert.ok(fs.existsSync(path.join(testRoot, 'data', 'reviewer-runs', 'runtime-channel', 'test-matrix.md')));
   });
 });

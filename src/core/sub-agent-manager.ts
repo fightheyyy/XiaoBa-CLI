@@ -184,6 +184,17 @@ export class SubAgentManager {
   }
 
   /**
+   * 子智能体请求父会话输入。
+   */
+  async requestParentInput(subAgentId: string, question: string): Promise<string> {
+    const session = this.subAgents.get(subAgentId);
+    if (!session) {
+      throw new Error(`未找到子智能体 ${subAgentId}`);
+    }
+    return session.waitForParentInput(question);
+  }
+
+  /**
    * 查询单个子智能体状态
    */
   getInfo(subAgentId: string): SubAgentInfo | undefined {

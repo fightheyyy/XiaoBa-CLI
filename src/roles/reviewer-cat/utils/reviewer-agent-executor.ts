@@ -142,8 +142,8 @@ export class ReviewerAgentExecutionExecutor implements ReviewerExecutionExecutor
         .filter(filePath => fs.existsSync(filePath))
         .length
         + (Array.isArray(output?.artifacts) ? output!.artifacts.length : 0);
-      const decision = output?.decision === 'reopened' ? 'reopened' : 'closed';
-      const nextState = output?.nextState === 'reopened' ? 'reopened' : decision;
+      const decision = output?.decision === 'closed' ? 'closed' : 'reopened';
+      const nextState = output?.nextState === 'closed' && decision === 'closed' ? 'closed' : 'reopened';
       const overview = String(
         output?.overview
         || output?.summary

@@ -36,6 +36,8 @@ const ANTHROPIC_PROMPT_BUDGET = 200000;
 const MIN_MESSAGE_BUDGET = 2000;
 const OVERFLOW_REDUCTION_RATIO = 0.6;
 const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
+const MAX_SHRUNK_TOOL_ARGUMENT_CHARS = 1200;
+const MAX_AGGRESSIVE_TOOL_ARGUMENT_CHARS = 600;
 
 /**
  * 对话运行回调
@@ -163,6 +165,8 @@ export class ConversationRunner {
         break;
       }
 
+      this.replaceMessages(messages, this.sanitizeToolTranscript(messages));
+
       if (this.enableCompression) {
         const toolTokens = estimateToolsTokens(allTools);
         const messageTokens = estimateMessagesTokens(messages);
@@ -282,7 +286,7 @@ export class ConversationRunner {
 
         const toolName = toolCall.function.name;
         const toolUseId = toolCall.id;
-        const toolInput = JSON.parse(toolCall.function.arguments);
+        const toolInput = this.parseToolInputForCallback(toolCall.function.arguments);
         callbacks?.onToolStart?.(toolName, toolUseId, toolInput);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 执行工具: ${toolName} | 参数: ${ConversationRunner.truncateForLog(toolCall.function.arguments, 500)}`);
         const activeToolNames = allTools.map(tool => tool.name);
@@ -378,6 +382,17 @@ export class ConversationRunner {
   /**
    * 处理需要显示输出的工具
    */
+  private parseToolInputForCallback(argumentsJson: string): unknown {
+    try {
+      return JSON.parse(argumentsJson || '{}');
+    } catch {
+      return {
+        _invalidJson: true,
+        raw: argumentsJson,
+      };
+    }
+  }
+
   private handleToolDisplay(toolCall: ToolCall, content: string, callbacks?: RunnerCallbacks): void {
     const toolName = toolCall.function.name;
     if (!callbacks?.onToolDisplay) {
@@ -418,23 +433,24 @@ export class ConversationRunner {
     toolDefinitions: Map<string, ToolDefinition>,
   ): Message[] {
     const messages: Message[] = [];
+    const transcriptRecords = executionRecords.filter(record =>
+      this.shouldIncludeToolResult(record, toolDefinitions)
+    );
+    const transcriptToolCalls = this.normalizeToolCallsForTranscript(
+      transcriptRecords.map(record => record.toolCall)
+    );
 
     const assistant: Message = {
       role: 'assistant',
       content: assistantMsg.content,
-      ...(assistantMsg.tool_calls?.length ? { tool_calls: assistantMsg.tool_calls } : {}),
+      ...(transcriptToolCalls.length ? { tool_calls: transcriptToolCalls } : {}),
     };
 
     if (assistant.content || assistant.tool_calls?.length) {
       messages.push(assistant);
     }
 
-    for (const record of executionRecords) {
-      const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
-      if (transcriptMode === 'suppress' && !record.result.errorCode) {
-        continue;
-      }
-
+    for (const record of transcriptRecords) {
       // 检测图片读取结果的特殊标记
       if (typeof record.toolContent === 'object' && record.toolContent && '_imageForNewMessage' in record.toolContent) {
         const imageData = record.toolContent as any;
@@ -464,7 +480,7 @@ export class ConversationRunner {
       }
     }
 
-    return messages;
+    return this.sanitizeToolTranscript(messages);
   }
 
   private buildProviderInputMessages(messages: Message[], transientHints: Message[]): Message[] {
@@ -511,6 +527,14 @@ export class ConversationRunner {
     toolDefinitions: Map<string, ToolDefinition>,
   ): ToolTranscriptMode {
     return toolDefinitions.get(toolName)?.transcriptMode ?? 'default';
+  }
+
+  private shouldIncludeToolResult(
+    record: ToolExecutionRecord,
+    toolDefinitions: Map<string, ToolDefinition>,
+  ): boolean {
+    const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
+    return transcriptMode !== 'suppress' || Boolean(record.result.errorCode);
   }
 
   private shouldNormalizeOutboundRecord(
@@ -661,22 +685,38 @@ export class ConversationRunner {
 
   private hardTrimMessages(messages: Message[], targetTokens: number): Message[] {
     const system = messages.filter(msg => msg.role === 'system');
-    const nonSystem = messages.filter(msg => msg.role !== 'system');
+    const groups = this.groupTranscriptMessages(messages.filter(msg => msg.role !== 'system'));
 
-    const recentCount = Math.min(8, nonSystem.length);
-    const old = nonSystem.slice(0, -recentCount).map(msg => this.shrinkMessage(msg, true));
-    const recent = nonSystem.slice(-recentCount).map(msg => this.shrinkMessage(msg, false));
+    const recentCount = Math.min(8, groups.length);
+    const oldGroups = groups
+      .slice(0, -recentCount)
+      .map(group => group.map(msg => this.shrinkMessage(msg, true)));
+    const recentGroups = groups
+      .slice(-recentCount)
+      .map(group => group.map(msg => this.shrinkMessage(msg, false)));
 
-    let candidate = [...system, ...old, ...recent];
+    let candidate = this.sanitizeToolTranscript([
+      ...system,
+      ...oldGroups.flat(),
+      ...recentGroups.flat(),
+    ]);
 
-    while (estimateMessagesTokens(candidate) > targetTokens && old.length > 0) {
-      old.shift();
-      candidate = [...system, ...old, ...recent];
+    while (estimateMessagesTokens(candidate) > targetTokens && oldGroups.length > 0) {
+      oldGroups.shift();
+      candidate = this.sanitizeToolTranscript([
+        ...system,
+        ...oldGroups.flat(),
+        ...recentGroups.flat(),
+      ]);
     }
 
-    while (estimateMessagesTokens(candidate) > targetTokens && recent.length > 2) {
-      recent.shift();
-      candidate = [...system, ...old, ...recent];
+    while (estimateMessagesTokens(candidate) > targetTokens && recentGroups.length > 1) {
+      recentGroups.shift();
+      candidate = this.sanitizeToolTranscript([
+        ...system,
+        ...oldGroups.flat(),
+        ...recentGroups.flat(),
+      ]);
     }
 
     if (estimateMessagesTokens(candidate) > targetTokens && system.length > 1) {
@@ -684,16 +724,144 @@ export class ConversationRunner {
         system[0],
         ...system.slice(1).map(msg => this.shrinkMessage(msg, true)),
       ];
-      candidate = [...trimmedSystem, ...old, ...recent];
+      candidate = this.sanitizeToolTranscript([
+        ...trimmedSystem,
+        ...oldGroups.flat(),
+        ...recentGroups.flat(),
+      ]);
     }
 
     return candidate;
   }
 
+  private groupTranscriptMessages(messages: Message[]): Message[][] {
+    const groups: Message[][] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+
+      if (message.role === 'tool') {
+        continue;
+      }
+
+      if (message.role !== 'assistant' || !message.tool_calls?.length) {
+        groups.push([message]);
+        continue;
+      }
+
+      const toolCalls = this.normalizeToolCallsForTranscript(message.tool_calls);
+      if (toolCalls.length === 0) {
+        if (contentToString(message.content).trim()) {
+          const assistantWithoutToolCalls: Message = { ...message };
+          delete assistantWithoutToolCalls.tool_calls;
+          groups.push([assistantWithoutToolCalls]);
+        }
+        continue;
+      }
+
+      const expectedToolCallIds = new Set(toolCalls.map(toolCall => toolCall.id));
+      const group: Message[] = [message];
+      let j = i + 1;
+
+      while (j < messages.length && messages[j].role === 'tool') {
+        const toolMessage = messages[j];
+        if (toolMessage.tool_call_id && expectedToolCallIds.has(toolMessage.tool_call_id)) {
+          group.push(toolMessage);
+        }
+        j++;
+      }
+
+      groups.push(group);
+      i = j - 1;
+    }
+
+    return groups;
+  }
+
+  private sanitizeToolTranscript(messages: Message[]): Message[] {
+    const sanitized: Message[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
+
+      if (message.role === 'tool') {
+        continue;
+      }
+
+      if (message.role !== 'assistant' || !message.tool_calls?.length) {
+        sanitized.push(message);
+        continue;
+      }
+
+      const toolCalls = this.normalizeToolCallsForTranscript(message.tool_calls);
+      if (toolCalls.length === 0) {
+        const assistantWithoutToolCalls: Message = { ...message };
+        delete assistantWithoutToolCalls.tool_calls;
+        if (contentToString(assistantWithoutToolCalls.content).trim()) {
+          sanitized.push(assistantWithoutToolCalls);
+        }
+        continue;
+      }
+
+      const expectedToolCallIds = new Set(toolCalls.map(toolCall => toolCall.id));
+      const seenToolCallIds = new Set<string>();
+      const toolMessages: Message[] = [];
+      let j = i + 1;
+
+      while (j < messages.length && messages[j].role === 'tool') {
+        const toolMessage = messages[j];
+        const toolCallId = toolMessage.tool_call_id;
+        if (toolCallId && expectedToolCallIds.has(toolCallId) && !seenToolCallIds.has(toolCallId)) {
+          seenToolCallIds.add(toolCallId);
+          toolMessages.push(toolMessage);
+        }
+        j++;
+      }
+
+      if (seenToolCallIds.size === expectedToolCallIds.size) {
+        sanitized.push({
+          ...message,
+          tool_calls: toolCalls,
+        }, ...toolMessages);
+      } else {
+        const assistantWithoutToolCalls: Message = { ...message };
+        delete assistantWithoutToolCalls.tool_calls;
+        if (contentToString(assistantWithoutToolCalls.content).trim()) {
+          sanitized.push(assistantWithoutToolCalls);
+        }
+      }
+
+      i = j - 1;
+    }
+
+    return sanitized;
+  }
+
+  private normalizeToolCallsForTranscript(toolCalls: ToolCall[] | undefined): ToolCall[] {
+    if (!toolCalls?.length) {
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const normalized: ToolCall[] = [];
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall.id || seen.has(toolCall.id)) {
+        continue;
+      }
+      seen.add(toolCall.id);
+      normalized.push(toolCall);
+    }
+
+    return normalized;
+  }
+
   private buildMinimalFallback(messages: Message[]): Message[] {
     const system = messages.find(msg => msg.role === 'system');
     const nonSystem = messages.filter(msg => msg.role !== 'system');
-    const tail = nonSystem.slice(-2).map(msg => this.shrinkMessage(msg, true));
+    const tail = this.groupTranscriptMessages(nonSystem)
+      .slice(-2)
+      .flatMap(group => group.map(msg => this.shrinkMessage(msg, true)));
 
     const result: Message[] = [];
     if (system) {
@@ -701,7 +869,7 @@ export class ConversationRunner {
     }
     result.push(...tail);
 
-    return result;
+    return this.sanitizeToolTranscript(result);
   }
 
   private shrinkMessage(message: Message, aggressive: boolean): Message {
@@ -723,11 +891,40 @@ export class ConversationRunner {
       content: nextContent,
     };
 
-    if (aggressive && next.tool_calls) {
-      delete next.tool_calls;
+    if (next.tool_calls?.length) {
+      next.tool_calls = next.tool_calls.map(toolCall => ({
+        ...toolCall,
+        function: {
+          ...toolCall.function,
+          arguments: this.shrinkToolArguments(
+            toolCall.function.arguments,
+            aggressive ? MAX_AGGRESSIVE_TOOL_ARGUMENT_CHARS : MAX_SHRUNK_TOOL_ARGUMENT_CHARS,
+          ),
+        },
+      }));
     }
 
     return next;
+  }
+
+  private shrinkToolArguments(args: string, maxChars: number): string {
+    if (!args || args.length <= maxChars) {
+      return args;
+    }
+
+    let preview = args.slice(0, maxChars);
+    try {
+      const parsed = JSON.parse(args);
+      preview = JSON.stringify(parsed).slice(0, maxChars);
+    } catch {
+      // Keep the raw prefix below; historical malformed args should stay harmless.
+    }
+
+    return JSON.stringify({
+      _truncated: true,
+      preview,
+      originalChars: args.length,
+    });
   }
 
   private resolveMessageCharLimit(message: Message, aggressive: boolean): number {

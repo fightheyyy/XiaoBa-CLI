@@ -18,6 +18,8 @@ import {
   CodexJobStartTool,
   CodexJobStatusTool,
 } from './reviewer-cat/tools/codex-job-tools';
+import { ReviewerEvalPrepareTool } from './reviewer-cat/tools/reviewer-eval-tool';
+import { ReviewerXiaoBaCliE2ETool } from './reviewer-cat/tools/xiaoba-cli-e2e-tool';
 import { ReviewerModuleTestTool } from './reviewer-cat/tools/module-test-tool';
 
 export interface RoleRuntimeSupport {
@@ -45,6 +47,8 @@ export function getRoleSpecificTools(): Tool[] {
   }
   if (isReviewerRole()) {
     return [
+      new ReviewerEvalPrepareTool(),
+      new ReviewerXiaoBaCliE2ETool(),
       new CodexJobStartTool(),
       new CodexJobStatusTool(),
       new CodexJobResumeTool(),

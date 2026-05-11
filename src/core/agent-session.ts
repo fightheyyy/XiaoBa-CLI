@@ -16,6 +16,7 @@ import { SessionTurnLogger } from '../utils/session-turn-logger';
 import { SessionStore } from '../utils/session-store';
 import { Metrics } from '../utils/metrics';
 import { ContextCompressor } from './context-compressor';
+import { MemoryFinalizer, MemoryFinalizationReason } from '../utils/memory-finalizer';
 
 const TRANSIENT_SUBAGENT_STATUS_PREFIX = '[transient_subagent_status]';
 const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
@@ -91,6 +92,7 @@ export class AgentSession {
   lastActiveAt: number = Date.now();
   private sessionTurnLogger: SessionTurnLogger;
   private compressor: ContextCompressor;
+  private pendingMemoryRecall?: Message;
 
   constructor(
     public readonly key: string,
@@ -103,6 +105,7 @@ export class AgentSession {
   }
 
   private extractSessionType(key: string): string {
+    if (key.startsWith('pet:')) return 'pet';
     if (key.startsWith('catscompany:')) return 'catscompany';
     if (key.startsWith('feishu:')) return 'feishu';
     if (key.startsWith('user:')) return 'weixin';
@@ -164,12 +167,23 @@ export class AgentSession {
         role: 'system',
         content: `[surface:catscompany]\n当前是 Cats Company 聊天会话。\n${modeInstruction}`,
       });
+    } else if (this.isPetSession()) {
+      this.messages.push({
+        role: 'system',
+        content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收流式回复；pet 会表现你的等待、审查、运行、完成和失败状态。请保持回答适合本地 pet 气泡展示，必要时可以使用工具。`,
+      });
     }
 
     // 加载上次会话摘要（本地文件兜底）
     // 已移除摘要机制
 
-    // 从 DB 恢复未归档的消息
+    if (this.pendingMemoryRecall) {
+      this.messages.push(this.pendingMemoryRecall);
+      Logger.info(`[会话 ${this.key}] 已注入被动 memory recall`);
+      this.pendingMemoryRecall = undefined;
+    }
+
+      // 从 DB 恢复未归档的消息
     if (this.pendingRestore) {
       this.messages.push(...this.pendingRestore);
       Logger.info(`[会话 ${this.key}] 已恢复 ${this.pendingRestore.length} 条消息`);
@@ -344,7 +358,9 @@ export class AgentSession {
           ? 'catscompany'
           : this.isFeishuSession()
             ? 'feishu'
-            : 'cli';
+            : this.isPetSession()
+              ? 'pet'
+              : 'cli';
         const runner = new ConversationRunner(
           this.services.aiService,
           this.services.toolManager,
@@ -619,19 +635,31 @@ ${conversationText}
 
 
       // \u5f52\u6863\u6301\u4e45\u5316\u6587\u4ef6
+        SessionStore.getInstance().saveContext(this.key, this.messages);
+        try {
+          const archive = MemoryFinalizer.finalizeSession(this.key, this.messages, {
+            reason: 'manual_archive',
+            sessionType: this.sessionType || this.extractSessionType(this.key),
+          });
+          if (archive) {
+            Logger.info(`[会话 ${this.key}] 手动归档 memory: ${archive.facts.length} facts, ${archive.artifacts.length} artifacts`);
+          }
+        } catch (err: any) {
+          Logger.warning(`[会话 ${this.key}] 手动归档 memory 失败: ${err.message || String(err)}`);
+        }
 
         this.messages = [];
         return true;
       } catch (error) {
         Logger.error('\u538b\u7f29\u5386\u53f2\u5931\u8d25: ' + String(error));
-        return false;
+        await this.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
         return false;
       }
     });
   }
 
   /** 过期或退出时清理内存（保存完整 context） */
-  async cleanup(options?: { checkWakeup?: boolean }): Promise<void> {
+  async cleanup(options?: { checkWakeup?: boolean; finalizeMemory?: boolean; finalizationReason?: MemoryFinalizationReason }): Promise<void> {
     return this.withLogContext(async () => {
       if (this.messages.length === 0) return;
 
@@ -680,6 +708,20 @@ ${conversationText}`;
         SessionStore.getInstance().saveContext(this.key, this.messages);
         Logger.info(`会话已保存: ${this.key}, ${this.messages.length} 条消息`);
 
+        if (options?.finalizeMemory) {
+          try {
+            const archive = MemoryFinalizer.finalizeSession(this.key, this.messages, {
+              reason: options.finalizationReason ?? 'ttl_cleanup',
+              sessionType: this.sessionType || this.extractSessionType(this.key),
+            });
+            if (archive) {
+              Logger.info(`[会话 ${this.key}] 被动 memory 已归档: ${archive.facts.length} facts, ${archive.artifacts.length} artifacts`);
+            }
+          } catch (err: any) {
+            Logger.warning(`[会话 ${this.key}] 被动 memory 归档失败: ${err.message || String(err)}`);
+          }
+        }
+
         // 清理内存
         this.messages = [];
       } catch (error) {
@@ -704,11 +746,12 @@ ${conversationText}`;
   restoreFromStore(): boolean {
     return this.withLogContext(() => {
       const store = SessionStore.getInstance();
-      if (!store.hasSession(this.key)) return false;
-      const msgs = store.loadContext(this.key);
-      if (msgs.length === 0) return false;
-      this.pendingRestore = msgs;
-      Logger.info(`[会话 ${this.key}] 标记从 DB 恢复 ${msgs.length} 条消息`);
+      const msgs = store.hasSession(this.key) ? store.loadContext(this.key) : [];
+      const memoryRecall = MemoryFinalizer.buildRecallMessage(this.key);
+      if (msgs.length === 0 && !memoryRecall) return false;
+      this.pendingRestore = msgs.length > 0 ? msgs : undefined;
+      this.pendingMemoryRecall = memoryRecall || undefined;
+      Logger.info(`[会话 ${this.key}] 标记恢复: transcript=${msgs.length}, memoryRecall=${memoryRecall ? 'yes' : 'no'}`);
       return true;
     });
   }
@@ -796,6 +839,10 @@ ${conversationText}`;
 
   private isCatsCompanySession(): boolean {
     return this.key.startsWith('cc_user:') || this.key.startsWith('cc_group:');
+  }
+
+  private isPetSession(): boolean {
+    return this.key.startsWith('pet:');
   }
 
   private isChatSession(): boolean {

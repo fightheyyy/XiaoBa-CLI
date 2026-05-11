@@ -10,7 +10,13 @@ export class ActiveRoleContext {
   }
 
   static getRolesRoot(): string {
-    return path.join(this.getProjectRoot(), 'roles');
+    const candidates = [
+      path.join(this.getProjectRoot(), 'roles'),
+      process.env.XIAOBA_ROLES_ROOT,
+      process.env.XIAOBA_APP_ROOT ? path.join(process.env.XIAOBA_APP_ROOT, 'roles') : undefined,
+    ].filter((candidate): candidate is string => Boolean(candidate));
+
+    return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
   }
 
   static normalizeRoleName(roleName: string): string {

@@ -220,6 +220,9 @@ export class AutoDevReviewerWorker {
       || (engineerOutputPath ? readJsonFile<AutoDevEngineerOutput>(engineerOutputPath) : undefined);
 
     const normalizedOutput = this.normalizeReviewerOutput(reviewerOutput, result);
+    if (!reviewerOutput) {
+      fs.writeFileSync(path.join(workspaceDir, 'reviewer-output.json'), JSON.stringify(normalizedOutput, null, 2), 'utf-8');
+    }
     const writebackPlan = normalizedOutput.writebackPlan || createDefaultWritebackPlan({
       detail: prepared.detail,
       engineerOutput,
@@ -278,9 +281,9 @@ export class AutoDevReviewerWorker {
       recommended_next_action: this.resolveRecommendedNextAction(normalizedOutput, writebackPlan, writebackResult),
     });
 
-    return normalizedOutput.decision !== 'closed'
-      ? !this.keepSuccessfulWorkdir
-      : (writebackResult?.status !== 'failed' && !this.keepSuccessfulWorkdir);
+    return normalizedOutput.decision === 'closed'
+      && writebackResult?.status !== 'failed'
+      && !this.keepSuccessfulWorkdir;
   }
 
   private async uploadReviewArtifacts(
@@ -419,15 +422,20 @@ export class AutoDevReviewerWorker {
     output: AutoDevReviewerOutput | undefined,
     result: ReviewerAgentExecutionResult,
   ): AutoDevReviewerOutput {
-    const decision = output?.decision === 'reopened' ? 'reopened' : 'closed';
+    const decision = output?.decision === 'closed' ? 'closed' : 'reopened';
+    const nextState = output?.nextState === 'closed' && decision === 'closed' ? 'closed' : 'reopened';
+    const missingEvidenceReason = 'Reviewer structured output is missing or invalid; case cannot be closed without review evidence.';
+    const decisionReason = output
+      ? String(output.decisionReason || output.summary || result.summary.overview || '').trim()
+        || missingEvidenceReason
+      : missingEvidenceReason;
     return {
       version: 1,
-      summary: String(output?.summary || result.summary.overview || 'ReviewerCat completed validation.').trim(),
+      summary: String(output?.summary || result.summary.overview || missingEvidenceReason).trim(),
       overview: String(output?.overview || result.summary.overview || '').trim() || undefined,
       decision,
-      decisionReason: String(output?.decisionReason || output?.summary || result.summary.overview || '').trim()
-        || 'ReviewerCat completed the validation step.',
-      nextState: output?.nextState === 'reopened' ? 'reopened' : decision,
+      decisionReason,
+      nextState,
       regressionStatus: output?.regressionStatus,
       riskLevel: output?.riskLevel,
       artifacts: Array.isArray(output?.artifacts) ? output!.artifacts : [],

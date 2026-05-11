@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">XiaoBa-CLI Architecture</title>
+  <desc id="desc">Architecture diagram showing User and IM platforms flowing through XiaoBa Harness into Agent Runtime, LLM, tools, context, memory, and IM actions.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#172033" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3E5C76"/>
+    </marker>
+    <linearGradient id="runtime" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF8E8"/>
+      <stop offset="100%" stop-color="#EAF7FF"/>
+    </linearGradient>
+    <style>
+      .bg { fill: #F7F8F5; }
+      .title { font: 700 42px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #19212E; letter-spacing: 0; }
+      .subtitle { font: 400 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5B6574; letter-spacing: 0; }
+      .label { font: 700 23px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1D2735; letter-spacing: 0; }
+      .small { font: 500 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #536070; letter-spacing: 0; }
+      .tiny { font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #647184; letter-spacing: 0; }
+      .box { fill: #FFFFFF; stroke: #DDE4EC; stroke-width: 2; rx: 18; filter: url(#shadow); }
+      .inner { fill: #FFFFFF; stroke: #DCE7EE; stroke-width: 2; rx: 14; }
+      .harness { fill: #FFF3D6; stroke: #E5B856; stroke-width: 2; rx: 20; filter: url(#shadow); }
+      .runtime { fill: url(#runtime); stroke: #78A7BD; stroke-width: 2.5; rx: 26; filter: url(#shadow); }
+      .tool { fill: #F2FBF7; stroke: #9CCBB4; stroke-width: 2; rx: 14; }
+      .action { fill: #EEF5FF; stroke: #8FB4E8; stroke-width: 2; rx: 14; }
+      .chip { fill: #202A38; rx: 12; }
+      .chiptext { font: 700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #FFFFFF; letter-spacing: 0; }
+      .arrow { fill: none; stroke: #3E5C76; stroke-width: 3; marker-end: url(#arrow); }
+      .arrow-soft { fill: none; stroke: #8CA0B3; stroke-width: 2.4; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .cat { fill: #F6BC62; stroke: #151515; stroke-width: 9; stroke-linejoin: round; }
+      .cat-hair { fill: #151515; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <circle cx="1400" cy="120" r="130" fill="#C8F7F0" opacity="0.45"/>
+  <circle cx="170" cy="775" r="170" fill="#FFE6A8" opacity="0.55"/>
+
+  <text x="80" y="82" class="title">XiaoBa-CLI Architecture</text>
+  <text x="80" y="118" class="subtitle">A customizable IM-oriented Agent Runtime: Harness defines behavior, Runtime executes tasks, Tools act in the real world.</text>
+
+  <g transform="translate(72 215)">
+    <rect class="box" width="270" height="360"/>
+    <text x="28" y="48" class="label">User / IM Platform</text>
+    <text x="28" y="82" class="small">WeChat · Feishu · Group Chat</text>
+    <g transform="translate(58 122)">
+      <rect x="0" y="0" width="154" height="178" rx="32" fill="#EAF3F5" stroke="#B8CCD3" stroke-width="2"/>
+      <rect x="24" y="32" width="106" height="20" rx="10" fill="#74D8D0"/>
+      <rect x="24" y="72" width="78" height="18" rx="9" fill="#FFFFFF"/>
+      <rect x="24" y="106" width="110" height="18" rx="9" fill="#FFFFFF"/>
+      <circle cx="77" cy="150" r="9" fill="#9BA8B5"/>
+    </g>
+    <rect x="29" y="318" width="212" height="34" rx="17" fill="#F4F7FA"/>
+    <text x="50" y="341" class="tiny">messages · files · mentions</text>
+  </g>
+
+  <g transform="translate(432 250)">
+    <rect class="harness" width="275" height="290"/>
+    <text x="34" y="50" class="label">XiaoBa Harness</text>
+    <text x="34" y="84" class="small">Scenario-specific behavior layer</text>
+    <g transform="translate(34 120)">
+      <rect class="inner" width="207" height="42"/>
+      <text x="20" y="28" class="small">System Prompt</text>
+      <rect class="inner" y="58" width="207" height="42"/>
+      <text x="20" y="86" class="small">Persona &amp; Tone</text>
+      <rect class="inner" y="116" width="207" height="42"/>
+      <text x="20" y="144" class="small">IM Policy</text>
+    </g>
+  </g>
+
+  <g transform="translate(805 180)">
+    <rect class="runtime" width="480" height="430"/>
+    <text x="38" y="56" class="label">Agent Runtime</text>
+    <text x="38" y="90" class="small">ReAct loop · context management · tool orchestration</text>
+    <g transform="translate(38 122)">
+      <rect class="inner" width="185" height="74"/>
+      <text x="22" y="32" class="small">Agent Loop</text>
+      <text x="22" y="56" class="tiny">think · act · observe</text>
+      <rect class="inner" x="225" width="178" height="74"/>
+      <text x="247" y="32" class="small">Tool Router</text>
+      <text x="247" y="56" class="tiny">select · execute</text>
+      <rect class="inner" y="104" width="185" height="74"/>
+      <text x="22" y="136" class="small">Context</text>
+      <text x="22" y="160" class="tiny">history · compression</text>
+      <rect class="inner" x="225" y="104" width="178" height="74"/>
+      <text x="247" y="136" class="small">Memory</text>
+      <text x="247" y="160" class="tiny">profile · knowledge</text>
+      <rect class="inner" y="208" width="403" height="74"/>
+      <text x="22" y="240" class="small">Execution Boundary</text>
+      <text x="22" y="264" class="tiny">permissions · logs · state · error recovery</text>
+    </g>
+  </g>
+
+  <g transform="translate(1338 150)">
+    <rect class="box" width="205" height="124"/>
+    <text x="28" y="48" class="label">LLM</text>
+    <text x="28" y="82" class="small">OpenAI / Claude</text>
+  </g>
+
+  <g transform="translate(1326 350)">
+    <rect class="box" width="230" height="312"/>
+    <text x="28" y="48" class="label">Tools</text>
+    <g transform="translate(26 78)">
+      <rect class="tool" width="178" height="42"/>
+      <text x="20" y="28" class="small">Bash</text>
+      <rect class="tool" y="58" width="178" height="42"/>
+      <text x="20" y="86" class="small">Files</text>
+      <rect class="action" y="116" width="178" height="42"/>
+      <text x="20" y="144" class="small">send_text</text>
+      <rect class="action" y="174" width="178" height="42"/>
+      <text x="20" y="202" class="small">send_file</text>
+    </g>
+  </g>
+
+  <g transform="translate(805 682)">
+    <rect class="box" width="480" height="112"/>
+    <text x="34" y="45" class="label">Workflow Execution</text>
+    <text x="34" y="79" class="small">read context → plan → call tools → send IM actions → observe feedback</text>
+  </g>
+
+  <g transform="translate(470 670)">
+    <path class="cat" d="M80 40 L110 8 L124 62 Q154 84 154 132 Q154 206 92 216 Q30 206 30 132 Q30 84 60 62 L74 8 Z"/>
+    <path class="cat-hair" d="M62 48 H120 V70 H110 V83 H96 V70 H82 V83 H72 V70 H62 Z"/>
+    <rect x="62" y="118" width="13" height="13" fill="#111"/>
+    <rect x="109" y="118" width="13" height="13" fill="#111"/>
+    <rect x="46" y="164" width="19" height="38" rx="8" fill="#E8A94E"/>
+    <rect x="120" y="164" width="19" height="38" rx="8" fill="#E8A94E"/>
+    <rect x="60" y="208" width="24" height="20" rx="7" fill="#D89843"/>
+    <rect x="102" y="208" width="24" height="20" rx="7" fill="#D89843"/>
+    <rect x="-18" y="238" width="224" height="34" rx="17" fill="#202A38"/>
+    <text x="9" y="261" class="chiptext">XiaoBa as partner agent</text>
+  </g>
+
+  <path class="arrow" d="M342 395 C372 395 392 395 426 395"/>
+  <path class="arrow" d="M707 395 C744 395 766 395 798 395"/>
+  <path class="arrow" d="M1285 255 C1305 230 1317 215 1330 210"/>
+  <path class="arrow" d="M1285 455 C1304 455 1308 455 1319 455"/>
+  <path class="arrow" d="M1046 610 C1046 636 1046 652 1046 675"/>
+  <path class="arrow-soft" d="M1030 682 C936 606 808 566 684 613"/>
+</svg>

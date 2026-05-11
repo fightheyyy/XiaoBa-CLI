@@ -85,6 +85,18 @@ function main() {
       await weixinCommand();
     });
 
+  // Pet 桌宠入口
+  addRoleOption(program
+    .command('pet')
+    .description('启动 XiaoBa Pet 桌宠入口')
+    .option('-p, --port <port>', '指定端口号')
+    .option('--host <host>', '指定监听地址（默认 127.0.0.1，可设为 0.0.0.0）')
+    .option('--no-desktop', '只启动 Pet 服务，不打开桌宠窗口'))
+    .action(async (options) => {
+      const { petCommand } = await import('./commands/pet');
+      await petCommand(options);
+    });
+
   // Dashboard 命令
   addRoleOption(program
     .command('dashboard')

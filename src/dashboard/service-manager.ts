@@ -12,6 +12,7 @@ export interface ServiceInfo {
   command: string;
   args: string[];
   status: 'stopped' | 'running' | 'error';
+  url?: string;
   role?: string | null;
   pid?: number;
   startedAt?: number;
@@ -98,6 +99,53 @@ export class ServiceManager extends EventEmitter {
       },
       logs: [],
     });
+
+    const petDesktop = this.resolvePetDesktopCommand();
+    if (petDesktop) {
+      this.services.set('pet', {
+        info: {
+          name: 'pet',
+          label: 'Pet 桌宠',
+          command: petDesktop.command,
+          args: petDesktop.args,
+          status: 'stopped',
+          url: process.env.XIAOBA_DASHBOARD_URL
+            ? `${process.env.XIAOBA_DASHBOARD_URL}/?page=pet`
+            : undefined,
+        },
+        logs: [],
+      });
+    }
+  }
+
+  private resolvePetDesktopCommand(): { command: string; args: string[] } | null {
+    const explicitElectron = process.env.XIAOBA_ELECTRON_EXE;
+    let electronExecutable = explicitElectron && explicitElectron.trim() ? explicitElectron.trim() : '';
+
+    if (!electronExecutable && process.versions.electron && process.execPath) {
+      electronExecutable = process.execPath;
+    }
+
+    if (!electronExecutable) {
+      try {
+        const resolved = require('electron');
+        electronExecutable = typeof resolved === 'string' ? resolved : '';
+      } catch {
+        return null;
+      }
+    }
+
+    if (!electronExecutable) return null;
+
+    const explicitPetMain = process.env.XIAOBA_PET_MAIN;
+    const petMain = explicitPetMain && explicitPetMain.trim()
+      ? path.resolve(explicitPetMain.trim())
+      : path.resolve(this.getAppRoot(), 'electron', 'pet-main.js');
+
+    return {
+      command: electronExecutable,
+      args: [petMain],
+    };
   }
 
   getAll(): ServiceInfo[] {
@@ -148,6 +196,13 @@ export class ServiceManager extends EventEmitter {
       envVars.NODE_PATH = process.env.XIAOBA_NODE_MODULES;
     }
 
+    if (name === 'pet' && !envVars.XIAOBA_PET_CHAT_URL && envVars.XIAOBA_DASHBOARD_URL) {
+      envVars.XIAOBA_PET_CHAT_URL = `${envVars.XIAOBA_DASHBOARD_URL}/?page=pet`;
+    }
+    if (name === 'pet' && envVars.XIAOBA_DASHBOARD_URL) {
+      envVars.XIAOBA_PET_URL = envVars.XIAOBA_DASHBOARD_URL;
+    }
+
     const child = spawn(svc.info.command, svc.info.args, {
       cwd: spawnCwd,
       env: envVars,
@@ -158,10 +213,13 @@ export class ServiceManager extends EventEmitter {
     svc.process = child;
     svc.info.status = 'running';
     svc.info.role = envVars.XIAOBA_ROLE || envVars.CURRENT_ROLE || null;
+    if (name === 'pet') {
+      svc.info.url = envVars.XIAOBA_PET_CHAT_URL || envVars.XIAOBA_DASHBOARD_URL;
+    }
     svc.info.pid = child.pid;
     svc.info.startedAt = Date.now();
     svc.info.lastError = undefined;
-    svc.logs = [];
+    svc.logs = [`$ ${svc.info.command} ${svc.info.args.join(' ')}`];
 
     const appendLog = (data: Buffer) => {
       const lines = data.toString().split('\n').filter(l => l.trim());

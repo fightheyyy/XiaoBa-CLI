@@ -72,7 +72,7 @@ export interface ToolResult {
   newMessages?: import('./index').Message[];
 }
 
-export type ToolSurface = 'cli' | 'feishu' | 'catscompany' | 'agent' | 'research' | 'unknown';
+export type ToolSurface = 'cli' | 'feishu' | 'weixin' | 'catscompany' | 'pet' | 'agent' | 'research' | 'unknown';
 export type ToolPermissionProfile = 'strict' | 'default' | 'relaxed';
 
 /**

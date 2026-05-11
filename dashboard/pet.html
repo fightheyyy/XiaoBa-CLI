@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XiaoBa Pet</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f6f3ea;
+      --panel: rgba(255, 255, 255, 0.82);
+      --line: rgba(44, 67, 89, 0.12);
+      --text: #202838;
+      --muted: #687487;
+      --accent: #2f80ed;
+      --green: #1ea971;
+      --red: #dc5d73;
+      --shadow: 0 20px 60px rgba(25, 36, 52, 0.12);
+    }
+    body {
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 12%, rgba(47, 128, 237, 0.16), transparent 30%),
+        radial-gradient(circle at 84% 20%, rgba(30, 169, 113, 0.14), transparent 26%),
+        linear-gradient(180deg, #fbfaf5, var(--bg));
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+    .shell {
+      width: min(980px, 100%);
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      gap: 16px;
+    }
+    .stage, .chat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      overflow: hidden;
+    }
+    .stage {
+      min-height: 560px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .title { text-align: center; }
+    h1 { font-size: 22px; line-height: 1.2; margin-bottom: 8px; }
+    .desc { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .sprite-wrap {
+      width: 228px;
+      height: 246px;
+      display: grid;
+      place-items: center;
+    }
+    .sprite {
+      width: 192px;
+      height: 208px;
+      image-rendering: pixelated;
+      transform: scale(1.05);
+    }
+    .row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 10px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.58);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    button, select, textarea {
+      font: inherit;
+    }
+    button {
+      border: 1px solid rgba(47, 128, 237, 0.18);
+      background: rgba(47, 128, 237, 0.12);
+      color: var(--accent);
+      border-radius: 12px;
+      min-height: 38px;
+      padding: 0 14px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    button.primary {
+      color: white;
+      background: var(--accent);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+      color: var(--text);
+      padding: 11px 12px;
+      outline: none;
+    }
+    .chat {
+      min-height: 560px;
+      display: grid;
+      grid-template-rows: 1fr auto;
+    }
+    .messages {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+      max-height: 70vh;
+    }
+    .bubble {
+      max-width: min(680px, 88%);
+      padding: 12px 14px;
+      border-radius: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+      font-size: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.85);
+    }
+    .bubble.user {
+      align-self: flex-end;
+      background: rgba(47, 128, 237, 0.12);
+    }
+    .bubble.assistant { align-self: flex-start; }
+    .event {
+      align-self: center;
+      color: var(--muted);
+      background: rgba(104, 116, 135, 0.1);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+    .composer {
+      border-top: 1px solid var(--line);
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+    textarea {
+      min-height: 46px;
+      max-height: 120px;
+      resize: vertical;
+    }
+    @media (max-width: 760px) {
+      body { padding: 10px; }
+      .shell { grid-template-columns: 1fr; }
+      .stage, .chat { min-height: auto; }
+      .composer { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="stage">
+      <div class="title">
+        <h1 id="pet-name">XiaoBa Pet</h1>
+        <div class="desc" id="pet-desc">加载中...</div>
+      </div>
+      <div class="sprite-wrap"><canvas class="sprite" id="pet-sprite" width="192" height="208"></canvas></div>
+      <div class="row">
+        <span class="pill" id="pet-state">idle</span>
+        <button onclick="wakePet()">唤醒</button>
+      </div>
+      <select id="pet-select" onchange="selectPet(this.value)"></select>
+      <div class="pill" id="pet-session">pet</div>
+    </section>
+    <section class="chat">
+      <div class="messages" id="messages"></div>
+      <div class="composer">
+        <textarea id="input" placeholder="交给小八一件事..."></textarea>
+        <button class="primary" id="send" onclick="sendMessage()">发送</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    const animations = {
+      idle: { row: 0, durations: [280, 110, 110, 140, 140, 320] },
+      'running-right': { row: 1, durations: [120, 120, 120, 120, 120, 120, 120, 220] },
+      'running-left': { row: 2, durations: [120, 120, 120, 120, 120, 120, 120, 220] },
+      waving: { row: 3, durations: [140, 140, 140, 280] },
+      jumping: { row: 4, durations: [140, 140, 140, 140, 280] },
+      failed: { row: 5, durations: [140, 140, 140, 140, 140, 140, 140, 240] },
+      waiting: { row: 6, durations: [150, 150, 150, 150, 150, 260] },
+      running: { row: 7, durations: [120, 120, 120, 120, 120, 220] },
+      review: { row: 8, durations: [150, 150, 150, 150, 150, 280] },
+    };
+    const cell = { width: 192, height: 208 };
+    const sprite = document.getElementById('pet-sprite');
+    const spriteCtx = sprite.getContext('2d');
+    const spriteAtlas = new Image();
+    let pets = [];
+    let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
+    let busy = false;
+    let assistantBubble = null;
+    let idleTimer = null;
+    let currentState = 'idle';
+    let currentFrame = 0;
+    let frameStartedAt = 0;
+    let animationFrameId = 0;
+
+    function setState(state, force = false, options = {}) {
+      if (!animations[state]) state = 'idle';
+      if (currentState !== state || force) {
+        currentState = state;
+        currentFrame = 0;
+        frameStartedAt = performance.now();
+        drawFrame();
+      }
+      document.getElementById('pet-state').textContent = state;
+      clearTimeout(idleTimer);
+      if (options.hold) return;
+      if (state === 'waving' && !busy) idleTimer = setTimeout(() => setState('idle'), 1300);
+    }
+
+    function drawFrame() {
+      if (!spriteAtlas.complete || !spriteAtlas.naturalWidth) return;
+      const cfg = animations[currentState] || animations.idle;
+      spriteCtx.clearRect(0, 0, cell.width, cell.height);
+      spriteCtx.imageSmoothingEnabled = false;
+      spriteCtx.drawImage(
+        spriteAtlas,
+        currentFrame * cell.width,
+        cfg.row * cell.height,
+        cell.width,
+        cell.height,
+        0,
+        0,
+        cell.width,
+        cell.height
+      );
+    }
+
+    function tick(now) {
+      const cfg = animations[currentState] || animations.idle;
+      const duration = cfg.durations[currentFrame] || 140;
+      if (!frameStartedAt) frameStartedAt = now;
+      if (now - frameStartedAt >= duration) {
+        currentFrame = (currentFrame + 1) % cfg.durations.length;
+        frameStartedAt = now;
+        drawFrame();
+      }
+      animationFrameId = requestAnimationFrame(tick);
+    }
+
+    function loadSprite(src) {
+      spriteCtx.clearRect(0, 0, cell.width, cell.height);
+      spriteAtlas.onload = () => {
+        cancelAnimationFrame(animationFrameId);
+        setState('idle', true);
+        animationFrameId = requestAnimationFrame(tick);
+      };
+      spriteAtlas.src = src;
+    }
+
+    function appendBubble(kind, text) {
+      const el = document.createElement('div');
+      el.className = 'bubble ' + kind;
+      el.textContent = text || '';
+      document.getElementById('messages').appendChild(el);
+      scrollMessages();
+      return el;
+    }
+
+    function appendEvent(text) {
+      const el = document.createElement('div');
+      el.className = 'event';
+      el.textContent = text;
+      document.getElementById('messages').appendChild(el);
+      scrollMessages();
+    }
+
+    function scrollMessages() {
+      const box = document.getElementById('messages');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function fetchPets() {
+      const res = await fetch('/api/pet/pets');
+      const data = await res.json();
+      pets = Array.isArray(data.pets) ? data.pets : [];
+      if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
+        selectedPetId = data.defaultPetId || (pets[0] && pets[0].id) || '';
+      }
+      renderPet();
+    }
+
+    function renderPet() {
+      const pet = pets.find(p => p.id === selectedPetId) || pets[0];
+      if (!pet) {
+        document.getElementById('pet-desc').textContent = '没有发现 pet 资产';
+        return;
+      }
+      selectedPetId = pet.id;
+      localStorage.setItem('xiaoba.pet.id', selectedPetId);
+      document.getElementById('pet-select').innerHTML = pets.map(p => '<option value="' + p.id + '"' + (p.id === selectedPetId ? ' selected' : '') + '>' + (p.displayName || p.id) + '</option>').join('');
+      document.getElementById('pet-name').textContent = pet.displayName || pet.id;
+      document.getElementById('pet-desc').textContent = pet.description || 'Pet 本地交互平台';
+      document.getElementById('pet-session').textContent = 'pet:' + pet.id;
+      loadSprite(pet.spriteUrl);
+      if (!document.getElementById('messages').children.length) appendEvent('pet:' + pet.id);
+      setState('idle', true);
+    }
+
+    function selectPet(petId) {
+      selectedPetId = petId;
+      assistantBubble = null;
+      document.getElementById('messages').innerHTML = '';
+      renderPet();
+    }
+
+    async function wakePet() {
+      if (!selectedPetId) return;
+      setState('waving');
+      await fetch('/api/pet/wake', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ petId: selectedPetId })
+      }).catch(() => setState('failed'));
+      document.getElementById('input').focus();
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('input');
+      const text = input.value.trim();
+      if (!text || busy || !selectedPetId) return;
+      busy = true;
+      document.getElementById('send').disabled = true;
+      input.value = '';
+      assistantBubble = null;
+      setState('waiting');
+      try {
+        const response = await fetch('/api/pet/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ petId: selectedPetId, text, source: 'pet-page' })
+        });
+        if (!response.ok || !response.body) throw new Error('请求失败');
+        await readEvents(response.body);
+      } catch (err) {
+        setState('failed');
+        appendEvent('处理失败: ' + err.message);
+      } finally {
+        busy = false;
+        document.getElementById('send').disabled = false;
+        const state = document.getElementById('pet-state').textContent;
+        if (state === 'waving') {
+          setState('waving');
+        } else if (state !== 'failed') {
+          setState('idle');
+        }
+        input.focus();
+      }
+    }
+
+    async function readEvents(body) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          const line = part.split('\n').find(item => item.startsWith('data: '));
+          if (line) handleEvent(JSON.parse(line.slice(6)));
+        }
+      }
+    }
+
+    function handleEvent(event) {
+      if (event.type === 'user_message') {
+        assistantBubble = null;
+        appendBubble('user', event.text || '');
+        return;
+      }
+      if (event.type === 'state') return setState(event.state);
+      if (event.type === 'text') {
+        if (!assistantBubble) assistantBubble = appendBubble('assistant', '');
+        assistantBubble.textContent += event.text || '';
+        return scrollMessages();
+      }
+      if (event.type === 'tool_start') return appendEvent('tool: ' + event.name);
+      if (event.type === 'tool_end') return appendEvent('tool done: ' + event.name);
+      if (event.type === 'retry') return appendEvent('retry ' + event.attempt + '/' + event.maxRetries);
+      if (event.type === 'file') return appendEvent('file: ' + event.fileName);
+      if (event.type === 'error') return appendEvent('error: ' + event.message);
+      if (event.type === 'done') assistantBubble = null;
+    }
+
+    document.getElementById('input').addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+    sprite.addEventListener('pointerenter', () => {
+      if (!busy) setState('jumping', false, { hold: true });
+    });
+    sprite.addEventListener('pointerleave', () => {
+      if (!busy && currentState === 'jumping') setState('idle');
+    });
+    fetchPets().catch(() => {
+      document.getElementById('pet-desc').textContent = '无法加载 pet';
+      setState('failed');
+    });
+  </script>
+</body>
+</html>

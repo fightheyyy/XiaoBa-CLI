@@ -5,6 +5,7 @@ node_modules/
 dist/
 release/
 out/
+output/
 build/
 .tmp/
 .tmp-test-build/
@@ -23,6 +24,8 @@ turnLogs/
 memory/
 runtime-pr/
 *.log
+.omc/
+.codex-pet-runs/
 
 # Generated or local skill content
 skills/_crafted/

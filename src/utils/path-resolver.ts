@@ -15,7 +15,7 @@ export class PathResolver {
   }
 
   static getRolesPath(): string {
-    return path.join(this.getProjectRoot(), 'roles');
+    return ActiveRoleContext.getRolesRoot();
   }
 
   static getActiveRolePath(): string | undefined {

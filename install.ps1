@@ -1,11 +1,11 @@
 # ============================================
 #  XiaoBa 一键安装脚本 (Windows PowerShell)
 #  用法: 右键以管理员身份运行，或在 PowerShell 中执行:
-#  irm https://raw.githubusercontent.com/buildsense-ai/XiaoBa-CLI/main/install.ps1 | iex
+#  irm https://raw.githubusercontent.com/fightheyyy/XiaoBa-CLI/main/install.ps1 | iex
 # ============================================
 
 $ErrorActionPreference = "Stop"
-$RepoUrl = "https://github.com/buildsense-ai/XiaoBa-CLI.git"
+$RepoUrl = "https://github.com/fightheyyy/XiaoBa-CLI.git"
 $InstallDir = "$env:USERPROFILE\xiaoba"
 $DashboardPort = 3800
 
