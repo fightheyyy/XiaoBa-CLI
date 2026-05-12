@@ -141,10 +141,12 @@
     const client = new XiaoBaPetRuntime.PetClient();
     const player = new XiaoBaPetRuntime.SpritePlayer(sprite);
     let selectedPetId = '';
+    let activeRole = '';
     let events = null;
     let noticeTimer = 0;
     let promptIdleTimer = 0;
     let stateTimer = 0;
+    let navigationPing = null;
     let pointerDown = false;
     let didDrag = false;
     let startX = 0;
@@ -163,11 +165,36 @@
       },
     });
 
+    function getCompanionUrl() {
+      try {
+        const url = new URL(chatUrl, location.href);
+        url.searchParams.set('page', 'pet');
+        return url;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function requestCompanionPage(url) {
+      const nav = new URL('/api/navigation/open', url.origin);
+      nav.searchParams.set('page', 'pet');
+      nav.searchParams.set('t', String(Date.now()));
+      navigationPing = new Image();
+      navigationPing.src = nav.href;
+    }
+
     function openChat() {
+      const url = getCompanionUrl();
+      if (!url) return;
       if (window.xiaobaPet) {
-        window.xiaobaPet.openChat(chatUrl);
+        window.xiaobaPet.openChat(url.href);
+        return;
+      }
+      requestCompanionPage(url);
+      if (url.origin === location.origin) {
+        location.href = url.href;
       } else {
-        window.open(chatUrl, '_blank');
+        window.open(url.href, '_blank');
       }
     }
 
@@ -238,13 +265,23 @@
       events = client.connect(selectedPetId, handlePetEvent);
     }
 
-    async function init() {
+    async function syncDefaultPet(force = false) {
       const data = await client.getPets();
+      const roleKey = data.activeRole || 'base';
+      if (!force && roleKey === activeRole) return;
       const pet = (data.pets || []).find(item => item.id === data.defaultPetId) || (data.pets || [])[0];
       if (!pet) return;
+      activeRole = roleKey;
       selectedPetId = pet.id;
       player.load(pet.spriteUrl);
       connectEvents();
+    }
+
+    async function init() {
+      await syncDefaultPet(true);
+      setInterval(() => {
+        syncDefaultPet(false).catch(() => undefined);
+      }, 3000);
     }
 
     sprite.addEventListener('click', () => {
@@ -266,7 +303,15 @@
     });
 
     notice.addEventListener('click', openChat);
-    openChatButton.addEventListener('click', openChat);
+    openChatButton.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    openChatButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      openChat();
+    });
     prompt.addEventListener('submit', event => {
       event.preventDefault();
       const text = promptInput.value;

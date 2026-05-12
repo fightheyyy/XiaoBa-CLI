@@ -1,5 +1,6 @@
 import { spawn, ChildProcessWithoutNullStreams, execFile, execFileSync } from 'child_process';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
@@ -70,12 +71,78 @@ interface CodexJobStatusOptions {
   verbose: boolean;
 }
 
+interface CodexSessionListOptions {
+  cwd: string;
+  matchMode: 'exact' | 'prefix' | 'contains' | 'all';
+  query?: string;
+  limit: number;
+  includeFiles: boolean;
+}
+
+interface CodexSessionSummary {
+  id: string;
+  cwd: string | null;
+  thread: string | null;
+  updatedAt: string;
+  file?: string;
+}
+
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_RECENT_EVENTS = 12;
 const MAX_MESSAGE_CHARS = 8000;
 const MAX_STATUS_CHARS = 24000;
 const MAX_COMPACT_STATUS_CHARS = 2400;
 const JOB_ROOT = path.resolve('data', 'codex-jobs');
+const DEFAULT_SESSION_LIST_LIMIT = 20;
+
+export class CodexSessionListTool implements Tool {
+  definition: ToolDefinition = {
+    name: 'codex_session_list',
+    description: [
+      '列出本机 Codex sessions，可按项目 cwd 精确过滤。',
+      '用于先查出 codex_session_id，再交给 codex_job_resume 指定会话继续和 Codex 交互。'
+    ].join('\n'),
+    parameters: {
+      type: 'object',
+      properties: {
+        cwd: {
+          type: 'string',
+          description: '要查询的项目工作目录。默认当前工具工作目录。'
+        },
+        match_mode: {
+          type: 'string',
+          enum: ['exact', 'prefix', 'contains', 'all'],
+          description: 'cwd 匹配方式。默认 exact；prefix 用于查子目录；all 不按 cwd 过滤。'
+        },
+        query: {
+          type: 'string',
+          description: '可选关键词，匹配 session id、thread、cwd 或文件路径。'
+        },
+        limit: {
+          type: 'number',
+          description: '最多返回多少条，默认 20。'
+        },
+        include_files: {
+          type: 'boolean',
+          description: '是否返回本地 session jsonl 文件路径。默认 false。'
+        }
+      }
+    }
+  };
+
+  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+    const cwd = resolveCwd(context.workingDirectory, args.cwd);
+    const payload = listCodexSessions({
+      cwd,
+      matchMode: normalizeSessionMatchMode(args.match_mode),
+      query: readOptionalString(args.query),
+      limit: readPositiveNumber(args.limit, DEFAULT_SESSION_LIST_LIMIT),
+      includeFiles: args.include_files === true,
+    });
+
+    return JSON.stringify(payload, null, 2);
+  }
+}
 
 export class CodexJobStartTool implements Tool {
   definition: ToolDefinition = {
@@ -755,6 +822,207 @@ function readRecentEvents(filePath: string, limit: number): Array<Record<string,
         };
       }
     });
+}
+
+function listCodexSessions(options: CodexSessionListOptions): {
+  count: number;
+  codex_home: string;
+  target_cwd: string;
+  match_mode: CodexSessionListOptions['matchMode'];
+  sessions: CodexSessionSummary[];
+  warning?: string;
+} {
+  const codexHome = resolveCodexHome();
+  const sessionsRoot = path.join(codexHome, 'sessions');
+  if (!fs.existsSync(sessionsRoot)) {
+    return {
+      count: 0,
+      codex_home: codexHome,
+      target_cwd: options.cwd,
+      match_mode: options.matchMode,
+      sessions: [],
+      warning: `Codex sessions 目录不存在: ${sessionsRoot}`,
+    };
+  }
+
+  const index = readCodexSessionIndex(codexHome);
+  const files = collectJsonlFiles(sessionsRoot);
+  const query = options.query?.toLowerCase();
+  const sessions: CodexSessionSummary[] = [];
+
+  for (const file of files) {
+    const meta = readSessionMeta(file);
+    if (!meta?.id) {
+      continue;
+    }
+
+    const cwd = typeof meta.cwd === 'string' ? path.resolve(meta.cwd) : null;
+    const indexed = index.get(meta.id);
+    const stat = safeStat(file);
+    const summary: CodexSessionSummary = {
+      id: meta.id,
+      cwd,
+      thread: indexed?.thread || null,
+      updatedAt: indexed?.updatedAt || stat?.mtime.toISOString() || '',
+    };
+    if (options.includeFiles) {
+      summary.file = file;
+    }
+
+    if (!matchesSessionCwd(cwd, options.cwd, options.matchMode)) {
+      continue;
+    }
+    if (query && !sessionContainsQuery(summary, file, query)) {
+      continue;
+    }
+
+    sessions.push(summary);
+  }
+
+  sessions.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return {
+    count: sessions.length,
+    codex_home: codexHome,
+    target_cwd: options.cwd,
+    match_mode: options.matchMode,
+    sessions: sessions.slice(0, options.limit),
+  };
+}
+
+function readCodexSessionIndex(codexHome: string): Map<string, { thread: string; updatedAt: string }> {
+  const indexPath = path.join(codexHome, 'session_index.jsonl');
+  const index = new Map<string, { thread: string; updatedAt: string }>();
+  const content = readOptionalFile(indexPath);
+  if (!content) {
+    return index;
+  }
+
+  for (const line of content.split('\n')) {
+    if (!line.trim()) {
+      continue;
+    }
+    try {
+      const item = JSON.parse(line);
+      if (typeof item?.id === 'string') {
+        index.set(item.id, {
+          thread: typeof item.thread_name === 'string' ? item.thread_name : '',
+          updatedAt: typeof item.updated_at === 'string' ? item.updated_at : '',
+        });
+      }
+    } catch {
+      // Ignore malformed index lines; Codex can still be queried from session files.
+    }
+  }
+
+  return index;
+}
+
+function collectJsonlFiles(root: string): string[] {
+  const files: string[] = [];
+  const pending = [root];
+  while (pending.length > 0) {
+    const dir = pending.pop()!;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+        files.push(fullPath);
+      }
+    }
+  }
+  return files;
+}
+
+function readSessionMeta(filePath: string): any | undefined {
+  let text = '';
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(64 * 1024);
+      const bytes = fs.readSync(fd, buffer, 0, buffer.length, 0);
+      text = buffer.slice(0, bytes).toString('utf-8');
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+
+  for (const line of text.split('\n').slice(0, 40)) {
+    if (!line.trim()) {
+      continue;
+    }
+    try {
+      const item = JSON.parse(line);
+      if (item?.type === 'session_meta' && item.payload && typeof item.payload === 'object') {
+        return item.payload;
+      }
+    } catch {
+      // Keep scanning; a partial last line in the fixed-size read is harmless.
+    }
+  }
+  return undefined;
+}
+
+function matchesSessionCwd(
+  sessionCwd: string | null,
+  targetCwd: string,
+  matchMode: CodexSessionListOptions['matchMode'],
+): boolean {
+  if (matchMode === 'all') {
+    return true;
+  }
+  if (!sessionCwd) {
+    return false;
+  }
+
+  const session = path.resolve(sessionCwd);
+  const target = path.resolve(targetCwd);
+  if (matchMode === 'exact') {
+    return session === target;
+  }
+  if (matchMode === 'prefix') {
+    return session === target || session.startsWith(target + path.sep);
+  }
+  return session.toLowerCase().includes(target.toLowerCase());
+}
+
+function sessionContainsQuery(summary: CodexSessionSummary, filePath: string, query: string): boolean {
+  return [
+    summary.id,
+    summary.cwd || '',
+    summary.thread || '',
+    summary.updatedAt,
+    filePath,
+  ].some(value => value.toLowerCase().includes(query));
+}
+
+function normalizeSessionMatchMode(value: unknown): CodexSessionListOptions['matchMode'] {
+  const text = String(value || 'exact').trim();
+  if (text === 'prefix' || text === 'contains' || text === 'all') {
+    return text;
+  }
+  return 'exact';
+}
+
+function resolveCodexHome(): string {
+  return path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
+}
+
+function safeStat(filePath: string): fs.Stats | undefined {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return undefined;
+  }
 }
 
 function collectGitStatus(cwd: string): string {

@@ -2680,7 +2680,18 @@
       color: #fff;
     }
 
+    .service-actions .btn-primary {
+      background: var(--text);
+      border-color: var(--text);
+      color: #fff;
+    }
+
     .btn-primary:hover:not(:disabled) {
+      background: #2b2924;
+      border-color: #2b2924;
+    }
+
+    .service-actions .btn-primary:hover:not(:disabled) {
       background: #2b2924;
       border-color: #2b2924;
     }
@@ -3661,7 +3672,11 @@
     let skillsState = [];
     let latestStatus = null;
     let pets = [];
+    let dashboardNavigationRequestId = 0;
+    const petRoleStorageKey = 'xiaoba.pet.role';
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
+    let selectedPetRole = localStorage.getItem(petRoleStorageKey) || '';
+    let activePetRole = selectedPetRole || 'base';
     let petBusy = false;
     let currentAssistantBubble = null;
     let petIdleTimer = null;
@@ -3736,6 +3751,25 @@
       if (name === 'pet') fetchPets();
     }
 
+    function openService(name, url) {
+      if (name === 'pet') {
+        switchPage('pet');
+        return;
+      }
+      if (url) window.open(url, '_blank');
+    }
+
+    async function pollDashboardNavigation() {
+      try {
+        const res = await fetch(API+'/api/navigation/pending?since='+encodeURIComponent(String(dashboardNavigationRequestId)));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.id || data.id <= dashboardNavigationRequestId) return;
+        dashboardNavigationRequestId = data.id;
+        if (data.page && pageTitles[data.page]) switchPage(data.page);
+      } catch (e) {}
+    }
+
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     }
@@ -3750,12 +3784,29 @@
       return labelKey ? t(labelKey) : (service?.label || service?.name || '-');
     }
 
-    async function fetchPets() {
+    async function fetchPets(options = {}) {
       try {
         const data = await petClient.getPets();
         pets = Array.isArray(data.pets) ? data.pets : [];
-        if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
-          selectedPetId = data.defaultPetId || (pets[0] && pets[0].id) || '';
+        const roleKey = data.activeRole || 'base';
+        const defaultPetId = data.rolePetId || data.defaultPetId || '';
+        const roleChanged = roleKey !== selectedPetRole;
+        const defaultPetExists = defaultPetId && pets.some(p => p.id === defaultPetId);
+        activePetRole = roleKey;
+
+        if ((options.preferDefault || roleChanged) && defaultPetExists) {
+          if (selectedPetId !== defaultPetId) {
+            currentAssistantBubble = null;
+            seenPetEventIds = new Set();
+            document.getElementById('pet-messages').innerHTML = '';
+          }
+          selectedPetId = defaultPetId;
+          selectedPetRole = roleKey;
+          localStorage.setItem(petRoleStorageKey, selectedPetRole);
+        } else if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
+          selectedPetId = defaultPetId || (pets[0] && pets[0].id) || '';
+          selectedPetRole = roleKey;
+          localStorage.setItem(petRoleStorageKey, selectedPetRole);
         }
         renderPet();
       } catch (e) {
@@ -3789,6 +3840,8 @@
 
     function selectPet(petId) {
       selectedPetId = petId;
+      selectedPetRole = activePetRole || 'base';
+      localStorage.setItem(petRoleStorageKey, selectedPetRole);
       currentAssistantBubble = null;
       seenPetEventIds = new Set();
       document.getElementById('pet-messages').innerHTML = '';
@@ -4034,7 +4087,7 @@
         const last = s.lastError ? '<span style="color:var(--red)">'+escapeHtml(s.lastError)+'</span>' : (r ? t('signalHealthy') : t('signalWaiting'));
         const statusLabel = s.status === 'running' ? t('statusRunning') : (s.status === 'error' ? t('statusError') : t('statusStopped'));
         const statusClass = ['running', 'stopped', 'error'].includes(s.status) ? s.status : 'stopped';
-        const open = r && s.url ? '<button class="btn btn-primary" onclick="window.open(\''+escapeHtml(s.url)+'\',\'_blank\')">'+t('open')+'</button>' : '';
+        const open = r && s.url ? '<button class="btn btn-primary" onclick="openService(\''+escapeHtml(escapeJs(s.name || ''))+'\',\''+escapeHtml(escapeJs(s.url))+'\')">'+t('open')+'</button>' : '';
         return '<div class="service-row">'+
           '<div class="service-cell"><strong>'+escapeHtml(label)+'</strong><div class="service-muted">'+escapeHtml(s.name || '-')+'</div></div>'+
           '<div class="service-cell"><span class="mobile-label">'+t('tableStatus')+'</span><span class="service-status '+statusClass+'">'+escapeHtml(statusLabel)+'</span></div>'+
@@ -4221,6 +4274,7 @@
         await fetchRoles();
         await fetchStatus();
         await fetchSkills();
+        await fetchPets({ preferDefault: true });
       } catch (e) {
         alert(t('switchRoleFailed')+e.message);
       }
@@ -4239,15 +4293,15 @@
     async function deleteSkill(n){if(!confirm(t('deleteSkillConfirmPrefix')+n+t('deleteSkillConfirmSuffix')))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
     function formatUptime(s){if(s<60)return Math.floor(s)+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
 
-    // === Config with collapsible LLM groups ===
+    // === Config with collapsible groups ===
     let configData={};
     const configGroups=[
       {titleKey:'configPrimaryModel', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
       {titleKey:'configBackupModel', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
-      {title:'Cats Company', collapsed:false, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
-      {titleKey:'configFeishu', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
-      {titleKey:'configWeixin', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
-      {title:'Inspector', collapsed:false, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
+      {title:'Cats Company', collapsed:true, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
+      {titleKey:'configFeishu', collapsed:true, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
+      {titleKey:'configWeixin', collapsed:true, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
+      {title:'Inspector', collapsed:true, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
       {title:'Dashboard / Server', collapsed:true, keys:[{key:'XIAOBA_DASHBOARD_HOST',label:'Dashboard Host'},{key:'XIAOBA_API_BODY_LIMIT',label:'API Body Limit'}]},
       {title:'Pet', collapsed:true, keys:[{key:'XIAOBA_PET_HOST',label:'Pet Host'},{key:'XIAOBA_PET_PORT',label:'Pet Port'},{key:'XIAOBA_PETS_DIR',label:'Pets Dir'}]},
     ];
@@ -4359,7 +4413,9 @@
     fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();fetchPets();
     const initialPage = new URLSearchParams(location.search).get('page');
     if (initialPage && pageTitles[initialPage]) switchPage(initialPage);
+    pollDashboardNavigation();
     setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);
+    setInterval(pollDashboardNavigation,1000);
     document.getElementById('pet-avatar-viewport').addEventListener('pointerenter',previewPetHover);
     document.getElementById('pet-avatar-viewport').addEventListener('pointerleave',clearPetHover);
     document.getElementById('pet-input').addEventListener('focus',focusPetInput);

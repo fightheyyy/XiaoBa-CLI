@@ -136,10 +136,16 @@ async function startServer() {
 
   // 直接在主进程启动dashboard server
   const { startDashboard } = require(path.join(appRoot, 'dist', 'dashboard', 'server'));
-  await startDashboard(DASHBOARD_PORT);
+  await startDashboard(DASHBOARD_PORT, undefined, { onNavigate: openDashboardPage });
 }
 
-function createWindow() {
+function getDashboardUrl(page) {
+  const url = new URL(`http://localhost:${DASHBOARD_PORT}`);
+  if (page) url.searchParams.set('page', page);
+  return url.toString();
+}
+
+function createWindow(page) {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -155,7 +161,7 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadURL(`http://localhost:${DASHBOARD_PORT}`);
+  mainWindow.loadURL(getDashboardUrl(page));
 
   mainWindow.on('close', (e) => {
     if (process.platform === 'darwin' && !app.isQuitting) {
@@ -169,6 +175,28 @@ function createWindow() {
   });
 }
 
+function openDashboardPage(page) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow(page);
+    return;
+  }
+
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+
+  if (!page) return;
+
+  const script = `if (window.switchPage) { window.switchPage(${JSON.stringify(page)}); true } else false;`;
+  mainWindow.webContents.executeJavaScript(script)
+    .then(ok => {
+      if (!ok) mainWindow.loadURL(getDashboardUrl(page));
+    })
+    .catch(() => {
+      mainWindow.loadURL(getDashboardUrl(page));
+    });
+}
+
 function createTray() {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABhSURBVFhH7c6xDQAgDASwkP2XZgEqCgrZwJ+u8Ov1vt+RM0EHHXTQQQcddNBBBx100EEHHXTQQQcddNBBBx100EEHHXTQQQcddNBBBx100EEHHXTQQQcddNBBBx3834kDK+kAIRUXPjcAAAAASUVORK5CYII='
@@ -177,8 +205,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     { label: '打开 Dashboard', click: () => {
-      if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
-      else createWindow();
+      openDashboardPage();
     }},
     { type: 'separator' },
     { label: '退出', click: () => { app.isQuitting = true; app.quit(); }},
@@ -187,8 +214,7 @@ function createTray() {
   tray.setToolTip('XiaoBa Dashboard');
   tray.setContextMenu(contextMenu);
   tray.on('click', () => {
-    if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
-    else createWindow();
+    openDashboardPage();
   });
 }
 
@@ -233,8 +259,7 @@ app.whenReady().then(async () => {
   }
 
   app.on('activate', () => {
-    if (mainWindow) mainWindow.show();
-    else createWindow();
+    openDashboardPage();
   });
 });
 

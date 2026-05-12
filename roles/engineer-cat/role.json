@@ -1,6 +1,6 @@
 {
   "name": "engineer-cat",
-  "displayName": "EngineerCat",
+  "displayName": "PochiBa",
   "description": "实现型角色，既承接 Inspector 的问题单，也可作为基于 OMC 调用 Claude Code / Codex 的高级工程师。",
   "promptFile": "engineer-system-prompt.md",
   "aliases": [
@@ -14,5 +14,8 @@
     "bio-skills",
     "OfficeCLI",
     "WebCLI"
-  ]
+  ],
+  "metadata": {
+    "petId": "pochiba"
+  }
 }

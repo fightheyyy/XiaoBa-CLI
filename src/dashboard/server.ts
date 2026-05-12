@@ -7,7 +7,15 @@ import { ServiceManager } from './service-manager';
 const DEFAULT_PORT = 3800;
 const DEFAULT_HOST = '127.0.0.1';
 
-export async function startDashboard(port: number = DEFAULT_PORT, host?: string): Promise<void> {
+export interface DashboardServerOptions {
+  onNavigate?: (page: string) => void;
+}
+
+export async function startDashboard(
+  port: number = DEFAULT_PORT,
+  host?: string,
+  options: DashboardServerOptions = {},
+): Promise<void> {
   const app = express();
   const projectRoot = process.cwd();
   const bodyLimit = process.env.XIAOBA_API_BODY_LIMIT || '50mb';
@@ -19,7 +27,7 @@ export async function startDashboard(port: number = DEFAULT_PORT, host?: string)
   app.use(express.json({ limit: bodyLimit }));
 
   // API routes
-  app.use('/api', createApiRouter(serviceManager));
+  app.use('/api', createApiRouter(serviceManager, { onNavigate: options.onNavigate }));
 
   // Serve frontend
   const frontendPath = path.join(__dirname, '../../dashboard');

@@ -208,7 +208,10 @@
     const spriteCtx = sprite.getContext('2d');
     const spriteAtlas = new Image();
     let pets = [];
+    const petRoleStorageKey = 'xiaoba.pet.role';
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
+    let selectedPetRole = localStorage.getItem(petRoleStorageKey) || '';
+    let activePetRole = selectedPetRole || 'base';
     let busy = false;
     let assistantBubble = null;
     let idleTimer = null;
@@ -297,8 +300,23 @@
       const res = await fetch('/api/pet/pets');
       const data = await res.json();
       pets = Array.isArray(data.pets) ? data.pets : [];
-      if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
-        selectedPetId = data.defaultPetId || (pets[0] && pets[0].id) || '';
+      const roleKey = data.activeRole || 'base';
+      const defaultPetId = data.rolePetId || data.defaultPetId || '';
+      const defaultPetExists = defaultPetId && pets.some(p => p.id === defaultPetId);
+      activePetRole = roleKey;
+
+      if (roleKey !== selectedPetRole && defaultPetExists) {
+        if (selectedPetId !== defaultPetId) {
+          assistantBubble = null;
+          document.getElementById('messages').innerHTML = '';
+        }
+        selectedPetId = defaultPetId;
+        selectedPetRole = roleKey;
+        localStorage.setItem(petRoleStorageKey, selectedPetRole);
+      } else if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
+        selectedPetId = defaultPetId || (pets[0] && pets[0].id) || '';
+        selectedPetRole = roleKey;
+        localStorage.setItem(petRoleStorageKey, selectedPetRole);
       }
       renderPet();
     }
@@ -322,6 +340,8 @@
 
     function selectPet(petId) {
       selectedPetId = petId;
+      selectedPetRole = activePetRole || 'base';
+      localStorage.setItem(petRoleStorageKey, selectedPetRole);
       assistantBubble = null;
       document.getElementById('messages').innerHTML = '';
       renderPet();

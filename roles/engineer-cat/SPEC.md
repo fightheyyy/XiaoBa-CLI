@@ -91,6 +91,25 @@ OMC 入口必须可泛化：
 - 如果不可用，就提示安装 `npm i -g oh-my-claude-sisyphus@latest` 或配置 `OMC_BIN`
 - 禁止把个人机器绝对路径、临时 checkout 路径或 `/Users/...` 路径写成 fallback
 
+### 2.2.1 Codex 会话续接是本地连续性能力
+
+EngineerCat 需要像用户本人一样复用某个项目下已有的 Codex 会话。这个能力不是重新实现 OMC 的 provider/team/artifact 编排，而是补齐“查找本机 Codex session -> 指定 session resume -> 读取结果 -> 必要时继续返工”的本地连续性。
+
+第一版能力边界：
+
+- `codex_session_list`：按项目 `cwd` 查询 `~/.codex/sessions` 中的本机 Codex sessions，返回 `session id`、`thread`、`updated_at` 和 `cwd`
+- `codex_job_resume`：指定 `codex_session_id` 和项目 `cwd`，用 `codex exec resume --json` 追加一轮交互
+- `codex_job_status`：读取后台 job 状态、最后输出和 session id
+- `codex_job_cancel`：停止卡住的 Codex job
+
+行为规则：
+
+- 用户没有指定会话时，先按项目 `cwd` 查询；多个候选时让用户按 thread / updated_at / session id 选
+- 用户已经给出 session id 时，可以直接 resume，但仍要传正确项目 `cwd`
+- 只问问题或做烟测时，使用只读/不改文件约束
+- 给 Codex 的续接 message 只包含新增目标、范围、限制、产物和验收；不要把整段历史重复灌给 Codex
+- resume 完必须查 status；不能启动后脑补结果
+
 ### 2.3 工具调度服务于工程判断
 
 Codex、Claude Code 和 OMC team 都不是目的。它们是 EngineerCat 通过 OMC 使用的工程工具。
@@ -573,6 +592,7 @@ src/roles/engineer-cat/
 - EngineerCat 自动创建任务工作区
 - 能说明计划、调度原因和验证结果
 - 能通过 OMC 调用 Codex 做 review / risk analysis
+- 能查询某个项目下已有 Codex sessions，并指定 session resume 继续交互
 - 能完成简单代码或文档任务
 - 能跑基础验证并记录结果
 
@@ -602,6 +622,7 @@ src/roles/engineer-cat/
 | 原始输出推荐 review，但归一化后被 blocked | AutoDev 下一步动作会误导 Reviewer 去审一个缺证据案件 | blocked 时覆盖为 `engineer_output_missing_or_incomplete`，除非原始输出本身明确 blocked | 已修复，有回归 |
 | `EngineerTaskRunner` 目前主要是 skill 规程，尚未落成独立 runner 类 | Chat 和 AutoDev 仍可能走两套执行逻辑，难以做确定性状态机和质量门槛 | 下一阶段实现 `src/roles/engineer-cat/utils/engineer-task-runner.ts`，再让 AutoDev 和 chat/subagent 共用 | residual risk |
 | OMC 调用依赖外部 `omc`、`codex`、`claude`、`tmux` | 环境缺失时不能完成真实外部 agent 调度 | 禁止个人路径 fallback；缺依赖时 blocked 或降级 ask；所有缺失项写入交付摘要 | 已定义，需真实环境验证 |
+| EngineerCat 不能自己发现项目下的 Codex 会话 | 用户必须手工查 session id，无法像本人一样续接 Codex 工作上下文 | 注册 `codex_session_list` / `codex_job_*` 给 EngineerCat；按项目 cwd 精确查询 session，再用 `codex_job_resume` 指定会话交互 | 已修复，有回归 |
 | coding agent 输出可能幻觉或过度修改 | EngineerCat 可能盲从外部 agent，破坏仓库边界 | OMC prompt 必须包含背景、目标、范围、约束、产物、验收；读取结果后做二次判断和本地验证 | 已定义，需 runner 强化 |
 | 验证命令太弱或未执行 | 交付看起来完成但不可运行 | 每个任务先写 validation plan；至少执行 build/targeted test/diff check 或记录 blocked reason | 已定义，需 runner 强化 |
 

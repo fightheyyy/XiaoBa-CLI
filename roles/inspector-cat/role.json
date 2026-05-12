@@ -1,6 +1,6 @@
 {
   "name": "inspector-cat",
-  "displayName": "InspectorCat",
+  "displayName": "Mouri Kohachiro",
   "description": "Review Agent，优先审查 XiaoBa Runtime，并从日志中识别可沉淀为 Skill 的重复模式。",
   "promptFile": "inspector-system-prompt.md",
   "inheritBaseSkills": true,
@@ -8,5 +8,8 @@
     "bio-skills",
     "OfficeCLI",
     "WebCLI"
-  ]
+  ],
+  "metadata": {
+    "petId": "mouri-kohachiro"
+  }
 }
