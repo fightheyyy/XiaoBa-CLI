@@ -147,7 +147,8 @@ function createWindow() {
     minHeight: 600,
     title: 'XiaoBa Dashboard',
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#0f1117',
+    trafficLightPosition: { x: 18, y: 18 },
+    backgroundColor: '#f8f7f3',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

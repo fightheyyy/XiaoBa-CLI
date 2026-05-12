@@ -164,7 +164,7 @@
       font-size: 16px;
       font-weight: 700;
       color: #fff;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
       margin-bottom: 2px;
     }
 
@@ -268,7 +268,7 @@
     .topbar-title {
       font-size: 18px;
       font-weight: 700;
-      letter-spacing: -0.03em;
+      letter-spacing: 0;
       color: var(--text);
     }
 
@@ -420,7 +420,7 @@
     .overview-card .ov-value {
       font-size: 22px;
       font-weight: 800;
-      letter-spacing: -0.04em;
+      letter-spacing: 0;
       color: var(--text);
       word-break: break-word;
     }
@@ -478,7 +478,7 @@
       font-size: 16px;
       font-weight: 700;
       margin-bottom: 8px;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
     }
 
     .svc-meta {
@@ -660,7 +660,7 @@
     .config-group-title {
       font-size: 15px;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
     }
 
     .config-row {
@@ -765,7 +765,7 @@
       gap: 10px;
       font-size: 16px;
       font-weight: 800;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
       color: var(--text);
     }
 
@@ -960,7 +960,7 @@
       font-size: 15px;
       font-weight: 700;
       margin-bottom: 2px;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
       word-break: break-word;
     }
 
@@ -1079,7 +1079,7 @@
     .modal-header h3 {
       font-size: 16px;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
     }
 
     .modal-body {
@@ -1127,7 +1127,7 @@
     .section-title {
       font-size: 22px;
       font-weight: 800;
-      letter-spacing: -0.04em;
+      letter-spacing: 0;
       margin-bottom: 18px;
       display: flex;
       align-items: center;
@@ -1173,7 +1173,7 @@
       gap: 10px;
       font-size: 18px;
       font-weight: 800;
-      letter-spacing: -0.03em;
+      letter-spacing: 0;
       color: var(--text);
     }
 
@@ -1236,7 +1236,7 @@
     .section-header h2 {
       font-size: 22px;
       font-weight: 800;
-      letter-spacing: -0.04em;
+      letter-spacing: 0;
       color: var(--text);
     }
 
@@ -1274,7 +1274,7 @@
     .status-card .value {
       font-size: 20px;
       font-weight: 800;
-      letter-spacing: -0.03em;
+      letter-spacing: 0;
       color: var(--text);
       word-break: break-word;
     }
@@ -1705,6 +1705,1457 @@
       }
     }
   
+    /* Minimal runtime console */
+    :root {
+      --bg: #f7f7f5;
+      --bg-soft: #f1f1ef;
+      --sidebar-bg: #fbfbfa;
+      --sidebar-border: #e6e4df;
+      --sidebar-text: #6f6f68;
+      --sidebar-active: #161616;
+      --sidebar-hover: #f0efeb;
+      --surface: #ffffff;
+      --surface-muted: #f8f8f6;
+      --border: #e4e2dc;
+      --border-strong: #d6d3ca;
+      --border-light: #eeece7;
+      --text: #191917;
+      --text2: #5f5e57;
+      --text3: #929088;
+      --accent: #0a84ff;
+      --accent-2: #191917;
+      --accent-light: #eaf3ff;
+      --green: #1f8f4d;
+      --green-light: #e9f6ee;
+      --orange: #a95f00;
+      --orange-light: #fff3df;
+      --red: #c93443;
+      --red-light: #fff0f2;
+      --shadow-sm: none;
+      --shadow-md: none;
+      --shadow-lg: none;
+      --radius: 8px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+    }
+
+    html,
+    body {
+      background: var(--bg);
+    }
+
+    body {
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
+      letter-spacing: 0;
+    }
+
+    body::before,
+    body::after,
+    .sidebar::before,
+    .overview-card::before,
+    .skill-card::before {
+      display: none;
+    }
+
+    .sidebar {
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 212px;
+      min-height: 100vh;
+      padding: 14px 10px;
+      border: 0;
+      border-right: 1px solid var(--sidebar-border);
+      border-radius: 0;
+      background: var(--sidebar-bg);
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .sidebar-brand {
+      min-height: 40px;
+      margin-bottom: 14px;
+      padding: 6px 8px;
+      gap: 9px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .sidebar-brand-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .sidebar-brand-text {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .sidebar-brand-ver {
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .sidebar-nav {
+      gap: 1px;
+      padding: 0;
+    }
+
+    .nav-item {
+      min-height: 32px;
+      padding: 7px 9px;
+      gap: 9px;
+      border: 0;
+      border-radius: 7px;
+      color: var(--sidebar-text);
+      font-size: 13px;
+      font-weight: 600;
+      transform: none;
+    }
+
+    .nav-item:hover {
+      background: var(--sidebar-hover);
+      color: var(--text);
+      transform: none;
+    }
+
+    .nav-item.active {
+      background: #ecebea;
+      color: var(--sidebar-active);
+      box-shadow: none;
+    }
+
+    .nav-item.active::before {
+      display: none;
+    }
+
+    .nav-icon {
+      width: 16px;
+      color: var(--text3);
+      font-size: 11px;
+      opacity: 1;
+    }
+
+    .sidebar-footer {
+      padding: 10px 8px 2px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .sidebar-footer-info span:first-child {
+      background: transparent !important;
+      color: var(--text3) !important;
+      padding: 0 !important;
+      font-weight: 600 !important;
+    }
+
+    .main-wrapper {
+      margin-left: 212px;
+      padding: 0;
+    }
+
+    .topbar {
+      min-height: 44px;
+      margin: 0;
+      padding: 7px 24px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      background: rgba(247, 247, 245, 0.94);
+      box-shadow: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .topbar-context,
+    .topbar-title,
+    .topbar-surface {
+      color: var(--text2);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .topbar-context::before {
+      width: 7px;
+      height: 7px;
+      background: #30d158;
+      box-shadow: none;
+    }
+
+    .topbar-separator,
+    .topbar-title {
+      display: none;
+    }
+
+    .topbar-right {
+      gap: 8px;
+    }
+
+    .lang-toggle {
+      height: 28px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: none;
+    }
+
+    .lang-toggle button {
+      min-width: 30px;
+      height: 22px;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .lang-toggle button.active {
+      background: var(--text);
+      color: #fff;
+      box-shadow: none;
+    }
+
+    .topbar-badge,
+    .topbar-badge.online {
+      min-height: 28px;
+      padding: 6px 11px;
+      border-color: var(--border);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .page-content {
+      width: min(1120px, calc(100% - 40px));
+      margin: 18px auto 0;
+      padding: 0 0 28px;
+    }
+
+    .runtime-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      min-height: 36px;
+      margin: 0 0 12px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .runtime-eyebrow {
+      display: none;
+    }
+
+    .runtime-hero h1 {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 720;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .runtime-hero p {
+      display: none;
+    }
+
+    .runtime-hero-actions {
+      gap: 7px;
+      justify-content: flex-end;
+    }
+
+    .role-active-pill,
+    .runtime-hero .role-active-pill,
+    .btn,
+    .runtime-hero .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 30px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+      box-shadow: none;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--surface-muted);
+      border-color: var(--border-strong);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: var(--text);
+      border-color: var(--text);
+      color: #fff;
+    }
+
+    .btn-success,
+    .service-actions .btn-success {
+      background: #fff;
+      border-color: var(--border);
+      color: var(--text);
+    }
+
+    .runtime-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      align-items: start;
+    }
+
+    .runtime-panel,
+    .runtime-main-panel,
+    .config-group,
+    .skill-card,
+    .pet-stage,
+    .pet-chat-panel,
+    .store-install-bar {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .panel-header,
+    .runtime-main-panel .panel-header {
+      min-height: 40px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-light);
+      background: #fff;
+    }
+
+    .panel-title {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .panel-subtitle {
+      display: none;
+    }
+
+    .runtime-table {
+      background: #fff;
+    }
+
+    .service-table {
+      min-width: 0;
+    }
+
+    .service-row {
+      display: grid;
+      align-items: center;
+      grid-template-columns: minmax(128px, 1.1fr) 88px 72px minmax(82px, 0.7fr) 108px;
+      min-height: 44px;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .service-row > :nth-child(4) {
+      display: none;
+    }
+
+    .service-row.head {
+      min-height: 30px;
+      background: var(--surface-muted);
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .service-row:not(.head):hover {
+      background: #fbfbfa;
+    }
+
+    .service-cell {
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .mobile-label {
+      display: none;
+    }
+
+    .service-cell strong {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 680;
+    }
+
+    .service-row .service-cell:first-child .service-muted {
+      display: none;
+    }
+
+    .service-muted {
+      color: var(--text3);
+      font-size: 11px;
+    }
+
+    .service-status,
+    .status-dot {
+      min-height: 22px;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-muted);
+      color: var(--text2);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .service-status.running {
+      background: var(--green-light);
+      color: var(--green);
+      border-color: transparent;
+    }
+
+    .service-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: flex-end;
+    }
+
+    .service-actions .btn {
+      min-height: 28px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      font-size: 12px;
+    }
+
+    .next-action,
+    .activity-item {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .next-action-mark,
+    .activity-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      margin-top: 6px;
+      border-radius: 50%;
+    }
+
+    .activity-item:not(:last-child)::after {
+      left: 15px;
+      top: 24px;
+      background: var(--border-light);
+    }
+
+    .next-action-title,
+    .activity-title {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 680;
+      line-height: 1.35;
+    }
+
+    .next-action-meta,
+    .activity-meta {
+      margin-top: 2px;
+      color: var(--text3);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .activity-time {
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
+    .next-action-button {
+      min-height: 26px;
+      margin-top: 8px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      background: #fff;
+    }
+
+    .next-action.info .next-action-mark,
+    .activity-item.info .activity-dot {
+      background: var(--accent);
+    }
+
+    .next-action.good .next-action-mark,
+    .activity-item.good .activity-dot {
+      background: var(--green);
+    }
+
+    .next-action.warn .next-action-mark,
+    .activity-item.warn .activity-dot {
+      background: var(--orange);
+    }
+
+    .next-action.bad .next-action-mark,
+    .activity-item.bad .activity-dot {
+      background: var(--red);
+    }
+
+    .signal-grid.status-grid {
+      display: none;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 12px;
+      gap: 8px;
+    }
+
+    .role-value {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .status-card {
+      min-height: 58px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .status-card::before {
+      display: none;
+    }
+
+    .status-card .label {
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .status-card .value {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .section-title {
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+
+    .config-input,
+    .config-select {
+      border-radius: 7px;
+      border-color: var(--border);
+      background: #fff;
+    }
+
+    @media (max-width: 1120px) {
+      .runtime-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .runtime-main-panel {
+        order: initial;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        width: 68px;
+        padding-inline: 8px;
+      }
+
+      .main-wrapper {
+        margin-left: 68px;
+      }
+
+      .sidebar-brand {
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        display: block;
+        background: var(--bg);
+      }
+
+      .main-wrapper {
+        margin-left: 0;
+        padding: 0;
+      }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        min-height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebar-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+      }
+
+      .nav-item {
+        justify-content: center;
+      }
+
+      .topbar {
+        padding-inline: 14px;
+      }
+
+      .page-content {
+        width: calc(100% - 24px);
+        margin-top: 14px;
+      }
+
+      .runtime-hero {
+        grid-template-columns: 1fr;
+      }
+
+      .runtime-hero h1 {
+        font-size: 22px;
+      }
+
+      .runtime-hero-actions {
+        justify-content: flex-start;
+      }
+
+      .service-row {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 10px 12px;
+      }
+
+      .service-row > :nth-child(4) {
+        display: block;
+      }
+
+      .mobile-label {
+        display: inline;
+        margin-right: 6px;
+        color: var(--text3);
+        font-size: 11px;
+        font-weight: 650;
+      }
+    }
+
+    /* Visual polish: soften the minimal console without changing layout logic */
+    :root {
+      --bg: #f8f7f3;
+      --bg-soft: #f2f0ea;
+      --surface: #ffffff;
+      --surface-muted: #f6f4ef;
+      --surface-raised: #fffdfa;
+      --sidebar-bg: #fbfaf7;
+      --sidebar-hover: #f0eee7;
+      --sidebar-border: #e7e2d8;
+      --sidebar-text: #706d63;
+      --sidebar-active: #171714;
+      --border: #e4ded2;
+      --border-strong: #d5cbbd;
+      --border-light: #eee9df;
+      --text: #1e1d19;
+      --text2: #656258;
+      --text3: #969085;
+      --accent: #1677d2;
+      --accent-light: #eaf4ff;
+      --green: #26824b;
+      --green-light: #e9f5ec;
+      --orange: #a66412;
+      --orange-light: #fff3df;
+      --red: #c2414f;
+      --red-light: #fff0f2;
+      --shadow-sm: 0 1px 2px rgba(34, 31, 25, 0.04), 0 10px 28px rgba(34, 31, 25, 0.06);
+      --shadow-md: 0 2px 4px rgba(34, 31, 25, 0.05), 0 18px 42px rgba(34, 31, 25, 0.08);
+      --shadow-lg: 0 18px 60px rgba(34, 31, 25, 0.18);
+      --radius-lg: 18px;
+      --radius: 16px;
+      --radius-sm: 12px;
+      --radius-xs: 10px;
+    }
+
+    html,
+    body {
+      background: var(--bg);
+    }
+
+    .sidebar,
+    .main-wrapper,
+    .topbar,
+    .page-content,
+    .runtime-hero,
+    .runtime-hero h1,
+    .topbar-context,
+    .topbar-title,
+    .topbar-surface,
+    .panel-title,
+    .section-title,
+    .skill-group-title,
+    .skill-name,
+    .service-cell strong,
+    .status-card .value,
+    .pet-name,
+    .config-group-title {
+      letter-spacing: 0;
+    }
+
+    .sidebar {
+      width: 220px;
+      padding: 16px 12px;
+      background: var(--sidebar-bg);
+    }
+
+    .sidebar-brand {
+      min-height: 44px;
+      margin-bottom: 18px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    .sidebar-brand:hover {
+      background: rgba(240, 238, 231, 0.62);
+    }
+
+    .sidebar-brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 11px;
+    }
+
+    .sidebar-nav {
+      gap: 4px;
+    }
+
+    .nav-item {
+      min-height: 38px;
+      padding: 9px 11px;
+      border-radius: var(--radius-sm);
+      transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .nav-item:hover {
+      background: var(--sidebar-hover);
+    }
+
+    .nav-item.active {
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border-light);
+    }
+
+    .nav-icon {
+      width: 18px;
+      font-size: 12px;
+    }
+
+    .main-wrapper {
+      margin-left: 220px;
+      padding: 14px 18px 32px;
+    }
+
+    .topbar {
+      width: min(1120px, 100%);
+      min-height: 52px;
+      margin: 0 auto;
+      padding: 10px 14px 10px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: rgba(255, 253, 250, 0.86);
+      box-shadow: var(--shadow-sm);
+      top: 14px;
+    }
+
+    .topbar-context::before {
+      box-shadow: 0 0 0 4px rgba(38, 130, 75, 0.12);
+    }
+
+    .topbar-badge,
+    .topbar-badge.online,
+    .topbar-badge.offline,
+    .role-active-pill,
+    .runtime-hero .role-active-pill {
+      min-height: 32px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border-color: var(--border-light);
+      background: var(--surface);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    }
+
+    .lang-toggle {
+      height: 32px;
+      padding: 3px;
+      border-color: var(--border);
+      background: var(--surface);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    }
+
+    .lang-toggle button {
+      height: 24px;
+      border-radius: 999px;
+    }
+
+    .page-content {
+      width: min(1120px, 100%);
+      margin: 22px auto 0;
+    }
+
+    .runtime-hero {
+      min-height: 52px;
+      margin-bottom: 16px;
+    }
+
+    .runtime-hero h1 {
+      font-size: 25px;
+      line-height: 1.2;
+      font-weight: 760;
+    }
+
+    .runtime-hero-actions {
+      gap: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .runtime-hero .role-active-pill,
+    .runtime-hero-actions > .btn {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 12px;
+      line-height: 1;
+    }
+
+    .runtime-hero .role-avatar.sm {
+      width: 22px;
+      height: 22px;
+      border-radius: 8px;
+    }
+
+    .runtime-panel,
+    .runtime-main-panel,
+    .config-group,
+    .skill-card,
+    .pet-stage,
+    .pet-chat-panel,
+    .store-install-bar,
+    .status-card,
+    .loading,
+    .modal {
+      border-radius: var(--radius);
+      border-color: var(--border);
+      background: var(--surface-raised);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .runtime-panel:hover,
+    .config-group:hover,
+    .skill-card:hover,
+    .status-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .runtime-main-panel {
+      overflow: hidden;
+    }
+
+    .panel-header,
+    .runtime-main-panel .panel-header {
+      min-height: 46px;
+      padding: 12px 14px;
+      background: var(--surface-muted);
+    }
+
+    .panel-title,
+    .section-title {
+      font-size: 15px;
+      font-weight: 760;
+    }
+
+    .runtime-table {
+      background: var(--surface);
+    }
+
+    .service-row {
+      grid-template-columns: minmax(150px, 1.25fr) 96px minmax(92px, 0.85fr) minmax(118px, 0.9fr) 136px;
+      min-height: 52px;
+      gap: 12px;
+      padding: 10px 14px;
+    }
+
+    .service-row.head {
+      min-height: 36px;
+      background: #faf8f4;
+      border-bottom-color: var(--border-light);
+      color: var(--text3);
+    }
+
+    .service-row:not(.head):hover {
+      background: #fcfbf8;
+    }
+
+    .service-cell {
+      font-size: 12px;
+    }
+
+    .service-cell strong {
+      font-size: 13px;
+      font-weight: 720;
+    }
+
+    .service-status,
+    .status-dot {
+      min-height: 24px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+    }
+
+    .service-status::before,
+    .status-dot::before {
+      width: 6px;
+      height: 6px;
+      box-shadow: none;
+    }
+
+    .btn,
+    .runtime-hero .btn,
+    .service-actions .btn {
+      min-height: 32px;
+      padding: 7px 12px;
+      border-radius: var(--radius-xs);
+      background: var(--surface);
+      border-color: var(--border);
+      box-shadow: 0 1px 1px rgba(34, 31, 25, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: #fbfaf7;
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--text);
+      border-color: var(--text);
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2b2924;
+      border-color: #2b2924;
+    }
+
+    .btn-danger {
+      color: var(--red);
+      background: var(--red-light);
+      border-color: rgba(194, 65, 79, 0.18);
+    }
+
+    .btn-success,
+    .service-actions .btn-success {
+      color: var(--green);
+      background: var(--green-light);
+      border-color: rgba(38, 130, 75, 0.18);
+    }
+
+    .skill-groups,
+    .config-section,
+    .roles-grid,
+    .skills-grid {
+      gap: 16px;
+    }
+
+    .skill-groups {
+      gap: 18px;
+    }
+
+    .skill-group {
+      gap: 14px;
+    }
+
+    .skill-group-header {
+      min-height: 76px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-raised);
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, background 0.16s ease;
+    }
+
+    .skill-group-header:hover {
+      background: #fffefb;
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .skill-group-title {
+      min-width: 0;
+      font-size: 18px;
+      font-weight: 780;
+    }
+
+    .skill-group-title .badge {
+      flex-shrink: 0;
+    }
+
+    .skill-group-meta {
+      min-width: 0;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .skill-group-meta span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .skill-group-chevron {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      background: var(--surface);
+      transform: none;
+      transition: border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .skill-group-chevron::after {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 9px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--text3);
+      border-bottom: 2px solid var(--text3);
+      transform: rotate(45deg);
+      transition: transform 0.16s ease, top 0.16s ease, left 0.16s ease;
+    }
+
+    .skill-group.collapsed .skill-group-chevron {
+      transform: none;
+    }
+
+    .skill-group.collapsed .skill-group-chevron::after {
+      left: 9px;
+      top: 11px;
+      transform: rotate(-45deg);
+    }
+
+    .skill-group.collapsed > .loading {
+      display: none;
+    }
+
+    .skills-grid,
+    .roles-grid {
+      align-items: stretch;
+    }
+
+    .skill-card,
+    .config-group {
+      padding: 18px;
+    }
+
+    .skill-card {
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #page-skills .skills-grid {
+      grid-auto-rows: 270px;
+    }
+
+    #page-store .skills-grid {
+      grid-auto-rows: 212px;
+    }
+
+    #page-roles .roles-grid {
+      grid-auto-rows: 400px;
+    }
+
+    #page-roles .role-card {
+      min-height: 0;
+    }
+
+    .role-card.active {
+      border-color: rgba(38, 130, 75, 0.32);
+      box-shadow: var(--shadow-md), 0 0 0 1px rgba(38, 130, 75, 0.12) inset;
+    }
+
+    .skill-group-header {
+      min-height: 42px;
+      padding: 0 2px 10px;
+    }
+
+    .tag,
+    .skill-group-title .badge,
+    .section-title .badge {
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+
+    .skill-header {
+      min-height: 76px;
+    }
+
+    .skill-title-block {
+      overflow: hidden;
+    }
+
+    .skill-header .skill-files {
+      display: block;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .skill-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .skill-desc {
+      min-height: 43px;
+      max-height: 43px;
+      margin-bottom: 12px;
+    }
+
+    .role-card .skill-desc {
+      min-height: 64px;
+      max-height: 64px;
+      -webkit-line-clamp: 3;
+    }
+
+    .skill-tags,
+    .skill-meta {
+      min-height: 28px;
+      max-height: 62px;
+      overflow: hidden;
+      align-content: flex-start;
+    }
+
+    .skill-files {
+      display: -webkit-box;
+      min-height: 32px;
+      max-height: 42px;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    #page-store .skill-files {
+      display: none;
+    }
+
+    .skill-actions {
+      min-height: 46px;
+      margin-top: auto;
+      align-items: flex-end;
+    }
+
+    #page-skills .skill-group-header {
+      min-height: 76px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-raised);
+      box-shadow: var(--shadow-sm);
+    }
+
+    #page-skills .skill-group-header:hover {
+      background: #fffefb;
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-md);
+    }
+
+    #page-skills .skill-group-title {
+      font-size: 18px;
+      font-weight: 780;
+    }
+
+    #page-skills .skill-group-chevron {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      background: var(--surface);
+      transform: none;
+    }
+
+    #page-skills .skill-group-chevron::after {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 9px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--text3);
+      border-bottom: 2px solid var(--text3);
+      transform: rotate(45deg);
+    }
+
+    #page-skills .skill-group.collapsed .skill-group-chevron {
+      transform: none;
+    }
+
+    #page-skills .skill-group.collapsed .skill-group-chevron::after {
+      left: 9px;
+      top: 11px;
+      transform: rotate(-45deg);
+    }
+
+    .empty-state,
+    #store-grid .loading,
+    .skill-group > .loading {
+      grid-column: 1 / -1;
+      min-height: 132px;
+      padding: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-style: solid;
+      color: var(--text2);
+      background:
+        linear-gradient(180deg, rgba(255, 253, 250, 0.92), rgba(250, 248, 244, 0.9));
+    }
+
+    #store-grid .loading {
+      width: 100%;
+      min-height: 156px;
+      justify-self: stretch;
+    }
+
+    #page-store .skills-grid.is-empty {
+      grid-template-columns: 1fr;
+      grid-auto-rows: auto;
+    }
+
+    .skill-group > .loading {
+      width: 100%;
+    }
+
+    .config-input,
+    .config-select,
+    .pet-input {
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border-color: var(--border);
+      box-shadow: inset 0 1px 2px rgba(34, 31, 25, 0.04);
+    }
+
+    .config-input:focus,
+    .config-select:focus,
+    .pet-input:focus {
+      border-color: rgba(22, 119, 210, 0.42);
+      box-shadow: 0 0 0 4px rgba(22, 119, 210, 0.10);
+    }
+
+    .config-group-title::after,
+    .skill-group-chevron {
+      border-color: var(--text3);
+    }
+
+    .role-avatar,
+    .skill-emoji,
+    .pet-avatar-viewport,
+    .modal-close {
+      border-radius: var(--radius-sm);
+    }
+
+    .role-avatar.sm {
+      border-radius: 9px;
+    }
+
+    .role-avatar.lg {
+      border-radius: var(--radius);
+    }
+
+    .pet-surface {
+      gap: 16px;
+    }
+
+    .pet-stage,
+    .pet-chat-panel {
+      background: var(--surface-raised);
+    }
+
+    .pet-bubble {
+      border-radius: 16px;
+    }
+
+    .pet-bubble.user {
+      border-bottom-right-radius: 7px;
+    }
+
+    .pet-bubble.assistant {
+      border-bottom-left-radius: 7px;
+    }
+
+    .modal-header {
+      background: var(--surface-muted);
+    }
+
+    .modal-body {
+      background: #fbfaf7;
+    }
+
+    html.electron-darwin .sidebar {
+      padding-top: 52px;
+    }
+
+    html.electron-darwin .sidebar-brand {
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        width: 76px;
+        padding-inline: 10px;
+      }
+
+      .main-wrapper {
+        margin-left: 76px;
+        padding-inline: 14px;
+      }
+
+      .topbar,
+      .page-content {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .main-wrapper {
+        margin-left: 0;
+        padding: 10px;
+      }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        min-height: auto;
+        padding: 12px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 10px;
+      }
+
+      html.electron-darwin .sidebar {
+        padding-top: 12px;
+      }
+
+      .sidebar-brand {
+        justify-content: flex-start;
+        margin-bottom: 10px;
+      }
+
+      .sidebar-brand-text,
+      .sidebar-brand-ver,
+      .nav-item span:not(.nav-icon) {
+        display: block;
+      }
+
+      .sidebar-footer-info {
+        display: none;
+      }
+
+      .sidebar-nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .nav-item {
+        justify-content: flex-start;
+      }
+
+      .topbar {
+        top: 10px;
+        border-radius: var(--radius);
+      }
+
+      .page-content {
+        margin-top: 16px;
+      }
+
+      .service-row {
+        gap: 8px;
+        border-radius: 0;
+      }
+
+      .service-row.head {
+        display: none;
+      }
+
+      .skill-group-header {
+        min-height: 70px;
+        padding: 13px;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .skill-group-meta {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .runtime-hero-actions {
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+    }
+
     /* Collapsible config groups */
     .config-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
     .config-group-title::after { content: ''; display: inline-block; width: 8px; height: 8px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(45deg); transition: transform 0.2s ease; flex-shrink: 0; }
@@ -1720,33 +3171,33 @@
     <div class="sidebar-brand">
       <div class="sidebar-brand-icon"><img src="cat-icon.png" style="width:100%;height:100%;object-fit:contain;border-radius:inherit" alt="XiaoBa"></div>
       <div>
-        <div class="sidebar-brand-text">XiaoBa TEST</div>
+        <div class="sidebar-brand-text">XiaoBa Runtime</div>
         <div class="sidebar-brand-ver">v0.1.1</div>
       </div>
     </div>
     <nav class="sidebar-nav">
       <a class="nav-item active" onclick="switchPage('services')" data-page="services">
-        <span class="nav-icon">&gt;</span> <span>服务</span>
-      </a>
-      <a class="nav-item" onclick="switchPage('pet')" data-page="pet">
-        <span class="nav-icon">*</span> <span>Pet</span>
-      </a>
-      <a class="nav-item" onclick="switchPage('config')" data-page="config">
-        <span class="nav-icon">~</span> <span>配置</span>
-      </a>
-      <a class="nav-item" onclick="switchPage('skills')" data-page="skills">
-        <span class="nav-icon">#</span> <span>Skills</span>
+        <span class="nav-icon">&gt;</span> <span data-i18n="navRuntime">Runtime</span>
       </a>
       <a class="nav-item" onclick="switchPage('roles')" data-page="roles">
-        <span class="nav-icon">@</span> <span>角色</span>
+        <span class="nav-icon">@</span> <span data-i18n="navRoles">Roles</span>
+      </a>
+      <a class="nav-item" onclick="switchPage('skills')" data-page="skills">
+        <span class="nav-icon">#</span> <span data-i18n="navSkills">Skills</span>
+      </a>
+      <a class="nav-item" onclick="switchPage('config')" data-page="config">
+        <span class="nav-icon">~</span> <span data-i18n="navConfig">Config</span>
       </a>
       <a class="nav-item" onclick="switchPage('store')" data-page="store">
-        <span class="nav-icon">+</span> <span>商店</span>
+        <span class="nav-icon">+</span> <span data-i18n="navStore">Store</span>
+      </a>
+      <a class="nav-item" onclick="switchPage('pet')" data-page="pet">
+        <span class="nav-icon">*</span> <span data-i18n="navCompanion">Companion</span>
       </a>
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-footer-info">
-        <span id="topbar-status" style="display:inline-block;margin-bottom:4px;font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(30,169,113,0.15);color:#1ea971;font-weight:700">在线</span><br/>
+        <span data-i18n="footerControlRoom" style="display:inline-block;margin-bottom:4px;font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(125,211,252,0.14);color:#bae6fd;font-weight:700">control room</span><br/>
         <span id="footer-platform">-</span><br/>
         <span id="footer-node">-</span>
       </div>
@@ -1755,16 +3206,51 @@
 
   <!-- Main -->
   <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar-context">
+        <span class="topbar-surface" data-i18n="topbarSurface">Local Dashboard</span>
+        <span class="topbar-separator">/</span>
+        <span class="topbar-title" id="topbar-title">Runtime</span>
+      </div>
+      <div class="topbar-right">
+        <div class="lang-toggle" aria-label="Language">
+          <button type="button" id="lang-zh" onclick="setLanguage('zh')">中</button>
+          <button type="button" id="lang-en" onclick="setLanguage('en')">EN</button>
+        </div>
+        <span class="topbar-badge online" id="topbar-status">Online</span>
+      </div>
+    </header>
+
     <div class="page-content">
 
       <!-- Page: Services -->
       <div class="page active" id="page-services">
-        <div class="section-title">服务</div>
-        <div class="services-grid" id="services-grid"><div class="loading">加载中...</div></div>
-        <div style="margin-top:22px">
-          <div class="section-title">状态</div>
-          <div class="status-grid" id="status-grid"></div>
+        <div class="runtime-hero">
+          <div>
+            <div class="runtime-eyebrow" data-i18n="heroEyebrow">Runtime Status</div>
+            <h1 data-i18n="heroTitle">Local Runtime Control</h1>
+            <p data-i18n="heroDesc">Monitor IM surface connections, active role, background jobs, and handoff signals for the local XiaoBa process.</p>
+          </div>
+          <div class="runtime-hero-actions">
+            <span class="role-active-pill" id="hero-role-pill">Active role: Base</span>
+            <button class="btn" onclick="fetchStatus()" data-i18n="refresh">Refresh</button>
+          </div>
         </div>
+
+        <div class="runtime-grid">
+          <section class="runtime-panel runtime-main-panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title" data-i18n="servicesTitle">Services</div>
+                <div class="panel-subtitle" data-i18n="servicesSubtitle">IM surfaces, local services, and role-bound processes.</div>
+              </div>
+            </div>
+            <div class="runtime-table" id="services-grid"><div class="loading">Loading...</div></div>
+          </section>
+
+        </div>
+
+        <div class="signal-grid status-grid" id="status-grid"></div>
       </div>
 
       <!-- Page: Pet -->
@@ -1774,7 +3260,7 @@
           <div class="pet-stage">
             <div>
               <div class="pet-name" id="pet-name">Pet</div>
-              <div class="pet-desc" id="pet-desc">加载中...</div>
+              <div class="pet-desc" id="pet-desc">Loading...</div>
             </div>
             <div class="pet-avatar-viewport" id="pet-avatar-viewport" onclick="activatePetComposer()">
               <canvas class="pet-sprite" id="pet-sprite" width="192" height="208"></canvas>
@@ -1790,8 +3276,8 @@
           <div class="pet-chat-panel">
             <div class="pet-messages" id="pet-messages"></div>
             <div class="pet-composer">
-              <textarea class="config-input pet-input" id="pet-input" placeholder="和 pet 说话..."></textarea>
-              <button class="btn btn-primary" id="pet-send-btn" onclick="sendPetMessage()">发送</button>
+              <textarea class="config-input pet-input" id="pet-input" placeholder="Talk to pet..."></textarea>
+              <button class="btn btn-primary" id="pet-send-btn" onclick="sendPetMessage()">Send</button>
             </div>
           </div>
         </div>
@@ -1800,38 +3286,38 @@
       <!-- Page: Config -->
       <div class="page" id="page-config">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <div class="section-title" style="margin-bottom:0">配置</div>
+          <div class="section-title" style="margin-bottom:0">Config</div>
           <div class="config-actions">
-            <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()" style="display:none">保存</button>
-            <span class="config-saved" id="config-saved">已保存</span>
+            <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()" style="display:none">Save</button>
+            <span class="config-saved" id="config-saved">Saved</span>
           </div>
         </div>
-        <div class="config-section" id="config-panel"><div class="loading">加载中...</div></div>
+        <div class="config-section" id="config-panel"><div class="loading">Loading...</div></div>
       </div>
 
       <!-- Page: Skills -->
       <div class="page" id="page-skills">
         <div class="section-title">Skills <span class="badge" id="skill-count">0</span></div>
-        <div id="skills-grid"><div class="loading">加载中...</div></div>
+        <div id="skills-grid"><div class="loading">Loading...</div></div>
       </div>
 
       <!-- Page: Roles -->
       <div class="page" id="page-roles">
         <div class="roles-toolbar">
-          <div class="section-title" style="margin-bottom:0">角色 <span class="badge" id="role-count">0</span></div>
-          <div class="role-active-pill" id="active-role-pill">当前角色：Base</div>
+          <div class="section-title" style="margin-bottom:0">Roles <span class="badge" id="role-count">0</span></div>
+          <div class="role-active-pill" id="active-role-pill">Active role: Base</div>
         </div>
-        <div class="roles-grid" id="roles-grid"><div class="loading">加载中...</div></div>
+        <div class="roles-grid" id="roles-grid"><div class="loading">Loading...</div></div>
       </div>
 
       <!-- Page: Store -->
       <div class="page" id="page-store">
-        <div class="section-title">Skill Store <button class="btn" onclick="refreshStore()" id="refresh-store-btn" style="font-size:12px;padding:6px 14px;margin-left:8px">刷新</button></div>
+        <div class="section-title">Skill Store <button class="btn" onclick="refreshStore()" id="refresh-store-btn" style="font-size:12px;padding:6px 14px;margin-left:8px">Refresh</button></div>
         <div class="store-install-bar">
-          <input class="config-input" id="github-url-input" type="text" placeholder="输入 GitHub 仓库地址安装 skill..." />
-          <button class="btn btn-primary" onclick="installFromGithub()">安装</button>
+          <input class="config-input" id="github-url-input" type="text" placeholder="Install a skill from a GitHub repository URL..." />
+          <button class="btn btn-primary" onclick="installFromGithub()">Install</button>
         </div>
-        <div class="skills-grid" id="store-grid"><div class="loading">加载中...</div></div>
+        <div class="skills-grid" id="store-grid"><div class="loading">Loading...</div></div>
       </div>
 
     </div>
@@ -1841,19 +3327,339 @@
   <div class="modal-overlay" id="logs-modal">
     <div class="modal">
       <div class="modal-header">
-        <h3 id="logs-title">日志</h3>
+        <h3 id="logs-title">Logs</h3>
         <button class="modal-close" onclick="closeLogs()">&times;</button>
       </div>
-      <div class="modal-body" id="logs-body">暂无日志</div>
+      <div class="modal-body" id="logs-body">No logs yet</div>
     </div>
   </div>
 
-  <script src="/pet-runtime.js"></script>
+  <script src="pet-runtime.js"></script>
+  <script>
+    (function markShellPlatform() {
+      const ua = navigator.userAgent || '';
+      const platform = navigator.platform || '';
+      if (ua.includes('Electron') && /Mac|Darwin/i.test(platform + ' ' + ua)) {
+        document.documentElement.classList.add('electron-darwin');
+      }
+    })();
+
+    window.XiaoBaPetRuntime = window.XiaoBaPetRuntime || {
+      animations: {
+        idle: { label: 'idle' },
+        waving: { label: 'waving' },
+        waiting: { label: 'waiting' },
+        failed: { label: 'failed' },
+        jumping: { label: 'jumping' },
+      },
+      PetClient: class {
+        async getPets() { return { pets: [], defaultPetId: '' }; }
+        async wake() {}
+        async sendMessage() {}
+        connect() { return { close() {} }; }
+      },
+      SpritePlayer: class {
+        constructor() {}
+        load() {}
+        setState() {}
+      },
+      createEventHandler: () => () => {},
+    };
+  </script>
   <script>
     const API = '';
-    const pageTitles = { services:'服务', pet:'Pet', config:'配置', skills:'Skills', roles:'角色', store:'商店' };
+    const i18n = {
+      en: {
+        navRuntime: 'Runtime',
+        navRoles: 'Roles',
+        navSkills: 'Skills',
+        navConfig: 'Config',
+        navStore: 'Store',
+        navCompanion: 'Companion',
+        footerControlRoom: 'control room',
+        topbarSurface: 'Local Dashboard',
+        online: 'Online',
+        offline: 'Offline',
+        pageRuntime: 'Runtime',
+        pageRoles: 'Roles',
+        pageSkills: 'Skills',
+        pageConfig: 'Config',
+        pageStore: 'Store',
+        pageCompanion: 'Companion',
+        heroEyebrow: 'Local',
+        heroTitle: 'Runtime',
+        heroDesc: 'IM surfaces, roles, and local work signals.',
+        activeRole: 'Active role: ',
+        refresh: 'Refresh',
+        servicesTitle: 'Services',
+        servicesSubtitle: 'Surfaces and local processes.',
+        nextActionsTitle: 'Actions',
+        nextActionsSubtitle: 'Useful now.',
+        loadingActions: 'Checking setup...',
+        signalsTitle: 'Events',
+        signalsSubtitle: 'Recent runtime events.',
+        loadingSignals: 'Waiting for runtime signals...',
+        statusRuntime: 'Runtime',
+        statusRole: 'Role',
+        statusProvider: 'Provider',
+        statusSurfaces: 'Surfaces',
+        servicesRunning: 'services running',
+        baseRole: 'Base',
+        tableService: 'Service',
+        tableStatus: 'Status',
+        tableRole: 'Role',
+        tablePid: 'PID',
+        tableSignal: 'Signal',
+        tableActions: 'Actions',
+        statusRunning: 'Running',
+        statusStopped: 'Stopped',
+        statusError: 'Error',
+        signalHealthy: 'healthy',
+        signalWaiting: 'waiting',
+        open: 'Open',
+        start: 'Start',
+        stop: 'Stop',
+        restart: 'Restart',
+        logs: 'Logs',
+        noServices: 'No services',
+        nextConfigureProvider: 'Set provider',
+        nextConfigureProviderMeta: 'Add model credentials.',
+        nextChooseRole: 'Choose role',
+        nextChooseRoleMeta: 'Pick a working identity.',
+        nextStartSurface: 'Start surface',
+        nextStartSurfaceMeta: 'Bring one IM entry online.',
+        nextInspectLogs: 'Open logs',
+        nextInspectLogsMeta: 'Check recent service output.',
+        nextReady: 'Ready',
+        nextReadyMeta: 'No action needed.',
+        eventRuntimeUnreachable: 'Runtime unreachable',
+        eventRuntimeUnreachableMeta: 'Local API is offline.',
+        eventHeartbeat: 'API heartbeat',
+        eventHeartbeatMeta: '/api/status responded.',
+        eventRoleLoaded: 'Role loaded',
+        eventRoleLoadedMeta: 'Prompts and tools are scoped.',
+        eventServiceRunning: 'Service running',
+        eventServiceWaiting: 'Service waiting',
+        eventServiceError: 'Service error',
+        eventNoSurface: 'No surface live',
+        eventNoSurfaceMeta: 'Start one IM entry.',
+        eventAllServices: 'All services active.',
+        eventUptime: 'uptime',
+        serviceCatsCompany: 'Cats Company',
+        serviceFeishu: 'Feishu',
+        serviceWeixin: 'Weixin',
+        servicePet: 'Pet Desk',
+        petLoadFailed: 'Unable to load pet',
+        petNoneOption: 'No pet available',
+        petNoAssets: 'No pet assets found',
+        petLocalSurface: 'Local pet interaction surface',
+        petSendFailed: 'Failed to send: ',
+        skillsLoadFailed: 'Unable to load skills',
+        rolesLoadFailed: 'Unable to load roles',
+        noSkills: 'No skills',
+        roleSkillsTitle: 'Role Skills',
+        roleSkillsSubtitle: 'Role-owned capabilities',
+        runtimeSkillsTitle: 'Runtime Skills',
+        runtimeSkillsSubtitle: 'Base runtime and shared capabilities',
+        noItemsPrefix: 'No ',
+        tagRole: 'Role',
+        tagDisabled: 'Disabled',
+        tagUserInvocable: 'User-invocable',
+        tagAutoInvocable: 'Auto-invocable',
+        enable: 'Enable',
+        disable: 'Disable',
+        delete: 'Delete',
+        noRoles: 'No roles',
+        tagCurrent: 'Current',
+        tagIndependentSkills: 'Independent skills',
+        tagInheritBase: 'Inherits base',
+        defaultRoleDesc: 'Default runtime role',
+        enabled: 'Enabled',
+        switchRoleFailed: 'Role switch failed: ',
+        roleSwitchedRestart: 'Role switched. Running services need a restart to use the new role.',
+        operationFailed: 'Operation failed: ',
+        logsTitleSuffix: ' logs',
+        loading: 'Loading...',
+        noLogsYet: 'No logs yet',
+        loadFailed: 'Load failed',
+        deleteSkillConfirmPrefix: 'Delete skill "',
+        deleteSkillConfirmSuffix: '"? This cannot be undone.',
+        configPrimaryModel: 'LLM Primary Model',
+        configBackupModel: 'LLM Backup Model',
+        configFeishu: 'Feishu',
+        configWeixin: 'Weixin',
+        emptyOption: '(empty)',
+        getToken: 'Get Token',
+        saved: 'Saved',
+        saveFailed: 'Save failed: ',
+        storeRefresh: 'Refresh',
+        storeRefreshing: 'Refreshing...',
+        noStoreSkills: 'No available skills',
+        recommended: 'Recommended',
+        installed: 'Installed',
+        categoryOther: 'Other',
+        install: 'Install',
+        installing: 'Installing...',
+        installFailed: 'Install failed: ',
+        weixinQrTitle: 'Weixin scan authorization',
+        weixinQrInstruction: 'Scan the QR code in Weixin to authorize.',
+        openQr: 'Open QR code',
+        waitingScan: 'Waiting for scan...',
+        qrcodeFailed: 'Failed to get QR code: ',
+        authSuccess: 'Authorization succeeded',
+        tokenSavedHint: 'Token was filled automatically. Click Save to persist it.',
+        qrcodeExpired: 'QR code expired. Please request a new one.',
+        justNow: 'just now',
+      },
+      zh: {
+        navRuntime: '运行时',
+        navRoles: '角色',
+        navSkills: '技能',
+        navConfig: '配置',
+        navStore: '商店',
+        navCompanion: '伙伴',
+        footerControlRoom: '控制室',
+        topbarSurface: '本地面板',
+        online: '在线',
+        offline: '离线',
+        pageRuntime: '运行时',
+        pageRoles: '角色',
+        pageSkills: '技能',
+        pageConfig: '配置',
+        pageStore: '商店',
+        pageCompanion: '伙伴',
+        heroEyebrow: '本地',
+        heroTitle: 'Runtime',
+        heroDesc: 'IM 入口、角色与本地工作信号。',
+        activeRole: '当前角色：',
+        refresh: '刷新',
+        servicesTitle: '服务',
+        servicesSubtitle: '入口与本地进程。',
+        nextActionsTitle: '动作',
+        nextActionsSubtitle: '现在可做。',
+        loadingActions: '正在检查配置...',
+        signalsTitle: '事件',
+        signalsSubtitle: '最近 runtime 事件。',
+        loadingSignals: '等待 runtime 信号...',
+        statusRuntime: '运行时',
+        statusRole: '角色',
+        statusProvider: '模型',
+        statusSurfaces: '入口',
+        servicesRunning: '个服务运行中',
+        baseRole: 'Base',
+        tableService: '服务',
+        tableStatus: '状态',
+        tableRole: '角色',
+        tablePid: 'PID',
+        tableSignal: '信号',
+        tableActions: '操作',
+        statusRunning: '运行中',
+        statusStopped: '已停止',
+        statusError: '异常',
+        signalHealthy: '正常',
+        signalWaiting: '等待中',
+        open: '打开',
+        start: '启动',
+        stop: '停止',
+        restart: '重启',
+        logs: '日志',
+        noServices: '没有服务',
+        nextConfigureProvider: '设置模型',
+        nextConfigureProviderMeta: '补齐 provider 凭证。',
+        nextChooseRole: '选择角色',
+        nextChooseRoleMeta: '选择工作身份。',
+        nextStartSurface: '启动入口',
+        nextStartSurfaceMeta: '让一个 IM 入口在线。',
+        nextInspectLogs: '查看日志',
+        nextInspectLogsMeta: '检查最近输出。',
+        nextReady: '已就绪',
+        nextReadyMeta: '暂无动作。',
+        eventRuntimeUnreachable: 'Runtime 不可达',
+        eventRuntimeUnreachableMeta: '本地 API 离线。',
+        eventHeartbeat: 'API 心跳',
+        eventHeartbeatMeta: '/api/status 已响应。',
+        eventRoleLoaded: '角色已加载',
+        eventRoleLoadedMeta: 'Prompt 与工具已跟随身份。',
+        eventServiceRunning: '服务运行中',
+        eventServiceWaiting: '服务等待启动',
+        eventServiceError: '服务异常',
+        eventNoSurface: '暂无在线入口',
+        eventNoSurfaceMeta: '启动一个 IM 入口。',
+        eventAllServices: '服务已全部在线。',
+        eventUptime: '运行',
+        serviceCatsCompany: 'Cats Company 机器人',
+        serviceFeishu: '飞书机器人',
+        serviceWeixin: '微信机器人',
+        servicePet: 'Pet 桌宠',
+        petLoadFailed: '无法加载 pet',
+        petNoneOption: '无可用 Pet',
+        petNoAssets: '没有发现 pet 资产',
+        petLocalSurface: 'Pet 本地交互平台',
+        petSendFailed: '处理失败: ',
+        skillsLoadFailed: '无法加载',
+        rolesLoadFailed: '无法加载角色',
+        noSkills: '暂无 Skills',
+        roleSkillsTitle: '角色 Skills',
+        roleSkillsSubtitle: '当前角色专属能力',
+        runtimeSkillsTitle: 'Runtime Skills',
+        runtimeSkillsSubtitle: '基础运行时与通用能力',
+        noItemsPrefix: '暂无 ',
+        tagRole: '角色',
+        tagDisabled: '已禁用',
+        tagUserInvocable: '用户调用',
+        tagAutoInvocable: '自动调用',
+        enable: '启用',
+        disable: '禁用',
+        delete: '删除',
+        noRoles: '暂无角色',
+        tagCurrent: '当前',
+        tagIndependentSkills: '独立 skills',
+        tagInheritBase: '继承基础',
+        defaultRoleDesc: '默认运行角色',
+        enabled: '已启用',
+        switchRoleFailed: '切换失败: ',
+        roleSwitchedRestart: '角色已切换。正在运行的服务需要重启后才会使用新角色。',
+        operationFailed: '操作失败: ',
+        logsTitleSuffix: ' - 日志',
+        loading: '加载中...',
+        noLogsYet: '暂无日志',
+        loadFailed: '加载失败',
+        deleteSkillConfirmPrefix: '确定要删除 skill "',
+        deleteSkillConfirmSuffix: '" 吗？此操作不可恢复。',
+        configPrimaryModel: 'LLM 主模型',
+        configBackupModel: 'LLM 备用模型',
+        configFeishu: '飞书',
+        configWeixin: '微信',
+        emptyOption: '(空)',
+        getToken: '获取Token',
+        saved: '已保存',
+        saveFailed: '保存失败: ',
+        storeRefresh: '刷新',
+        storeRefreshing: '刷新中...',
+        noStoreSkills: '暂无可用 Skill',
+        recommended: '推荐',
+        installed: '已安装',
+        categoryOther: '其他',
+        install: '安装',
+        installing: '安装中...',
+        installFailed: '安装失败: ',
+        weixinQrTitle: '微信扫码授权',
+        weixinQrInstruction: '请用微信扫描下方二维码授权',
+        openQr: '点击打开二维码',
+        waitingScan: '等待扫码中...',
+        qrcodeFailed: '获取二维码失败: ',
+        authSuccess: '授权成功',
+        tokenSavedHint: 'Token 已自动填入，请点击保存按钮',
+        qrcodeExpired: '二维码已过期，请重新获取',
+        justNow: '刚刚',
+      },
+    };
+    const dashboardLangKey = 'xiaoba.dashboard.lang.v2';
+    let currentLang = localStorage.getItem(dashboardLangKey) || 'en';
+    const pageTitles = { services:'pageRuntime', pet:'pageCompanion', config:'pageConfig', skills:'pageSkills', roles:'pageRoles', store:'pageStore' };
     let rolesState = { active: null, roles: [] };
     let skillsState = [];
+    let latestStatus = null;
     let pets = [];
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
     let petBusy = false;
@@ -1874,6 +3680,48 @@
       'engineer-cat': 'role-icons/engineer-cat.png',
       'reviewer-cat': 'role-icons/reviewer-cat.png',
     };
+    const serviceLabelKeys = {
+      catscompany: 'serviceCatsCompany',
+      feishu: 'serviceFeishu',
+      weixin: 'serviceWeixin',
+      pet: 'servicePet',
+    };
+
+    function t(key) {
+      return (i18n[currentLang] && i18n[currentLang][key]) || i18n.en[key] || key;
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang === 'en' ? 'en' : 'zh';
+      localStorage.setItem(dashboardLangKey, currentLang);
+      applyLanguage();
+    }
+
+    function applyLanguage() {
+      document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+      });
+      document.getElementById('lang-zh')?.classList.toggle('active', currentLang === 'zh');
+      document.getElementById('lang-en')?.classList.toggle('active', currentLang === 'en');
+      const activePage = document.querySelector('.nav-item.active')?.dataset.page || 'services';
+      const title = document.getElementById('topbar-title');
+      if (title) title.textContent = t(pageTitles[activePage] || 'pageRuntime');
+      const status = document.getElementById('topbar-status');
+      if (status) status.textContent = status.classList.contains('offline') ? t('offline') : t('online');
+      if (latestStatus) {
+        renderStatus(latestStatus);
+        renderServices(latestStatus.services || []);
+        renderNextActions(latestStatus);
+        renderActivity(latestStatus);
+      }
+      updateActiveRolePill(latestStatus ? latestStatus.roleDetail || null : null);
+      if (skillsState.length) renderSkills(skillsState);
+      if ((rolesState.roles || []).length) renderRoles(rolesState);
+      if (pets.length) renderPet();
+      if (Object.keys(configData || {}).length) renderConfig();
+      if (storeState.length) renderStore(storeState);
+    }
 
     function switchPage(name) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1883,13 +3731,23 @@
       const nav = document.querySelector('.nav-item[data-page="'+name+'"]');
       if (nav) nav.classList.add('active');
       const title = document.getElementById('topbar-title');
-      if (title) title.textContent = pageTitles[name] || name;
+      if (title) title.textContent = t(pageTitles[name] || 'pageRuntime');
       if (name === 'roles') fetchRoles();
       if (name === 'pet') fetchPets();
     }
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    function escapeJs(value) {
+      return String(value ?? '').replace(/[\\']/g, '\\$&').replace(/\r/g, '\\r').replace(/\n/g, '\\n');
+    }
+
+    function getServiceLabel(service) {
+      const key = String(service?.name || '').toLowerCase();
+      const labelKey = serviceLabelKeys[key];
+      return labelKey ? t(labelKey) : (service?.label || service?.name || '-');
     }
 
     async function fetchPets() {
@@ -1901,7 +3759,7 @@
         }
         renderPet();
       } catch (e) {
-        document.getElementById('pet-desc').textContent = '无法加载 pet';
+        document.getElementById('pet-desc').textContent = t('petLoadFailed');
       }
     }
 
@@ -1909,9 +3767,9 @@
       const pet = pets.find(p => p.id === selectedPetId) || pets[0];
       const select = document.getElementById('pet-select');
       if (!pet) {
-        select.innerHTML = '<option value="">无可用 Pet</option>';
+        select.innerHTML = '<option value="">'+t('petNoneOption')+'</option>';
         document.getElementById('pet-name').textContent = 'Pet';
-        document.getElementById('pet-desc').textContent = '没有发现 pet 资产';
+        document.getElementById('pet-desc').textContent = t('petNoAssets');
         return;
       }
 
@@ -1919,7 +3777,7 @@
       localStorage.setItem('xiaoba.pet.id', selectedPetId);
       select.innerHTML = pets.map(p => '<option value="'+escapeHtml(p.id)+'"'+(p.id===selectedPetId?' selected':'')+'>'+escapeHtml(p.displayName || p.id)+'</option>').join('');
       document.getElementById('pet-name').textContent = pet.displayName || pet.id;
-      document.getElementById('pet-desc').textContent = pet.description || 'Pet 本地交互平台';
+      document.getElementById('pet-desc').textContent = pet.description || t('petLocalSurface');
       document.getElementById('pet-session-key').textContent = 'pet:'+pet.id;
       loadPetSprite(pet.spriteUrl);
       setPetState('idle', true);
@@ -2074,7 +3932,7 @@
         await petClient.sendMessage(selectedPetId, text, petEventSource ? undefined : handlePetEvent, { source: 'dashboard' });
       } catch (e) {
         setPetState('failed');
-        appendPetEvent('处理失败: '+e.message);
+        appendPetEvent(t('petSendFailed')+e.message);
       } finally {
         petBusy = false;
         document.getElementById('pet-send-btn').disabled = false;
@@ -2114,19 +3972,23 @@
       try {
         const res = await fetch(API+'/api/status');
         const data = await res.json();
+        latestStatus = data;
         document.querySelector('.sidebar-brand-ver').textContent = 'v' + (data.version || '-');
         renderStatus(data);
         renderServices(data.services || []);
+        renderNextActions(data);
+        renderActivity(data);
         updateActiveRolePill(data.roleDetail || null);
         document.getElementById('footer-platform').textContent = data.platform || '-';
         document.getElementById('footer-node').textContent = data.nodeVersion || '-';
-        document.getElementById('topbar-status').textContent = '在线';
-        document.getElementById('topbar-status').style.background = 'rgba(30,169,113,0.15)';
-        document.getElementById('topbar-status').style.color = '#1ea971';
+        document.getElementById('topbar-status').textContent = t('online');
+        document.getElementById('topbar-status').className = 'topbar-badge online';
       } catch (e) {
-        document.getElementById('topbar-status').textContent = '离线';
-        document.getElementById('topbar-status').style.background = 'rgba(220,93,115,0.12)';
-        document.getElementById('topbar-status').style.color = '#dc5d73';
+        latestStatus = null;
+        document.getElementById('topbar-status').textContent = t('offline');
+        document.getElementById('topbar-status').className = 'topbar-badge offline';
+        renderNextActions(null, e);
+        renderActivity(null, e);
       }
     }
 
@@ -2136,7 +3998,7 @@
         const skills = await res.json();
         skillsState = Array.isArray(skills) ? skills : [];
         renderSkills(skillsState);
-      } catch (e) { document.getElementById('skills-grid').innerHTML = '<div class="loading">无法加载</div>'; }
+      } catch (e) { document.getElementById('skills-grid').innerHTML = '<div class="loading">'+t('skillsLoadFailed')+'</div>'; }
     }
 
     async function fetchRoles() {
@@ -2145,40 +4007,139 @@
         rolesState = await res.json();
         renderRoles(rolesState);
       } catch (e) {
-        document.getElementById('roles-grid').innerHTML = '<div class="loading">无法加载角色</div>';
+        document.getElementById('roles-grid').innerHTML = '<div class="loading">'+t('rolesLoadFailed')+'</div>';
       }
     }
 
     function renderStatus(d) {
-      const roleName = d.roleDetail ? d.roleDetail.displayName : (d.role || 'Base');
+      const roleName = d.roleDetail ? d.roleDetail.displayName : (d.role || t('baseRole'));
+      const services = Array.isArray(d.services) ? d.services : [];
+      const running = services.filter(s => s.status === 'running').length;
+      const surfaces = services.map(getServiceLabel).filter(Boolean).join(', ') || '-';
       document.getElementById('status-grid').innerHTML =
-        '<div class="status-card"><div class="label">Version</div><div class="value">'+d.version+'</div></div>'+
-        '<div class="status-card"><div class="label">Role</div><div class="value role-value">'+renderRoleAvatar(d.roleDetail || 'base', 'sm')+'<span>'+escapeHtml(roleName || 'Base')+'</span></div></div>'+
-        '<div class="status-card"><div class="label">Provider</div><div class="value">'+(d.provider||'-')+'</div></div>'+
-        '<div class="status-card"><div class="label">Host</div><div class="value">'+d.hostname+'</div></div>'+
-        '<div class="status-card"><div class="label">Skills Path</div><div class="value" style="font-size:12px;word-break:break-all">'+d.skillsPath+'</div></div>';
+        '<div class="status-card"><div class="label">'+t('statusRuntime')+'</div><div class="value">'+running+'/'+services.length+' '+t('servicesRunning')+'</div></div>'+
+        '<div class="status-card"><div class="label">'+t('statusRole')+'</div><div class="value role-value">'+renderRoleAvatar(d.roleDetail || 'base', 'sm')+'<span>'+escapeHtml(roleName || t('baseRole'))+'</span></div></div>'+
+        '<div class="status-card"><div class="label">'+t('statusProvider')+'</div><div class="value">'+(d.provider||'-')+'</div></div>'+
+        '<div class="status-card"><div class="label">'+t('statusSurfaces')+'</div><div class="value" style="font-size:13px">'+escapeHtml(surfaces)+'</div></div>';
     }
 
     function renderServices(svcs) {
       const g = document.getElementById('services-grid');
-      if (!svcs.length) { g.innerHTML = '<div class="loading">无服务</div>'; return; }
-      g.innerHTML = svcs.map(s => {
+      if (!svcs.length) { g.innerHTML = '<div class="loading">'+t('noServices')+'</div>'; return; }
+      const rows = svcs.map(s => {
         const r = s.status==='running', up = r&&s.uptime?formatUptime(s.uptime):'-';
-        const role = s.role ? '<span class="role-value">'+renderRoleAvatar(s.role, 'sm')+'<span>Role: '+escapeHtml(s.role)+'</span></span>' : '';
-        const open = r && s.url ? '<button class="btn btn-primary" onclick="window.open(\''+escapeHtml(s.url)+'\',\'_blank\')">打开</button>' : '';
-        return '<div class="service-card"><div class="service-header"><div class="service-name">'+escapeHtml(s.label)+'</div><span class="service-status '+s.status+'">'+s.status+'</span></div><div class="service-detail">'+(r?'<span>PID: '+s.pid+'</span><span>Uptime: '+up+'</span>'+role:'')+(s.lastError?'<span style="color:var(--red)">'+escapeHtml(s.lastError)+'</span>':'')+'</div><div class="service-actions">'+(r?open+'<button class="btn btn-danger" onclick="svcAction(\''+s.name+'\',\'stop\')">停止</button><button class="btn" onclick="svcAction(\''+s.name+'\',\'restart\')">重启</button>':'<button class="btn btn-success" onclick="svcAction(\''+s.name+'\',\'start\')">启动</button>')+'<button class="btn" onclick="showLogs(\''+s.name+'\',\''+s.label+'\')">日志</button></div></div>';
+        const label = getServiceLabel(s);
+        const role = s.role ? '<span class="role-value">'+renderRoleAvatar(s.role, 'sm')+'<span>'+escapeHtml(s.role)+'</span></span>' : '<span class="service-muted">'+t('baseRole')+'</span>';
+        const pid = r && s.pid ? String(s.pid) : '-';
+        const last = s.lastError ? '<span style="color:var(--red)">'+escapeHtml(s.lastError)+'</span>' : (r ? t('signalHealthy') : t('signalWaiting'));
+        const statusLabel = s.status === 'running' ? t('statusRunning') : (s.status === 'error' ? t('statusError') : t('statusStopped'));
+        const statusClass = ['running', 'stopped', 'error'].includes(s.status) ? s.status : 'stopped';
+        const open = r && s.url ? '<button class="btn btn-primary" onclick="window.open(\''+escapeHtml(s.url)+'\',\'_blank\')">'+t('open')+'</button>' : '';
+        return '<div class="service-row">'+
+          '<div class="service-cell"><strong>'+escapeHtml(label)+'</strong><div class="service-muted">'+escapeHtml(s.name || '-')+'</div></div>'+
+          '<div class="service-cell"><span class="mobile-label">'+t('tableStatus')+'</span><span class="service-status '+statusClass+'">'+escapeHtml(statusLabel)+'</span></div>'+
+          '<div class="service-cell"><span class="mobile-label">'+t('tableRole')+'</span>'+role+'</div>'+
+          '<div class="service-cell"><span class="mobile-label">'+t('tablePid')+'</span><span>'+escapeHtml(pid)+'</span></div>'+
+          '<div class="service-cell"><span class="mobile-label">'+t('tableSignal')+'</span><div><span>'+escapeHtml(up)+'</span><div class="service-muted">'+last+'</div></div></div>'+
+          '<div class="service-cell service-actions">'+(r?open+'<button class="btn btn-danger" onclick="svcAction(\''+s.name+'\',\'stop\')">'+t('stop')+'</button><button class="btn" onclick="svcAction(\''+s.name+'\',\'restart\')">'+t('restart')+'</button>':'<button class="btn btn-success" onclick="svcAction(\''+s.name+'\',\'start\')">'+t('start')+'</button>')+'<button class="btn" onclick="showLogs(\''+s.name+'\',\''+escapeHtml(escapeJs(label))+'\')">'+t('logs')+'</button></div>'+
+        '</div>';
       }).join('');
+      g.innerHTML = '<div class="service-table">'+
+        '<div class="service-row head"><div>'+t('tableService')+'</div><div>'+t('tableStatus')+'</div><div>'+t('tableRole')+'</div><div>'+t('tablePid')+'</div><div>'+t('tableSignal')+'</div><div>'+t('tableActions')+'</div></div>'+
+        rows+
+      '</div>';
+    }
+
+    function renderNextActions(data, error) {
+      const box = document.getElementById('next-actions');
+      if (!box) return;
+      if (error || !data) {
+        box.innerHTML = renderNextAction('bad', t('eventRuntimeUnreachable'), t('eventRuntimeUnreachableMeta'), 'fetchStatus()', t('refresh'));
+        return;
+      }
+
+      const services = Array.isArray(data.services) ? data.services : [];
+      const running = services.filter(s => s.status === 'running');
+      const providerMissing = !data.provider || data.provider === '-';
+      const roleName = data.roleDetail ? data.roleDetail.name || data.roleDetail.displayName : data.role;
+      const roleIsBase = !roleName || String(roleName).toLowerCase() === 'base';
+      const items = [];
+
+      if (providerMissing) {
+        items.push(renderNextAction('info', t('nextConfigureProvider'), t('nextConfigureProviderMeta'), "switchPage('config')", t('open')));
+      }
+      if (roleIsBase) {
+        items.push(renderNextAction('info', t('nextChooseRole'), t('nextChooseRoleMeta'), "switchPage('roles')", t('open')));
+      }
+      if (!running.length && services.length) {
+        items.push(renderNextAction('warn', t('nextStartSurface'), t('nextStartSurfaceMeta'), "switchPage('services')", t('open')));
+      }
+      if (!items.length) {
+        items.push(renderNextAction('good', t('nextReady'), t('nextReadyMeta')));
+      }
+      if (services.length) {
+        const first = services[0];
+        items.push(renderNextAction('info', t('nextInspectLogs'), t('nextInspectLogsMeta'), "showLogs('"+escapeJs(first.name)+"','"+escapeJs(getServiceLabel(first))+"')", t('logs')));
+      }
+
+      box.innerHTML = items.slice(0, 3).join('');
+    }
+
+    function renderNextAction(kind, title, meta, action, label) {
+      const button = action ? '<button type="button" class="btn next-action-button" onclick="'+escapeHtml(action)+'">'+escapeHtml(label || t('open'))+'</button>' : '';
+      return '<div class="next-action '+kind+'"><span class="next-action-mark"></span><div><div class="next-action-title">'+escapeHtml(title)+'</div><div class="next-action-meta">'+escapeHtml(meta)+'</div>'+button+'</div></div>';
+    }
+
+    function renderActivity(data, error) {
+      const feed = document.getElementById('activity-feed');
+      if (!feed) return;
+      if (error || !data) {
+        feed.innerHTML = renderActivityItem('bad', t('eventRuntimeUnreachable'), t('eventRuntimeUnreachableMeta'), t('justNow'));
+        return;
+      }
+      const services = Array.isArray(data.services) ? data.services : [];
+      const running = services.filter(s => s.status === 'running');
+      const roleName = data.roleDetail ? data.roleDetail.displayName : (data.role || t('baseRole'));
+      const items = [
+        renderActivityItem('good', t('eventHeartbeat'), t('eventHeartbeatMeta'), t('justNow')),
+        renderActivityItem('info', t('eventRoleLoaded')+': '+(roleName || t('baseRole')), t('eventRoleLoadedMeta'), t('justNow')),
+      ];
+      if (!services.length) {
+        items.push(renderActivityItem('warn', t('eventNoSurface'), t('eventNoSurfaceMeta'), t('justNow')));
+      } else {
+        services.slice(0, 4).forEach(s => {
+          const label = getServiceLabel(s);
+          if (s.lastError || s.status === 'error') {
+            items.push(renderActivityItem('bad', t('eventServiceError')+': '+label, s.lastError || t('statusError'), t('justNow')));
+          } else if (s.status === 'running') {
+            const meta = 'PID '+(s.pid || '-')+' · '+t('eventUptime')+' '+(s.uptime ? formatUptime(s.uptime) : '-');
+            items.push(renderActivityItem('good', t('eventServiceRunning')+': '+label, meta, t('justNow')));
+          } else {
+            items.push(renderActivityItem('warn', t('eventServiceWaiting')+': '+label, t('nextStartSurfaceMeta'), t('justNow')));
+          }
+        });
+        if (running.length === services.length) {
+          items.push(renderActivityItem('good', t('eventAllServices'), services.map(getServiceLabel).join(', '), t('justNow')));
+        } else if (!running.length) {
+          items.push(renderActivityItem('warn', t('eventNoSurface'), t('eventNoSurfaceMeta'), t('justNow')));
+        }
+      }
+      feed.innerHTML = items.slice(0, 3).join('');
+    }
+
+    function renderActivityItem(kind, title, meta, time) {
+      return '<div class="activity-item '+kind+'"><span class="activity-dot"></span><div><div class="activity-time">'+escapeHtml(time || t('justNow'))+'</div><div class="activity-title">'+escapeHtml(title)+'</div><div class="activity-meta">'+escapeHtml(meta)+'</div></div></div>';
     }
 
     function renderSkills(skills) {
       document.getElementById('skill-count').textContent = skills.length;
       const g = document.getElementById('skills-grid');
-      if (!skills.length) { g.innerHTML = '<div class="loading">暂无 Skills</div>'; return; }
+      if (!skills.length) { g.innerHTML = '<div class="loading">'+t('noSkills')+'</div>'; return; }
       const roleSkills = skills.filter(sk => sk.roleOwned);
       const runtimeSkills = skills.filter(sk => !sk.roleOwned);
       g.innerHTML = '<div class="skill-groups">'+
-        renderSkillGroup('role', '角色 Skills', '当前角色专属能力', roleSkills)+
-        renderSkillGroup('runtime', 'Runtime Skills', '基础运行时与通用能力', runtimeSkills)+
+        renderSkillGroup('role', t('roleSkillsTitle'), t('roleSkillsSubtitle'), roleSkills)+
+        renderSkillGroup('runtime', t('runtimeSkillsTitle'), t('runtimeSkillsSubtitle'), runtimeSkills)+
       '</div>';
     }
 
@@ -2186,7 +4147,7 @@
       const collapsed = skillGroupCollapsed[key];
       const cards = skills.length
         ? '<div class="skills-grid">'+skills.map(renderSkillCard).join('')+'</div>'
-        : '<div class="loading">暂无 '+escapeHtml(title)+'</div>';
+        : '<div class="loading empty-state">'+escapeHtml(t('noItemsPrefix')+title)+'</div>';
       return '<section class="skill-group'+(collapsed?' collapsed':'')+'" id="skill-group-'+key+'">'+
         '<div class="skill-group-header" onclick="toggleSkillGroup(\''+key+'\')">'+
           '<div class="skill-group-title">'+escapeHtml(title)+' <span class="badge">'+skills.length+'</span></div>'+
@@ -2198,14 +4159,14 @@
 
     function renderSkillCard(sk) {
       const canManage = sk.enabled !== false;
-      const roleTag = sk.roleOwned ? '<span class="tag warm">角色</span>' : '<span class="tag gray">Runtime</span>';
+      const roleTag = sk.roleOwned ? '<span class="tag warm">'+t('tagRole')+'</span>' : '<span class="tag gray">Runtime</span>';
       return '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'">'+
-        '<div class="skill-name">'+escapeHtml(sk.name)+(sk.enabled===false?' <span class="tag red">已禁用</span>':'')+'</div>'+
+        '<div class="skill-name">'+escapeHtml(sk.name)+(sk.enabled===false?' <span class="tag red">'+t('tagDisabled')+'</span>':'')+'</div>'+
         '<div class="skill-desc">'+escapeHtml(sk.description||'')+'</div>'+
-        '<div class="skill-tags">'+roleTag+(sk.userInvocable?'<span class="tag green">用户调用</span>':'')+(sk.autoInvocable?'<span class="tag purple">自动调用</span>':'')+(sk.maxTurns?'<span class="tag gray">max '+sk.maxTurns+' turns</span>':'')+'</div>'+
+        '<div class="skill-tags">'+roleTag+(sk.userInvocable?'<span class="tag green">'+t('tagUserInvocable')+'</span>':'')+(sk.autoInvocable?'<span class="tag purple">'+t('tagAutoInvocable')+'</span>':'')+(sk.maxTurns?'<span class="tag gray">max '+sk.maxTurns+' turns</span>':'')+'</div>'+
         (sk.aliases&&sk.aliases.length?'<div class="skill-files">Aliases: '+sk.aliases.map(escapeHtml).join(', ')+'</div>':'')+
         (sk.files?'<div class="skill-files">'+sk.files.map(escapeHtml).join(', ')+'</div>':'')+
-        '<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+escapeHtml(sk.name)+'\','+canManage+')">'+(sk.enabled===false?'启用':'禁用')+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+escapeHtml(sk.name)+'\')">删除</button></div>'+
+        '<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+escapeHtml(sk.name)+'\','+canManage+')">'+(sk.enabled===false?t('enable'):t('disable'))+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+escapeHtml(sk.name)+'\')">'+t('delete')+'</button></div>'+
       '</div>';
     }
 
@@ -2215,10 +4176,12 @@
     }
 
     function updateActiveRolePill(role) {
+      const label = role && role.displayName ? role.displayName : t('baseRole');
+      const html = renderRoleAvatar(role || 'base', 'sm') + '<span>' + escapeHtml(t('activeRole')) + escapeHtml(label) + '</span>';
       const pill = document.getElementById('active-role-pill');
-      if (!pill) return;
-      const label = role && role.displayName ? role.displayName : 'Base';
-      pill.innerHTML = renderRoleAvatar(role || 'base', 'sm') + '<span>当前角色：' + escapeHtml(label) + '</span>';
+      if (pill) pill.innerHTML = html;
+      const heroPill = document.getElementById('hero-role-pill');
+      if (heroPill) heroPill.innerHTML = html;
     }
 
     function renderRoles(data) {
@@ -2227,22 +4190,22 @@
       const active = roles.find(r => r.active) || roles.find(r => r.name === 'base') || null;
       updateActiveRolePill(active);
       const g = document.getElementById('roles-grid');
-      if (!roles.length) { g.innerHTML = '<div class="loading">暂无角色</div>'; return; }
+      if (!roles.length) { g.innerHTML = '<div class="loading">'+t('noRoles')+'</div>'; return; }
       g.innerHTML = roles.map(role => {
         const roleSkills = role.roleSkills || [];
         const tags = [
-          role.active ? '<span class="tag green">当前</span>' : '',
-          role.inheritBaseSkills === false ? '<span class="tag gray">独立 skills</span>' : '<span class="tag purple">继承基础</span>',
+          role.active ? '<span class="tag green">'+t('tagCurrent')+'</span>' : '',
+          role.inheritBaseSkills === false ? '<span class="tag gray">'+t('tagIndependentSkills')+'</span>' : '<span class="tag purple">'+t('tagInheritBase')+'</span>',
           role.roleSkillCount ? '<span class="tag warm">'+role.roleSkillCount+' role skills</span>' : '',
         ].join('');
         const skillPreview = roleSkills.slice(0, 5).map(s => '<span class="tag gray">'+escapeHtml(s.name)+'</span>').join('');
         return '<div class="skill-card role-card'+(role.active?' active':'')+'">'+
           '<div class="skill-header">'+renderRoleAvatar(role, 'lg')+'<div class="skill-title-block"><div class="skill-name">'+escapeHtml(role.displayName || role.name)+'</div><div class="skill-files">'+escapeHtml(role.name)+'</div></div></div>'+
-          '<div class="skill-desc">'+escapeHtml(role.description || '默认运行角色')+'</div>'+
+          '<div class="skill-desc">'+escapeHtml(role.description || t('defaultRoleDesc'))+'</div>'+
           '<div class="skill-tags">'+tags+'</div>'+
           (skillPreview ? '<div class="skill-tags">'+skillPreview+'</div>' : '')+
           (role.aliases&&role.aliases.length?'<div class="skill-files">Aliases: '+role.aliases.map(escapeHtml).join(', ')+'</div>':'')+
-          '<div class="skill-actions">'+(role.active?'<button class="btn" disabled>已启用</button>':'<button class="btn btn-primary" onclick="activateRole(\''+escapeHtml(role.name)+'\')">启用</button>')+'</div>'+
+          '<div class="skill-actions">'+(role.active?'<button class="btn" disabled>'+t('enabled')+'</button>':'<button class="btn btn-primary" onclick="activateRole(\''+escapeHtml(role.name)+'\')">'+t('enable')+'</button>')+'</div>'+
         '</div>';
       }).join('');
     }
@@ -2251,45 +4214,45 @@
       try {
         const res = await fetch(API+'/api/roles/active', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: roleName }) });
         const data = await res.json();
-        if (data.error) { alert('切换失败: '+data.error); return; }
+        if (data.error) { alert(t('switchRoleFailed')+data.error); return; }
         if (data.requiresRestart) {
-          alert('角色已切换。正在运行的服务需要重启后才会使用新角色。');
+          alert(t('roleSwitchedRestart'));
         }
         await fetchRoles();
         await fetchStatus();
         await fetchSkills();
       } catch (e) {
-        alert('切换失败: '+e.message);
+        alert(t('switchRoleFailed')+e.message);
       }
     }
 
-    async function svcAction(n,a) { try{await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});setTimeout(fetchStatus,500);}catch(e){alert('操作失败: '+e.message);} }
+    async function svcAction(n,a) { try{await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});setTimeout(fetchStatus,500);}catch(e){alert(t('operationFailed')+e.message);} }
 
     async function showLogs(n,l) {
-      document.getElementById('logs-title').textContent=l+' - 日志';
-      document.getElementById('logs-body').textContent='加载中...';
+      document.getElementById('logs-title').textContent=l+t('logsTitleSuffix');
+      document.getElementById('logs-body').textContent=t('loading');
       document.getElementById('logs-modal').classList.add('show');
-      try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):'暂无日志';}catch(e){document.getElementById('logs-body').textContent='加载失败';}
+      try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):t('noLogsYet');}catch(e){document.getElementById('logs-body').textContent=t('loadFailed');}
     }
     function closeLogs(){document.getElementById('logs-modal').classList.remove('show');}
     async function toggleSkill(n,c){await fetch(API+'/api/skills/'+encodeURIComponent(n)+'/'+(c?'disable':'enable'),{method:'POST'});fetchSkills();}
-    async function deleteSkill(n){if(!confirm('确定要删除 skill "'+n+'" 吗？此操作不可恢复。'))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
+    async function deleteSkill(n){if(!confirm(t('deleteSkillConfirmPrefix')+n+t('deleteSkillConfirmSuffix')))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
     function formatUptime(s){if(s<60)return Math.floor(s)+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
 
     // === Config with collapsible LLM groups ===
     let configData={};
     const configGroups=[
-      {title:'LLM 主模型', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
-      {title:'LLM 备用模型', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
+      {titleKey:'configPrimaryModel', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
+      {titleKey:'configBackupModel', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
       {title:'Cats Company', collapsed:false, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
-      {title:'飞书', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
-      {title:'微信', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
+      {titleKey:'configFeishu', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
+      {titleKey:'configWeixin', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
       {title:'Inspector', collapsed:false, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
       {title:'Dashboard / Server', collapsed:true, keys:[{key:'XIAOBA_DASHBOARD_HOST',label:'Dashboard Host'},{key:'XIAOBA_API_BODY_LIMIT',label:'API Body Limit'}]},
       {title:'Pet', collapsed:true, keys:[{key:'XIAOBA_PET_HOST',label:'Pet Host'},{key:'XIAOBA_PET_PORT',label:'Pet Port'},{key:'XIAOBA_PETS_DIR',label:'Pets Dir'}]},
     ];
 
-    async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">加载失败</div>';}}
+    async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">'+t('loadFailed')+'</div>';}}
 
     function toggleConfigGroup(idx) {
       const el = document.getElementById('config-grp-'+idx);
@@ -2301,76 +4264,79 @@
       document.getElementById('save-config-btn').style.display='inline-block';
       p.innerHTML=configGroups.map((g,idx)=>{
         const collapsedClass = g.collapsed ? ' collapsed' : '';
+        const title = g.titleKey ? t(g.titleKey) : g.title;
         const rows = g.keys.map(i=>{
           const v=configData[i.key]||'';
-          if(i.type==='select') return '<div class="config-row"><label class="config-label">'+i.label+'</label><select class="config-select" data-key="'+i.key+'">'+i.options.map(o=>'<option value="'+o+'"'+(v===o?' selected':'')+'>'+(o||'(空)')+'</option>').join('')+'</select></div>';
-          const extraBtn = (i.key==='WEIXIN_TOKEN')?'<button class="btn btn-primary" onclick="getWeixinToken()" style="margin-left:8px">获取Token</button>':'';
+          if(i.type==='select') return '<div class="config-row"><label class="config-label">'+i.label+'</label><select class="config-select" data-key="'+i.key+'">'+i.options.map(o=>'<option value="'+o+'"'+(v===o?' selected':'')+'>'+(o||t('emptyOption'))+'</option>').join('')+'</select></div>';
+          const extraBtn = (i.key==='WEIXIN_TOKEN')?'<button class="btn btn-primary" onclick="getWeixinToken()" style="margin-left:8px">'+t('getToken')+'</button>':'';
           return '<div class="config-row"><label class="config-label">'+i.label+'</label><input class="config-input" data-key="'+i.key+'" type="'+(i.sensitive?'password':'text')+'" value="'+v+'" placeholder="'+i.key+'" />'+extraBtn+'</div>';
         }).join('');
-        return '<div class="config-group'+collapsedClass+'" id="config-grp-'+idx+'"><div class="config-group-title" onclick="toggleConfigGroup('+idx+')">'+g.title+'</div><div class="config-group-body">'+rows+'</div></div>';
-      }).join('')+'<span class="config-saved" id="config-saved">已保存</span>';
+        return '<div class="config-group'+collapsedClass+'" id="config-grp-'+idx+'"><div class="config-group-title" onclick="toggleConfigGroup('+idx+')">'+title+'</div><div class="config-group-body">'+rows+'</div></div>';
+      }).join('')+'<span class="config-saved" id="config-saved">'+t('saved')+'</span>';
     }
 
     async function saveConfig(){
       const inputs=document.querySelectorAll('[data-key]'),updates={};
       inputs.forEach(el=>{updates[el.dataset.key]=el.value;});
-      try{const r=await fetch(API+'/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});const d=await r.json();if(d.ok){const s=document.getElementById('config-saved');s.classList.add('show');setTimeout(()=>s.classList.remove('show'),2000);}}catch(e){alert('保存失败: '+e.message);}
+      try{const r=await fetch(API+'/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});const d=await r.json();if(d.ok){const s=document.getElementById('config-saved');s.classList.add('show');setTimeout(()=>s.classList.remove('show'),2000);}}catch(e){alert(t('saveFailed')+e.message);}
     }
 
     // === Store ===
-    async function fetchStore(refresh){try{const r=await fetch(API+'/api/store'+(refresh?'?refresh=1':''));renderStore(await r.json());}catch(e){document.getElementById('store-grid').innerHTML='<div class="loading">加载失败</div>';}}
+    let storeState=[];
+    async function fetchStore(refresh){try{const r=await fetch(API+'/api/store'+(refresh?'?refresh=1':''));storeState=await r.json();renderStore(storeState);}catch(e){document.getElementById('store-grid').innerHTML='<div class="loading">'+t('loadFailed')+'</div>';}}
     async function refreshStore(){
-      const btn=document.getElementById('refresh-store-btn');btn.disabled=true;btn.textContent='刷新中...';
+      const btn=document.getElementById('refresh-store-btn');btn.disabled=true;btn.textContent=t('storeRefreshing');
       await fetchStore(true);
-      btn.disabled=false;btn.textContent='刷新';
+      btn.disabled=false;btn.textContent=t('storeRefresh');
     }
     function renderStore(items){
       const g=document.getElementById('store-grid');
-      if(!items.length){g.innerHTML='<div class="loading">暂无可用 Skill</div>';return;}
-      g.innerHTML=items.map(i=>'<div class="skill-card"><div class="skill-name">'+i.name+(i.recommended?' <span class="tag recommended">推荐</span>':'')+(i.installed?' <span class="tag installed-tag">已安装</span>':'')+'</div><div class="skill-desc">'+(i.description||'')+'</div><div class="skill-meta"><span class="tag">'+(i.category||'其他')+'</span></div><div class="skill-actions">'+(i.installed?'<button class="btn" disabled>已安装</button>':'<button class="btn btn-primary" onclick="installSkill(\''+i.name+'\',\''+i.repo+'\',\''+(i.dir||'')+'\')">安装</button>')+'</div></div>').join('');
+      g.classList.toggle('is-empty', !items.length);
+      if(!items.length){g.innerHTML='<div class="loading empty-state">'+t('noStoreSkills')+'</div>';return;}
+      g.innerHTML=items.map(i=>'<div class="skill-card"><div class="skill-name">'+i.name+(i.recommended?' <span class="tag recommended">'+t('recommended')+'</span>':'')+(i.installed?' <span class="tag installed-tag">'+t('installed')+'</span>':'')+'</div><div class="skill-desc">'+(i.description||'')+'</div><div class="skill-meta"><span class="tag">'+(i.category||t('categoryOther'))+'</span></div><div class="skill-actions">'+(i.installed?'<button class="btn" disabled>'+t('installed')+'</button>':'<button class="btn btn-primary" onclick="installSkill(\''+i.name+'\',\''+i.repo+'\',\''+(i.dir||'')+'\')">'+t('install')+'</button>')+'</div></div>').join('');
     }
     async function installSkill(n,r,d){
       const btn=event.target;
       btn.disabled=true;
-      btn.textContent='安装中...';
+      btn.textContent=t('installing');
       try{
         const res=await fetch(API+'/api/store/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,repo:r,dir:d})});
         const data=await res.json();
         if(data.error){
-          alert('安装失败: '+data.error);
+          alert(t('installFailed')+data.error);
           btn.disabled=false;
-          btn.textContent='安装';
+          btn.textContent=t('install');
         }else{
-          btn.textContent='已安装';
+          btn.textContent=t('installed');
           fetchStore();
           fetchSkills();
         }
       }catch(e){
-        alert('安装失败: '+e.message);
+        alert(t('installFailed')+e.message);
         btn.disabled=false;
-        btn.textContent='安装';
+        btn.textContent=t('install');
       }
     }
     async function installFromGithub(){
       const input=document.getElementById('github-url-input'),url=input.value.trim();
       if(!url)return;
-      try{const r=await fetch(API+'/api/store/install-github',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});const d=await r.json();if(d.error)alert('安装失败: '+d.error);else{input.value='';fetchStore();fetchSkills();}}catch(e){alert('安装失败: '+e.message);}
+      try{const r=await fetch(API+'/api/store/install-github',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});const d=await r.json();if(d.error)alert(t('installFailed')+d.error);else{input.value='';fetchStore();fetchSkills();}}catch(e){alert(t('installFailed')+e.message);}
     }
 
-    // === 微信 Token 获取 ===
+    // === Weixin Token ===
     let weixinPollInterval;
     async function getWeixinToken(){
       try{
         const r=await fetch(API+'/api/weixin/qrcode');
         const d=await r.json();
         if(d.qrcode){
-          document.getElementById('logs-title').textContent='微信扫码授权';
-          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px"><p style="margin-bottom:16px;color:var(--text)">请用微信扫描下方二维码授权</p><a href="'+d.qrcode_img_content+'" target="_blank" style="display:inline-block;padding:12px 20px;background:var(--accent-gradient);color:white;text-decoration:none;border-radius:12px;font-weight:700">点击打开二维码</a><p style="margin-top:16px;font-size:12px;color:var(--text3)">等待扫码中...</p></div>';
+          document.getElementById('logs-title').textContent=t('weixinQrTitle');
+          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px"><p style="margin-bottom:16px;color:var(--text)">'+t('weixinQrInstruction')+'</p><a href="'+d.qrcode_img_content+'" target="_blank" style="display:inline-block;padding:12px 20px;background:var(--accent-gradient);color:white;text-decoration:none;border-radius:12px;font-weight:700">'+t('openQr')+'</a><p style="margin-top:16px;font-size:12px;color:var(--text3)">'+t('waitingScan')+'</p></div>';
           document.getElementById('logs-modal').classList.add('show');
           if(weixinPollInterval)clearInterval(weixinPollInterval);
           weixinPollInterval=setInterval(()=>checkWeixinStatus(d.qrcode),2000);
         }
-      }catch(e){alert('获取二维码失败: '+e.message);}
+      }catch(e){alert(t('qrcodeFailed')+e.message);}
     }
     async function checkWeixinStatus(qrcode){
       try{
@@ -2379,16 +4345,17 @@
         if(d.status==='confirmed'&&d.bot_token){
           clearInterval(weixinPollInterval);
           document.querySelector('[data-key="WEIXIN_TOKEN"]').value=d.bot_token;
-          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px;color:var(--green)"><p style="font-size:18px;font-weight:700;margin-bottom:12px">✓ 授权成功</p><p>Token 已自动填入，请点击保存按钮</p></div>';
+          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px;color:var(--green)"><p style="font-size:18px;font-weight:700;margin-bottom:12px">'+t('authSuccess')+'</p><p>'+t('tokenSavedHint')+'</p></div>';
           setTimeout(()=>document.getElementById('logs-modal').classList.remove('show'),2000);
         }else if(d.status==='expired'){
           clearInterval(weixinPollInterval);
-          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">二维码已过期，请重新获取</div>';
+          document.getElementById('logs-body').innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">'+t('qrcodeExpired')+'</div>';
         }
       }catch(e){}
     }
 
     // Init
+    applyLanguage();
     fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();fetchPets();
     const initialPage = new URLSearchParams(location.search).get('page');
     if (initialPage && pageTitles[initialPage]) switchPage(initialPage);
