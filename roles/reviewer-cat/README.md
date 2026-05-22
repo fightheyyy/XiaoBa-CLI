@@ -4,7 +4,7 @@
 
 它不是单纯被动验收，也不是重新审日志的角色。它服务的是更简单的两层闭环：`Inspector/Owner -> Engineering(Codex/Claude Code) -> Inspector/Owner 验收`。
 
-角色设计和演进真相源见 [SPEC.md](./SPEC.md)。ReviewerCat 如何像人类测试人员一样端到端测试 XiaoBa-CLI，见 [XIAOBA_CLI_TRUE_E2E_SPEC.md](./XIAOBA_CLI_TRUE_E2E_SPEC.md)。
+角色设计和演进真相源见 [SPEC.md](./SPEC.md)。Benchmark / replay 的通用规则收敛到 [benchmarks/SPEC.md](../../benchmarks/SPEC.md)，BioBench 的领域评测和 release gate 说明收敛到 [benchmarks/BioBench/EVALUATION.md](../../benchmarks/BioBench/EVALUATION.md)。
 
 ## 角色定位
 

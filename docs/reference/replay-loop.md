@@ -1,4 +1,4 @@
-# XiaoBa Case Replay 与反馈闭环 Spec
+# Replay Loop
 
 状态：Draft  
 目标版本：v1  
@@ -1356,3 +1356,23 @@ MVP 完成标准：
 6. 再接 EngineerCat / ReviewerCat。
 
 这条路线的关键是：每一步都能独立验收，不需要等全自动闭环一次性完成。
+
+## 23. AutoDev 数据飞轮烟测边界
+
+AutoDev 数据飞轮 E2E 不再维护独立 reference 文档，归入本反馈闭环 spec。
+
+最小烟测链路：
+
+```text
+XiaoBa session JSONL
+  -> ingest_log / LogIngestScheduler
+  -> XiaoBa-AutoDev log archive
+  -> InspectorCat assessment
+  -> AutoDev case fixing
+  -> EngineerCat implementation artifact
+  -> AutoDev case reviewing
+  -> ReviewerCat review / metrics / writeback
+  -> closed / reopened
+```
+
+烟测只验证闭环通路是否可走通，不等价于完整 replay / verifier 能力。完整回归仍应落到 case store、replay runner、rule evaluator 和 ReviewerCat evidence decision。

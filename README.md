@@ -3,9 +3,11 @@
 
   # XiaoBa
 
-  **A local-first AI role runtime for your computer, chats, tools, and work habits.**
+  **XiaoBa: an IM-native AI colleague.**
 
-  **Starting with IM-native work agents. Designed for roles that can grow around you.**
+  **It lives where work starts: chats, files, tasks, tools, and long-running context.**
+
+  **Under the hood, XiaoBa is a local-first AI role runtime for colleagues that grow with you.**
 
   [![CI](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -21,14 +23,16 @@
 
 ## What Is XiaoBa?
 
-XiaoBa is not another terminal chat wrapper.
+XiaoBa is not another terminal chat wrapper, and it is not just a bot that replies in a group.
 
-It is a **message-native agent runtime**: an agent that can stay in IM surfaces, understand group/private context, receive files and tasks, call tools or coding agents in the background, send artifacts back, and gradually shape itself around your real environment.
+XiaoBa is an **IM-native AI colleague**: a long-lived role that can stay in your chats, understand group/private context, receive files and tasks, call tools or coding agents in the background, and report progress back where the work started.
+
+The product face is a colleague in chat. The technical base is a **local-first AI role runtime**: roles, skills, tools, subagents, logs, memory, and feedback loops shaped around your real environment.
 
 ```text
 IM message / CLI prompt
-  -> XiaoBa Runtime
-  -> Role identity
+  -> XiaoBa colleague
+  -> Role runtime
   -> Skills + tools + subagents
   -> Computer / files / projects / shell / Codex / Claude Code / AutoDev
   -> Natural reply, file delivery, progress update, or case handoff
@@ -36,17 +40,17 @@ IM message / CLI prompt
 
 The core idea:
 
-> XiaoBa turns AI agents from one-shot assistants into long-lived roles inside your real environment.
+> XiaoBa gives AI agents an IM-native body and a colleague-shaped role inside your real environment.
 
 ---
 
-## Role Runtime Vision
+## Colleague Runtime Vision
 
-AI character products prove that roles can live in chat. XiaoBa's bet is that roles should also live in your real environment: your computer, files, projects, tools, chats, logs, and long-term memory.
+AI character products prove that roles can live in chat. XiaoBa's bet is that useful AI colleagues should also live in your real environment: your computer, files, projects, tools, chats, logs, and long-term memory.
 
-A role can be a coworker, teacher, student, family-like companion, creative partner, reviewer, inspector, or something entirely personal. The role can change; the runtime's understanding of your environment and habits keeps growing.
+A colleague can be an engineer, reviewer, inspector, researcher, teacher, student, creative partner, family-like companion, or something entirely personal. The visible identity can change; the runtime's understanding of your environment and habits keeps growing.
 
-The first slice is practical: **IM-native work agents** that can take tasks from chats, use tools, dispatch Codex or Claude Code, and report back.
+The first slice is practical: **an IM-native work colleague** that can take tasks from chats, use tools, dispatch Codex or Claude Code, and report back with progress, files, and evidence.
 
 ---
 
@@ -115,17 +119,17 @@ npm run dev -- chat -i
 
 Most AI coding tools live in a terminal or editor. Real work often starts somewhere else: a Feishu thread, a private chat, a team group, a bug report, a file someone dropped into a conversation.
 
-XiaoBa is built for that messy middle layer.
+XiaoBa is built for that messy middle layer. It gives terminal-native agents a colleague who can live in the message surface where requests, files, follow-ups, and decisions already happen.
 
 | Ordinary coding agent | XiaoBa |
 | --- | --- |
 | Starts when you open a terminal | Can live in IM surfaces and react to messages |
 | Optimized for one local repo | Optimized for conversations, files, roles, tasks, and follow-up |
 | Returns text to the terminal | Can send messages, deliver files, and report progress back to chats |
-| Usually one persona | Has role identities with different duties and tool boundaries |
+| Usually one persona | Has colleague identities with different duties and tool boundaries |
 | Memory is often a note store | Harness behavior, logs, tools, roles, and delivery style all become user-shaped |
 
-XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It treats them as tools a message-native role can dispatch, judge, summarize, and report back from.
+XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It treats them as tools an IM-native colleague can dispatch, judge, summarize, and report back from.
 
 ---
 
@@ -140,11 +144,11 @@ XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It tr
 
 ### Role System
 
-- Roles are professional identities, not just prompt styles.
+- Roles are colleague identities, not just prompt styles.
 - Each role can define its own prompt, skills, tools, and operating boundaries.
 - Current built-in roles cover engineering, review, inspection, and research workflows.
 - Role-specific tools only load when the matching role is active.
-- The same runtime can grow beyond work roles into personal roles, while keeping each role's boundaries explicit.
+- The same runtime can grow beyond work colleagues into personal roles, while keeping each role's boundaries explicit.
 
 ### Skills + Tools
 
@@ -171,12 +175,12 @@ XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It tr
 
 ## Roles
 
-| Role | Identity | Typical Work |
+| Role | Colleague identity | Typical Work |
 | --- | --- | --- |
-| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | IM-native engineer | Read code, split tasks, call external coding agents, implement, verify, report |
-| <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | Review and acceptance owner | Ask for evidence, run checks, inspect artifacts, request rework |
-| <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime inspector | Read logs, detect failures, create or route fix cases |
-| <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | Long-running research assistant | Read papers, track experiments, maintain evidence and deliverables |
+| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | Engineering colleague | Read code, split tasks, call external coding agents, implement, verify, report |
+| <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | Review and acceptance colleague | Ask for evidence, run checks, inspect artifacts, request rework |
+| <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime inspection colleague | Read logs, detect failures, create or route fix cases |
+| <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | Long-running research colleague | Read papers, track experiments, maintain evidence and deliverables |
 
 Run with a role:
 
@@ -201,11 +205,13 @@ XiaoBa ships adapters for local CLI and multiple message surfaces.
 | Dashboard | `npm run dev -- dashboard` | Local service/status/log management |
 | Desktop Pet | `npm run dev -- pet` | Local desktop companion entry |
 
-Minimal IM runtime design: [`docs/minimal-message-native-runtime.md`](docs/minimal-message-native-runtime.md).
+Minimal IM runtime topic design: [`docs/reference/message-runtime.md`](docs/reference/message-runtime.md).
 
 ---
 
 ## Architecture
+
+Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md).
 
 ![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
 
@@ -334,7 +340,7 @@ npm run electron:build:win
 npm run electron:build:linux
 ```
 
-Release workflow notes: [`docs/CD_RELEASE.md`](docs/CD_RELEASE.md).
+Release workflow notes: [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md).
 
 ---
 
@@ -354,11 +360,11 @@ Release workflow notes: [`docs/CD_RELEASE.md`](docs/CD_RELEASE.md).
 
 ## Docs
 
-- [IM-native Runtime Design](docs/minimal-message-native-runtime.md)
-- [Data Flywheel E2E](docs/DATA_FLYWHEEL_E2E.md)
-- [Case Replay Feedback Loop Spec](docs/CASE_REPLAY_FEEDBACK_LOOP_SPEC.md)
-- [CD / Release](docs/CD_RELEASE.md)
-- [Auto Update](docs/AUTO_UPDATE.md)
+- [Docs Index](docs/README.md)
+- [XiaoBa-CLI Architecture Spec](docs/SPEC.md)
+- [CD / Release](docs/ops/CD_RELEASE.md)
+- [Auto Update](docs/ops/AUTO_UPDATE.md)
+- [Reference Docs](docs/README.md#专题参考)
 - [Roles Guide](roles/README.md)
 - [EngineerCat Spec](roles/engineer-cat/SPEC.md)
 - [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)

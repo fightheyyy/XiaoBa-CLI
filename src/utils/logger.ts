@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { styles } from '../theme/colors';
 import ora, { Ora } from 'ora';
@@ -12,8 +10,6 @@ interface LoggerContextStore {
 
 export class Logger {
   private static spinner: Ora | null = null;
-  private static logStream: fs.WriteStream | null = null;
-  private static logFilePath: string | null = null;
   private static silentMode: boolean = false;
   private static logContext = new AsyncLocalStorage<LoggerContextStore>();
 
@@ -22,20 +18,11 @@ export class Logger {
     return str.replace(/\x1B\[[0-9;]*m/g, '');
   }
 
-  private static writeToFile(level: string, message: string): void {
+  private static writeToSessionLog(level: string, message: string): void {
     const store = this.logContext.getStore();
     if (store?.sessionLogger) {
       store.sessionLogger.logRuntime(level, this.stripAnsi(message));
-      return;
     }
-
-    if (!this.logStream) {
-      return;
-    }
-
-    const now = new Date();
-    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
-    this.logStream.write(`[${ts}] [${level}] ${this.stripAnsi(message)}\n`);
   }
 
   static withSessionContext<T>(sessionId: string | undefined, fn: () => T): T;
@@ -59,22 +46,6 @@ export class Logger {
     return this.logContext.run({ sessionId: normalizedSessionId, sessionLogger }, fn);
   }
 
-  static openLogFile(sessionType: string, sessionKey?: string, silent: boolean = false): void {
-    this.silentMode = silent;
-    const now = new Date();
-    const dateDir = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    const suffix = sessionKey ? `${sessionType}_${sessionKey}` : sessionType;
-    const fileName = `${hh}-${mm}-${ss}_${suffix}.log`;
-    const dir = path.resolve('logs', dateDir);
-
-    fs.mkdirSync(dir, { recursive: true });
-    this.logFilePath = path.join(dir, fileName);
-    this.logStream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
-  }
-
   static setSilentMode(silent: boolean): void {
     this.silentMode = silent;
   }
@@ -83,54 +54,42 @@ export class Logger {
     return this.silentMode;
   }
 
-  static closeLogFile(): void {
-    if (this.logStream) {
-      this.logStream.end();
-      this.logStream = null;
-      this.logFilePath = null;
-    }
-  }
-
-  static getLogFilePath(): string | null {
-    return this.logFilePath;
-  }
-
   static success(message: string): void {
-    this.writeToFile('SUCCESS', message);
+    this.writeToSessionLog('SUCCESS', message);
     if (!this.silentMode) {
       console.log(styles.success(message));
     }
   }
 
   static error(message: string): void {
-    this.writeToFile('ERROR', message);
+    this.writeToSessionLog('ERROR', message);
     console.error(styles.error(message));
   }
 
   static warning(message: string): void {
-    this.writeToFile('WARN', message);
+    this.writeToSessionLog('WARN', message);
     console.warn(styles.warning(message));
   }
 
   static info(message: string): void {
-    this.writeToFile('INFO', message);
+    this.writeToSessionLog('INFO', message);
     if (!this.silentMode) {
       console.log(styles.info(message));
     }
   }
 
   static title(message: string): void {
-    this.writeToFile('INFO', message);
+    this.writeToSessionLog('INFO', message);
     console.log('\n' + styles.title(message) + '\n');
   }
 
   static text(message: string): void {
-    this.writeToFile('TEXT', message);
+    this.writeToSessionLog('TEXT', message);
     console.log(styles.text(message));
   }
 
   static highlight(message: string): void {
-    this.writeToFile('TEXT', message);
+    this.writeToSessionLog('TEXT', message);
     console.log(styles.highlight(message));
   }
 

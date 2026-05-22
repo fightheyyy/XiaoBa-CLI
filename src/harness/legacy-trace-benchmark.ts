@@ -8,6 +8,9 @@ export interface LegacyTraceFileInput {
 
 export interface LegacyTraceBenchmarkOptions {
   sourceLabel?: string;
+  benchmarkName?: string;
+  domain?: string;
+  domainSubtype?: string;
   maxCases?: number;
   includeText?: boolean;
   textPreviewChars?: number;
@@ -46,9 +49,90 @@ export interface LegacyTraceFileSummary {
   issueCounts: Record<string, number>;
 }
 
+export type LegacyTraceCaseCategory = 'runtime_case' | 'skill_case' | 'hybrid_case';
+
+export interface LegacyTraceEpisode {
+  episodeId: string;
+  benchmark: string;
+  sourceSessionHash: string;
+  sourcePaths: string[];
+  platform: string;
+  date: string;
+  interactionId: number;
+  startTurn: number;
+  endTurn: number;
+  turnCount: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  taskSummary: string;
+  taskType: string;
+  domain: string;
+  domainSubtype: string;
+  toolsUsed: string[];
+  skillsTriggered: string[];
+  toolCallCount: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  toolSuccessRate: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  maxToolDurationMs: number;
+  artifactsObserved: string[];
+  failureModesObserved: string[];
+  contextPressure: boolean;
+  requiresArtifact: boolean;
+  requiresLongContext: boolean;
+  requiresRemoteFixture: boolean;
+  privacyLevel: 'redacted';
+  runtimeEventCount: number;
+  preview?: {
+    user: string;
+    assistant: string;
+  };
+}
+
+export interface LegacyTraceDatasetCard {
+  benchmark: string;
+  sourceLabel: string;
+  scannedAt: string;
+  privacyLevel: 'redacted';
+  sessions: number;
+  episodes: number;
+  turns: number;
+  runtimeEvents: number;
+  toolCalls: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  toolSuccessRate: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  avgTokensPerEpisode: number;
+  p50TokensPerEpisode: number;
+  p90TokensPerEpisode: number;
+  maxTokensPerEpisode: number;
+  avgTurnsPerEpisode: number;
+  p50TurnsPerEpisode: number;
+  p90TurnsPerEpisode: number;
+  avgToolCallsPerEpisode: number;
+  p50ToolCallsPerEpisode: number;
+  p90ToolCallsPerEpisode: number;
+  taskTypeDistribution: Record<string, number>;
+  caseCategoryDistribution: Record<string, number>;
+  skillTriggerDistribution: Record<string, number>;
+  failureModeDistribution: Record<string, number>;
+}
+
 export interface LegacyTraceBenchmarkCase {
   id: string;
+  sourceEpisodeId: string;
+  benchmark: string;
   kind: string;
+  caseCategory: LegacyTraceCaseCategory;
+  taskType: string;
+  domain: string;
+  domainSubtype: string;
   sourcePath: string;
   platform: string;
   date: string;
@@ -58,6 +142,17 @@ export interface LegacyTraceBenchmarkCase {
   endTurn: number;
   timestamp: string;
   score: number;
+  skillsTriggered: string[];
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  toolSuccessRate: number;
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  requiresArtifact: boolean;
+  requiresLongContext: boolean;
+  requiresRemoteFixture: boolean;
+  privacyLevel: 'redacted';
   baseline: {
     turns: number;
     promptTokens: number;
@@ -68,6 +163,8 @@ export interface LegacyTraceBenchmarkCase {
     issueTypes: string[];
     toolNames: string[];
   };
+  artifactsObserved: string[];
+  failureModesObserved: string[];
   expectations: string[];
   preview?: {
     user: string;
@@ -92,6 +189,20 @@ export interface LegacyTraceBenchmarkResult {
     dates: { start: string; end: string; count: number };
     sessions: number;
     interactions: number;
+    episodes: number;
+    avgTurnsPerEpisode: number;
+    p50TurnsPerEpisode: number;
+    p90TurnsPerEpisode: number;
+    avgToolCallsPerEpisode: number;
+    p50ToolCallsPerEpisode: number;
+    p90ToolCallsPerEpisode: number;
+    avgTokensPerEpisode: number;
+    p50TokensPerEpisode: number;
+    p90TokensPerEpisode: number;
+    maxTokensPerEpisode: number;
+    taskTypeDistribution: Record<string, number>;
+    caseCategoryDistribution: Record<string, number>;
+    skillTriggerDistribution: Record<string, number>;
     totalTokens: number;
     promptTokens: number;
     completionTokens: number;
@@ -106,6 +217,8 @@ export interface LegacyTraceBenchmarkResult {
   };
   toolStats: LegacyTraceToolStat[];
   files: LegacyTraceFileSummary[];
+  episodes: LegacyTraceEpisode[];
+  datasetCard: LegacyTraceDatasetCard;
   cases: LegacyTraceBenchmarkCase[];
   warnings: string[];
 }
@@ -122,6 +235,10 @@ interface NormalizedToolCall {
   resultText: string;
   durationMs?: number;
   success: boolean;
+  status: string;
+  errorCode: string;
+  artifactPaths: string[];
+  skillId: string;
 }
 
 interface NormalizedTurn {
@@ -164,6 +281,7 @@ interface ToolAgg {
 
 const DEFAULT_MAX_CASES = 16;
 const DEFAULT_TEXT_PREVIEW_CHARS = 160;
+const EPISODE_GAP_MS = 30 * 60 * 1000;
 const FAILURE_RE = /(失败|错误|error|fail|执行被阻止|denied|blocked|not recognized|不是内部或外部命令)/i;
 const NETWORK_RE = /(API调用失败|Connection error|\bENOTFOUND\b|认证失败|getaddrinfo|ECONNRESET|ETIMEDOUT)/i;
 const RATE_LIMIT_RE = /(429|rate limit|too many requests|限流)/i;
@@ -179,6 +297,9 @@ export function runLegacyTraceBenchmark(
   files: LegacyTraceFileInput[],
   options: LegacyTraceBenchmarkOptions = {},
 ): LegacyTraceBenchmarkResult {
+  const benchmarkName = options.benchmarkName || 'LegacyTraceBenchmark';
+  const domain = options.domain || 'general';
+  const domainSubtype = options.domainSubtype || 'legacy_runtime_trace';
   const maxCases = options.maxCases && options.maxCases > 0 ? Math.floor(options.maxCases) : DEFAULT_MAX_CASES;
   const textPreviewChars = options.textPreviewChars && options.textPreviewChars > 0
     ? Math.floor(options.textPreviewChars)
@@ -392,11 +513,32 @@ export function runLegacyTraceBenchmark(
   const parseCoverage = totalLines > 0 ? round(validJsonLines / totalLines, 4) : 1;
   const toolSuccessRate = totalToolCalls > 0 ? round((totalToolCalls - totalToolFailures) / totalToolCalls, 4) : 1;
   const dateValues = Array.from(dates).sort();
+  const episodes = extractEpisodes(turns, runtimeEvents, {
+    benchmarkName,
+    domain,
+    domainSubtype,
+    includeText: options.includeText === true,
+    textPreviewChars,
+  });
+  const cases = createBenchmarkCases(episodes, {
+    maxCases,
+    includeText: options.includeText === true,
+    textPreviewChars,
+  });
+  const datasetCard = createDatasetCard({
+    benchmarkName,
+    sourceLabel: options.sourceLabel || 'legacy-trace',
+    scannedAt: new Date().toISOString(),
+    sessions: sessionHashes.size,
+    turns: turns.length,
+    runtimeEvents: runtimeEvents.length,
+    episodes,
+  });
 
   const result: LegacyTraceBenchmarkResult = {
     version: 1,
     sourceLabel: options.sourceLabel || 'legacy-trace',
-    scannedAt: new Date().toISOString(),
+    scannedAt: datasetCard.scannedAt,
     summary: {
       files: files.length,
       lines: totalLines,
@@ -414,6 +556,20 @@ export function runLegacyTraceBenchmark(
       },
       sessions: sessionHashes.size,
       interactions: countInteractions(turns),
+      episodes: episodes.length,
+      avgTurnsPerEpisode: datasetCard.avgTurnsPerEpisode,
+      p50TurnsPerEpisode: datasetCard.p50TurnsPerEpisode,
+      p90TurnsPerEpisode: datasetCard.p90TurnsPerEpisode,
+      avgToolCallsPerEpisode: datasetCard.avgToolCallsPerEpisode,
+      p50ToolCallsPerEpisode: datasetCard.p50ToolCallsPerEpisode,
+      p90ToolCallsPerEpisode: datasetCard.p90ToolCallsPerEpisode,
+      avgTokensPerEpisode: datasetCard.avgTokensPerEpisode,
+      p50TokensPerEpisode: datasetCard.p50TokensPerEpisode,
+      p90TokensPerEpisode: datasetCard.p90TokensPerEpisode,
+      maxTokensPerEpisode: datasetCard.maxTokensPerEpisode,
+      taskTypeDistribution: datasetCard.taskTypeDistribution,
+      caseCategoryDistribution: datasetCard.caseCategoryDistribution,
+      skillTriggerDistribution: datasetCard.skillTriggerDistribution,
       totalTokens: totalPromptTokens + totalCompletionTokens,
       promptTokens: totalPromptTokens,
       completionTokens: totalCompletionTokens,
@@ -436,11 +592,9 @@ export function runLegacyTraceBenchmark(
     },
     toolStats,
     files: Array.from(fileSummaries.values()).sort((a, b) => a.path.localeCompare(b.path)),
-    cases: createBenchmarkCases(turns, runtimeEvents, {
-      maxCases,
-      includeText: options.includeText === true,
-      textPreviewChars,
-    }),
+    episodes,
+    datasetCard,
+    cases,
     warnings,
   };
 
@@ -458,9 +612,10 @@ export function renderLegacyTraceBenchmarkMarkdown(result: LegacyTraceBenchmarkR
     .join('\n') || '- none';
   const cases = result.cases
     .map(item => [
-      `- ${item.id} (${item.kind})`,
+      `- ${item.id} (${item.caseCategory}/${item.kind})`,
       `  source: ${item.sourcePath}`,
-      `  baseline: ${item.baseline.turns} turns, ${item.baseline.toolCalls} tool calls, ${item.baseline.toolFailures} failures, issues=${item.baseline.issueTypes.join(', ') || 'none'}`,
+      `  episode: ${item.sourceEpisodeId}, task=${item.taskType}, skills=${item.skillsTriggered.join(', ') || 'none'}`,
+      `  baseline: ${item.baseline.turns} turns, ${item.baseline.toolCalls} tool calls, ${item.baseline.toolFailures} failures, tokens=${item.totalTokens}, successRate=${(item.toolSuccessRate * 100).toFixed(2)}%, issues=${item.baseline.issueTypes.join(', ') || 'none'}`,
     ].join('\n'))
     .join('\n') || '- none';
 
@@ -475,7 +630,10 @@ export function renderLegacyTraceBenchmarkMarkdown(result: LegacyTraceBenchmarkR
     '',
     `- files: ${result.summary.files}`,
     `- lines: ${result.summary.lines}, parse coverage: ${(result.summary.parseCoverage * 100).toFixed(2)}%`,
-    `- turns: ${result.summary.turnEntries}, runtime events: ${result.summary.runtimeEntries}`,
+    `- turns: ${result.summary.turnEntries}, runtime events: ${result.summary.runtimeEntries}, episodes: ${result.summary.episodes}`,
+    `- turns/episode: avg ${result.summary.avgTurnsPerEpisode}, p50 ${result.summary.p50TurnsPerEpisode}, p90 ${result.summary.p90TurnsPerEpisode}`,
+    `- tool calls/episode: avg ${result.summary.avgToolCallsPerEpisode}, p50 ${result.summary.p50ToolCallsPerEpisode}, p90 ${result.summary.p90ToolCallsPerEpisode}`,
+    `- tokens/episode: avg ${result.summary.avgTokensPerEpisode}, p50 ${result.summary.p50TokensPerEpisode}, p90 ${result.summary.p90TokensPerEpisode}, max ${result.summary.maxTokensPerEpisode}`,
     `- platforms: ${Object.entries(result.summary.platforms).map(([k, v]) => `${k}=${v}`).join(', ') || 'none'}`,
     `- dates: ${result.summary.dates.start || 'n/a'} to ${result.summary.dates.end || 'n/a'} (${result.summary.dates.count} days)`,
     `- sessions: ${result.summary.sessions}, interactions: ${result.summary.interactions}`,
@@ -500,6 +658,65 @@ export function renderLegacyTraceBenchmarkMarkdown(result: LegacyTraceBenchmarkR
     '- This is an offline trace-ingestion benchmark. It scores parseability, tool stability signals, context pressure, and log hygiene from existing traces.',
     '- Case previews are omitted unless the CLI is run with --include-text; previews are redacted before writing.',
     '- Raw session ids are hashed in generated benchmark cases.',
+  ].join('\n');
+}
+
+export function renderLegacyTraceDatasetCardMarkdown(result: LegacyTraceBenchmarkResult): string {
+  const card = result.datasetCard;
+  const taskTypes = Object.entries(card.taskTypeDistribution)
+    .map(([name, count]) => `- ${name}: ${count}`)
+    .join('\n') || '- none';
+  const categories = Object.entries(card.caseCategoryDistribution)
+    .map(([name, count]) => `- ${name}: ${count}`)
+    .join('\n') || '- none';
+  const skills = Object.entries(card.skillTriggerDistribution)
+    .map(([name, count]) => `- ${name}: ${count}`)
+    .join('\n') || '- none';
+  const failures = Object.entries(card.failureModeDistribution)
+    .slice(0, 12)
+    .map(([name, count]) => `- ${name}: ${count}`)
+    .join('\n') || '- none';
+
+  return [
+    `# ${card.benchmark} Dataset Card`,
+    '',
+    `Source: ${card.sourceLabel}`,
+    `Scanned at: ${card.scannedAt}`,
+    `Privacy level: ${card.privacyLevel}`,
+    '',
+    '## Scale',
+    '',
+    `- sessions: ${card.sessions}`,
+    `- episodes: ${card.episodes}`,
+    `- turns: ${card.turns}`,
+    `- runtime events: ${card.runtimeEvents}`,
+    `- tool calls: ${card.toolCalls}`,
+    `- successful tool calls: ${card.successfulToolCalls}`,
+    `- failed tool calls: ${card.failedToolCalls}`,
+    `- tool success rate: ${(card.toolSuccessRate * 100).toFixed(2)}%`,
+    `- tokens: ${card.totalTokens} (${card.promptTokens}+${card.completionTokens})`,
+    '',
+    '## Episode Shape',
+    '',
+    `- turns per episode: avg ${card.avgTurnsPerEpisode}, p50 ${card.p50TurnsPerEpisode}, p90 ${card.p90TurnsPerEpisode}`,
+    `- tool calls per episode: avg ${card.avgToolCallsPerEpisode}, p50 ${card.p50ToolCallsPerEpisode}, p90 ${card.p90ToolCallsPerEpisode}`,
+    `- tokens per episode: avg ${card.avgTokensPerEpisode}, p50 ${card.p50TokensPerEpisode}, p90 ${card.p90TokensPerEpisode}, max ${card.maxTokensPerEpisode}`,
+    '',
+    '## Task Types',
+    '',
+    taskTypes,
+    '',
+    '## Case Categories',
+    '',
+    categories,
+    '',
+    '## Skill Triggers',
+    '',
+    skills,
+    '',
+    '## Failure Modes',
+    '',
+    failures,
   ].join('\n');
 }
 
@@ -556,8 +773,12 @@ function normalizeToolCalls(raw: any): NormalizedToolCall[] {
     const argumentsText = stringifyForAnalysis(item?.arguments ?? item?.function?.arguments ?? {});
     const resultText = stringifyForAnalysis(item?.result ?? item?.content ?? '');
     const durationMs = safeOptionalInteger(item?.duration_ms ?? item?.durationMs);
-    const success = !FAILURE_RE.test(resultText);
-    return { name, argumentsText, resultText, durationMs, success };
+    const status = safeString(item?.status);
+    const errorCode = safeString(item?.error_code ?? item?.errorCode);
+    const artifactPaths = normalizeArtifactManifest(item?.artifact_manifest);
+    const skillId = safeString(item?.skill_id ?? item?.skillId ?? item?.active_skill_name);
+    const success = status ? status !== 'failure' : !FAILURE_RE.test(resultText);
+    return { name, argumentsText, resultText, durationMs, success, status, errorCode, artifactPaths, skillId };
   });
 }
 
@@ -593,6 +814,10 @@ function detectTurnIssues(
   for (const tool of tools) {
     if (!tool.success) {
       issues.push({ type: 'tool_failure', severity: 'medium' });
+    }
+    const errorIssue = issueFromErrorCode(tool.errorCode);
+    if (errorIssue) {
+      issues.push(errorIssue);
     }
     if (tool.durationMs !== undefined && tool.durationMs >= SLOW_TOOL_MS) {
       issues.push({ type: 'slow_tool', severity: tool.durationMs >= VERY_SLOW_TOOL_MS ? 'high' : 'medium' });
@@ -643,6 +868,10 @@ function normalizeRuntimeToolEvent(message: string): (NormalizedToolCall & { cou
       argumentsText: message,
       resultText: '',
       success: true,
+      status: 'success',
+      errorCode: '',
+      artifactPaths: [],
+      skillId: '',
       countsAsCall: true,
     };
   }
@@ -656,6 +885,10 @@ function normalizeRuntimeToolEvent(message: string): (NormalizedToolCall & { cou
     resultText,
     durationMs: Number(doneMatch[2]),
     success: !FAILURE_RE.test(resultText),
+    status: FAILURE_RE.test(resultText) ? 'failure' : 'success',
+    errorCode: '',
+    artifactPaths: [],
+    skillId: '',
     countsAsCall: false,
   };
 }
@@ -715,104 +948,356 @@ function addRuntimeToolAgg(toolAgg: Map<string, ToolAgg>, tool: NormalizedToolCa
   toolAgg.set(tool.name, agg);
 }
 
-function createBenchmarkCases(
+interface EpisodeExtractionOptions {
+  benchmarkName: string;
+  domain: string;
+  domainSubtype: string;
+  includeText: boolean;
+  textPreviewChars: number;
+}
+
+type LegacyTraceEpisodeDraft = Omit<LegacyTraceEpisode, 'episodeId'>;
+
+function extractEpisodes(
   turns: NormalizedTurn[],
   runtimeEvents: RuntimeEvent[],
+  options: EpisodeExtractionOptions,
+): LegacyTraceEpisode[] {
+  const turnGroups = new Map<string, NormalizedTurn[]>();
+  const runtimeGroups = new Map<string, RuntimeEvent[]>();
+
+  for (const turn of turns.slice().sort(compareTurns)) {
+    const key = turnGroupKey(turn);
+    const items = turnGroups.get(key) || [];
+    items.push(turn);
+    turnGroups.set(key, items);
+  }
+
+  for (const event of runtimeEvents.slice().sort(compareRuntimeEvents)) {
+    const key = runtimeGroupKey(event);
+    const items = runtimeGroups.get(key) || [];
+    items.push(event);
+    runtimeGroups.set(key, items);
+  }
+
+  const drafts: LegacyTraceEpisodeDraft[] = [];
+  for (const groupTurns of turnGroups.values()) {
+    let current: NormalizedTurn[] = [];
+    for (const turn of groupTurns) {
+      const previous = current[current.length - 1];
+      if (previous && shouldStartNewEpisode(previous, turn, current)) {
+        drafts.push(buildTurnEpisodeDraft(current, runtimeGroups.get(runtimeGroupKeyFromTurn(previous)) || [], options));
+        current = [];
+      }
+      current.push(turn);
+    }
+    if (current.length > 0) {
+      drafts.push(buildTurnEpisodeDraft(current, runtimeGroups.get(runtimeGroupKeyFromTurn(current[0])) || [], options));
+    }
+  }
+
+  const turnRuntimeKeys = new Set(turns.map(runtimeGroupKeyFromTurn));
+  for (const [key, events] of runtimeGroups.entries()) {
+    if (turnRuntimeKeys.has(key)) continue;
+    const issueEvents = events.filter(event => event.issues.length > 0 || normalizeRuntimeToolEvent(event.message));
+    for (const chunk of splitRuntimeEvents(issueEvents)) {
+      if (chunk.length > 0) {
+        drafts.push(buildRuntimeEpisodeDraft(chunk, options));
+      }
+    }
+  }
+
+  return drafts
+    .sort(compareEpisodeDrafts)
+    .map((draft, index) => ({
+      episodeId: `${slugifyBenchmarkName(options.benchmarkName)}.ep.${String(index + 1).padStart(6, '0')}`,
+      ...draft,
+    }));
+}
+
+function buildTurnEpisodeDraft(
+  turns: NormalizedTurn[],
+  sameSessionRuntimeEvents: RuntimeEvent[],
+  options: EpisodeExtractionOptions,
+): LegacyTraceEpisodeDraft {
+  const first = turns[0];
+  const last = turns[turns.length - 1];
+  const runtimeEvents = selectRuntimeEventsForTurns(sameSessionRuntimeEvents, turns);
+  const issueTypes = unique([
+    ...turns.flatMap(turn => turn.issues.map(issue => issue.type)),
+    ...runtimeEvents.flatMap(event => event.issues.map(issue => issue.type)),
+  ]).sort();
+  const toolsUsed = unique(turns.flatMap(turn => turn.tools.map(tool => tool.name))).sort();
+  const textForSignals = [
+    ...turns.flatMap(turn => [
+      turn.userText,
+      turn.assistantText,
+      ...turn.tools.flatMap(tool => [tool.argumentsText, tool.resultText]),
+    ]),
+    ...runtimeEvents.map(event => event.message),
+  ].join('\n');
+  const skillsTriggered = unique(turns.flatMap(turn => turn.tools.flatMap(extractSkillsFromTool))).sort();
+  const artifactsObserved = unique([
+    ...turns.flatMap(turn => turn.tools.flatMap(tool => tool.artifactPaths)),
+    ...extractArtifactsFromText(textForSignals),
+  ]).sort();
+  const promptTokens = turns.reduce((sum, turn) => sum + turn.promptTokens, 0);
+  const completionTokens = turns.reduce((sum, turn) => sum + turn.completionTokens, 0);
+  const totalTokens = promptTokens + completionTokens;
+  const toolCallCount = turns.reduce((sum, turn) => sum + turn.tools.length, 0);
+  const failedToolCalls = turns.reduce((sum, turn) => sum + turn.tools.filter(tool => !tool.success).length, 0);
+  const successfulToolCalls = Math.max(0, toolCallCount - failedToolCalls);
+  const maxToolDurationMs = turns.reduce(
+    (max, turn) => Math.max(max, ...turn.tools.map(tool => tool.durationMs || 0)),
+    0,
+  );
+  const taskType = classifyEpisodeTask(textForSignals, issueTypes, toolsUsed, artifactsObserved);
+  const requiresLongContext = issueTypes.includes('context_pressure') || promptTokens >= 40000;
+  const requiresArtifact = artifactsObserved.length > 0
+    || toolsUsed.includes('send_file')
+    || taskType === 'plot_generation'
+    || taskType === 'artifact_delivery';
+  const requiresRemoteFixture = needsRemoteFixture(textForSignals, toolsUsed, options.domain);
+
+  const draft: LegacyTraceEpisodeDraft = {
+    benchmark: options.benchmarkName,
+    sourceSessionHash: first.sessionHash,
+    sourcePaths: unique(turns.map(turn => turn.sourcePath)).sort(),
+    platform: first.platform,
+    date: first.date,
+    interactionId: first.interactionId,
+    startTurn: first.turn,
+    endTurn: last.turn,
+    turnCount: turns.length,
+    startTimestamp: first.timestamp,
+    endTimestamp: last.timestamp,
+    taskSummary: summarizeEpisodeTask(turns),
+    taskType,
+    domain: options.domain,
+    domainSubtype: options.domainSubtype,
+    toolsUsed,
+    skillsTriggered,
+    toolCallCount,
+    successfulToolCalls,
+    failedToolCalls,
+    toolSuccessRate: toolCallCount > 0 ? round(successfulToolCalls / toolCallCount, 4) : 1,
+    totalTokens,
+    promptTokens,
+    completionTokens,
+    maxToolDurationMs,
+    artifactsObserved,
+    failureModesObserved: issueTypes,
+    contextPressure: issueTypes.includes('context_pressure'),
+    requiresArtifact,
+    requiresLongContext,
+    requiresRemoteFixture,
+    privacyLevel: 'redacted',
+    runtimeEventCount: runtimeEvents.length,
+  };
+
+  if (options.includeText) {
+    draft.preview = {
+      user: redactSensitiveText(truncatePlain(first.userText, options.textPreviewChars)),
+      assistant: redactSensitiveText(truncatePlain(first.assistantText, options.textPreviewChars)),
+    };
+  }
+
+  return draft;
+}
+
+function buildRuntimeEpisodeDraft(
+  runtimeEvents: RuntimeEvent[],
+  options: EpisodeExtractionOptions,
+): LegacyTraceEpisodeDraft {
+  const first = runtimeEvents[0];
+  const last = runtimeEvents[runtimeEvents.length - 1];
+  const issueTypes = unique(runtimeEvents.flatMap(event => event.issues.map(issue => issue.type))).sort();
+  const textForSignals = runtimeEvents.map(event => event.message).join('\n');
+  const runtimeTools = summarizeRuntimeTools(runtimeEvents);
+  const runtimeTokens = summarizeRuntimeTokens(runtimeEvents);
+  const artifactsObserved = extractArtifactsFromText(textForSignals);
+  const taskType = issueTypes.includes('restore_event')
+    ? 'runtime_restore'
+    : issueTypes.includes('compaction_event')
+      ? 'context_compaction'
+      : classifyEpisodeTask(textForSignals, issueTypes, runtimeTools.toolNames, artifactsObserved);
+
+  const draft: LegacyTraceEpisodeDraft = {
+    benchmark: options.benchmarkName,
+    sourceSessionHash: first.sessionHash,
+    sourcePaths: unique(runtimeEvents.map(event => event.sourcePath)).sort(),
+    platform: first.platform,
+    date: first.date,
+    interactionId: 0,
+    startTurn: 0,
+    endTurn: 0,
+    turnCount: 0,
+    startTimestamp: first.timestamp,
+    endTimestamp: last.timestamp,
+    taskSummary: summarizeRuntimeEpisode(runtimeEvents),
+    taskType,
+    domain: options.domain,
+    domainSubtype: options.domainSubtype,
+    toolsUsed: runtimeTools.toolNames,
+    skillsTriggered: [],
+    toolCallCount: runtimeTools.toolCallCount,
+    successfulToolCalls: runtimeTools.successfulToolCalls,
+    failedToolCalls: runtimeTools.failedToolCalls,
+    toolSuccessRate: runtimeTools.toolCallCount > 0
+      ? round(runtimeTools.successfulToolCalls / runtimeTools.toolCallCount, 4)
+      : 1,
+    totalTokens: runtimeTokens.promptTokens + runtimeTokens.completionTokens,
+    promptTokens: runtimeTokens.promptTokens,
+    completionTokens: runtimeTokens.completionTokens,
+    maxToolDurationMs: runtimeTools.maxToolDurationMs,
+    artifactsObserved,
+    failureModesObserved: issueTypes,
+    contextPressure: issueTypes.includes('context_pressure') || issueTypes.includes('compaction_event'),
+    requiresArtifact: artifactsObserved.length > 0 || runtimeTools.toolNames.includes('send_file'),
+    requiresLongContext: issueTypes.includes('context_pressure') || issueTypes.includes('compaction_event'),
+    requiresRemoteFixture: needsRemoteFixture(textForSignals, runtimeTools.toolNames, options.domain),
+    privacyLevel: 'redacted',
+    runtimeEventCount: runtimeEvents.length,
+  };
+
+  if (options.includeText) {
+    draft.preview = {
+      user: '',
+      assistant: redactSensitiveText(truncatePlain(first.message, options.textPreviewChars)),
+    };
+  }
+
+  return draft;
+}
+
+function createDatasetCard(input: {
+  benchmarkName: string;
+  sourceLabel: string;
+  scannedAt: string;
+  sessions: number;
+  turns: number;
+  runtimeEvents: number;
+  episodes: LegacyTraceEpisode[];
+}): LegacyTraceDatasetCard {
+  const turnsPerEpisode = input.episodes.map(episode => episode.turnCount);
+  const toolCallsPerEpisode = input.episodes.map(episode => episode.toolCallCount);
+  const tokensPerEpisode = input.episodes.map(episode => episode.totalTokens);
+  const toolCalls = input.episodes.reduce((sum, episode) => sum + episode.toolCallCount, 0);
+  const failedToolCalls = input.episodes.reduce((sum, episode) => sum + episode.failedToolCalls, 0);
+  const successfulToolCalls = input.episodes.reduce((sum, episode) => sum + episode.successfulToolCalls, 0);
+  const promptTokens = input.episodes.reduce((sum, episode) => sum + episode.promptTokens, 0);
+  const completionTokens = input.episodes.reduce((sum, episode) => sum + episode.completionTokens, 0);
+
+  return {
+    benchmark: input.benchmarkName,
+    sourceLabel: input.sourceLabel,
+    scannedAt: input.scannedAt,
+    privacyLevel: 'redacted',
+    sessions: input.sessions,
+    episodes: input.episodes.length,
+    turns: input.turns,
+    runtimeEvents: input.runtimeEvents,
+    toolCalls,
+    successfulToolCalls,
+    failedToolCalls,
+    toolSuccessRate: toolCalls > 0 ? round(successfulToolCalls / toolCalls, 4) : 1,
+    totalTokens: promptTokens + completionTokens,
+    promptTokens,
+    completionTokens,
+    avgTokensPerEpisode: average(tokensPerEpisode),
+    p50TokensPerEpisode: percentile(tokensPerEpisode, 0.5),
+    p90TokensPerEpisode: percentile(tokensPerEpisode, 0.9),
+    maxTokensPerEpisode: maxValue(tokensPerEpisode),
+    avgTurnsPerEpisode: average(turnsPerEpisode),
+    p50TurnsPerEpisode: percentile(turnsPerEpisode, 0.5),
+    p90TurnsPerEpisode: percentile(turnsPerEpisode, 0.9),
+    avgToolCallsPerEpisode: average(toolCallsPerEpisode),
+    p50ToolCallsPerEpisode: percentile(toolCallsPerEpisode, 0.5),
+    p90ToolCallsPerEpisode: percentile(toolCallsPerEpisode, 0.9),
+    taskTypeDistribution: countValues(input.episodes.map(episode => episode.taskType)),
+    caseCategoryDistribution: countValues(input.episodes.map(episode => classifyEpisodeCaseCategory(episode))),
+    skillTriggerDistribution: countValues(input.episodes.flatMap(episode => episode.skillsTriggered)),
+    failureModeDistribution: countValues(input.episodes.flatMap(episode => episode.failureModesObserved)),
+  };
+}
+
+function createBenchmarkCases(
+  episodes: LegacyTraceEpisode[],
   options: { maxCases: number; includeText: boolean; textPreviewChars: number },
 ): LegacyTraceBenchmarkCase[] {
-  const turnCandidates = turns.map(turn => {
-    const issueTypes = unique(turn.issues.map(issue => issue.type));
-    const maxToolDurationMs = turn.tools.reduce((max, tool) => Math.max(max, tool.durationMs || 0), 0);
-    const kind = classifyTurnCase(turn, issueTypes);
-    const score = scoreTurnCase(turn, issueTypes, maxToolDurationMs);
-    const expectations = expectationsForCase(kind, issueTypes);
+  const candidates = episodes.map(episode => {
+    const issueTypes = episode.failureModesObserved;
+    const kind = kindForEpisode(episode);
+    const score = scoreEpisodeCase(episode);
+    const caseCategory = classifyEpisodeCaseCategory(episode);
     const item: LegacyTraceBenchmarkCase = {
-      id: `legacy-${stableHash(`${turn.sourcePath}:${turn.sessionHash}:${turn.interactionId}:${turn.turn}:${kind}`, 14)}`,
+      id: episode.episodeId.replace('.ep.', '.case.'),
+      sourceEpisodeId: episode.episodeId,
+      benchmark: episode.benchmark,
       kind,
-      sourcePath: turn.sourcePath,
-      platform: turn.platform,
-      date: turn.date,
-      sessionHash: turn.sessionHash,
-      interactionId: turn.interactionId,
-      startTurn: turn.turn,
-      endTurn: turn.turn,
-      timestamp: turn.timestamp,
+      caseCategory,
+      taskType: episode.taskType,
+      domain: episode.domain,
+      domainSubtype: episode.domainSubtype,
+      sourcePath: episode.sourcePaths[0] || '',
+      platform: episode.platform,
+      date: episode.date,
+      sessionHash: episode.sourceSessionHash,
+      interactionId: episode.interactionId,
+      startTurn: episode.startTurn,
+      endTurn: episode.endTurn,
+      timestamp: episode.startTimestamp,
       score,
+      skillsTriggered: episode.skillsTriggered,
+      successfulToolCalls: episode.successfulToolCalls,
+      failedToolCalls: episode.failedToolCalls,
+      toolSuccessRate: episode.toolSuccessRate,
+      totalTokens: episode.totalTokens,
+      promptTokens: episode.promptTokens,
+      completionTokens: episode.completionTokens,
+      requiresArtifact: episode.requiresArtifact,
+      requiresLongContext: episode.requiresLongContext,
+      requiresRemoteFixture: episode.requiresRemoteFixture,
+      privacyLevel: 'redacted',
       baseline: {
-        turns: 1,
-        promptTokens: turn.promptTokens,
-        completionTokens: turn.completionTokens,
-        toolCalls: turn.tools.length,
-        toolFailures: turn.tools.filter(tool => !tool.success).length,
-        maxToolDurationMs,
+        turns: episode.turnCount,
+        promptTokens: episode.promptTokens,
+        completionTokens: episode.completionTokens,
+        toolCalls: episode.toolCallCount,
+        toolFailures: episode.failedToolCalls,
+        maxToolDurationMs: episode.maxToolDurationMs,
         issueTypes,
-        toolNames: unique(turn.tools.map(tool => tool.name)).sort(),
+        toolNames: episode.toolsUsed,
       },
-      expectations,
+      artifactsObserved: episode.artifactsObserved,
+      failureModesObserved: issueTypes,
+      expectations: expectationsForCase(kind, issueTypes, episode),
     };
-    if (options.includeText) {
-      item.preview = {
-        user: redactSensitiveText(truncatePlain(turn.userText, options.textPreviewChars)),
-        assistant: redactSensitiveText(truncatePlain(turn.assistantText, options.textPreviewChars)),
-      };
+    if (options.includeText && episode.preview) {
+      item.preview = episode.preview;
     }
     return item;
   });
 
-  const runtimeCandidates = runtimeEvents
-    .filter(event => event.issues.length > 0)
-    .map(event => {
-      const issueTypes = unique(event.issues.map(issue => issue.type));
-      const kind = issueTypes.includes('restore_event') ? 'runtime_restore' : 'runtime_signal';
-      const item: LegacyTraceBenchmarkCase = {
-        id: `legacy-${stableHash(`${event.sourcePath}:${event.sessionHash}:${event.timestamp}:${kind}`, 14)}`,
-        kind,
-        sourcePath: event.sourcePath,
-        platform: event.platform,
-        date: event.date,
-        sessionHash: event.sessionHash,
-        interactionId: 0,
-        startTurn: 0,
-        endTurn: 0,
-        timestamp: event.timestamp,
-        score: issueTypes.includes('credential_exposure') ? 80 : 35 + issueTypes.length * 5,
-        baseline: {
-          turns: 0,
-          promptTokens: 0,
-          completionTokens: 0,
-          toolCalls: 0,
-          toolFailures: 0,
-          maxToolDurationMs: 0,
-          issueTypes,
-          toolNames: [],
-        },
-        expectations: expectationsForCase(kind, issueTypes),
-      };
-      if (options.includeText) {
-        item.preview = {
-          user: '',
-          assistant: redactSensitiveText(truncatePlain(event.message, options.textPreviewChars)),
-        };
-      }
-      return item;
-    });
-
   const selected: LegacyTraceBenchmarkCase[] = [];
+  const perCategory = new Map<string, number>();
   const perKind = new Map<string, number>();
   const perSource = new Map<string, number>();
 
-  for (const candidate of [...turnCandidates, ...runtimeCandidates].sort((a, b) => b.score - a.score)) {
+  for (const candidate of candidates.slice().sort((a, b) => b.score - a.score)) {
     if (selected.length >= options.maxCases) break;
+    const categoryCount = perCategory.get(candidate.caseCategory) || 0;
     const kindCount = perKind.get(candidate.kind) || 0;
     const sourceCount = perSource.get(candidate.sourcePath) || 0;
-    if (kindCount >= 3 || sourceCount >= 2) continue;
+    if (categoryCount >= 8 || kindCount >= 4 || sourceCount >= 3) continue;
     selected.push(candidate);
+    perCategory.set(candidate.caseCategory, categoryCount + 1);
     perKind.set(candidate.kind, kindCount + 1);
     perSource.set(candidate.sourcePath, sourceCount + 1);
   }
 
   if (selected.length < options.maxCases) {
-    for (const candidate of [...turnCandidates, ...runtimeCandidates].sort((a, b) => b.score - a.score)) {
+    for (const candidate of candidates.slice().sort((a, b) => b.score - a.score)) {
       if (selected.length >= options.maxCases) break;
       if (selected.some(item => item.id === candidate.id)) continue;
       selected.push(candidate);
@@ -826,34 +1311,76 @@ function createBenchmarkCases(
   });
 }
 
-function classifyTurnCase(turn: NormalizedTurn, issueTypes: string[]): string {
+function kindForEpisode(episode: LegacyTraceEpisode): string {
+  const issueTypes = episode.failureModesObserved;
   if (issueTypes.includes('credential_exposure')) return 'log_hygiene_redaction';
-  if (issueTypes.includes('context_pressure')) return 'context_pressure';
+  if (issueTypes.includes('restore_event') || episode.taskType === 'runtime_restore') return 'runtime_restore';
+  if (issueTypes.includes('context_pressure') || episode.taskType === 'context_compaction') return 'context_pressure';
   if (issueTypes.includes('platform_command_mismatch')) return 'platform_command_mismatch';
   if (issueTypes.includes('api_or_network_failure')) return 'network_failure_recovery';
   if (issueTypes.includes('rate_limited_retry')) return 'rate_limit_recovery';
   if (issueTypes.includes('slow_tool') || issueTypes.includes('very_slow_tool')) return 'slow_tool_observability';
-  if (turn.tools.some(tool => tool.name === 'send_file')) return 'artifact_delivery';
-  if (turn.tools.some(tool => /browser|agent-browser|playwright|selenium/i.test(`${tool.name} ${tool.argumentsText}`))) return 'browser_recovery';
-  if (turn.tools.length >= 5) return 'multi_tool_task';
-  if (turn.promptTokens >= 40000) return 'large_context_task';
-  if (turn.tools.length > 0) return 'tool_turn';
-  return 'dialog_turn';
+  if (episode.taskType !== 'tool_task' && episode.taskType !== 'dialog_task') return episode.taskType;
+  if (episode.toolCallCount >= 5) return 'multi_tool_task';
+  if (episode.promptTokens >= 40000) return 'large_context_task';
+  if (episode.toolCallCount > 0) return 'tool_task';
+  return 'dialog_task';
 }
 
-function scoreTurnCase(turn: NormalizedTurn, issueTypes: string[], maxToolDurationMs: number): number {
+function scoreEpisodeCase(episode: LegacyTraceEpisode): number {
   return Math.round(
-    turn.tools.length * 6
-    + issueTypes.length * 15
-    + Math.min(25, turn.promptTokens / 4000)
-    + Math.min(20, maxToolDurationMs / 3000)
-    + (turn.tools.some(tool => tool.name === 'send_file') ? 12 : 0),
+    episode.turnCount * 8
+    + episode.toolCallCount * 5
+    + episode.failureModesObserved.length * 14
+    + Math.min(25, episode.promptTokens / 4000)
+    + Math.min(20, episode.maxToolDurationMs / 3000)
+    + (episode.requiresArtifact ? 12 : 0)
+    + (episode.requiresLongContext ? 18 : 0)
+    + (episode.skillsTriggered.length > 0 ? 12 : 0)
+    + (episode.runtimeEventCount > 0 ? 4 : 0),
   );
 }
 
-function expectationsForCase(kind: string, issueTypes: string[]): string[] {
+function classifyEpisodeCaseCategory(episode: LegacyTraceEpisode): LegacyTraceCaseCategory {
+  const runtimeSignals = new Set([
+    'credential_exposure',
+    'context_pressure',
+    'platform_command_mismatch',
+    'api_or_network_failure',
+    'rate_limited_retry',
+    'slow_tool',
+    'very_slow_tool',
+    'restore_event',
+    'runtime_error',
+    'runtime_warning',
+    'compaction_event',
+    'outside_read_blocked',
+    'timeout',
+  ]);
+  const skillTaskTypes = new Set([
+    'workflow_packaging',
+    'plot_generation',
+    'cluster_annotation',
+    'marker_analysis',
+    'r_script_editing',
+    'seurat_object_inspection',
+    'report_generation',
+  ]);
+  const hasRuntimeSignal = episode.failureModesObserved.some(issue => runtimeSignals.has(issue))
+    || episode.taskType === 'runtime_restore'
+    || episode.taskType === 'context_compaction'
+    || episode.taskType === 'artifact_delivery';
+  const hasSkillSignal = episode.skillsTriggered.length > 0 || skillTaskTypes.has(episode.taskType);
+
+  if (hasRuntimeSignal && hasSkillSignal) return 'hybrid_case';
+  if (hasSkillSignal) return 'skill_case';
+  return 'runtime_case';
+}
+
+function expectationsForCase(kind: string, issueTypes: string[], episode: LegacyTraceEpisode): string[] {
   const expectations = [
     'legacy JSONL can be normalized without losing turn, token, and tool-call counts',
+    'episode-level metadata preserves turn, tool-call, success, failure, skill, artifact, and routing fields',
     'generated benchmark output must not contain raw credentials or private host secrets',
   ];
 
@@ -875,6 +1402,12 @@ function expectationsForCase(kind: string, issueTypes: string[]): string[] {
   if (kind === 'artifact_delivery') {
     expectations.push('artifact delivery records the sent file path/name and final user-visible confirmation');
   }
+  if (episode.requiresArtifact) {
+    expectations.push('artifact cases must expose enough evidence for a file-exists or content verifier');
+  }
+  if (episode.skillsTriggered.length > 0) {
+    expectations.push('skill-triggered cases record the activated skill name for skill-level regression routing');
+  }
   if (kind === 'browser_recovery') {
     expectations.push('browser fallback path is explicit when the preferred browser harness is unavailable');
   }
@@ -882,13 +1415,328 @@ function expectationsForCase(kind: string, issueTypes: string[]): string[] {
   return unique(expectations);
 }
 
+function compareTurns(a: NormalizedTurn, b: NormalizedTurn): number {
+  if (a.sourcePath !== b.sourcePath) return a.sourcePath.localeCompare(b.sourcePath);
+  if (a.sessionHash !== b.sessionHash) return a.sessionHash.localeCompare(b.sessionHash);
+  if (a.interactionId !== b.interactionId) return a.interactionId - b.interactionId;
+  const timeDiff = parseTimestampMs(a.timestamp) - parseTimestampMs(b.timestamp);
+  if (timeDiff !== 0) return timeDiff;
+  return a.turn - b.turn;
+}
+
+function compareRuntimeEvents(a: RuntimeEvent, b: RuntimeEvent): number {
+  if (a.sourcePath !== b.sourcePath) return a.sourcePath.localeCompare(b.sourcePath);
+  if (a.sessionHash !== b.sessionHash) return a.sessionHash.localeCompare(b.sessionHash);
+  return parseTimestampMs(a.timestamp) - parseTimestampMs(b.timestamp);
+}
+
+function compareEpisodeDrafts(a: LegacyTraceEpisodeDraft, b: LegacyTraceEpisodeDraft): number {
+  if (a.date !== b.date) return a.date.localeCompare(b.date);
+  if (a.sourcePaths[0] !== b.sourcePaths[0]) return (a.sourcePaths[0] || '').localeCompare(b.sourcePaths[0] || '');
+  const timeDiff = parseTimestampMs(a.startTimestamp) - parseTimestampMs(b.startTimestamp);
+  if (timeDiff !== 0) return timeDiff;
+  return a.startTurn - b.startTurn;
+}
+
+function shouldStartNewEpisode(previous: NormalizedTurn, next: NormalizedTurn, current: NormalizedTurn[]): boolean {
+  const previousTime = parseTimestampMs(previous.timestamp);
+  const nextTime = parseTimestampMs(next.timestamp);
+  if (previousTime > 0 && nextTime > 0 && nextTime - previousTime > EPISODE_GAP_MS) {
+    return true;
+  }
+  if (previous.tools.some(tool => tool.name === 'send_file')) {
+    return true;
+  }
+  if (isExplicitEpisodeBoundary(next.userText)) {
+    return true;
+  }
+
+  const previousTask = classifyEpisodeTask(turnSignalText(previous), previous.issues.map(issue => issue.type), previous.tools.map(tool => tool.name), []);
+  const nextTask = classifyEpisodeTask(turnSignalText(next), next.issues.map(issue => issue.type), next.tools.map(tool => tool.name), []);
+  if (current.length >= 2 && isSpecificTask(previousTask) && isSpecificTask(nextTask) && previousTask !== nextTask) {
+    return true;
+  }
+
+  return false;
+}
+
+function isExplicitEpisodeBoundary(text: string): boolean {
+  return /(进入另一个|另一个路径|换.*路径|重新|现在请|接下来|另外|打包成|打包为|沉淀成|复用成|新的任务|新任务)/i.test(text);
+}
+
+function isSpecificTask(taskType: string): boolean {
+  return !['tool_task', 'dialog_task', 'remote_workspace_navigation', 'artifact_delivery'].includes(taskType);
+}
+
+function turnGroupKey(turn: NormalizedTurn): string {
+  return `${turn.sourcePath}\0${turn.sessionHash}\0${turn.interactionId}`;
+}
+
+function runtimeGroupKey(event: RuntimeEvent): string {
+  return `${event.sourcePath}\0${event.sessionHash}`;
+}
+
+function runtimeGroupKeyFromTurn(turn: NormalizedTurn): string {
+  return `${turn.sourcePath}\0${turn.sessionHash}`;
+}
+
+function selectRuntimeEventsForTurns(events: RuntimeEvent[], turns: NormalizedTurn[]): RuntimeEvent[] {
+  if (events.length === 0 || turns.length === 0) return [];
+  const start = parseTimestampMs(turns[0].timestamp);
+  const end = parseTimestampMs(turns[turns.length - 1].timestamp);
+  if (start <= 0 || end <= 0) return [];
+  return events.filter(event => {
+    const time = parseTimestampMs(event.timestamp);
+    if (time <= 0) return false;
+    return time >= start - EPISODE_GAP_MS && time <= end + EPISODE_GAP_MS;
+  });
+}
+
+function splitRuntimeEvents(events: RuntimeEvent[]): RuntimeEvent[][] {
+  const chunks: RuntimeEvent[][] = [];
+  let current: RuntimeEvent[] = [];
+  for (const event of events) {
+    const previous = current[current.length - 1];
+    if (previous) {
+      const gap = parseTimestampMs(event.timestamp) - parseTimestampMs(previous.timestamp);
+      if (gap > EPISODE_GAP_MS) {
+        chunks.push(current);
+        current = [];
+      }
+    }
+    current.push(event);
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function turnSignalText(turn: NormalizedTurn): string {
+  return [
+    turn.userText,
+    turn.assistantText,
+    ...turn.tools.flatMap(tool => [tool.argumentsText, tool.resultText]),
+  ].join('\n');
+}
+
+function classifyEpisodeTask(
+  text: string,
+  issueTypes: string[],
+  toolsUsed: string[],
+  artifactsObserved: string[],
+): string {
+  const toolText = toolsUsed.join(' ');
+  const combined = `${text}\n${toolText}`;
+  if (/打包.*skill|skill.*打包|沉淀.*skill|复用.*skill|workflow packaging/i.test(combined)) {
+    return 'workflow_packaging';
+  }
+  if (/FeaturePlot|DotPlot|DimPlot|VlnPlot|pheatmap|heatmap|ggplot|ggsave|png|pdf|画图|出图|绘图|热图/i.test(combined)) {
+    return 'plot_generation';
+  }
+  if (/cluster|marker|findmarkers|cell\s*type|celltype|细胞类型|注释|亚群|marker表/i.test(combined)) {
+    return 'cluster_annotation';
+  }
+  if (/\.R\b|Rscript|source\(|脚本|edit_file|write_file|annot\.R|score\.R|修改代码|改代码/i.test(combined)) {
+    return 'r_script_editing';
+  }
+  if (/Seurat|\.rds\b|\.RDS\b|merge\.Rds|meta\.data|metadata|单细胞|single[- ]cell/i.test(combined)) {
+    return 'seurat_object_inspection';
+  }
+  if (/报告|report|html|markdown|总结/i.test(combined)) {
+    return 'report_generation';
+  }
+  if (toolsUsed.includes('send_file') || artifactsObserved.length > 0) {
+    return 'artifact_delivery';
+  }
+  if (/ssh|服务器|远程|进入路径|工作目录|\/share\/home|\/home\/|pwd|ls -|cd /i.test(combined)) {
+    return 'remote_workspace_navigation';
+  }
+  if (issueTypes.includes('context_pressure') || issueTypes.includes('compaction_event')) {
+    return 'long_context_recovery';
+  }
+  if (issueTypes.some(issue => ['tool_failure', 'api_or_network_failure', 'timeout', 'rate_limited_retry'].includes(issue))) {
+    return 'failure_recovery';
+  }
+  if (toolsUsed.length > 0) return 'tool_task';
+  return 'dialog_task';
+}
+
+function extractSkillsFromTool(tool: NormalizedToolCall): string[] {
+  const skills: string[] = [];
+  if (tool.skillId) {
+    skills.push(tool.skillId);
+  }
+  const payload = parseLooseJson(tool.argumentsText);
+  for (const key of ['skill', 'skillName', 'skill_name', 'name', 'id']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) skills.push(value.trim());
+  }
+
+  const combined = `${tool.argumentsText}\n${tool.resultText}`;
+  const patterns = [
+    /Skill\s+["']([^"']+)["']\s*(?:已激活|activated)/gi,
+    /(?:技能|skill)\s*[:：]\s*([A-Za-z0-9_.-]+)/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of combined.matchAll(pattern)) {
+      if (match[1]) skills.push(match[1].trim());
+    }
+  }
+
+  if (tool.name === 'skill' && skills.length === 0) {
+    skills.push('unknown_skill');
+  }
+
+  return unique(skills.map(skill => redactSensitiveText(skill)).filter(Boolean));
+}
+
+function parseLooseJson(text: string): Record<string, any> {
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeArtifactManifest(raw: any): string[] {
+  if (!Array.isArray(raw)) return [];
+  return unique(raw
+    .map(item => redactSensitiveText(safeString(item?.path ?? item?.file_path ?? item?.name)))
+    .map(value => value.replace(/\\/g, '/').replace(/[),.;:]+$/g, ''))
+    .filter(Boolean));
+}
+
+function issueFromErrorCode(errorCode: string): LegacyTraceIssue | undefined {
+  const normalized = errorCode.trim().toUpperCase();
+  if (!normalized) return undefined;
+  if (normalized === 'TOOL_TIMEOUT') return { type: 'timeout', severity: 'high' };
+  if (normalized === 'RATE_LIMIT') return { type: 'rate_limited_retry', severity: 'medium' };
+  if (normalized === 'PATH_DENIED') return { type: 'outside_read_blocked', severity: 'medium' };
+  if (normalized === 'PLATFORM_COMMAND_MISMATCH') return { type: 'platform_command_mismatch', severity: 'medium' };
+  if (normalized === 'PROVIDER_ERROR') return { type: 'api_or_network_failure', severity: 'high' };
+  return { type: `error_code:${normalized.toLowerCase()}`, severity: 'medium' };
+}
+
+function extractArtifactsFromText(text: string): string[] {
+  const matches = text.match(/(?:[A-Za-z]:\\[^\s"'`]+|\/[^\s"'`]+|[\w.-]+\/[^\s"'`]+|[\w.-]+\.(?:png|pdf|r|R|csv|tsv|xlsx|html|zip|rds|Rds|RDS))/g) || [];
+  const artifacts = matches
+    .filter(value => /\.(?:png|pdf|r|R|csv|tsv|xlsx|html|zip|rds|Rds|RDS)(?:$|[?#])/i.test(value))
+    .map(value => redactSensitiveText(value.replace(/\\/g, '/')).replace(/[),.;:]+$/g, ''))
+    .map(value => truncatePlain(value, 160))
+    .filter(value => value.length > 0);
+  return unique(artifacts).slice(0, 20);
+}
+
+function summarizeEpisodeTask(turns: NormalizedTurn[]): string {
+  const firstWithUserText = turns.find(turn => turn.userText.trim()) || turns[0];
+  const raw = firstWithUserText?.userText || firstWithUserText?.assistantText || 'legacy trace episode';
+  return redactSensitiveText(truncatePlain(raw, 180));
+}
+
+function summarizeRuntimeEpisode(runtimeEvents: RuntimeEvent[]): string {
+  const first = runtimeEvents.find(event => event.message.trim()) || runtimeEvents[0];
+  return redactSensitiveText(truncatePlain(first?.message || 'runtime signal episode', 180));
+}
+
+function summarizeRuntimeTools(runtimeEvents: RuntimeEvent[]): {
+  toolNames: string[];
+  toolCallCount: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  maxToolDurationMs: number;
+} {
+  let toolCallCount = 0;
+  let failedToolCalls = 0;
+  let maxToolDurationMs = 0;
+  const toolNames: string[] = [];
+
+  for (const event of runtimeEvents) {
+    const tool = normalizeRuntimeToolEvent(event.message);
+    if (!tool) continue;
+    addUnique(toolNames, tool.name);
+    if (tool.countsAsCall) {
+      toolCallCount++;
+    }
+    if (tool.success === false) {
+      failedToolCalls++;
+    }
+    if (tool.durationMs !== undefined) {
+      maxToolDurationMs = Math.max(maxToolDurationMs, tool.durationMs);
+    }
+  }
+
+  return {
+    toolNames: toolNames.sort(),
+    toolCallCount,
+    successfulToolCalls: Math.max(0, toolCallCount - failedToolCalls),
+    failedToolCalls,
+    maxToolDurationMs,
+  };
+}
+
+function summarizeRuntimeTokens(runtimeEvents: RuntimeEvent[]): { promptTokens: number; completionTokens: number } {
+  let promptTokens = 0;
+  let completionTokens = 0;
+  for (const event of runtimeEvents) {
+    const tokens = parseRuntimeTokens(event.message);
+    if (!tokens) continue;
+    promptTokens += tokens.prompt;
+    completionTokens += tokens.completion;
+  }
+  return { promptTokens, completionTokens };
+}
+
+function needsRemoteFixture(text: string, toolsUsed: string[], domain: string): boolean {
+  if (/ssh|服务器|远程|\/share\/home|\/home\/|conda|sbatch|Rscript/i.test(text)) return true;
+  return domain !== 'general' && toolsUsed.includes('execute_shell');
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return round(values.reduce((sum, value) => sum + value, 0) / values.length, 2);
+}
+
+function percentile(values: number[], ratio: number): number {
+  if (values.length === 0) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1));
+  return sorted[index];
+}
+
+function maxValue(values: number[]): number {
+  return values.length > 0 ? Math.max(...values) : 0;
+}
+
+function countValues(values: string[]): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    if (!value) continue;
+    increment(counts, value);
+  }
+  return toSortedRecord(counts);
+}
+
+function slugifyBenchmarkName(name: string): string {
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return slug || 'legacy-trace';
+}
+
+function parseTimestampMs(timestamp: string): number {
+  if (!timestamp) return 0;
+  const time = Date.parse(timestamp);
+  return Number.isFinite(time) ? time : 0;
+}
+
 export function redactSensitiveText(input: string): string {
   let output = input;
   output = output.replace(/("?(?:password|passwd|passphrase|api[_-]?key|secret|token|authorization)"?\s*[:=]\s*)"[^"\n\r]*"/gi, '$1"[REDACTED]"');
   output = output.replace(/("?(?:password|passwd|passphrase|api[_-]?key|secret|token|authorization)"?\s*[:=]\s*)'[^'\n\r]*'/gi, "$1'[REDACTED]'");
+  output = output.replace(/((?:密码|口令|password|passwd|passphrase)\s*(?:为|是|:|：|=)\s*)[^\s，。,.!！?？"'`]+/gi, '$1[REDACTED]');
+  output = output.replace(/((?:账号|帐号|用户名|username|user)\s*(?:为|是|:|：|=)\s*)[^\s，。,.!！?？"'`]+/gi, '$1[USER]');
   output = output.replace(/(\bsshpass(?:\.exe)?\b[\s\S]{0,120}?\s-p\s+)'[^'\n\r]+'/gi, "$1'[REDACTED]'");
   output = output.replace(/(\bsshpass(?:\.exe)?\b[\s\S]{0,120}?\s-p\s+)"[^"\n\r]+"/gi, '$1"[REDACTED]"');
   output = output.replace(/\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[0-1]))(?:\.\d{1,3}){2}\b/g, '[PRIVATE_IP]');
+  output = output.replace(/([A-Za-z]:[\\/]+Users[\\/]+)[^\\/\\\s"']+/g, '$1[USER]');
   output = output.replace(/C:\\Users\\[^\\\s"]+/gi, 'C:\\Users\\[USER]');
   output = output.replace(/\/(?:Users|home|share\/home)\/[^/\s"]+/g, match => {
     const prefix = match.startsWith('/share/home/') ? '/share/home' : match.startsWith('/Users/') ? '/Users' : '/home';
@@ -901,6 +1749,7 @@ function countRedactionHits(input: string): number {
   let hits = 0;
   const patterns = [
     /"?(?:password|passwd|passphrase|api[_-]?key|secret|token|authorization)"?\s*[:=]\s*["'][^"'\n\r]+["']/gi,
+    /(?:密码|口令|password|passwd|passphrase)\s*(?:为|是|:|：|=)\s*[^\s，。,.!！?？"'`]+/gi,
     /\bsshpass(?:\.exe)?\b[\s\S]{0,120}?\s-p\s+["'][^"'\n\r]+["']/gi,
   ];
   for (const pattern of patterns) {

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import {
+  renderLegacyTraceDatasetCardMarkdown,
   renderLegacyTraceBenchmarkMarkdown,
   runLegacyTraceBenchmark,
 } from '../src/harness/legacy-trace-benchmark';
@@ -39,6 +40,9 @@ function main(): void {
 
   const result = runLegacyTraceBenchmark(files, {
     sourceLabel: path.basename(sourcePath),
+    benchmarkName: options.topic,
+    domain: inferDomainFromTopic(options.topic),
+    domainSubtype: inferDomainSubtypeFromTopic(options.topic),
     maxCases: options.maxCases,
     includeText: options.includeText,
   });
@@ -48,20 +52,26 @@ function main(): void {
   const readmePath = path.join(options.outDir, 'README.md');
   const summaryPath = path.join(options.outDir, 'summary.md');
   const casesPath = path.join(options.outDir, 'cases.jsonl');
+  const episodesPath = path.join(options.outDir, 'episodes.jsonl');
+  const datasetCardPath = path.join(options.outDir, 'dataset-card.md');
 
   fs.writeFileSync(benchmarkPath, `${JSON.stringify(result, null, 2)}\n`, 'utf-8');
   fs.writeFileSync(readmePath, `${renderBenchmarkReadme(result, options)}\n`, 'utf-8');
   fs.writeFileSync(summaryPath, `${renderLegacyTraceBenchmarkMarkdown(result)}\n`, 'utf-8');
   fs.writeFileSync(casesPath, `${result.cases.map(item => JSON.stringify(item)).join('\n')}\n`, 'utf-8');
+  fs.writeFileSync(episodesPath, `${result.episodes.map(item => JSON.stringify(item)).join('\n')}\n`, 'utf-8');
+  fs.writeFileSync(datasetCardPath, `${renderLegacyTraceDatasetCardMarkdown(result)}\n`, 'utf-8');
 
   console.log([
     `Legacy trace benchmark complete: ${result.summary.benchmarkScore}/100`,
-    `files=${result.summary.files} turns=${result.summary.turnEntries} runtime=${result.summary.runtimeEntries}`,
+    `files=${result.summary.files} episodes=${result.summary.episodes} turns=${result.summary.turnEntries} runtime=${result.summary.runtimeEntries}`,
     `tools=${result.summary.toolCalls} failures=${result.summary.toolFailures} successRate=${(result.summary.toolSuccessRate * 100).toFixed(2)}%`,
     `redactionHits=${result.summary.redactionHits} cases=${result.cases.length}`,
     `readme=${readmePath}`,
     `summary=${summaryPath}`,
+    `datasetCard=${datasetCardPath}`,
     `benchmark=${benchmarkPath}`,
+    `episodes=${episodesPath}`,
     `cases=${casesPath}`,
   ].join('\n'));
 }
@@ -171,6 +181,9 @@ function renderBenchmarkReadme(result: ReturnType<typeof runLegacyTraceBenchmark
     .map(([name, count]) => `- ${name}: ${count}`)
     .join('\n') || '- none';
   const caseKinds = Array.from(new Set(result.cases.map(item => item.kind))).sort();
+  const caseCategories = Object.entries(result.summary.caseCategoryDistribution)
+    .map(([name, count]) => `${name}=${count}`)
+    .join(', ') || 'none';
 
   return [
     `# ${options.topic}`,
@@ -191,10 +204,15 @@ function renderBenchmarkReadme(result: ReturnType<typeof runLegacyTraceBenchmark
     `- date range: ${result.summary.dates.start || 'n/a'} to ${result.summary.dates.end || 'n/a'} (${result.summary.dates.count} days)`,
     `- platforms: ${Object.entries(result.summary.platforms).map(([name, count]) => `${name}=${count}`).join(', ') || 'none'}`,
     `- sessions: ${result.summary.sessions}, interactions: ${result.summary.interactions}`,
+    `- episodes: ${result.summary.episodes}`,
     `- turns: ${result.summary.turnEntries}, runtime events: ${result.summary.runtimeEntries}`,
+    `- turns/episode: avg ${result.summary.avgTurnsPerEpisode}, p50 ${result.summary.p50TurnsPerEpisode}, p90 ${result.summary.p90TurnsPerEpisode}`,
+    `- tool calls/episode: avg ${result.summary.avgToolCallsPerEpisode}, p50 ${result.summary.p50ToolCallsPerEpisode}, p90 ${result.summary.p90ToolCallsPerEpisode}`,
+    `- tokens/episode: avg ${result.summary.avgTokensPerEpisode}, p50 ${result.summary.p50TokensPerEpisode}, p90 ${result.summary.p90TokensPerEpisode}, max ${result.summary.maxTokensPerEpisode}`,
     `- tokens: ${result.summary.totalTokens} (${result.summary.promptTokens}+${result.summary.completionTokens})`,
     `- tool calls: ${result.summary.toolCalls}, failures: ${result.summary.toolFailures}, success rate: ${(result.summary.toolSuccessRate * 100).toFixed(2)}%`,
     `- generated cases: ${result.cases.length}`,
+    `- case categories: ${caseCategories}`,
     `- redaction hits: ${result.summary.redactionHits}`,
     '',
     '## Case Kinds',
@@ -208,7 +226,9 @@ function renderBenchmarkReadme(result: ReturnType<typeof runLegacyTraceBenchmark
     '## Files',
     '',
     '- `benchmark.json`: full normalized benchmark manifest.',
+    '- `episodes.jsonl`: one extracted episode per line.',
     '- `cases.jsonl`: one generated benchmark case per line.',
+    '- `dataset-card.md`: episode-level dataset statistics.',
     '- `summary.md`: generated aggregate summary for quick reading.',
     '',
     '## Notes',
@@ -218,6 +238,14 @@ function renderBenchmarkReadme(result: ReturnType<typeof runLegacyTraceBenchmark
       ? '- `--include-text` was used, so cases may include redacted user/assistant previews for local review.'
       : '- `--include-text` was not used for this catalog artifact, so cases do not include user/assistant previews.',
   ].join('\n');
+}
+
+function inferDomainFromTopic(topic: string): string {
+  return /bio|生信|seurat|single.cell/i.test(topic) ? 'bioinformatics' : 'general';
+}
+
+function inferDomainSubtypeFromTopic(topic: string): string {
+  return /bio|生信|seurat|single.cell/i.test(topic) ? 'single_cell_seurat' : 'legacy_runtime_trace';
 }
 
 function readTraceFiles(sourcePath: string): LegacyTraceFileInput[] {
