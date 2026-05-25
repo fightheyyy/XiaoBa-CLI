@@ -10,6 +10,10 @@ import { ActiveRoleContext } from './active-role-context';
 export class PromptManager {
   private static promptsDir = path.join(__dirname, '../../prompts');
 
+  private static resolveRoleName(roleName?: string): string | undefined {
+    return roleName ? ActiveRoleContext.resolveRoleDirectoryName(roleName) : ActiveRoleContext.getActiveRoleName();
+  }
+
   private static getRuntimeEnvironmentInfo(platform: NodeJS.Platform = process.platform): string[] {
     const normalized = platform.toLowerCase() as NodeJS.Platform;
 
@@ -53,8 +57,10 @@ export class PromptManager {
     }
   }
 
-  private static resolvePromptFile(fileName: string): string | undefined {
-    const rolePromptPath = PathResolver.getRoleSubPath(path.join('prompts', fileName));
+  private static resolvePromptFile(fileName: string, roleName?: string): string | undefined {
+    const rolePromptPath = roleName
+      ? PathResolver.getRoleSubPathForRole(roleName, path.join('prompts', fileName))
+      : PathResolver.getRoleSubPath(path.join('prompts', fileName));
     if (rolePromptPath && fs.existsSync(rolePromptPath)) {
       return rolePromptPath;
     }
@@ -83,16 +89,19 @@ export class PromptManager {
   /**
    * 获取基础 system prompt
    */
-  static getBaseSystemPrompt(): string {
+  static getBaseSystemPrompt(roleName?: string): string {
     try {
-      const roleConfig = ActiveRoleContext.getActiveRoleConfig();
+      const resolvedRoleName = this.resolveRoleName(roleName);
+      const roleConfig = resolvedRoleName
+        ? ActiveRoleContext.getRoleConfig(resolvedRoleName)
+        : undefined;
       const promptFile = roleConfig?.promptFile || 'system-prompt.md';
-      const resolvedPath = this.resolvePromptFile(promptFile);
+      const resolvedPath = this.resolvePromptFile(promptFile, resolvedRoleName);
       if (resolvedPath) {
         return fs.readFileSync(resolvedPath, 'utf-8');
       }
       if (promptFile !== 'system-prompt.md') {
-        const fallbackPath = this.resolvePromptFile('system-prompt.md');
+        const fallbackPath = this.resolvePromptFile('system-prompt.md', resolvedRoleName);
         if (fallbackPath) {
           return fs.readFileSync(fallbackPath, 'utf-8');
         }
@@ -106,11 +115,14 @@ export class PromptManager {
   /**
    * 获取 behavior prompt（用户偏好）
    */
-  static getBehaviorPrompt(): string {
+  static getBehaviorPrompt(roleName?: string): string {
     try {
+      const resolvedRoleName = this.resolveRoleName(roleName);
       const paths = [
         this.getBasePromptPath('behavior.md'),
-        PathResolver.getRoleSubPath(path.join('prompts', 'behavior.md')),
+        resolvedRoleName
+          ? PathResolver.getRoleSubPathForRole(resolvedRoleName, path.join('prompts', 'behavior.md'))
+          : PathResolver.getRoleSubPath(path.join('prompts', 'behavior.md')),
       ].filter((item): item is string => Boolean(item));
 
       const seen = new Set<string>();
@@ -136,16 +148,19 @@ export class PromptManager {
   /**
    * 构建完整 system prompt（包含运行时信息）
    */
-  static async buildSystemPrompt(): Promise<string> {
-    const basePrompt = this.getBaseSystemPrompt().trim();
-    const behaviorPrompt = this.getBehaviorPrompt().trim();
+  static async buildSystemPrompt(options: { roleName?: string } = {}): Promise<string> {
+    const resolvedRoleName = this.resolveRoleName(options.roleName);
+    const basePrompt = this.getBaseSystemPrompt(resolvedRoleName).trim();
+    const behaviorPrompt = this.getBehaviorPrompt(resolvedRoleName).trim();
     const displayName = (
       process.env.CURRENT_AGENT_DISPLAY_NAME
       || process.env.BOT_BRIDGE_NAME
       || ''
     ).trim();
-    const roleName = ActiveRoleContext.getActiveRoleName() || '';
-    const roleDisplayName = ActiveRoleContext.getActiveRoleDisplayName() || roleName;
+    const roleName = resolvedRoleName || '';
+    const roleDisplayName = roleName
+      ? (ActiveRoleContext.getRoleConfig(roleName)?.displayName || roleName)
+      : '';
     const platform = process.env.CURRENT_PLATFORM || '';
     const today = new Date().toISOString().slice(0, 10);
     const runtimeEnvironmentInfo = this.getRuntimeEnvironmentInfo();

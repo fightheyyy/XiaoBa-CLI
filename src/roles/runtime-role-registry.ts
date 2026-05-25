@@ -3,6 +3,12 @@ import { Tool } from '../types/tool';
 import { RoleResolver } from '../utils/role-resolver';
 import { isAutoDevConfigured } from '../utils/autodev-config';
 import { AutoDevEngineerWorker } from './engineer-cat/utils/autodev-engineer-worker';
+import {
+  EngineerTaskCancelTool,
+  EngineerTaskResumeTool,
+  EngineerTaskRunTool,
+  EngineerTaskStatusTool,
+} from './engineer-cat/tools/engineer-task-tools';
 import { AnalyzeLogTool } from './inspector-cat/tools/analyze-log-tool';
 import { InspectPendingLogsTool } from './inspector-cat/tools/inspect-pending-logs-tool';
 import { RunPendingLogBatchTool } from './inspector-cat/tools/run-pending-log-batch-tool';
@@ -27,26 +33,30 @@ export interface RoleRuntimeSupport {
   stop(): Promise<void>;
 }
 
-function isInspectorRole(): boolean {
-  const activeRole = RoleResolver.getActiveRoleName();
-  return !!activeRole && RoleResolver.normalizeRoleName(activeRole) === 'inspector-cat';
+function normalizeRole(roleName?: string): string {
+  return RoleResolver.normalizeRoleName(roleName || '');
 }
 
-function isEngineerRole(): boolean {
-  const activeRole = RoleResolver.getActiveRoleName();
-  return !!activeRole && RoleResolver.normalizeRoleName(activeRole) === 'engineer-cat';
+function isInspectorRole(roleName?: string): boolean {
+  const activeRole = roleName || RoleResolver.getActiveRoleName();
+  return !!activeRole && normalizeRole(activeRole) === 'inspector-cat';
 }
 
-function isReviewerRole(): boolean {
-  const activeRole = RoleResolver.getActiveRoleName();
-  return !!activeRole && RoleResolver.normalizeRoleName(activeRole) === 'reviewer-cat';
+function isEngineerRole(roleName?: string): boolean {
+  const activeRole = roleName || RoleResolver.getActiveRoleName();
+  return !!activeRole && normalizeRole(activeRole) === 'engineer-cat';
 }
 
-export function getRoleSpecificTools(): Tool[] {
-  if (isInspectorRole()) {
+function isReviewerRole(roleName?: string): boolean {
+  const activeRole = roleName || RoleResolver.getActiveRoleName();
+  return !!activeRole && normalizeRole(activeRole) === 'reviewer-cat';
+}
+
+export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
+  if (isInspectorRole(roleName)) {
     return [new AnalyzeLogTool(), new InspectPendingLogsTool(), new RunPendingLogBatchTool(), new RunInspectorBatchTool()];
   }
-  if (isReviewerRole()) {
+  if (isReviewerRole(roleName)) {
     return [
       new ReviewerEvalPrepareTool(),
       new ReviewerXiaoBaCliE2ETool(),
@@ -58,8 +68,12 @@ export function getRoleSpecificTools(): Tool[] {
       new ReviewerModuleTestTool(),
     ];
   }
-  if (isEngineerRole()) {
+  if (isEngineerRole(roleName)) {
     return [
+      new EngineerTaskRunTool(),
+      new EngineerTaskStatusTool(),
+      new EngineerTaskResumeTool(),
+      new EngineerTaskCancelTool(),
       new CodexSessionListTool(),
       new CodexJobStartTool(),
       new CodexJobStatusTool(),
@@ -68,6 +82,10 @@ export function getRoleSpecificTools(): Tool[] {
     ];
   }
   return [];
+}
+
+export function getRoleSpecificTools(): Tool[] {
+  return getRoleSpecificToolsForRole(RoleResolver.getActiveRoleName());
 }
 
 export function registerRoleSpecificApiRoutes(router: Router): void {

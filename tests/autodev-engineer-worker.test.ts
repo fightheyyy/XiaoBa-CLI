@@ -5,7 +5,14 @@ import * as os from 'os';
 import * as path from 'path';
 import * as http from 'http';
 import { AutoDevEngineerWorker } from '../src/roles/engineer-cat/utils/autodev-engineer-worker';
-import { EngineerExecutionExecutor } from '../src/roles/engineer-cat/utils/engineer-agent-executor';
+import {
+  EngineerExecutionExecutor,
+  EngineerTaskExecutionExecutor,
+} from '../src/roles/engineer-cat/utils/engineer-agent-executor';
+import {
+  CodexTaskAdapter,
+  EngineerTaskRunOptions,
+} from '../src/roles/engineer-cat/utils/engineer-task-runner';
 
 describe('AutoDevEngineerWorker', () => {
   let testRoot: string;
@@ -262,7 +269,177 @@ describe('AutoDevEngineerWorker', () => {
     assert.ok(artifactUploads.some(item => item.bodyText.includes('Engineer execution output')));
     assert.strictEqual(caseEvents[1].payload.next_state, 'blocked');
   });
+
+  test('默认任务执行器通过 EngineerTaskRunner 产出 AutoDev handoff 和 validation', async () => {
+    const caseDir = path.join(testRoot, 'case-runtime');
+    fs.mkdirSync(caseDir, { recursive: true });
+    fs.writeFileSync(path.join(caseDir, 'case-detail.json'), JSON.stringify(createCaseDetail(), null, 2), 'utf-8');
+    fs.writeFileSync(path.join(caseDir, 'artifacts-manifest.json'), JSON.stringify([], null, 2), 'utf-8');
+
+    const fakeCodex = new AutoDevFakeCodexAdapter(caseDir);
+    const executor = new EngineerTaskExecutionExecutor({
+      repoRoot: testRoot,
+      codexAdapter: fakeCodex,
+      statusWaitMs: 0,
+      validationCommands: [`${JSON.stringify(process.execPath)} -e "console.log('autodev-validation-ok')"`],
+      validationTimeoutMs: 30_000,
+    });
+
+    const result = await executor.executeCase(createCaseDetail(), {
+      getCaseDir: () => caseDir,
+    });
+
+    assert.strictEqual(fakeCodex.starts.length, 1);
+    assert.match(fakeCodex.starts[0].request, /AutoDev case/);
+    assert.strictEqual(result.summary.nextState, 'reviewing');
+    assert.strictEqual(result.implementationNotePath, 'implementation.md');
+    assert.strictEqual(result.outputFilePath, 'engineer-output.json');
+    assert.ok(fs.existsSync(path.join(caseDir, 'engineer-task.md')));
+    assert.match(fs.readFileSync(path.join(caseDir, 'validation.md'), 'utf-8'), /autodev-validation-ok/);
+  });
+
+  test('runner blocked summary prevents AutoDev from entering reviewing even with handoff files', async () => {
+    const caseEvents: any[] = [];
+    const stateTransitions: any[] = [];
+    const artifactUploads: Array<{ path: string; bodyText: string }> = [];
+
+    server = createAutoDevEngineerServer({
+      onCaseEvent(payload) {
+        caseEvents.push(payload);
+      },
+      onStateTransition(payload) {
+        stateTransitions.push(payload);
+      },
+      onArtifactUpload(targetPath, bodyText) {
+        artifactUploads.push({ path: targetPath, bodyText });
+      },
+    });
+
+    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+
+    process.env.AUTODEV_SERVER_URL = `http://127.0.0.1:${address.port}`;
+    process.env.AUTODEV_API_KEY = 'demo-key';
+
+    const executionExecutor: EngineerExecutionExecutor = {
+      async executeCase(detail, store) {
+        const caseDir = store.getCaseDir(detail.case.case_id);
+        fs.writeFileSync(path.join(caseDir, 'implementation.md'), '# Implementation note\n', 'utf-8');
+        fs.writeFileSync(path.join(caseDir, 'engineer-output.json'), JSON.stringify({
+          version: 1,
+          summary: 'Claims implementation is ready.',
+          overview: 'Claims implementation is ready for review.',
+          resultType: 'runtime_fix',
+          riskLevel: 'low',
+          nextState: 'reviewing',
+          recommendedNextAction: 'review_engineer_output',
+          changedFiles: ['src/tools/retry.ts'],
+          artifacts: [],
+        }, null, 2), 'utf-8');
+
+        return {
+          generatedAt: new Date().toISOString(),
+          caseId: detail.case.case_id,
+          mode: 'agent_execute',
+          summary: {
+            overview: 'Runner validation failed.',
+            artifactCount: 2,
+            nextState: 'blocked',
+            implementationGenerated: true,
+          },
+          implementationNotePath: 'implementation.md',
+          outputFilePath: 'engineer-output.json',
+          finalText: 'validation failed',
+        };
+      },
+    };
+
+    const worker = new AutoDevEngineerWorker({
+      workingDirectory: testRoot,
+      executionExecutor,
+    });
+
+    const result = await worker.runOnce();
+
+    assert.deepStrictEqual(result, { processed: 1, skipped: false });
+    assert.strictEqual(stateTransitions.length, 1);
+    assert.strictEqual(stateTransitions[0].to, 'blocked');
+    assert.match(stateTransitions[0].reason, /runner reports verified completion/);
+    assert.strictEqual(caseEvents[1].payload.next_state, 'blocked');
+    assert.ok(artifactUploads.some(item => item.bodyText.includes('Engineer execution output')));
+  });
 });
+
+class AutoDevFakeCodexAdapter implements CodexTaskAdapter {
+  starts: EngineerTaskRunOptions[] = [];
+  private wrote = false;
+
+  constructor(private readonly caseDir: string) {}
+
+  async start(options: EngineerTaskRunOptions) {
+    this.starts.push(options);
+    return {
+      jobId: 'autodev-codex-job-1',
+      sessionId: 'autodev-codex-session-1',
+      raw: 'codex: running=true status=running\njob_id=autodev-codex-job-1\nsession=autodev-codex-session-1',
+    };
+  }
+
+  async resume(options: EngineerTaskRunOptions & { codexSessionId: string }) {
+    return {
+      jobId: 'autodev-codex-job-2',
+      sessionId: options.codexSessionId,
+      raw: `codex: running=true status=running\njob_id=autodev-codex-job-2\nsession=${options.codexSessionId}`,
+    };
+  }
+
+  async status() {
+    if (!this.wrote) {
+      this.wrote = true;
+      fs.writeFileSync(path.join(this.caseDir, 'implementation.md'), '# Runner implementation\n', 'utf-8');
+      fs.writeFileSync(path.join(this.caseDir, 'engineer-output.json'), JSON.stringify({
+        version: 1,
+        summary: 'Runner produced AutoDev handoff.',
+        overview: 'Runner produced AutoDev handoff and validation passed.',
+        resultType: 'runtime_fix',
+        riskLevel: 'low',
+        nextState: 'reviewing',
+        recommendedNextAction: 'review_engineer_output',
+        changedFiles: ['src/runtime.ts'],
+        artifacts: [],
+      }, null, 2), 'utf-8');
+    }
+    return {
+      status: 'completed',
+      sessionId: 'autodev-codex-session-1',
+      lastMessage: 'autodev runner done',
+      raw: 'codex: running=false status=completed\nsession=autodev-codex-session-1\noutput=autodev runner done',
+    };
+  }
+
+  async cancel(jobId: string) {
+    return `cancelled ${jobId}`;
+  }
+}
+
+function createCaseDetail(): any {
+  return {
+    case: {
+      case_id: 'case-001',
+      title: 'Fix repeated runtime timeout',
+      status: 'fixing',
+      category: 'runtime_bug',
+      current_owner_agent: 'engineer',
+      recommended_next_action: 'runtime_fix',
+      summary: 'Timeout is reproducible.',
+    },
+    artifacts: [],
+    events: [],
+    chain: [],
+    metrics: {},
+  };
+}
 
 function createAutoDevEngineerServer(options: {
   onCaseEvent: (payload: any) => void;

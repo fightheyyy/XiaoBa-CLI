@@ -8,12 +8,6 @@ import { Logger } from '../utils/logger';
  * Skill 工具 - 调用已注册的 skills
  */
 export class SkillTool implements Tool {
-  private skillManager: SkillManager;
-
-  constructor() {
-    this.skillManager = new SkillManager();
-  }
-
   definition: ToolDefinition = {
     name: 'skill',
     description: '调用已注册的 skill。Skills 是预定义的任务模板，可以执行复杂的多步骤任务。',
@@ -37,21 +31,22 @@ export class SkillTool implements Tool {
     const { skill: skillName, args: skillArgs = '' } = args;
 
     try {
+      const skillManager = new SkillManager(context.roleName);
       // 特殊命令：reload
       if (skillName === 'reload' || skillName === '__reload__') {
-        await this.skillManager.loadSkills();
-        const count = this.skillManager.getAllSkills().length;
+        await skillManager.loadSkills();
+        const count = skillManager.getAllSkills().length;
         return JSON.stringify({ __reload_skills__: true, message: `已重新加载 ${count} 个 skills` });
       }
 
       // 加载所有 skills
-      await this.skillManager.loadSkills();
+      await skillManager.loadSkills();
 
       // 获取指定的 skill
-      const skill = this.skillManager.getSkill(skillName);
+      const skill = skillManager.getSkill(skillName);
 
       if (!skill) {
-        const availableSkills = this.skillManager.getAllSkills()
+        const availableSkills = skillManager.getAllSkills()
           .map(s => s.metadata.name)
           .join(', ');
 

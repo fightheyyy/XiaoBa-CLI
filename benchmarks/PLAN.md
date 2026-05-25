@@ -5,7 +5,7 @@
 当前主线：
 
 ```text
-Trace catalog first, replay benchmark next.
+Contract smoke first, trace catalog second, replay benchmark next.
 ```
 
 BioBench 是第一个落地对象。
@@ -24,6 +24,8 @@ BioBench 是第一个落地对象。
 | 层级 | 状态 | 说明 |
 | --- | --- | --- |
 | Trace catalog | Done local-only | `sessions.zip` 可清洗成 BioBench v0；trace-derived artifacts 默认不提交 |
+| Requirement-driven cases | Not started | 已进入 `SPEC.md` 架构；还没有标准 case 文件布局和验收模板 |
+| Contract / invariant cases | Not started | 已进入 `SPEC.md` 架构；优先补 transcript、redaction、JSONL schema、timeout、artifact evidence |
 | Episode dataset | Done local-only | harness 可生成 `episodes.jsonl`；公开仓库只保留规范和评测方案 |
 | Case mining | Done local-only | harness 可生成 selected cases；进入仓库前必须做隐私审查和 fixture 化 |
 | Case routing | Done v0 | 已有 `runtime_case` / `skill_case` / `hybrid_case` |

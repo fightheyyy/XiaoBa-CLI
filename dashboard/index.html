@@ -617,6 +617,722 @@
       box-shadow: none;
     }
 
+    .room-shell {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.8fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .room-hero {
+      margin-bottom: 18px;
+      padding: 22px 24px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(239,246,255,0.86));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm), var(--glow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .room-title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0;
+      margin-bottom: 6px;
+    }
+
+    .room-subtitle {
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 760px;
+    }
+
+    .room-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .room-panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.84));
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: var(--shadow-sm), var(--glow);
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .room-panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .room-panel-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 800;
+      color: var(--text3);
+    }
+
+    .room-panel-subtitle {
+      margin-top: 5px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text2);
+    }
+
+    .room-agent-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .room-agent {
+      width: 100%;
+      font-family: inherit;
+      text-align: left;
+      color: inherit;
+      cursor: pointer;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border-light);
+      background: rgba(248, 250, 252, 0.72);
+      min-height: 70px;
+    }
+
+    .room-agent span {
+      min-width: 0;
+    }
+
+    .room-agent-name,
+    .room-agent-duty {
+      display: block;
+    }
+
+    .room-agent.active {
+      border-color: rgba(59, 130, 246, 0.22);
+      background: rgba(239, 246, 255, 0.78);
+    }
+
+    .room-agent-name {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .room-agent-duty {
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .room-toggle {
+      width: 38px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(103,112,133,0.2);
+      background: rgba(103,112,133,0.14);
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .room-toggle::after {
+      content: '';
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.16);
+      transition: transform 0.2s ease;
+    }
+
+    .room-agent.active .room-toggle {
+      background: var(--accent);
+      border-color: transparent;
+    }
+
+    .room-agent.active .room-toggle::after {
+      transform: translateX(16px);
+    }
+
+    .room-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .room-field label {
+      display: block;
+      color: var(--text2);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .room-textarea {
+      min-height: 148px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    .room-mode-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .room-mode {
+      min-height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.72);
+      color: var(--text2);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .room-mode.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      border-color: rgba(59,130,246,0.24);
+    }
+
+    .room-stage-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .room-stage {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 10px;
+      align-items: start;
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .room-stage-index {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(30,169,113,0.11);
+      color: var(--green);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 11px;
+    }
+
+    .room-packet {
+      min-height: 260px;
+      max-height: 440px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(31, 34, 50, 0.92);
+      color: rgba(255,255,255,0.9);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .room-event-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .room-event {
+      border-left: 3px solid var(--accent);
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(239,246,255,0.68);
+      font-size: 12px;
+      color: var(--text2);
+    }
+
+    .room-event strong {
+      display: block;
+      color: var(--text);
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .room-role-dock {
+      display: grid;
+      gap: 10px;
+    }
+
+    .room-role-button {
+      width: 100%;
+      min-height: 70px;
+      border: 1px solid var(--border-light);
+      background: rgba(248, 250, 252, 0.78);
+      border-radius: 16px;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      font-family: inherit;
+      text-align: left;
+      color: inherit;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .room-role-button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(59,130,246,0.22);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .room-role-plus {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 900;
+      flex-shrink: 0;
+    }
+
+    .room-broadcast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .room-broadcast .config-input {
+      min-height: 46px;
+    }
+
+    .room-arena {
+      min-width: 0;
+    }
+
+    .room-pet-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .room-pet-card {
+      position: relative;
+      min-width: 0;
+      min-height: 420px;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(246,250,255,0.86));
+      box-shadow: var(--shadow-sm), var(--glow);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .habitat-floor {
+      position: relative;
+      min-height: 580px;
+      border-radius: 26px;
+      border: 1px solid rgba(59,130,246,0.14);
+      background:
+        radial-gradient(circle at 20% 18%, rgba(125,211,252,0.22), transparent 28%),
+        radial-gradient(circle at 80% 72%, rgba(30,169,113,0.15), transparent 30%),
+        linear-gradient(180deg, rgba(255,255,255,0.94), rgba(241,248,255,0.86));
+      box-shadow: var(--shadow-sm), var(--glow);
+      overflow: hidden;
+    }
+
+    .habitat-floor::before {
+      content: '';
+      position: absolute;
+      inset: 22px;
+      border: 1px dashed rgba(59,130,246,0.13);
+      border-radius: 22px;
+      pointer-events: none;
+    }
+
+    .habitat-pet {
+      position: absolute;
+      left: var(--x);
+      top: var(--y);
+      transform: translate(-50%, -50%);
+      width: 158px;
+      min-height: 168px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 0;
+      text-align: center;
+    }
+
+    .habitat-pet-stage {
+      width: 112px;
+      height: 122px;
+      margin: 0 auto 8px;
+      border-radius: 28px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(59,130,246,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 16px 32px rgba(31,34,50,0.10);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    }
+
+    .habitat-pet:hover .habitat-pet-stage,
+    .habitat-pet.selected .habitat-pet-stage {
+      transform: translateY(-3px);
+      border-color: rgba(59,130,246,0.28);
+      box-shadow: 0 20px 42px rgba(59,130,246,0.16);
+    }
+
+    .habitat-pet.running .habitat-pet-stage {
+      border-color: rgba(59,130,246,0.32);
+      box-shadow: 0 20px 42px rgba(59,130,246,0.18);
+    }
+
+    .habitat-pet.failed .habitat-pet-stage {
+      border-color: rgba(220,93,115,0.22);
+    }
+
+    .habitat-pet canvas {
+      width: 104px;
+      height: 112px;
+      image-rendering: pixelated;
+    }
+
+    .habitat-speech {
+      position: absolute;
+      left: 50%;
+      bottom: 154px;
+      transform: translateX(-50%);
+      min-width: 120px;
+      max-width: 210px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.94);
+      border: 1px solid rgba(103,112,133,0.12);
+      box-shadow: 0 12px 26px rgba(31,34,50,0.08);
+      font-size: 12px;
+      line-height: 1.42;
+      color: var(--text2);
+      display: none;
+      word-break: break-word;
+    }
+
+    .habitat-speech:not(:empty) {
+      display: block;
+    }
+
+    .habitat-pet-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      max-width: 150px;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(103,112,133,0.10);
+      box-shadow: 0 10px 24px rgba(31,34,50,0.06);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .habitat-pet-label span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .habitat-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--text3);
+      flex-shrink: 0;
+    }
+
+    .habitat-pet.running .habitat-status-dot,
+    .habitat-pet.review .habitat-status-dot {
+      background: var(--accent);
+    }
+
+    .habitat-pet.done .habitat-status-dot,
+    .habitat-pet.waving .habitat-status-dot {
+      background: var(--green);
+    }
+
+    .habitat-pet.failed .habitat-status-dot {
+      background: var(--red);
+    }
+
+    .habitat-detail {
+      min-height: 580px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.92);
+      box-shadow: var(--shadow-sm), var(--glow);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .habitat-detail-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .habitat-detail-title {
+      font-size: 16px;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .habitat-detail-subtitle {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.45;
+    }
+
+    .habitat-detail-log {
+      flex: 1;
+      min-height: 260px;
+      max-height: 360px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 16px;
+      background: rgba(248,250,252,0.80);
+      border: 1px solid var(--border-light);
+      margin-bottom: 10px;
+    }
+
+    .room-pet-card.running {
+      border-color: rgba(59,130,246,0.26);
+      box-shadow: 0 18px 42px rgba(59,130,246,0.14), var(--glow);
+    }
+
+    .room-pet-head {
+      display: grid;
+      grid-template-columns: 76px 1fr auto;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .room-pet-stage {
+      width: 76px;
+      height: 82px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(239,246,255,0.85), rgba(255,255,255,0.78));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid rgba(59,130,246,0.10);
+    }
+
+    .room-pet-stage canvas {
+      width: 76px;
+      height: 82px;
+      image-rendering: pixelated;
+    }
+
+    .room-pet-name {
+      font-size: 15px;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .room-pet-role {
+      font-size: 12px;
+      color: var(--text2);
+      line-height: 1.35;
+    }
+
+    .room-pet-status {
+      align-self: start;
+      font-size: 11px;
+      font-weight: 900;
+      padding: 7px 9px;
+      border-radius: 999px;
+      background: rgba(103,112,133,0.1);
+      color: var(--text2);
+      border: 1px solid rgba(103,112,133,0.12);
+      white-space: nowrap;
+    }
+
+    .room-pet-status.running,
+    .room-pet-status.review {
+      background: var(--accent-light);
+      color: var(--accent);
+      border-color: rgba(59,130,246,0.18);
+    }
+
+    .room-pet-status.done,
+    .room-pet-status.waving {
+      background: var(--green-light);
+      color: var(--green);
+      border-color: rgba(30,169,113,0.16);
+    }
+
+    .room-pet-status.failed {
+      background: var(--red-light);
+      color: var(--red);
+      border-color: rgba(220,93,115,0.16);
+    }
+
+    .room-pet-log {
+      flex: 1;
+      min-height: 190px;
+      max-height: 280px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 16px;
+      background: rgba(248,250,252,0.78);
+      border: 1px solid var(--border-light);
+    }
+
+    .room-bubble {
+      max-width: 92%;
+      padding: 8px 10px;
+      border-radius: 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+      color: var(--text);
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(103,112,133,0.10);
+    }
+
+    .room-bubble.user {
+      align-self: flex-end;
+      background: rgba(59,130,246,0.10);
+      border-color: rgba(59,130,246,0.12);
+    }
+
+    .room-bubble.event {
+      align-self: center;
+      max-width: 100%;
+      color: var(--text3);
+      background: transparent;
+      border-color: transparent;
+      padding-block: 2px;
+    }
+
+    .room-bubble.tool {
+      max-width: 100%;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: #42526b;
+      background: rgba(255,255,255,0.62);
+    }
+
+    .room-bubble.dm {
+      max-width: 100%;
+      background: rgba(30,169,113,0.10);
+      border-color: rgba(30,169,113,0.14);
+    }
+
+    .room-bubble.dm.outbound {
+      align-self: flex-end;
+      background: rgba(59,130,246,0.10);
+      border-color: rgba(59,130,246,0.14);
+    }
+
+    .room-pet-compose {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .room-pet-input {
+      min-height: 40px;
+      max-height: 120px;
+      resize: vertical;
+      line-height: 1.45;
+      padding: 10px 12px;
+    }
+
+    .room-empty {
+      min-height: 420px;
+      border: 1px dashed rgba(59,130,246,0.22);
+      border-radius: 22px;
+      background: rgba(255,255,255,0.62);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--text2);
+      padding: 24px;
+    }
+
+    @media (max-width: 1180px) {
+      .room-shell,
+      .room-shell[style] {
+        grid-template-columns: 1fr !important;
+      }
+
+      .room-pet-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .habitat-floor,
+      .habitat-detail {
+        min-height: 430px;
+      }
+
+      .room-hero {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .room-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+
     .config-section { margin-bottom: 30px; }
 
     .config-group {
@@ -3300,6 +4016,9 @@
       <a class="nav-item active" onclick="switchPage('services')" data-page="services">
         <span class="nav-icon">&gt;</span> <span data-i18n="navRuntime">Runtime</span>
       </a>
+      <a class="nav-item" onclick="switchPage('room')" data-page="room">
+        <span class="nav-icon">[]</span> <span data-i18n="navRoom">Room</span>
+      </a>
       <a class="nav-item" onclick="switchPage('roles')" data-page="roles">
         <span class="nav-icon">@</span> <span data-i18n="navRoles">Roles</span>
       </a>
@@ -3372,6 +4091,47 @@
         </div>
 
         <div class="signal-grid status-grid" id="status-grid"></div>
+      </div>
+
+      <!-- Page: Room -->
+      <div class="page" id="page-room">
+        <div class="room-hero">
+          <div>
+            <div class="runtime-eyebrow" data-i18n="roomEyebrow">Multi-agent</div>
+            <div class="room-title" data-i18n="roomTitle">Room</div>
+            <div class="room-subtitle" data-i18n="roomSubtitle">Pull role pets into a shared workspace and send outcome-oriented work to each one.</div>
+          </div>
+          <div class="room-actions">
+            <span class="role-active-pill" id="room-status-pill">0 agents</span>
+            <button class="btn" onclick="refreshRoom()" data-i18n="refresh">Refresh</button>
+          </div>
+        </div>
+
+        <div class="room-shell">
+          <section class="room-panel">
+            <div class="room-panel-header">
+              <div>
+                <div class="room-panel-title" data-i18n="roomAgentsTitle">Pull Agents</div>
+                <div class="room-panel-subtitle" data-i18n="roomAgentsSubtitle">Start one or more role pets in this room.</div>
+              </div>
+            </div>
+            <div class="room-field" style="margin-bottom:12px">
+              <label for="room-repo" data-i18n="roomRepo">Workspace</label>
+              <input class="config-input" id="room-repo" type="text" oninput="updateRoomWorkspace()" />
+            </div>
+            <div class="room-role-dock" id="room-role-dock"><div class="loading">Loading...</div></div>
+          </section>
+
+          <section class="room-arena">
+            <div class="room-broadcast">
+              <textarea class="config-input" id="room-broadcast-input" data-i18n-placeholder="roomBroadcastPlaceholder" placeholder="Describe the outcome and dispatch it to the room..."></textarea>
+              <button class="btn btn-primary" onclick="broadcastRoomMission()" data-i18n="roomBroadcast">Dispatch</button>
+            </div>
+            <div class="room-pet-grid" id="room-pet-grid">
+              <div class="room-empty" data-i18n="roomEmpty">Pull a role pet into the room to start.</div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <!-- Page: Chat -->
@@ -3476,6 +4236,7 @@
     const i18n = {
       en: {
         navRuntime: 'Runtime',
+        navRoom: 'Habitat',
         navRoles: 'Roles',
         navSkills: 'Skills',
         navConfig: 'Config',
@@ -3486,6 +4247,7 @@
         online: 'Online',
         offline: 'Offline',
         pageRuntime: 'Runtime',
+        pageRoom: 'Habitat',
         pageRoles: 'Roles',
         pageSkills: 'Skills',
         pageConfig: 'Config',
@@ -3495,6 +4257,40 @@
         heroEyebrow: 'Local',
         heroTitle: 'Runtime',
         heroDesc: 'IM surfaces, roles, and local work signals.',
+        roomEyebrow: 'Multi-agent habitat',
+        roomTitle: 'Habitat',
+        roomSubtitle: 'A free workspace where role pets stay, talk, and work. Details open only when you inspect a pet.',
+        roomReset: 'Reset',
+        roomCopy: 'Copy',
+        roomSendChat: 'Stage in Chat',
+        roomAgentsTitle: 'Pull Agents',
+        roomAgentsSubtitle: 'Start one or more role pets in this habitat.',
+        roomMissionTitle: 'Mission',
+        roomMissionSubtitle: 'The packet that the lead agent will dispatch.',
+        roomRepo: 'Workspace',
+        roomMission: 'Request',
+        roomMode: 'Mode',
+        roomGenerate: 'Generate Packet',
+        roomPacketTitle: 'Dispatch Packet',
+        roomPacketSubtitle: 'Ready for the lead agent.',
+        roomStageTitle: 'Flow',
+        roomPolicyTitle: 'Policy',
+        roomHandoffTitle: 'Handoff',
+        roomDraft: 'Draft',
+        roomReady: 'Ready',
+        roomCopied: 'Copied',
+        roomSent: 'Staged',
+        roomNeedRequest: 'Add a request first.',
+        roomBroadcast: 'Dispatch',
+        roomBroadcastPlaceholder: 'Describe the outcome and let the habitat pets work...',
+        roomEmpty: 'Pull a role pet into the habitat to start.',
+        roomAgentStarting: 'Starting...',
+        roomAgentFailed: 'Agent failed: ',
+        roomSend: 'Send',
+        roomInputPlaceholder: 'Send this pet a task...',
+        roomRemove: 'Remove',
+        roomNoPetSelected: 'Select a pet to inspect its work.',
+        roomNoLogs: 'No details yet.',
         activeRole: 'Active role: ',
         refresh: 'Refresh',
         servicesTitle: 'Services',
@@ -3629,6 +4425,7 @@
       },
       zh: {
         navRuntime: '运行时',
+        navRoom: 'Habitat',
         navRoles: '角色',
         navSkills: '技能',
         navConfig: '配置',
@@ -3639,6 +4436,7 @@
         online: '在线',
         offline: '离线',
         pageRuntime: '运行时',
+        pageRoom: 'Habitat',
         pageRoles: '角色',
         pageSkills: '技能',
         pageConfig: '配置',
@@ -3648,6 +4446,40 @@
         heroEyebrow: '本地',
         heroTitle: 'Runtime',
         heroDesc: 'IM 入口、角色与本地工作信号。',
+        roomEyebrow: 'Multi-agent habitat',
+        roomTitle: 'Habitat',
+        roomSubtitle: '一群能工作的 pet 在同一个空间里待命、私信、执行；选中 pet 才看过程细节。',
+        roomReset: '重置',
+        roomCopy: '复制',
+        roomSendChat: '填入 Chat',
+        roomAgentsTitle: '拉起 Agents',
+        roomAgentsSubtitle: '在这个 habitat 启动一个或多个角色 pet。',
+        roomMissionTitle: '任务',
+        roomMissionSubtitle: '交给 lead agent 的调度包。',
+        roomRepo: '工作区',
+        roomMission: '需求',
+        roomMode: '模式',
+        roomGenerate: '生成调度包',
+        roomPacketTitle: '调度包',
+        roomPacketSubtitle: '可直接交给 lead agent。',
+        roomStageTitle: '流程',
+        roomPolicyTitle: '策略',
+        roomHandoffTitle: '交接',
+        roomDraft: '草稿',
+        roomReady: '就绪',
+        roomCopied: '已复制',
+        roomSent: '已填入',
+        roomNeedRequest: '先填写需求。',
+        roomBroadcast: '派发',
+        roomBroadcastPlaceholder: '描述你要的结果，让 habitat 里的 pet 去工作...',
+        roomEmpty: '先把一个角色 pet 拉进 habitat。',
+        roomAgentStarting: '启动中...',
+        roomAgentFailed: 'Agent 异常: ',
+        roomSend: '发送',
+        roomInputPlaceholder: '给这个 pet 派一个任务...',
+        roomRemove: '移除',
+        roomNoPetSelected: '选择一个 pet 查看它的工作细节。',
+        roomNoLogs: '还没有细节。',
         activeRole: '当前角色：',
         refresh: '刷新',
         servicesTitle: '服务',
@@ -3783,7 +4615,7 @@
     };
     const dashboardLangKey = 'xiaoba.dashboard.lang.v2';
     let currentLang = localStorage.getItem(dashboardLangKey) || 'en';
-    const pageTitles = { services:'pageRuntime', pet:'pageChat', config:'pageConfig', skills:'pageSkills', roles:'pageRoles', store:'pageStore' };
+    const pageTitles = { services:'pageRuntime', room:'pageRoom', pet:'pageChat', config:'pageConfig', skills:'pageSkills', roles:'pageRoles', store:'pageStore' };
     let rolesState = { active: null, roles: [] };
     let skillsState = [];
     let latestStatus = null;
@@ -3805,6 +4637,15 @@
     let petInputComposing = false;
     let petInputCompositionEndedAt = 0;
     const skillGroupCollapsed = { role: false, runtime: false };
+    let roomState = { cwd: '', roles: [], agents: [] };
+    const roomPlayers = new Map();
+    const roomTextBuffers = new Map();
+    const roomBusyAgents = new Set();
+    const roomEventSources = new Map();
+    const roomSeenEvents = new Set();
+    const roomAgentLogs = new Map();
+    const roomAgentSpeech = new Map();
+    let roomSelectedAgentId = '';
     const roleAvatars = {
       base: 'cat-icon.png',
       default: 'cat-icon.png',
@@ -3836,6 +4677,9 @@
       document.querySelectorAll('[data-i18n]').forEach(el => {
         el.textContent = t(el.dataset.i18n);
       });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+      });
       document.getElementById('lang-zh')?.classList.toggle('active', currentLang === 'zh');
       document.getElementById('lang-en')?.classList.toggle('active', currentLang === 'en');
       const activePage = document.querySelector('.nav-item.active')?.dataset.page || 'services';
@@ -3855,6 +4699,7 @@
       if (pets.length) renderPet();
       if (Object.keys(configData || {}).length) renderConfig();
       if (storeState.length) renderStore(storeState);
+      renderRoom();
     }
 
     function switchPage(name) {
@@ -3869,6 +4714,7 @@
       if (title) title.textContent = t(pageTitles[name] || 'pageRuntime');
       if (name === 'roles') fetchRoles();
       if (name === 'pet') fetchPets();
+      if (name === 'room') renderRoom();
     }
 
     function openService(name, url) {
@@ -3902,6 +4748,425 @@
       const key = String(service?.name || '').toLowerCase();
       const labelKey = serviceLabelKeys[key];
       return labelKey ? t(labelKey) : (service?.label || service?.name || '-');
+    }
+
+    async function fetchRoom() {
+      try {
+        const [rolesRes, agentsRes] = await Promise.all([
+          fetch(API+'/api/room/roles'),
+          fetch(API+'/api/room/agents'),
+        ]);
+        const rolesData = await rolesRes.json();
+        const agentsData = await agentsRes.json();
+        roomState.roles = Array.isArray(rolesData.roles) ? rolesData.roles : [];
+        roomState.cwd = roomState.cwd || rolesData.cwd || latestStatus?.cwd || '';
+        roomState.agents = Array.isArray(agentsData.agents) ? agentsData.agents : [];
+        renderRoom();
+      } catch (e) {
+        const dock = document.getElementById('room-role-dock');
+        if (dock) dock.innerHTML = '<div class="loading">'+t('loadFailed')+'</div>';
+      }
+    }
+
+    function refreshRoom() {
+      fetchRoom();
+    }
+
+    function updateRoomWorkspace() {
+      const repo = document.getElementById('room-repo');
+      if (repo) roomState.cwd = repo.value;
+    }
+
+    async function createRoomAgent(roleName) {
+      const dock = document.getElementById('room-role-dock');
+      if (dock) dock.classList.add('loading');
+      try {
+        const res = await fetch(API+'/api/room/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleName, cwd: roomState.cwd || latestStatus?.cwd || '' }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'create failed');
+        roomState.agents.push(data.agent);
+        if (!roomSelectedAgentId) roomSelectedAgentId = data.agent.id;
+        renderRoom();
+      } catch (e) {
+        alert(t('roomAgentFailed') + e.message);
+      } finally {
+        dock?.classList.remove('loading');
+      }
+    }
+
+    async function removeRoomAgent(agentId) {
+      await fetch(API+'/api/room/agents/'+encodeURIComponent(agentId), { method: 'DELETE' }).catch(() => {});
+      roomState.agents = roomState.agents.filter(agent => agent.id !== agentId);
+      const player = roomPlayers.get(agentId);
+      player?.destroy?.();
+      roomPlayers.delete(agentId);
+      roomBusyAgents.delete(agentId);
+      roomEventSources.get(agentId)?.close();
+      roomEventSources.delete(agentId);
+      roomAgentLogs.delete(agentId);
+      roomAgentSpeech.delete(agentId);
+      if (roomSelectedAgentId === agentId) {
+        roomSelectedAgentId = roomState.agents[0]?.id || '';
+      }
+      renderRoom();
+    }
+
+    function selectRoomAgent(agentId) {
+      roomSelectedAgentId = agentId;
+      renderRoom();
+    }
+
+    function roomStatusLabel(agent) {
+      const status = roomBusyAgents.has(agent.id) ? 'running' : (agent.status || 'idle');
+      if (currentLang === 'zh') {
+        return ({ idle: '待命', running: '工作中', done: '完成', failed: '异常', stopped: '已停止' })[status] || status;
+      }
+      return ({ idle: 'Idle', running: 'Working', done: 'Done', failed: 'Failed', stopped: 'Stopped' })[status] || status;
+    }
+
+    function roomAgentState(agent) {
+      return roomBusyAgents.has(agent.id) ? 'running' : (agent.status || 'idle');
+    }
+
+    function roomPetClass(agent) {
+      return 'habitat-pet '+roomAgentState(agent)+(roomSelectedAgentId === agent.id ? ' selected' : '');
+    }
+
+    function roomPetPosition(index) {
+      const positions = [
+        [22, 30], [52, 24], [76, 36], [34, 62], [65, 66], [18, 76], [84, 74], [48, 46],
+      ];
+      const point = positions[index % positions.length];
+      return `--x:${point[0]}%;--y:${point[1]}%`;
+    }
+
+    function roomPetStateFromStatus(agent, eventState) {
+      if (eventState && XiaoBaPetRuntime.animations[eventState]) return eventState;
+      const status = roomAgentState(agent);
+      if (status === 'running') return 'running';
+      if (status === 'done') return 'waving';
+      if (status === 'failed') return 'failed';
+      return 'idle';
+    }
+
+    function updateRoomAgentStatusFromState(agent, state, reason) {
+      if (state === 'failed') agent.status = 'failed';
+      else if (state === 'waving' && reason === 'created') agent.status = 'idle';
+      else if (state === 'waving') agent.status = 'done';
+      else if (['running', 'waiting', 'review', 'jumping'].includes(state)) agent.status = 'running';
+    }
+
+    function ensureRoomPlayer(agent) {
+      const canvas = document.getElementById('room-canvas-'+agent.id);
+      if (!canvas) return;
+      const existing = roomPlayers.get(agent.id);
+      if (existing && existing.canvas !== canvas) {
+        existing.destroy?.();
+        roomPlayers.delete(agent.id);
+      } else if (existing) {
+        return;
+      }
+      const player = new XiaoBaPetRuntime.SpritePlayer(canvas);
+      roomPlayers.set(agent.id, player);
+      player.load(agent.spriteUrl);
+      player.setState(roomPetStateFromStatus(agent));
+    }
+
+    function ensureRoomSubscription(agent) {
+      if (!window.EventSource || roomEventSources.has(agent.id)) return;
+      const source = new EventSource(API+'/api/room/events?agentId='+encodeURIComponent(agent.id)+'&replay=1');
+      roomEventSources.set(agent.id, source);
+      source.onmessage = event => {
+        const latestAgent = roomState.agents.find(item => item.id === agent.id);
+        if (!latestAgent) return;
+        handleRoomEvent(latestAgent, JSON.parse(event.data));
+      };
+      source.onerror = () => {
+        source.close();
+        roomEventSources.delete(agent.id);
+      };
+    }
+
+    function getRoomAgentLog(agentId) {
+      if (!roomAgentLogs.has(agentId)) roomAgentLogs.set(agentId, []);
+      return roomAgentLogs.get(agentId);
+    }
+
+    function updateRoomSpeech(agentId, text) {
+      const speech = document.getElementById('room-speech-'+agentId);
+      if (speech) speech.textContent = text || '';
+    }
+
+    function createRoomBubble(kind, text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'room-bubble '+kind;
+      bubble.textContent = text;
+      return bubble;
+    }
+
+    function renderRoomDetail(agentId = roomSelectedAgentId) {
+      if (agentId !== roomSelectedAgentId) return;
+      const agent = roomState.agents.find(item => item.id === agentId);
+      const detail = document.getElementById('habitat-detail');
+      if (!detail) return;
+      if (!agent) {
+        detail.innerHTML = '<div class="room-empty">'+escapeHtml(t('roomNoPetSelected'))+'</div>';
+        return;
+      }
+      const logs = getRoomAgentLog(agent.id);
+      detail.innerHTML = [
+        '<div class="habitat-detail-head">',
+        '<div><div class="habitat-detail-title">'+escapeHtml(agent.displayName)+'</div><div class="habitat-detail-subtitle">'+escapeHtml(agent.roleName)+' · '+escapeHtml(agent.cwd || '')+'</div></div>',
+        '<span class="room-pet-status '+escapeHtml(agent.status || 'idle')+'">'+escapeHtml(roomStatusLabel(agent))+'</span>',
+        '</div>',
+        '<div class="habitat-detail-log" id="room-log-'+escapeHtml(agent.id)+'">',
+        logs.length ? logs.map(entry => '<div class="room-bubble '+escapeHtml(entry.kind)+'">'+escapeHtml(entry.text)+'</div>').join('') : '<div class="room-bubble event">'+escapeHtml(t('roomNoLogs'))+'</div>',
+        '</div>',
+        '<div class="room-pet-compose">',
+        '<textarea class="config-input room-pet-input" id="room-input-'+escapeHtml(agent.id)+'" placeholder="'+escapeHtml(t('roomInputPlaceholder'))+'"></textarea>',
+        '<button class="btn btn-primary" onclick="sendRoomAgentMessage(\''+escapeJs(agent.id)+'\')">'+escapeHtml(t('roomSend'))+'</button>',
+        '</div>',
+        '<div class="room-actions" style="margin-top:8px;justify-content:flex-end"><button class="btn btn-ghost" onclick="removeRoomAgent(\''+escapeJs(agent.id)+'\')">'+escapeHtml(t('roomRemove'))+'</button></div>',
+      ].join('');
+      const log = document.getElementById('room-log-'+agent.id);
+      if (log) log.scrollTop = log.scrollHeight;
+    }
+
+    function syncRoomSubscriptions() {
+      const active = new Set(roomState.agents.map(agent => agent.id));
+      for (const [agentId, source] of roomEventSources.entries()) {
+        if (active.has(agentId)) continue;
+        source.close();
+        roomEventSources.delete(agentId);
+      }
+    }
+
+    function appendRoomBubble(agentId, kind, text) {
+      if (!text) return;
+      getRoomAgentLog(agentId).push({ kind, text });
+      if (kind !== 'event') {
+        roomAgentSpeech.set(agentId, text);
+        updateRoomSpeech(agentId, text);
+      }
+      const log = document.getElementById('room-log-'+agentId);
+      if (!log) return;
+      const empty = log.querySelector('.room-bubble.event');
+      if (empty && empty.textContent === t('roomNoLogs')) empty.remove();
+      const bubble = createRoomBubble(kind, text);
+      log.appendChild(bubble);
+      log.scrollTop = log.scrollHeight;
+      return bubble;
+    }
+
+    function upsertRoomAssistantBubble(agentId, text) {
+      const logs = getRoomAgentLog(agentId);
+      let entry = logs[logs.length - 1];
+      if (!entry || entry.kind !== 'assistant' || entry.streaming !== true) {
+        entry = { kind: 'assistant', text: '', streaming: true };
+        logs.push(entry);
+      }
+      entry.text = text;
+      roomAgentSpeech.set(agentId, text);
+      updateRoomSpeech(agentId, text);
+      renderRoomDetail(agentId);
+    }
+
+    function finishRoomAssistantBubble(agentId) {
+      const logs = getRoomAgentLog(agentId);
+      const entry = logs[logs.length - 1];
+      if (entry && entry.kind === 'assistant') delete entry.streaming;
+    }
+
+    function handleRoomEvent(agent, event) {
+      if (event.id) {
+        const seenKey = agent.id + ':' + event.id;
+        if (roomSeenEvents.has(seenKey)) return;
+        roomSeenEvents.add(seenKey);
+      }
+      if (event.type === 'connected') return;
+      if (event.type === 'user_message') {
+        roomTextBuffers.set(agent.id, '');
+        appendRoomBubble(agent.id, 'user', event.text || '');
+        return;
+      }
+      if (event.type === 'state') {
+        updateRoomAgentStatusFromState(agent, event.state, event.reason);
+        const player = roomPlayers.get(agent.id);
+        if (player) player.setState(roomPetStateFromStatus(agent, event.state));
+        const badge = document.getElementById('room-status-'+agent.id);
+        if (badge) {
+          const created = event.reason === 'created';
+          badge.textContent = created ? roomStatusLabel(agent) : (event.reason || roomStatusLabel(agent));
+          badge.className = 'room-pet-status '+(created ? (agent.status || 'idle') : (event.state || ''));
+        }
+        return;
+      }
+      if (event.type === 'text') {
+        const next = (roomTextBuffers.get(agent.id) || '') + (event.text || '');
+        roomTextBuffers.set(agent.id, next);
+        upsertRoomAssistantBubble(agent.id, next);
+        return;
+      }
+      if (event.type === 'room_message') {
+        const outbound = event.direction === 'outbound';
+        const name = outbound ? (event.toName || event.toAgentId || 'agent') : (event.fromName || event.fromAgentId || 'agent');
+        appendRoomBubble(agent.id, 'dm '+(outbound ? 'outbound' : 'inbound'), (outbound ? 'DM to ' : 'DM from ') + name + ': ' + (event.text || ''));
+        return;
+      }
+      if (event.type === 'tool_start') {
+        if (event.name === 'room_message') return;
+        appendRoomBubble(agent.id, 'tool', 'tool: '+(event.name || 'unknown'));
+        return;
+      }
+      if (event.type === 'tool_end') {
+        if (event.name === 'room_message') return;
+        appendRoomBubble(agent.id, 'tool', 'done: '+(event.name || 'tool'));
+        return;
+      }
+      if (event.type === 'error') {
+        agent.status = 'failed';
+        appendRoomBubble(agent.id, 'event', event.message || t('statusError'));
+        return;
+      }
+      if (event.type === 'done') {
+        if (event.visibleToUser !== false && event.text && !roomTextBuffers.get(agent.id)) {
+          upsertRoomAssistantBubble(agent.id, event.text);
+        }
+        finishRoomAssistantBubble(agent.id);
+        roomBusyAgents.delete(agent.id);
+        if (agent.status !== 'failed') agent.status = 'done';
+        renderRoomStatus(agent);
+      }
+    }
+
+    async function readRoomEventStream(body, agent) {
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+        for (const part of parts) {
+          const line = part.split('\n').find(item => item.startsWith('data: '));
+          if (line) handleRoomEvent(agent, JSON.parse(line.slice(6)));
+        }
+      }
+    }
+
+    async function sendRoomAgentMessage(agentId, explicitText) {
+      const agent = roomState.agents.find(item => item.id === agentId);
+      if (!agent || roomBusyAgents.has(agentId)) return;
+      const input = document.getElementById('room-input-'+agentId);
+      const text = (explicitText || input?.value || '').trim();
+      if (!text) return;
+      if (input) input.value = '';
+      roomBusyAgents.add(agentId);
+      agent.status = 'running';
+      renderRoomStatus(agent);
+      try {
+        const res = await fetch(API+'/api/room/agents/'+encodeURIComponent(agentId)+'/message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'request failed');
+        }
+        await readRoomEventStream(res.body, agent);
+      } catch (e) {
+        roomBusyAgents.delete(agentId);
+        agent.status = 'failed';
+        appendRoomBubble(agentId, 'event', t('roomAgentFailed') + e.message);
+        renderRoomStatus(agent);
+      }
+    }
+
+    async function broadcastRoomMission() {
+      const input = document.getElementById('room-broadcast-input');
+      const text = input?.value.trim() || '';
+      if (!text || roomState.agents.length === 0) return;
+      if (input) input.value = '';
+      await Promise.all(roomState.agents.map(agent => sendRoomAgentMessage(agent.id, text)));
+    }
+
+    function renderRoomStatus(agent) {
+      const card = document.getElementById('room-card-'+agent.id);
+      if (card) card.className = roomPetClass(agent);
+      const badge = document.getElementById('room-status-'+agent.id);
+      if (badge) {
+        const state = roomAgentState(agent);
+        badge.textContent = roomStatusLabel(agent);
+        badge.className = 'room-pet-status '+state;
+      }
+      const player = roomPlayers.get(agent.id);
+      if (player) player.setState(roomPetStateFromStatus(agent));
+      updateRoomSpeech(agent.id, roomAgentSpeech.get(agent.id) || '');
+      renderRoomDetail(agent.id);
+    }
+
+    function renderRoom() {
+      if (!document.getElementById('page-room')) return;
+      if (!roomState.cwd && latestStatus?.cwd) roomState.cwd = latestStatus.cwd;
+      const repo = document.getElementById('room-repo');
+      if (repo && document.activeElement !== repo) repo.value = roomState.cwd || '';
+
+      const dock = document.getElementById('room-role-dock');
+      if (dock) {
+        dock.innerHTML = roomState.roles.length
+          ? roomState.roles.map(role => [
+            '<button type="button" class="room-role-button" onclick="createRoomAgent(\''+escapeJs(role.roleName)+'\')">',
+            '<span class="role-avatar sm"><img src="'+escapeHtml(getRoleAvatar(role.roleName))+'" alt="'+escapeHtml(role.displayName)+'" /></span>',
+            '<span><span class="room-agent-name">'+escapeHtml(role.displayName)+'</span><span class="room-agent-duty">'+escapeHtml(role.roleName)+'</span></span>',
+            '<span class="room-role-plus">+</span>',
+            '</button>',
+          ].join('')).join('')
+          : '<div class="loading">'+t('loading')+'</div>';
+      }
+
+      const grid = document.getElementById('room-pet-grid');
+      if (grid) {
+        if (!roomState.agents.length) {
+          roomSelectedAgentId = '';
+          grid.innerHTML = '<div class="habitat-floor"><div class="room-empty">'+t('roomEmpty')+'</div></div><aside class="habitat-detail" id="habitat-detail"><div class="room-empty">'+t('roomNoPetSelected')+'</div></aside>';
+        } else {
+          if (!roomSelectedAgentId || !roomState.agents.some(agent => agent.id === roomSelectedAgentId)) {
+            roomSelectedAgentId = roomState.agents[0].id;
+          }
+          grid.innerHTML = [
+            '<div class="habitat-floor">',
+            roomState.agents.map((agent, index) => [
+              '<button type="button" class="'+escapeHtml(roomPetClass(agent))+'" id="room-card-'+escapeHtml(agent.id)+'" style="'+roomPetPosition(index)+'" onclick="selectRoomAgent(\''+escapeJs(agent.id)+'\')">',
+              '<div class="habitat-speech" id="room-speech-'+escapeHtml(agent.id)+'">'+escapeHtml(roomAgentSpeech.get(agent.id) || '')+'</div>',
+              '<div class="habitat-pet-stage"><canvas width="192" height="208" id="room-canvas-'+escapeHtml(agent.id)+'"></canvas></div>',
+              '<div class="habitat-pet-label"><span>'+escapeHtml(agent.displayName)+'</span><i class="habitat-status-dot"></i></div>',
+              '</button>',
+            ].join('')).join(''),
+            '</div>',
+            '<aside class="habitat-detail" id="habitat-detail"></aside>',
+          ].join('');
+        }
+      }
+
+      const pill = document.getElementById('room-status-pill');
+      if (pill) pill.textContent = roomState.agents.length + ' agents';
+
+      requestAnimationFrame(() => {
+        syncRoomSubscriptions();
+        roomState.agents.forEach(agent => {
+          ensureRoomSubscription(agent);
+          ensureRoomPlayer(agent);
+          renderRoomStatus(agent);
+        });
+        renderRoomDetail();
+      });
     }
 
     async function fetchPets(options = {}) {
@@ -4740,7 +6005,7 @@
 
     // Init
     applyLanguage();
-    fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();fetchPets();
+    fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();fetchPets();fetchRoom();
     const initialPage = new URLSearchParams(location.search).get('page');
     if (initialPage && pageTitles[initialPage]) switchPage(initialPage);
     pollDashboardNavigation();

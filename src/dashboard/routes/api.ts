@@ -10,6 +10,7 @@ import * as https from 'https';
 import * as http from 'http';
 import { getDashboardActiveRole, registerDashboardApiExtensions } from '../../bootstrap/dashboard-api';
 import { createPetRouter } from '../../pet/channel';
+import { createRoomRouter } from '../room-channel';
 import { PathResolver } from '../../utils/path-resolver';
 import { RoleResolver } from '../../utils/role-resolver';
 import { SkillParser } from '../../skills/skill-parser';
@@ -19,7 +20,7 @@ import { APP_VERSION } from '../../version';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
-const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store']);
+const DASHBOARD_PAGES = new Set(['services', 'room', 'pet', 'config', 'skills', 'roles', 'store']);
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
 let dashboardNavigationRequestId = 0;
 
@@ -55,6 +56,7 @@ function installSkillNpmDeps(skillDir: string): void {
 export function createApiRouter(serviceManager: ServiceManager, options: DashboardApiOptions = {}): Router {
   const router = Router();
   router.use(createPetRouter());
+  router.use(createRoomRouter());
 
   // ==================== 总览 ====================
 
@@ -69,6 +71,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       hostname: os.hostname(),
       platform: os.platform(),
       nodeVersion: process.version,
+      cwd: process.cwd(),
       model: config.model,
       provider: config.provider,
       skillsPath: PathResolver.getSkillsPath(),

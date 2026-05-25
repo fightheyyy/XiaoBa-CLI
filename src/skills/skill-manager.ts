@@ -12,10 +12,12 @@ export class SkillManager {
   private skillAliases: Map<string, string>;
   private skillsPath: string;
 
-  constructor() {
+  constructor(private readonly roleName?: string) {
     this.skills = new Map();
     this.skillAliases = new Map();
-    this.skillsPath = PathResolver.getSkillsPath();
+    this.skillsPath = roleName
+      ? (PathResolver.getRoleSubPathForRole(roleName, 'skills') || PathResolver.getBaseSkillsPath())
+      : PathResolver.getSkillsPath();
   }
 
   /**
@@ -25,7 +27,12 @@ export class SkillManager {
     this.skills.clear();
     this.skillAliases.clear();
 
-    const roleConfig = ActiveRoleContext.getActiveRoleConfig();
+    const resolvedRoleName = this.roleName
+      ? ActiveRoleContext.resolveRoleDirectoryName(this.roleName)
+      : undefined;
+    const roleConfig = resolvedRoleName
+      ? ActiveRoleContext.getRoleConfig(resolvedRoleName)
+      : ActiveRoleContext.getActiveRoleConfig();
     const inheritBaseSkills = roleConfig?.inheritBaseSkills !== false;
     const excludedBaseSkills = new Set(
       (roleConfig?.excludeBaseSkills || []).map(name => name.trim()).filter(Boolean)
@@ -35,7 +42,9 @@ export class SkillManager {
       await this.loadSkillsFromPath(PathResolver.getBaseSkillsPath(), excludedBaseSkills);
     }
 
-    const roleSkillsPath = PathResolver.getRoleSubPath('skills');
+    const roleSkillsPath = this.roleName
+      ? PathResolver.getRoleSubPathForRole(this.roleName, 'skills')
+      : PathResolver.getRoleSubPath('skills');
     if (roleSkillsPath) {
       await this.loadSkillsFromPath(roleSkillsPath);
     }

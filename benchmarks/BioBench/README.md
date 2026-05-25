@@ -16,27 +16,33 @@ Real-world bioinformatics engineering work: remote Linux server operations, R/Se
 - date range: 2026-04-08 to 2026-05-11 (18 days)
 - platforms: catscompany=37, weixin=3
 - sessions: 17, interactions: 68
+- episodes: 196
 - turns: 519, runtime events: 9018
+- turns/episode: avg 2.65, p50 2, p90 5
+- tool calls/episode: avg 17.14, p50 8, p90 47
+- tokens/episode: avg 134766.07, p50 81948, p90 376075, max 944776
 - tokens: 31430188 (30010868+1419320)
 - tool calls: 3915, failures: 945, success rate: 75.86%
 - generated cases: 24
-- redaction hits: 4555
+- case categories: hybrid_case=161, skill_case=25, runtime_case=10
+- redaction hits: 4569
 
 ## Case Kinds
 
 - artifact_delivery
-- browser_recovery
+- cluster_annotation
 - context_pressure
+- dialog_task
 - large_context_task
 - log_hygiene_redaction
-- multi_tool_task
-- platform_command_mismatch
+- plot_generation
+- r_script_editing
+- remote_workspace_navigation
 - runtime_restore
-- runtime_signal
 
 ## Top Issues
 
-- credential_exposure: 1350
+- credential_exposure: 1355
 - runtime_warning: 839
 - timeout: 259
 - runtime_error: 218
@@ -48,8 +54,14 @@ Real-world bioinformatics engineering work: remote Linux server operations, R/Se
 ## Files
 
 - `benchmark.json`: full normalized benchmark manifest.
+- `episodes.jsonl`: one extracted episode per line.
 - `cases.jsonl`: one generated benchmark case per line.
+- `dataset-card.md`: episode-level dataset statistics.
 - `summary.md`: generated aggregate summary for quick reading.
+- `SPEC.md`: BioBench case construction and trace schema spec.
+- `EVALUATION.md`: BioBench industrial evaluation design, branch lanes, A/B scoring, verifier plan.
+
+Implementation plan is maintained in `../PLAN.md`.
 
 ## Notes
 

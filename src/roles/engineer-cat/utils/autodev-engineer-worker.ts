@@ -260,8 +260,10 @@ export class AutoDevEngineerWorker {
   ): AutoDevEngineerOutput {
     const missingOutputReason = 'Engineer structured output is missing or invalid; case cannot enter reviewing without engineer-output.json evidence.';
     const missingImplementationReason = 'Engineer implementation note is missing; case cannot enter reviewing without implementation.md handoff evidence.';
+    const executionBlockedReason = 'Engineer execution summary is blocked; case cannot enter reviewing until the runner reports verified completion.';
     const requestedReviewing = output?.nextState === 'reviewing';
-    const nextState: AutoDevEngineerOutput['nextState'] = requestedReviewing && implementationGenerated ? 'reviewing' : 'blocked';
+    const executionAllowsReviewing = result.summary.nextState === 'reviewing';
+    const nextState: AutoDevEngineerOutput['nextState'] = requestedReviewing && implementationGenerated && executionAllowsReviewing ? 'reviewing' : 'blocked';
     const blockReasons: string[] = [];
 
     if (!output) {
@@ -271,6 +273,9 @@ export class AutoDevEngineerWorker {
     }
     if (!implementationGenerated) {
       blockReasons.push(missingImplementationReason);
+    }
+    if (!executionAllowsReviewing) {
+      blockReasons.push(executionBlockedReason);
     }
 
     const summary = String(output?.summary || result.summary.overview || blockReasons[0] || 'EngineerCat completed execution.').trim();
@@ -337,6 +342,28 @@ export class AutoDevEngineerWorker {
         title: 'Engineer implementation patch',
         format: 'diff',
         contentType: 'text/x-diff',
+      });
+    }
+
+    const taskReportPath = path.join(workspaceDir, 'engineer-task.md');
+    if (fs.existsSync(taskReportPath)) {
+      uploads.set(taskReportPath, {
+        path: taskReportPath,
+        type: 'execution_trace',
+        stage: 'execution',
+        title: 'Engineer task runner report',
+        format: 'markdown',
+      });
+    }
+
+    const validationPath = path.join(workspaceDir, 'validation.md');
+    if (fs.existsSync(validationPath)) {
+      uploads.set(validationPath, {
+        path: validationPath,
+        type: 'validation',
+        stage: 'execution',
+        title: 'Engineer validation report',
+        format: 'markdown',
       });
     }
 

@@ -324,6 +324,11 @@ export class CodexJobResumeTool implements Tool {
           type: 'boolean',
           description: '保留给策略判断；resume 主要沿用 Codex 原 session。默认 true。'
         },
+        sandbox: {
+          type: 'string',
+          enum: ['read-only', 'workspace-write', 'danger-full-access'],
+          description: 'Codex sandbox。默认继承 parent job，否则随 allow_edits 选择 workspace-write/read-only。'
+        },
         model: {
           type: 'string',
           description: '可选 Codex model。'
@@ -360,7 +365,9 @@ export class CodexJobResumeTool implements Tool {
         cwd: resolveCwd(context.workingDirectory, args.cwd || parentJob?.cwd),
         timeoutMs: readPositiveNumber(args.timeout_ms, DEFAULT_TIMEOUT_MS),
         allowEdits: args.allow_edits !== false,
-        sandbox: parentJob?.sandbox,
+        sandbox: readOptionalString(args.sandbox)
+          || parentJob?.sandbox
+          || normalizeSandbox(undefined, args.allow_edits !== false),
         model: readOptionalString(args.model),
         skipGitRepoCheck: args.skip_git_repo_check === true,
       });
@@ -683,6 +690,10 @@ function buildStartArgs(options: StartCodexJobOptions, lastMessagePath: string):
 function buildResumeArgs(options: ResumeCodexJobOptions, lastMessagePath: string): string[] {
   const args = [
     'exec',
+    '--cd',
+    options.cwd,
+    '--sandbox',
+    options.sandbox || normalizeSandbox(undefined, options.allowEdits),
     'resume',
     '--json',
     '-o',

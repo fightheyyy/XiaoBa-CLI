@@ -1,6 +1,6 @@
-# XiaoBa Trace Benchmark Catalog SPEC
+# XiaoBa Agent Evaluation System SPEC
 
-本文定义 `benchmarks/` 目录下所有 trace-derived benchmark 的通用工程规范。每个具体 benchmark 可以有自己的领域说明，但必须遵守这套通用模型。
+本文定义 `benchmarks/` 目录下所有 agent evaluation 资产的通用工程规范。每个具体 benchmark 可以有自己的领域说明，但必须遵守这套通用模型。
 
 工程推进计划见 [`PLAN.md`](PLAN.md)。`SPEC.md` 负责定义目标和 contract，`PLAN.md` 负责维护状态、优先级、owner 和验收条件。
 
@@ -8,11 +8,62 @@
 
 > 按 session 接入 trace，按 episode 切任务，按 case 做评测，按 metadata 路由优化 runtime 或 skill。
 
-## 1. Catalog 目标
+## 1. Evaluation System 目标
 
-`benchmarks/` 保存的是可长期复用的评测资产，不是原始日志归档。
+`benchmarks/` 保存的是可长期复用的评测资产，不是原始日志归档。完整体系不是单个 benchmark，而是从数据来源、执行、验收、回归到修复反馈的工程闭环。
 
-每个 benchmark 应该从真实 trace 中抽取：
+```text
+Agent Evaluation System
+├── Data Sources
+│   ├── trace-derived cases
+│   ├── requirement-driven cases
+│   └── contract / invariant cases
+├── Execution
+│   ├── AgentSession replay
+│   └── E2E run
+├── Evaluation
+│   ├── hard gate verifier
+│   ├── domain verifier
+│   ├── LLM / VLM judge
+│   └── human review
+├── Regression
+│   ├── baseline vs candidate A/B
+│   ├── quality / efficiency scorecard
+│   └── CI / release gate
+└── Feedback Loop
+    ├── route to runtime / skill / role
+    ├── create fix issue
+    └── update log schema / case library
+```
+
+### 三类 Case 来源
+
+| 来源 | 主要回答的问题 | 典型用途 | 默认评估方式 |
+| --- | --- | --- | --- |
+| **trace-derived cases** | 改动有没有让真实历史场景变好或退化 | runtime/skill 回归、防止真实问题复发、挖高价值失败模式 | baseline vs candidate replay、tool/token/latency diff、failure routing |
+| **requirement-driven cases** | 面对一个新需求，agent 能不能端到端完成任务 | 新能力验收、产品需求验收、role/skill 能力评测 | hard gate + domain verifier + LLM/VLM judge + 人审抽样 |
+| **contract / invariant cases** | runtime/harness 永远不能破的工程契约是否仍成立 | PR smoke、CI gate、基础可靠性防线 | 程序化 verifier，失败直接 block |
+
+### Contract / Invariant Case
+
+`contract / invariant case` 是不依赖某个具体业务需求、也不一定来自某条真实 trace 的工程契约用例。它评的不是“这个生信任务做得好不好”，而是 XiaoBa runtime/harness 必须永远满足的底层不变量。
+
+典型 contract：
+
+- 每个 assistant tool call 必须有 matching tool result，不能产生 dangling tool call。
+- tool timeout / cancel / crash 必须写入合成 tool result，provider transcript 仍然合法。
+- `logs/sessions/**/*.jsonl` 必须逐行可解析，`schema_version` 和关键字段保持兼容。
+- 日志、回复、artifact、scorecard 不得泄漏 credential、token、私有 host/path。
+- 必需 artifact 生成或发送后，必须有可观测 evidence，例如 `artifact_manifest` 或 delivery record。
+- retry 必须有上限；重复失败后必须变更策略、报告 blocked reason，不能无限循环。
+- context compaction / restore 后必须保留当前任务、用户硬约束和关键 artifact 状态。
+- AgentSession replay 和 E2E run 都必须能输出可关联的 run trace、artifacts 和 scorecard。
+
+这类 case 应该最先接入 CI，因为它们便宜、确定、失败归因清楚。只要 contract case 失败，后面的质量评分没有意义。
+
+### Trace-Derived Benchmark 目标
+
+Trace-derived benchmark 应该从真实 trace 中抽取：
 
 - 真实任务分布
 - 多轮交互结构
@@ -142,15 +193,19 @@ raw trace
 
 ```mermaid
 flowchart LR
-    subgraph Sources["Trace Sources：真实任务来源"]
+    subgraph Sources["Data Sources：评测数据来源"]
         LegacyZip["legacy sessions.zip<br/>旧 runtime trace"]
         SessionJsonl["logs/sessions/**/*.jsonl<br/>当前 JSONL 主线"]
         FutureTrace["production trace<br/>未来线上采样"]
+        Requirements["requirements<br/>产品需求 / 用户任务"]
+        Contracts["contracts<br/>runtime invariant"]
     end
 
     subgraph Catalog["Benchmark Catalog：离线评测集"]
         Episodes["episodes.jsonl<br/>任务片段"]
         Cases["cases.jsonl<br/>代表性 case"]
+        RequirementCases["requirement cases<br/>需求验收 case"]
+        ContractCases["contract cases<br/>工程契约 case"]
         DatasetCard["dataset-card.md<br/>分布和基线"]
     end
 
@@ -174,9 +229,15 @@ flowchart LR
     SessionJsonl --> Episodes
     FutureTrace --> Episodes
     Episodes --> Cases
+    Requirements --> RequirementCases
+    Contracts --> ContractCases
     Episodes --> DatasetCard
     Cases --> AgentSessionReplay
     Cases --> E2EReplay
+    RequirementCases --> AgentSessionReplay
+    RequirementCases --> E2EReplay
+    ContractCases --> AgentSessionReplay
+    ContractCases --> E2EReplay
     AgentSessionReplay --> Verifiers
     E2EReplay --> Verifiers
     Verifiers --> Scorecard
@@ -338,6 +399,8 @@ flowchart LR
 | 层级 | 当前状态 | 距离 goal 架构还差什么 | 下一步 |
 | --- | --- | --- | --- |
 | Trace 来源 | `sessions.zip`、`logs/sessions/**/*.jsonl` 已可接入 | 线上 trace 还需要固定 schema 版本和采集策略 | 固定 `schema_version` 并把生产 trace 接入同一入口 |
+| Requirement 来源 | 已定义设计口径 | 还没有标准 `requirement case` 文件布局和验收模板 | 补 `requirement.md`、`acceptance.md`、`rubrics.json` 规范 |
+| Contract 来源 | 已定义 runtime/harness invariant 类型 | 还没有最小 contract case suite | 先实现 transcript、redaction、JSONL schema、timeout、artifact evidence 五类 contract |
 | 日志 schema | 已记录 turn/runtime、tool、token，并开始写 `turn_id`、`tool_call_id`、`status`、`error_code`、`artifact_manifest` | `episode_id`、`skill_id` 覆盖率、context budget、runtime state 还不完整 | 在 runtime/skill/tool executor 中继续补结构化字段 |
 | Episode dataset | harness 可在本地输出 `episodes.jsonl` 和 dataset card；trace-derived artifacts 默认不提交 | episode 边界仍部分依赖启发式 | 优先消费 runtime 写入的 `episode_id` / artifact / skill 信号 |
 | Case metadata | harness 可在本地生成 runtime/skill/hybrid case 和 token/tool/failure metadata | 还没有 replay fixture 和 verifier id；公开仓库只提交已审查的 spec / evaluation | 为每类 case 绑定 fixture plan 与 verifier plan |

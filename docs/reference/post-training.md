@@ -27,7 +27,7 @@ XiaoBa 不只是一套 agent harness。它可以演进成一套面向 agentic po
 
 ## 2. 与现有文档的关系
 
-- `docs/SPEC.md`：仍然是 XiaoBa-CLI 唯一整体架构 spec。
+- `SPEC.md`：仍然是 XiaoBa-CLI 唯一整体架构 spec。
 - `benchmarks/SPEC.md`：定义 trace-derived benchmark catalog、episode / case schema 和 replay 资产结构。
 - `docs/reference/replay-loop.md`：定义 case replay 与 Inspector / Engineer / Reviewer 反馈闭环。
 - 本文档：定义这些资产如何进一步变成后训练数据、reward signal 和 agentic RL 实验环境。

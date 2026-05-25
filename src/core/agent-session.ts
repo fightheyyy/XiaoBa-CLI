@@ -32,6 +32,7 @@ export interface AgentServices {
   aiService: AIService;
   toolManager: ToolManager;
   skillManager: SkillManager;
+  roleName?: string;
 
 }
 
@@ -131,7 +132,7 @@ export class AgentSession {
   async init(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
-    const systemPrompt = await PromptManager.buildSystemPrompt();
+    const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.services.roleName });
     if (systemPrompt.trim()) {
       this.messages.push({ role: 'system', content: systemPrompt });
     }
