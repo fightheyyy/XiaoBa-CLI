@@ -8,10 +8,21 @@ interface LoggerContextStore {
   sessionLogger?: SessionTurnLogger;
 }
 
+export interface RuntimeLogEntry {
+  level: string;
+  message: string;
+  line: string;
+  sessionId?: string;
+  timestamp: number;
+}
+
+const MAX_RUNTIME_LOG_LINES = 1000;
+
 export class Logger {
   private static spinner: Ora | null = null;
   private static silentMode: boolean = false;
   private static logContext = new AsyncLocalStorage<LoggerContextStore>();
+  private static runtimeLogs: RuntimeLogEntry[] = [];
 
   private static stripAnsi(str: string): string {
     // eslint-disable-next-line no-control-regex
@@ -23,6 +34,51 @@ export class Logger {
     if (store?.sessionLogger) {
       store.sessionLogger.logRuntime(level, this.stripAnsi(message));
     }
+  }
+
+  private static recordRuntimeLog(level: string, message: string): void {
+    const store = this.logContext.getStore();
+    const cleanMessage = this.stripAnsi(message);
+    this.runtimeLogs.push({
+      level,
+      message: cleanMessage,
+      line: this.formatRuntimeLine(level, cleanMessage),
+      sessionId: store?.sessionId,
+      timestamp: Date.now(),
+    });
+    if (this.runtimeLogs.length > MAX_RUNTIME_LOG_LINES) {
+      this.runtimeLogs = this.runtimeLogs.slice(-MAX_RUNTIME_LOG_LINES);
+    }
+  }
+
+  private static formatRuntimeLine(level: string, message: string): string {
+    switch (level) {
+      case 'SUCCESS':
+        return `✓ ${message}`;
+      case 'ERROR':
+        return `✗ ${message}`;
+      case 'WARN':
+        return `⚠ ${message}`;
+      case 'INFO':
+        return `ℹ ${message}`;
+      default:
+        return message;
+    }
+  }
+
+  static getRuntimeLogs(options: {
+    lines?: number;
+    sessionPrefix?: string;
+  } = {}): string[] {
+    const lines = options.lines ?? 100;
+    const logs = options.sessionPrefix
+      ? this.runtimeLogs.filter(entry => entry.sessionId?.startsWith(options.sessionPrefix!))
+      : this.runtimeLogs;
+    return logs.slice(-lines).map(entry => entry.line);
+  }
+
+  static clearRuntimeLogs(): void {
+    this.runtimeLogs = [];
   }
 
   static withSessionContext<T>(sessionId: string | undefined, fn: () => T): T;
@@ -56,6 +112,7 @@ export class Logger {
 
   static success(message: string): void {
     this.writeToSessionLog('SUCCESS', message);
+    this.recordRuntimeLog('SUCCESS', message);
     if (!this.silentMode) {
       console.log(styles.success(message));
     }
@@ -63,16 +120,19 @@ export class Logger {
 
   static error(message: string): void {
     this.writeToSessionLog('ERROR', message);
+    this.recordRuntimeLog('ERROR', message);
     console.error(styles.error(message));
   }
 
   static warning(message: string): void {
     this.writeToSessionLog('WARN', message);
+    this.recordRuntimeLog('WARN', message);
     console.warn(styles.warning(message));
   }
 
   static info(message: string): void {
     this.writeToSessionLog('INFO', message);
+    this.recordRuntimeLog('INFO', message);
     if (!this.silentMode) {
       console.log(styles.info(message));
     }
@@ -80,16 +140,19 @@ export class Logger {
 
   static title(message: string): void {
     this.writeToSessionLog('INFO', message);
+    this.recordRuntimeLog('INFO', message);
     console.log('\n' + styles.title(message) + '\n');
   }
 
   static text(message: string): void {
     this.writeToSessionLog('TEXT', message);
+    this.recordRuntimeLog('TEXT', message);
     console.log(styles.text(message));
   }
 
   static highlight(message: string): void {
     this.writeToSessionLog('TEXT', message);
+    this.recordRuntimeLog('TEXT', message);
     console.log(styles.highlight(message));
   }
 

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import { EventEmitter } from 'events';
+import { Logger } from '../utils/logger';
 
 const isWindows = process.platform === 'win32';
 
@@ -170,8 +171,16 @@ export class ServiceManager extends EventEmitter {
 
   getLogs(name: string, lines: number = 100): string[] {
     const svc = this.services.get(name);
-    if (!svc) return [];
-    return svc.logs.slice(-lines);
+    const serviceLogs = svc ? svc.logs : [];
+    const processLogs = this.getProcessLogs(name, lines);
+    return [...serviceLogs, ...processLogs].slice(-lines);
+  }
+
+  private getProcessLogs(name: string, lines: number): string[] {
+    if (name !== 'pet') {
+      return [];
+    }
+    return Logger.getRuntimeLogs({ lines, sessionPrefix: 'pet:' });
   }
 
   start(name: string): ServiceInfo {
