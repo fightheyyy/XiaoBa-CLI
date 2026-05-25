@@ -317,15 +317,16 @@ export class FeishuBot {
       if (result.handled) return;
     }
 
-    Logger.info(`[${key}] 收到消息: ${msg.text.slice(0, 50)}...`);
+    session.runWithLogContext(() => Logger.info(`[${key}] 收到消息: ${msg.text.slice(0, 50)}...`));
 
     let userText = msg.text;
     // 合并转发消息：拉取子消息内容拼接为文本
-    if (msg.mergeForwardIds && msg.mergeForwardIds.length > 0) {
-      Logger.info(`[${key}] 合并转发消息，拉取 ${msg.mergeForwardIds.length} 条子消息...`);
-      const mergedText = await this.sender.fetchMergeForwardTexts(msg.mergeForwardIds);
-      userText = `[以下是用户转发的合并消息，共${msg.mergeForwardIds.length}条]\n${mergedText}`;
-      Logger.info(`[${key}] 合并转发内容已拼接（${mergedText.length}字符）`);
+    const mergeForwardIds = msg.mergeForwardIds ?? [];
+    if (mergeForwardIds.length > 0) {
+      session.runWithLogContext(() => Logger.info(`[${key}] 合并转发消息，拉取 ${mergeForwardIds.length} 条子消息...`));
+      const mergedText = await this.sender.fetchMergeForwardTexts(mergeForwardIds);
+      userText = `[以下是用户转发的合并消息，共${mergeForwardIds.length}条]\n${mergedText}`;
+      session.runWithLogContext(() => Logger.info(`[${key}] 合并转发内容已拼接（${mergedText.length}字符）`));
     } else if (msg.file) {
       // 文件/图片消息：交给 Agent 自主判断下一步，不在平台层强制回复
       const localPath = await this.sender.downloadFile(
@@ -346,13 +347,13 @@ export class FeishuBot {
       });
       const queuedAttachments = this.consumePendingAttachments(key);
       userText = this.buildAttachmentOnlyPrompt(queuedAttachments);
-      Logger.info(`[${key}] 附件消息已交给 Agent 自主判断（attachments=${queuedAttachments.length})`);
+      session.runWithLogContext(() => Logger.info(`[${key}] 附件消息已交给 Agent 自主判断（attachments=${queuedAttachments.length})`));
     } else {
       // 普通文本消息：若有待处理附件，拼接上下文后一并交给 Agent
       const queuedAttachments = this.consumePendingAttachments(key);
       if (queuedAttachments.length > 0) {
         userText = `${msg.text}\n${this.formatAttachmentContext(queuedAttachments)}`;
-        Logger.info(`[${key}] 追加 ${queuedAttachments.length} 个待处理附件到用户指令`);
+        session.runWithLogContext(() => Logger.info(`[${key}] 追加 ${queuedAttachments.length} 个待处理附件到用户指令`));
       }
     }
 
@@ -360,12 +361,12 @@ export class FeishuBot {
     if (session.isBusy()) {
       if (this.isInterruptMessage(userText)) {
         session.requestInterrupt();
-        Logger.warning(`[${key}] 检测到用户中断请求，已请求中止当前回合`);
+        session.runWithLogContext(() => Logger.warning(`[${key}] 检测到用户中断请求，已请求中止当前回合`));
       }
       const queue = this.messageQueue.get(key) ?? [];
       queue.push({ userText, chatId: msg.chatId, senderId: msg.senderId });
       this.messageQueue.set(key, queue);
-      Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`);
+      session.runWithLogContext(() => Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`));
       return;
     }
 
@@ -410,7 +411,7 @@ export class FeishuBot {
 
       // 等待主会话空闲
       if (session.isBusy()) {
-        Logger.info(`[${sessionKey}] 主会话忙，等待重试注入子智能体反馈 (${attempt + 1}/${MAX_RETRIES + 1})`);
+        session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话忙，等待重试注入子智能体反馈 (${attempt + 1}/${MAX_RETRIES + 1})`));
         continue;
       }
 
@@ -422,7 +423,7 @@ export class FeishuBot {
       try {
         const result = await session.handleMessage(text, { channel });
         if (result.text === BUSY_MESSAGE) {
-          Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`);
+          session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`));
           continue;
         }
         if (result.text === ERROR_MESSAGE) {
@@ -518,25 +519,25 @@ export class FeishuBot {
       if (this.chimeInJudge) {
         const shouldChimeIn = await this.chimeInJudge.shouldChimeIn(text);
         if (!shouldChimeIn) {
-          Logger.info(`[Bridge] 广播上下文已注入(不插嘴): session=${sessionKey}, from=${msg.from}`);
+          session.runWithLogContext(() => Logger.info(`[Bridge] 广播上下文已注入(不插嘴): session=${sessionKey}, from=${msg.from}`));
           return;
         }
         // 判断为"该插嘴"：加随机延迟（1-3秒），降低两个 bot 同时说话的概率
         const beforeDelay = Date.now();
         const delay = 1000 + Math.random() * 2000;
-        Logger.info(`[Bridge] 判断应插嘴，延迟 ${Math.round(delay)}ms: session=${sessionKey}`);
+        session.runWithLogContext(() => Logger.info(`[Bridge] 判断应插嘴，延迟 ${Math.round(delay)}ms: session=${sessionKey}`));
         await new Promise(resolve => setTimeout(resolve, delay));
         // 延迟后检查：如果期间有新广播消息（别的 bot 已经回复了），放弃插嘴
         if (this.chimeInJudge.hasNewMessageSince(beforeDelay)) {
-          Logger.info(`[Bridge] 延迟期间已有其他 bot 回复，放弃插嘴: session=${sessionKey}`);
+          session.runWithLogContext(() => Logger.info(`[Bridge] 延迟期间已有其他 bot 回复，放弃插嘴: session=${sessionKey}`));
           return;
         }
       } else {
-        Logger.info(`[Bridge] 广播上下文已注入: session=${sessionKey}, from=${msg.from}`);
+        session.runWithLogContext(() => Logger.info(`[Bridge] 广播上下文已注入: session=${sessionKey}, from=${msg.from}`));
         return;
       }
     } else {
-      Logger.info(`[Bridge] 广播中被@，触发推理: session=${sessionKey}, from=${msg.from}`);
+      session.runWithLogContext(() => Logger.info(`[Bridge] 广播中被@，触发推理: session=${sessionKey}, from=${msg.from}`));
     }
 
     // H3: 插嘴时注入语感提示，让回复更简短自然

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Message, ContentBlock } from '../types';
 
-const SESSION_LOG_DIR = path.resolve('logs/sessions');
+const SESSION_LOG_DIR = path.join('logs', 'sessions');
 const MAX_TOOL_RESULT_LENGTH = Number(process.env.XIAOBA_SESSION_TOOL_RESULT_LIMIT || 10000);
 const SESSION_LOG_SCHEMA_VERSION = 2;
 
@@ -80,7 +80,7 @@ export class SessionTurnLogger {
 
     const date = new Date();
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const dir = path.join(SESSION_LOG_DIR, sessionType, dateStr);
+    const dir = path.join(path.resolve(SESSION_LOG_DIR), sessionType, dateStr);
 
     fs.mkdirSync(dir, { recursive: true });
     const safeSessionId = sessionId.replace(/[:<>"|?*]/g, '_');

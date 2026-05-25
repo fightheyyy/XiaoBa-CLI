@@ -187,9 +187,8 @@ export class WeixinBot {
       ? ` +${mediaFiles.filter(f => /\.(jpg|jpeg|png|gif)$/i.test(f)).length}图 +${mediaFiles.filter(f => !/\.(jpg|jpeg|png|gif)$/i.test(f)).length}文件`
       : '';
 
-    Logger.info(`[${sessionKey}] 收到消息: ${parsed.text?.slice(0, 50) || '[媒体消息]'}${mediaDesc}...`);
-
     const session = this.sessionManager.getOrCreate(sessionKey, msg.to_user_id);
+    session.runWithLogContext(() => Logger.info(`[${sessionKey}] 收到消息: ${parsed.text?.slice(0, 50) || '[媒体消息]'}${mediaDesc}...`));
     const channel = this.buildChannel(msg.to_user_id, sessionKey);
 
     let userText = parsed.text || '';
