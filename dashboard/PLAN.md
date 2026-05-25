@@ -2,13 +2,13 @@
 
 ## Current Status
 
-Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them as free working nodes on a white cyber-office floor, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
+Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn round table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
 ```mermaid
 flowchart LR
     subgraph Done["Done"]
         Nav["Room nav"]
-        Surface["White cyber-office Room UI"]
+        Surface["Frontend-drawn seat UI"]
         API["Room API"]
         Scoped["Role-scoped sessions"]
         PM["room_message private DM"]
@@ -43,7 +43,7 @@ flowchart LR
 4. Role-scoped prompt/skills/tools per room agent: completed.
 5. SSE event stream per room agent: completed.
 6. Role-neutral private-message primitive: completed.
-7. White cyber-office Room visual refresh: completed.
+7. Frontend-drawn round-table Room visual refresh: completed.
 8. Durable room trace and replay: not started.
 9. Feishu room bridge / external A2A: not started.
 
@@ -67,7 +67,9 @@ flowchart LR
 - `GET /api/navigation/open?page=room` is accepted.
 - `GET /api/room/roles` returns role agents and current `cwd`.
 - Room page can pull multiple role agents into the workspace.
-- Each agent renders as a free spatial node with an animated spritesheet, status dot, speech bubble, and selectable detail panel.
+- The Room floor shows a frontend-drawn white cyber-office meeting room with a large round table.
+- The visible chair count equals the supported maximum multi-agent count, currently 8, and the backend rejects more agents once all seats are occupied.
+- Each added agent occupies one seat and renders as an animated pet with a status dot, speech bubble, and selectable detail panel.
 - Every Room agent exposes the same `room_message` tool for private natural-language messages to another agent.
 - `POST /api/room/messages` can deliver a private message, publish `room_message` events to sender and recipient, and wake the recipient agent.
 - Mobile viewport does not horizontally overflow.
@@ -87,6 +89,9 @@ flowchart LR
 - 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed after the Room white cyber-office refresh.
 - 2026-05-25: Browser verified `/?page=room` at 1470x900 and 390x844: visible Room copy uses the new naming, old workspace selectors are absent, 4 role buttons render, the Room floor/detail panels render, and neither viewport has horizontal overflow.
 - 2026-05-25: Browser rechecked the Room visual language after replacing the dark cyber treatment with white glass panels, light grid lines, blue/warm accents, and dashboard-matching surfaces; desktop 1470x900 and mobile 390x844 still have no horizontal overflow.
+- 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md src/dashboard/room-channel.ts` passed after replacing the image background with a frontend-drawn meeting room.
+- 2026-05-25: Playwright verified `/?page=room` at 1470x900 and 390x844: 8 seats render, 1 occupied seat matches 1 room agent, no image background is used, the round table exists, the label shows `1/8`, and neither viewport has horizontal overflow.
+- 2026-05-25: API smoke created 8 room agents successfully and confirmed the 9th `POST /api/room/agents` returns 400, matching the frontend seat count.
 
 ## Risks / Open Questions
 

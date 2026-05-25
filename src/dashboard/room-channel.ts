@@ -59,6 +59,7 @@ interface RoomEventSink {
 }
 
 const ROOM_ROLE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/i;
+export const ROOM_MAX_AGENTS = 8;
 
 export function createRoomRouter(): Router {
   const channel = new RoomChannel();
@@ -127,6 +128,7 @@ export class RoomChannel {
       res.json({
         roles: this.listRoleOptions(),
         cwd: process.cwd(),
+        maxAgents: ROOM_MAX_AGENTS,
       });
     });
 
@@ -196,6 +198,9 @@ export class RoomChannel {
   }
 
   private async createAgent(inputRoleName: unknown, inputCwd: unknown): Promise<RoomAgent> {
+    if (this.agents.size >= ROOM_MAX_AGENTS) {
+      throw new Error('room seats are full');
+    }
     const requested = typeof inputRoleName === 'string' ? inputRoleName.trim() : '';
     if (!requested) {
       throw new Error('roleName required');

@@ -2,7 +2,7 @@
 
 ## Problem
 
-XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Room page lets a human pull multiple role agents into one white cyber-office workspace and send outcome-oriented tasks to each agent without turning the experience into a terminal or card wall.
+XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Room page lets a human pull multiple role agents into one frontend-drawn white cyber-office meeting room with a large round table, then send outcome-oriented tasks to each seated agent without turning the experience into a terminal or card wall.
 
 ## Scope
 
@@ -13,7 +13,7 @@ In scope:
 - Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
 - Multiple room agent seats, each backed by its own `AgentSession`, role prompt, role skills, role-specific tools, pet sprite, and SSE message stream.
 - A role-neutral private-message primitive for Room agent-to-agent communication.
-- A visual multi-agent Room in `dashboard/index.html`: free pet nodes first, detailed logs only after selecting an agent terminal.
+- A visual multi-agent Room in `dashboard/index.html`: a frontend-drawn meeting room first, a fixed set of supported seats around a large round table, role pets occupying seats as agents are added, and detailed logs only after selecting an agent terminal.
 
 Out of scope for the current Room:
 
@@ -32,8 +32,8 @@ flowchart LR
         Mission["Outcome request"]
     end
 
-    subgraph Room["Room：white cyber-office agent workspace"]
-        UI["Free pet UI"]
+    subgraph Room["Room：frontend-drawn meeting room"]
+        UI["Round-table seat UI"]
         API["Room API"]
         Seats["RoomAgent seats"]
         PM["Private-message bus"]
@@ -68,7 +68,8 @@ flowchart LR
 
 ## Concepts
 
-- **Room**: A local white cyber-office workspace for multi-agent coordination, presented as free working role agents rather than terminal panes.
+- **Room**: A local frontend-drawn white cyber-office meeting room for multi-agent coordination, presented as role pets seated around a large round table rather than terminal panes.
+- **Seat limit**: The visible chair count is the frontend-supported maximum multi-agent count. Adding an agent occupies the next open seat; creation is blocked when every seat is occupied.
 - **Role pet**: A room seat backed by a role such as `engineer-cat`, `reviewer-cat`, `inspector-cat`, or `researcher-cat`.
 - **Role-scoped runtime**: Each room pet gets its own `AgentSession`, role-specific prompt, role skills, and role tools. This avoids relying on the global active dashboard role.
 - **Private message**: The only Room agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
@@ -85,6 +86,7 @@ Room deliberately does not define role-specific protocol verbs such as claim, de
 ```ts
 interface RoomRolesResponse {
   cwd: string;
+  maxAgents: number;
   roles: Array<{
     roleName: string;
     displayName: string;
@@ -152,3 +154,4 @@ The tool publishes a `room_message` event to both the sender and recipient, then
 - Room does not mutate files by itself; tools called by a role agent do the work.
 - Room communication is role-neutral; roles may have different capabilities, but the protocol treats every agent as a peer.
 - Room is process-local today; durable replay and cross-process A2A are future layers.
+- Room currently supports 8 concurrent room agents, matching the frontend's visible round-table seat count.
