@@ -5809,6 +5809,8 @@
 
     function renderSkillCard(sk) {
       const canManage = sk.enabled !== false;
+      const action = canManage ? 'disable' : 'enable';
+      const skillNameArg = escapeHtml(escapeJs(sk.name));
       const roleTag = sk.roleOwned ? '<span class="tag warm">'+t('tagRole')+'</span>' : '<span class="tag gray">Runtime</span>';
       return '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'">'+
         '<div class="skill-name">'+escapeHtml(sk.name)+(sk.enabled===false?' <span class="tag red">'+t('tagDisabled')+'</span>':'')+'</div>'+
@@ -5816,7 +5818,7 @@
         '<div class="skill-tags">'+roleTag+(sk.userInvocable?'<span class="tag green">'+t('tagUserInvocable')+'</span>':'')+(sk.autoInvocable?'<span class="tag purple">'+t('tagAutoInvocable')+'</span>':'')+(sk.maxTurns?'<span class="tag gray">max '+sk.maxTurns+' turns</span>':'')+'</div>'+
         (sk.aliases&&sk.aliases.length?'<div class="skill-files">Aliases: '+sk.aliases.map(escapeHtml).join(', ')+'</div>':'')+
         (sk.files?'<div class="skill-files">'+sk.files.map(escapeHtml).join(', ')+'</div>':'')+
-        '<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+escapeHtml(sk.name)+'\','+canManage+')">'+(sk.enabled===false?t('enable'):t('disable'))+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+escapeHtml(sk.name)+'\')">'+t('delete')+'</button></div>'+
+        '<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+skillNameArg+'\',\''+action+'\')">'+(sk.enabled===false?t('enable'):t('disable'))+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+skillNameArg+'\')">'+t('delete')+'</button></div>'+
       '</div>';
     }
 
@@ -5886,8 +5888,24 @@
       try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):t('noLogsYet');}catch(e){document.getElementById('logs-body').textContent=t('loadFailed');}
     }
     function closeLogs(){document.getElementById('logs-modal').classList.remove('show');}
-    async function toggleSkill(n,c){await fetch(API+'/api/skills/'+encodeURIComponent(n)+'/'+(c?'disable':'enable'),{method:'POST'});fetchSkills();}
-    async function deleteSkill(n){if(!confirm(t('deleteSkillConfirmPrefix')+n+t('deleteSkillConfirmSuffix')))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
+    async function toggleSkill(n,action){
+      const mode = typeof action === 'string' ? action : (action ? 'disable' : 'enable');
+      try{
+        const res=await fetch(API+'/api/skills/'+encodeURIComponent(n)+'/'+mode,{method:'POST'});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok||data.error){alert(t('operationFailed')+(data.error||res.status));return;}
+        await fetchSkills();
+      }catch(e){alert(t('operationFailed')+e.message);}
+    }
+    async function deleteSkill(n){
+      if(!confirm(t('deleteSkillConfirmPrefix')+n+t('deleteSkillConfirmSuffix')))return;
+      try{
+        const res=await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok||data.error){alert(t('operationFailed')+(data.error||res.status));return;}
+        await fetchSkills();
+      }catch(e){alert(t('operationFailed')+e.message);}
+    }
     function formatUptime(s){if(s<60)return Math.floor(s)+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
 
     // === Config with collapsible groups ===
