@@ -2,13 +2,13 @@
 
 ## Current Status
 
-Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them as free working nodes on a cyber-office floor, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
+Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them as free working nodes on a white cyber-office floor, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
 ```mermaid
 flowchart LR
     subgraph Done["Done"]
         Nav["Room nav"]
-        Surface["Cyber-office Room UI"]
+        Surface["White cyber-office Room UI"]
         API["Room API"]
         Scoped["Role-scoped sessions"]
         PM["room_message private DM"]
@@ -43,7 +43,7 @@ flowchart LR
 4. Role-scoped prompt/skills/tools per room agent: completed.
 5. SSE event stream per room agent: completed.
 6. Role-neutral private-message primitive: completed.
-7. Cyber-office Room visual refresh: completed.
+7. White cyber-office Room visual refresh: completed.
 8. Durable room trace and replay: not started.
 9. Feishu room bridge / external A2A: not started.
 
@@ -84,8 +84,9 @@ flowchart LR
 - 2026-05-25: Browser smoke confirmed `POST /api/room/messages` publishes `DM to` on the sender agent, `DM from` on the recipient agent, keeps both pet canvases nonblank, and reports no console errors.
 - 2026-05-25: Frontend was reshaped from card-like agent panels into a Room surface with free agent nodes and a selected-agent detail log.
 - 2026-05-25: `node --import tsx --test tests/dashboard-service-logs.test.ts tests/logger.test.ts` verified the `pet` service logs include in-process `pet:*` runtime lines while excluding Feishu and unscoped Dashboard logs.
-- 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed after the Room cyber-office refresh.
+- 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed after the Room white cyber-office refresh.
 - 2026-05-25: Browser verified `/?page=room` at 1470x900 and 390x844: visible Room copy uses the new naming, old workspace selectors are absent, 4 role buttons render, the Room floor/detail panels render, and neither viewport has horizontal overflow.
+- 2026-05-25: Browser rechecked the Room visual language after replacing the dark cyber treatment with white glass panels, light grid lines, blue/warm accents, and dashboard-matching surfaces; desktop 1470x900 and mobile 390x844 still have no horizontal overflow.
 
 ## Risks / Open Questions
 

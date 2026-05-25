@@ -2,7 +2,7 @@
 
 ## Problem
 
-XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Room page lets a human pull multiple role agents into one cyber-office workspace and send outcome-oriented tasks to each agent without turning the experience into a terminal or card wall.
+XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Room page lets a human pull multiple role agents into one white cyber-office workspace and send outcome-oriented tasks to each agent without turning the experience into a terminal or card wall.
 
 ## Scope
 
@@ -32,7 +32,7 @@ flowchart LR
         Mission["Outcome request"]
     end
 
-    subgraph Room["Room：cyber-office agent workspace"]
+    subgraph Room["Room：white cyber-office agent workspace"]
         UI["Free pet UI"]
         API["Room API"]
         Seats["RoomAgent seats"]
@@ -68,7 +68,7 @@ flowchart LR
 
 ## Concepts
 
-- **Room**: A local cyber-office workspace for multi-agent coordination, presented as free working role agents rather than terminal panes.
+- **Room**: A local white cyber-office workspace for multi-agent coordination, presented as free working role agents rather than terminal panes.
 - **Role pet**: A room seat backed by a role such as `engineer-cat`, `reviewer-cat`, `inspector-cat`, or `researcher-cat`.
 - **Role-scoped runtime**: Each room pet gets its own `AgentSession`, role-specific prompt, role skills, and role tools. This avoids relying on the global active dashboard role.
 - **Private message**: The only Room agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
