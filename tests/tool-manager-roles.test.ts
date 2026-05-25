@@ -103,6 +103,10 @@ describe('ToolManager role-specific tools', () => {
   test('engineer-cat 角色通过组合层注册 Codex session 和 job 工具', () => {
     RoleResolver.activateRole('engineer-cat');
     const manager = createRoleAwareToolManager();
+    assert.ok(manager.getTool('engineer_task_run'));
+    assert.ok(manager.getTool('engineer_task_status'));
+    assert.ok(manager.getTool('engineer_task_resume'));
+    assert.ok(manager.getTool('engineer_task_cancel'));
     assert.ok(manager.getTool('codex_session_list'));
     assert.ok(manager.getTool('codex_job_start'));
     assert.ok(manager.getTool('codex_job_status'));

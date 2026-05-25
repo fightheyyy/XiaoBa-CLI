@@ -1,24 +1,27 @@
 # Legacy Trace Benchmark
 
 Source: sessions.zip
-Scanned at: 2026-05-12T07:50:49.486Z
+Scanned at: 2026-05-19T09:36:36.358Z
 Benchmark score: 69/100
 
 ## Summary
 
 - files: 40
 - lines: 9537, parse coverage: 100.00%
-- turns: 519, runtime events: 9018
+- turns: 519, runtime events: 9018, episodes: 196
+- turns/episode: avg 2.65, p50 2, p90 5
+- tool calls/episode: avg 17.14, p50 8, p90 47
+- tokens/episode: avg 134766.07, p50 81948, p90 376075, max 944776
 - platforms: catscompany=37, weixin=3
 - dates: 2026-04-08 to 2026-05-11 (18 days)
 - sessions: 17, interactions: 68
 - tokens: 31430188 (30010868+1419320)
 - tool calls: 3915, failures: 945, success rate: 75.86%
-- redaction hits: 4555
+- redaction hits: 4569
 
 ## Top Issues
 
-- credential_exposure: 1350
+- credential_exposure: 1355
 - runtime_warning: 839
 - timeout: 259
 - runtime_error: 218
@@ -42,78 +45,102 @@ Benchmark score: 69/100
 
 ## Benchmark Cases
 
-- legacy-b902e0b13ed354 (browser_recovery)
-  source: sessions/catscompany/2026-04-08/trace-0001.jsonl
-  baseline: 1 turns, 4 tool calls, 4 failures, issues=timeout, tool_failure
-- legacy-95f55dd4da9a49 (context_pressure)
-  source: sessions/catscompany/2026-04-08/trace-0001.jsonl
-  baseline: 1 turns, 27 tool calls, 16 failures, issues=context_pressure, rate_limited_retry, timeout, tool_failure
-- legacy-ac280eec136444 (context_pressure)
+- biobench.case.000005 (runtime_case/remote_workspace_navigation)
+  source: sessions/catscompany/2026-04-08/trace-0003.jsonl
+  episode: biobench.ep.000005, task=remote_workspace_navigation, skills=none
+  baseline: 2 turns, 6 tool calls, 1 failures, tokens=5675, successRate=83.33%, issues=tool_failure
+- biobench.case.000018 (hybrid_case/log_hygiene_redaction)
+  source: sessions/catscompany/2026-04-09/trace-0001.jsonl
+  episode: biobench.ep.000018, task=plot_generation, skills=none
+  baseline: 5 turns, 102 tool calls, 33 failures, tokens=944776, successRate=67.65%, issues=context_pressure, credential_exposure, timeout, tool_failure
+- biobench.case.000023 (hybrid_case/context_pressure)
   source: sessions/catscompany/2026-04-09/trace-0002.jsonl
-  baseline: 1 turns, 48 tool calls, 6 failures, issues=context_pressure, timeout, tool_failure, platform_command_mismatch
-- legacy-b326fa695ce985 (context_pressure)
-  source: sessions/catscompany/2026-04-09/trace-0002.jsonl
-  baseline: 1 turns, 71 tool calls, 18 failures, issues=context_pressure, rate_limited_retry, timeout, tool_failure, platform_command_mismatch
-- legacy-18fd71ad80f32d (log_hygiene_redaction)
+  episode: biobench.ep.000023, task=cluster_annotation, skills=agent-browser
+  baseline: 2 turns, 119 tool calls, 24 failures, tokens=541672, successRate=79.83%, issues=context_pressure, platform_command_mismatch, rate_limited_retry, timeout, tool_failure
+- biobench.case.000024 (skill_case/plot_generation)
+  source: sessions/catscompany/2026-04-09/trace-0003.jsonl
+  episode: biobench.ep.000024, task=plot_generation, skills=remember, skill-publish
+  baseline: 5 turns, 5 tool calls, 0 failures, tokens=29688, successRate=100.00%, issues=none
+- biobench.case.000026 (hybrid_case/log_hygiene_redaction)
   source: sessions/catscompany/2026-04-09/trace-0004.jsonl
-  baseline: 1 turns, 100 tool calls, 49 failures, issues=context_pressure, timeout, credential_exposure, tool_failure, platform_command_mismatch
-- legacy-c8079dba68159e (platform_command_mismatch)
+  episode: biobench.ep.000026, task=plot_generation, skills=ssh-connect
+  baseline: 5 turns, 223 tool calls, 97 failures, tokens=539665, successRate=56.50%, issues=context_pressure, credential_exposure, platform_command_mismatch, timeout, tool_failure
+- biobench.case.000027 (hybrid_case/log_hygiene_redaction)
   source: sessions/catscompany/2026-04-09/trace-0005.jsonl
-  baseline: 1 turns, 23 tool calls, 4 failures, issues=tool_failure, platform_command_mismatch
-- legacy-4d975748a77eac (log_hygiene_redaction)
+  episode: biobench.ep.000027, task=plot_generation, skills=ssh-connect
+  baseline: 12 turns, 80 tool calls, 19 failures, tokens=577883, successRate=76.25%, issues=context_pressure, credential_exposure, platform_command_mismatch, timeout, tool_failure
+- biobench.case.000032 (skill_case/r_script_editing)
   source: sessions/catscompany/2026-04-09/trace-0007.jsonl
-  baseline: 1 turns, 61 tool calls, 32 failures, issues=context_pressure, timeout, credential_exposure, tool_failure, platform_command_mismatch
-- legacy-0c54d60a02d90d (artifact_delivery)
-  source: sessions/catscompany/2026-04-09/trace-0007.jsonl
-  baseline: 1 turns, 14 tool calls, 6 failures, issues=timeout, tool_failure
-- legacy-869b5c77ce6261 (log_hygiene_redaction)
+  episode: biobench.ep.000032, task=r_script_editing, skills=none
+  baseline: 1 turns, 1 tool calls, 0 failures, tokens=82714, successRate=100.00%, issues=none
+- biobench.case.000046 (hybrid_case/log_hygiene_redaction)
   source: sessions/catscompany/2026-04-11/trace-0001.jsonl
-  baseline: 1 turns, 135 tool calls, 23 failures, issues=context_pressure, timeout, credential_exposure, tool_failure
-- legacy-0b173317caa34b (large_context_task)
-  source: sessions/catscompany/2026-04-16/trace-0002.jsonl
-  baseline: 1 turns, 4 tool calls, 1 failures, issues=tool_failure
-- legacy-63d1dcea2b60ce (large_context_task)
-  source: sessions/catscompany/2026-04-16/trace-0002.jsonl
-  baseline: 1 turns, 4 tool calls, 2 failures, issues=timeout, tool_failure
-- legacy-4b5bb7a55d7446 (artifact_delivery)
+  episode: biobench.ep.000046, task=plot_generation, skills=none
+  baseline: 2 turns, 146 tool calls, 27 failures, tokens=681251, successRate=81.51%, issues=context_pressure, credential_exposure, timeout, tool_failure
+- biobench.case.000068 (skill_case/r_script_editing)
+  source: sessions/catscompany/2026-04-14/trace-0001.jsonl
+  episode: biobench.ep.000068, task=r_script_editing, skills=none
+  baseline: 2 turns, 2 tool calls, 1 failures, tokens=1827, successRate=50.00%, issues=tool_failure
+- biobench.case.000077 (runtime_case/artifact_delivery)
+  source: sessions/catscompany/2026-04-14/trace-0002.jsonl
+  episode: biobench.ep.000077, task=artifact_delivery, skills=none
+  baseline: 1 turns, 1 tool calls, 0 failures, tokens=4004, successRate=100.00%, issues=none
+- biobench.case.000091 (runtime_case/dialog_task)
+  source: sessions/catscompany/2026-04-15/trace-0002.jsonl
+  episode: biobench.ep.000091, task=dialog_task, skills=none
+  baseline: 3 turns, 0 tool calls, 0 failures, tokens=25627, successRate=100.00%, issues=none
+- biobench.case.000089 (runtime_case/dialog_task)
+  source: sessions/catscompany/2026-04-15/trace-0002.jsonl
+  episode: biobench.ep.000089, task=dialog_task, skills=none
+  baseline: 1 turns, 0 tool calls, 0 failures, tokens=17751, successRate=100.00%, issues=none
+- biobench.case.000087 (runtime_case/dialog_task)
+  source: sessions/catscompany/2026-04-15/trace-0002.jsonl
+  episode: biobench.ep.000087, task=dialog_task, skills=none
+  baseline: 1 turns, 0 tool calls, 0 failures, tokens=17738, successRate=100.00%, issues=none
+- biobench.case.000109 (runtime_case/large_context_task)
+  source: sessions/weixin/2026-04-16/trace-0001.jsonl
+  episode: biobench.ep.000109, task=dialog_task, skills=none
+  baseline: 1 turns, 0 tool calls, 0 failures, tokens=83793, successRate=100.00%, issues=none
+- biobench.case.000115 (skill_case/cluster_annotation)
   source: sessions/catscompany/2026-04-22/trace-0001.jsonl
-  baseline: 1 turns, 6 tool calls, 1 failures, issues=tool_failure
-- legacy-dd3584367982ea (multi_tool_task)
+  episode: biobench.ep.000115, task=cluster_annotation, skills=none
+  baseline: 2 turns, 6 tool calls, 1 failures, tokens=75064, successRate=83.33%, issues=tool_failure
+- biobench.case.000131 (skill_case/r_script_editing)
   source: sessions/catscompany/2026-04-23/trace-0001.jsonl
-  baseline: 1 turns, 6 tool calls, 1 failures, issues=tool_failure
-- legacy-c17fa87f7da5e0 (multi_tool_task)
+  episode: biobench.ep.000131, task=r_script_editing, skills=none
+  baseline: 4 turns, 5 tool calls, 0 failures, tokens=8530, successRate=100.00%, issues=none
+- biobench.case.000122 (skill_case/plot_generation)
   source: sessions/catscompany/2026-04-23/trace-0001.jsonl
-  baseline: 1 turns, 12 tool calls, 6 failures, issues=tool_failure
-- legacy-08a30237307f46 (multi_tool_task)
+  episode: biobench.ep.000122, task=plot_generation, skills=gene-analysis
+  baseline: 2 turns, 7 tool calls, 1 failures, tokens=46672, successRate=85.71%, issues=tool_failure
+- biobench.case.000140 (runtime_case/large_context_task)
   source: sessions/catscompany/2026-04-27/trace-0001.jsonl
-  baseline: 1 turns, 5 tool calls, 1 failures, issues=tool_failure
-- legacy-9e50b426494a42 (runtime_signal)
-  source: sessions/catscompany/2026-04-29/trace-0001.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=credential_exposure
-- legacy-b162afea299b25 (runtime_signal)
-  source: sessions/catscompany/2026-04-29/trace-0001.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=runtime_warning, credential_exposure
-- legacy-7e4eb4cb2e8d9e (platform_command_mismatch)
+  episode: biobench.ep.000140, task=dialog_task, skills=none
+  baseline: 1 turns, 0 tool calls, 0 failures, tokens=42517, successRate=100.00%, issues=none
+- biobench.case.000146 (skill_case/plot_generation)
+  source: sessions/catscompany/2026-04-28/trace-0001.jsonl
+  episode: biobench.ep.000146, task=plot_generation, skills=none
+  baseline: 5 turns, 1 tool calls, 0 failures, tokens=96862, successRate=100.00%, issues=none
+- biobench.case.000159 (hybrid_case/context_pressure)
   source: sessions/catscompany/2026-04-29/trace-0002.jsonl
-  baseline: 1 turns, 19 tool calls, 3 failures, issues=timeout, tool_failure, platform_command_mismatch
-- legacy-2b4ab4625a68af (platform_command_mismatch)
+  episode: biobench.ep.000159, task=r_script_editing, skills=none
+  baseline: 8 turns, 74 tool calls, 9 failures, tokens=299901, successRate=87.84%, issues=context_pressure, platform_command_mismatch, timeout, tool_failure
+- biobench.case.000160 (hybrid_case/context_pressure)
   source: sessions/catscompany/2026-04-29/trace-0002.jsonl
-  baseline: 1 turns, 34 tool calls, 6 failures, issues=timeout, tool_failure, platform_command_mismatch
-- legacy-b15ba49c272e5e (runtime_restore)
-  source: sessions/catscompany/2026-04-30/trace-0001.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=restore_event
-- legacy-6690e2a6d8af88 (runtime_restore)
-  source: sessions/catscompany/2026-04-30/trace-0001.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=restore_event
-- legacy-7b62a3c555d017 (runtime_signal)
-  source: sessions/catscompany/2026-05-07/trace-0001.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=runtime_warning, credential_exposure
-- legacy-4d40e8db6d43a8 (large_context_task)
-  source: sessions/catscompany/2026-05-07/trace-0001.jsonl
-  baseline: 1 turns, 4 tool calls, 1 failures, issues=tool_failure
-- legacy-0a39103215bd73 (runtime_restore)
-  source: sessions/catscompany/2026-05-08/trace-0003.jsonl
-  baseline: 0 turns, 0 tool calls, 0 failures, issues=restore_event
+  episode: biobench.ep.000160, task=cluster_annotation, skills=none
+  baseline: 3 turns, 48 tool calls, 11 failures, tokens=173366, successRate=77.08%, issues=context_pressure, platform_command_mismatch, timeout, tool_failure
+- biobench.case.000161 (hybrid_case/context_pressure)
+  source: sessions/catscompany/2026-04-29/trace-0002.jsonl
+  episode: biobench.ep.000161, task=r_script_editing, skills=none
+  baseline: 5 turns, 56 tool calls, 9 failures, tokens=376075, successRate=83.93%, issues=context_pressure, platform_command_mismatch, timeout, tool_failure
+- biobench.case.000177 (skill_case/plot_generation)
+  source: sessions/catscompany/2026-05-08/trace-0001.jsonl
+  episode: biobench.ep.000177, task=plot_generation, skills=none
+  baseline: 5 turns, 6 tool calls, 0 failures, tokens=310252, successRate=100.00%, issues=none
+- biobench.case.000196 (runtime_case/runtime_restore)
+  source: sessions/catscompany/2026-05-11/trace-0001.jsonl
+  episode: biobench.ep.000196, task=dialog_task, skills=none
+  baseline: 1 turns, 0 tool calls, 0 failures, tokens=20042, successRate=100.00%, issues=restore_event
 
 ## Notes
 

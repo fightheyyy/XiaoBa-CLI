@@ -22,8 +22,27 @@ export class PathResolver {
     return ActiveRoleContext.getActiveRolePath();
   }
 
+  static getRolePath(roleName?: string): string | undefined {
+    if (!roleName) {
+      return this.getActiveRolePath();
+    }
+    const resolved = ActiveRoleContext.resolveRoleDirectoryName(roleName);
+    if (!resolved) {
+      return undefined;
+    }
+    return path.join(ActiveRoleContext.getRolesRoot(), resolved);
+  }
+
   static getRoleSubPath(relativePath: string): string | undefined {
     const rolePath = this.getActiveRolePath();
+    if (!rolePath) {
+      return undefined;
+    }
+    return path.join(rolePath, relativePath);
+  }
+
+  static getRoleSubPathForRole(roleName: string | undefined, relativePath: string): string | undefined {
+    const rolePath = this.getRolePath(roleName);
     if (!rolePath) {
       return undefined;
     }

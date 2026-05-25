@@ -211,7 +211,7 @@ XiaoBa 提供本地 CLI 和多个消息入口 adapter。
 
 ## 架构
 
-整体架构真相源见 [`docs/SPEC.md`](docs/SPEC.md)。
+整体架构真相源见 [`SPEC.md`](SPEC.md)。
 
 ![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
 
@@ -361,7 +361,7 @@ npm run electron:build:linux
 ## 文档
 
 - [Docs Index](docs/README.md)
-- [XiaoBa-CLI Architecture Spec](docs/SPEC.md)
+- [XiaoBa-CLI Architecture Spec](SPEC.md)
 - [CD / Release](docs/ops/CD_RELEASE.md)
 - [Auto Update](docs/ops/AUTO_UPDATE.md)
 - [Reference Docs](docs/README.md#专题参考)

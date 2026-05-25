@@ -138,13 +138,23 @@ EngineerTaskRunner
 ```text
 Chat 需求
   -> EngineerTaskInput
-  -> EngineerTaskRunner
+  -> engineer_task_run tool
+      -> EngineerTaskRunner
 
 AutoDev case
   -> AutoDevCaseAdapter
   -> EngineerTaskInput
   -> EngineerTaskRunner
 ```
+
+当前第一版 runtime tool：
+
+- `engineer_task_run`：接收日常工程需求，落盘 task/plan，并调用本机 Codex CLI 后台执行
+- `engineer_task_status`：同步底层 Codex job 状态，返回 task、Codex session、最后输出和 artifact 路径
+- `engineer_task_resume`：把用户新增反馈或验证失败信息继续投喂同一个 Codex session
+- `engineer_task_cancel`：取消 task 和底层 Codex job
+
+这层工具是 Feishu、CLI chat、pet 和后续 AutoDev 共用的控制面。Prompt 只负责判断“需求是否清楚、是否应该开任务、反馈是否需要 resume”，状态、产物和 Codex 调用不靠 prompt 记忆。
 
 ### 2.5 Coding Agent 协作能力
 
@@ -532,18 +542,20 @@ EngineerCat 要把这套手动流程自动化：
 
 ## 11. MVP 路线
 
-第一阶段：Runner 雏形。
+第一阶段：Runner runtime tool 雏形。
 
 - 新增 `EngineerTaskRunner`
-- 新增 `engineer-task-runner` skill，供 `spawn_subagent` 后台执行
-- 支持 chat input 转 task input
-- 创建 `data/engineer-runs/<task-id>/`
-- 生成 `plan.md`
-- 生成 `route.json`
-- 支持 `self` 和 `omc ask codex`
-- 运行一个默认 validation command
-- 输出 `final-summary.md`
-- IM 场景下长任务默认通过 subagent 跑，主会话可以回答进度、停止和继续
+- 新增 `engineer_task_run` / `engineer_task_status` / `engineer_task_resume` / `engineer_task_cancel`
+- 支持 chat / Feishu session 把用户需求转成可追踪 task
+- 创建 `data/engineer-tasks/<task-id>/`
+- 生成 `task.json`、`plan.md`
+- 通过 `codex_job_start` 启动本机 Codex
+- 通过 `codex_job_resume` 续接同一个 Codex session
+- 通过 `engineer_task_status` 同步 Codex job 状态、最后输出、session id 和 `final-summary.md`
+- 支持 `validation_commands`，Codex 完成后自动运行验证命令并落盘 `validation.md`
+- 支持 `engineer-quality-gates` 第一版：当调用方没有显式传 `validation_commands` 时，editable Node/TypeScript 项目会从 `package.json` 推断 build/test gate；read-only 任务默认不推断
+- IM 场景下长任务优先走 `engineer_task_run`，主会话可以回答进度、停止和继续
+- 尚未完成：changed-file-aware targeted test 矩阵、外部 diff review gate、PR 准备闭环
 
 第二阶段：AutoDev 复用 Runner。
 
@@ -579,7 +591,7 @@ src/roles/engineer-cat/
     engineer-artifact-store.ts
     autodev-case-adapter.ts
   tools/
-    run-engineer-task-tool.ts
+    engineer-task-tools.ts
   skills/
     engineer-task-runner/SKILL.md
 ```
@@ -590,7 +602,10 @@ src/roles/engineer-cat/
 
 - 用户可以 `xiaoba chat --role engineer -m "<需求>"`
 - EngineerCat 自动创建任务工作区
+- 能用 `engineer_task_run/status/resume/cancel` 从 Feishu 或 CLI 创建、追踪和恢复 Codex 工程任务
 - 能说明计划、调度原因和验证结果
+- 能通过 `validation_commands` 跑基础验证并记录 `validation.md`
+- 能在常见 Node/TypeScript 项目没有显式 `validation_commands` 时推断基础 build/test gate，并记录 `validation_source`
 - 能通过 OMC 调用 Codex 做 review / risk analysis
 - 能查询某个项目下已有 Codex sessions，并指定 session resume 继续交互
 - 能完成简单代码或文档任务
@@ -620,15 +635,31 @@ src/roles/engineer-cat/
 | AutoDev 工程执行缺少 `engineer-output.json` 仍推进 `reviewing` | Reviewer 会拿到无结构化证据的“完成”案件 | worker 必须归一化输出；缺结构化输出时写入 blocked `engineer-output.json`，状态转 `blocked` | 已修复，有回归 |
 | 只有 `engineer-output.json` 但缺少 `implementation.md` 仍推进 `reviewing` | Reviewer 缺少人类可读交接，无法复核实现 | 只有结构化输出和 implementation note 同时存在，且 nextState 明确为 `reviewing`，才允许进入 reviewing | 已修复，有回归 |
 | 原始输出推荐 review，但归一化后被 blocked | AutoDev 下一步动作会误导 Reviewer 去审一个缺证据案件 | blocked 时覆盖为 `engineer_output_missing_or_incomplete`，除非原始输出本身明确 blocked | 已修复，有回归 |
-| `EngineerTaskRunner` 目前主要是 skill 规程，尚未落成独立 runner 类 | Chat 和 AutoDev 仍可能走两套执行逻辑，难以做确定性状态机和质量门槛 | 下一阶段实现 `src/roles/engineer-cat/utils/engineer-task-runner.ts`，再让 AutoDev 和 chat/subagent 共用 | residual risk |
-| OMC 调用依赖外部 `omc`、`codex`、`claude`、`tmux` | 环境缺失时不能完成真实外部 agent 调度 | 禁止个人路径 fallback；缺依赖时 blocked 或降级 ask；所有缺失项写入交付摘要 | 已定义，需真实环境验证 |
+| AutoDev 工程入口需要复用 `EngineerTaskRunner` | Chat/Feishu 与 AutoDev 走两套执行逻辑时，质量门槛和 trace 口径不能完全统一 | 新增 `EngineerTaskExecutionExecutor`，AutoDev 默认通过 `EngineerTaskRunner` 调用 Codex，并保留 `AUTODEV_ENGINEER_EXECUTOR=agent_session` 作为显式旧路径 fallback；worker 会上传 `engineer-task.md` 和 `validation.md` | fixed for default path |
+| OMC 调用依赖外部 `omc`、`codex`、`claude`、`tmux` | 环境缺失时不能完成真实外部 agent 调度 | 禁止个人路径 fallback；缺依赖时 blocked 或降级 ask；所有缺失项写入交付摘要；本机 Codex start/resume 和 Feishu-style E2E 已完成 smoke | partially verified |
 | EngineerCat 不能自己发现项目下的 Codex 会话 | 用户必须手工查 session id，无法像本人一样续接 Codex 工作上下文 | 注册 `codex_session_list` / `codex_job_*` 给 EngineerCat；按项目 cwd 精确查询 session，再用 `codex_job_resume` 指定会话交互 | 已修复，有回归 |
 | coding agent 输出可能幻觉或过度修改 | EngineerCat 可能盲从外部 agent，破坏仓库边界 | OMC prompt 必须包含背景、目标、范围、约束、产物、验收；读取结果后做二次判断和本地验证 | 已定义，需 runner 强化 |
-| 验证命令太弱或未执行 | 交付看起来完成但不可运行 | 每个任务先写 validation plan；至少执行 build/targeted test/diff check 或记录 blocked reason | 已定义，需 runner 强化 |
+| 验证命令太弱或未执行 | 交付看起来完成但不可运行 | `engineer_task_run/resume` 支持 `validation_commands`；Codex 完成后由 runner 执行验证、记录 `validation.md`，失败时 task 变为 `failed`；第一版 `engineer-quality-gates` 会为 editable Node/TypeScript 项目自动推断 build/test gate；真实 git 改动会追加 `git diff --check && git diff --cached --check`，runner 自己的 trace 文件不算业务改动 | fixed for basic Node and diff path |
 
 当前事实置信边界：
 
 - 对 AutoDev handoff 安全性：缺少结构化证据或 implementation handoff 时不会再进入 `reviewing`。
 - 对 OMC 泛化入口：文档和 skill 已禁止个人 checkout fallback，只允许 `OMC_BIN` 或 PATH 中的 `omc`。
-- 对“高级工程师 agent”完整替代日常工作：当前还不能给 100% 信心，因为独立 `EngineerTaskRunner` 状态机、artifact store、quality gates 和 OMC adapter 尚未代码化。
-- 达到事实上的高置信 MVP，需要下一步把 `EngineerTaskRunner` 从 skill 规程落成可测试 runtime：同一个 runner 接 chat/subagent/AutoDev，落盘 `task.json`、`plan.md`、`route.json`、`validation.md`、`final-summary.md`，并有回归测试证明失败不会伪装成完成。
+- 对 Feishu/Chat 触发 Codex 工程任务：已有 `engineer_task_*` runtime tool，能落盘 `task.json`、`plan.md`、`final-summary.md`，并能调用/追踪/恢复 Codex job。
+- 2026-05-23 已验证：`npm run build` 通过；`npm test -- tests/engineer-task-runner.test.ts` 实际跑完整套 168 个测试并全绿。
+- 2026-05-23 已验证：`EngineerTaskRunner` 会在 Codex 完成后执行 `validation_commands`，通过时记录 `validation_status=passed`，失败时 task 变为 `failed`，不会伪装成完成；对应测试纳入全量 168 个测试。
+- 2026-05-23 已验证：`EngineerTaskRunner` 在没有显式 `validation_commands` 时，会为 editable XiaoBa-style Node 任务推断 `npm run build` / `npm run test`，并把 `validation_source=inferred` 与原因写入 `plan.md` / `validation.md`；read-only 任务不会意外推断验证命令。
+- 2026-05-23 已验证：`EngineerTaskRunner` 在 Codex 留下真实 git 改动时，会追加 `git diff --check && git diff --cached --check`；`data/engineer-tasks`、`data/codex-jobs`、`data/sessions` 这些 runner trace 不会误触发 change-aware gate。
+- 2026-05-23 已验证：AutoDev 默认执行器会通过 `EngineerTaskRunner` 产出 AutoDev handoff 和 validation；如果 runner summary 是 blocked，即使 `engineer-output.json` 声称 reviewing，worker 也会转 blocked。
+- 2026-05-23 已验证：通过编译后的 `createRoleAwareToolManager` 激活 `engineer-cat`，真实调用 PATH 中的本机 Codex CLI；`engineer_task_run` 生成 task `codex-smoke-20260523-1715`、job `codex-20260523-172014-ae8f9c2a`、session `019e5422-9c34-7930-b411-9c68a15fd0bb`，最后输出 `engineer-task-codex-smoke-ok`。
+- 2026-05-23 已验证：`engineer_task_resume` 续接同一 Codex session `019e5422-9c34-7930-b411-9c68a15fd0bb`，生成 job `codex-resume-20260523-172203-68c36429`，最后输出 `engineer-task-codex-resume-ok`。
+- 2026-05-23 已验证：`codex_session_list` 能在当前项目 cwd 下精确查到同一个 session。
+- 2026-05-23 已验证：真实 `engineer_task_run` + `validation_commands` 联合 smoke 通过，task `codex-validation-smoke-20260523-1735`、job `codex-20260523-173529-d2067b25`、session `019e5430-94cd-7bf1-9e29-8990b47a8cd5`，Codex 最后输出 `engineer-task-codex-validation-smoke-ok`，验证输出 `engineer-task-validation-smoke-ok`，`validation_status=passed`。
+- 2026-05-23 已验证：`XIAOBA_REAL_CODEX_E2E=1 node --import tsx --test tests/e2e/feishu-engineer-real-codex.e2e.ts` 通过，覆盖 Feishu-style `MessageSessionManager` -> `engineer_task_run` -> 本机 Codex CLI -> `engineer_task_status` -> `validation_commands` 的真实 Codex 链路；task `feishu-real-codex-1779529867246`、job `codex-20260523-175107-9fe5b76c`、session `019e543e-e801-77a3-aaa0-85081823c2d1`，Codex 最后输出 `engineer-feishu-real-codex-e2e-ok`，验证输出 `engineer-feishu-real-validation-ok`，`validation_status=passed`。
+- 2026-05-23 已验证：quality gate 集成后再次运行真实 Feishu-style Codex E2E 通过，task `feishu-real-codex-1779530282264`、job `codex-20260523-175802-34e2f4e8`、session `019e5445-37a5-7911-94cc-f0f5a931bebd`。
+- 2026-05-23 已验证：change-aware diff gate 集成后再次运行真实 Feishu-style Codex E2E 通过，task `feishu-real-codex-1779530562098`、job `codex-20260523-180242-1e68e04f`、session `019e5449-7de1-7980-aca9-9725398d7942`。
+- 2026-05-23 已验证：真实 `FeishuBot.onMessage` 入口能接收 `im.message.receive_v1` 形状事件，通过注入的本地 SDK/network 依赖暴露 EngineerCat tools，调用真实 `engineer_task_run` 和本机 Codex CLI，完成 validation 并回复来源 chat；只读 XiaoBa-CLI cwd smoke 的 task `feishu-bot-real-codex-1779531157656`、job `codex-20260523-181237-b0408e57`、session `019e5452-92a4-7230-a4a5-1c40d6f50d58`，`validation_status=passed`，bot 能 clean destroy 且测试进程正常退出。
+- 2026-05-23 已验证：同一 `FeishuBot.onMessage` 入口能执行可写维护任务：EngineerCat 通过本机 Codex 修改隔离临时 git 工作区的 `README.md`，验证命令确认 marker，runner 标记 completed；task `feishu-bot-edit-codex-1779531167770`、job `codex-20260523-181247-e4c98834`、session `019e5452-b851-7e71-bdfd-ea6f0e291633`，`validation_status=passed`。
+- 尚未验证：真实 Feishu WebSocket 通过 Lark 服务器收到外部消息后的线上链路；当前证据覆盖的是 Feishu `MessageSessionManager` surface 和 `FeishuBot.onMessage` event-entry 的本地端到端路由，并已串到真实本机 Codex CLI。
+- 对“高级工程师 agent”完整替代日常工作：当前还不能给 100% 信心，因为真实 Feishu WebSocket、真实 AutoDev 服务联调、changed-file-aware targeted test 矩阵、外部 diff review gate 和 PR 闭环仍未完全代码化或验证。
+- 达到事实上的高置信 MVP，需要下一步补真实 Feishu WebSocket smoke、真实 AutoDev service smoke、changed-file-aware targeted tests，并有 ReviewerCat agent-to-agent eval 证明边界探测能力。

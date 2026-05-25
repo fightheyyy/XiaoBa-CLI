@@ -39,6 +39,13 @@ interface QueuedMessage {
   senderId: string;
 }
 
+interface FeishuBotRuntimeOverrides {
+  client?: Lark.Client;
+  wsClient?: Lark.WSClient;
+  sender?: MessageSender;
+  agentServices?: AgentServices;
+}
+
 const PENDING_ANSWER_TIMEOUT_MS = 120_000;
 
 /** 从 Group/*.md 解析同事档案 */
@@ -92,14 +99,14 @@ export class FeishuBot {
   /** 主会话忙时的消息队列，key = sessionKey */
   private messageQueue = new Map<string, QueuedMessage[]>();
 
-  constructor(config: FeishuConfig) {
+  constructor(config: FeishuConfig, overrides: FeishuBotRuntimeOverrides = {}) {
     const baseConfig = {
       appId: config.appId,
       appSecret: config.appSecret,
     };
 
-    this.client = new Lark.Client(baseConfig);
-    this.wsClient = new Lark.WSClient({
+    this.client = overrides.client || new Lark.Client(baseConfig);
+    this.wsClient = overrides.wsClient || new Lark.WSClient({
       ...baseConfig,
       loggerLevel: Lark.LoggerLevel.info,
     });
@@ -115,10 +122,10 @@ export class FeishuBot {
       this.handler.setMentionAliases(aliases);
       Logger.warning(`未配置 FEISHU_BOT_OPEN_ID，群聊 @ 将使用别名匹配: ${aliases.join(', ')}`);
     }
-    this.sender = new MessageSender(this.client);
+    this.sender = overrides.sender || new MessageSender(this.client);
 
-    const aiService = new AIService();
-    const toolManager = createRoleAwareToolManager();
+    const aiService = overrides.agentServices?.aiService || new AIService();
+    const toolManager = overrides.agentServices?.toolManager || createRoleAwareToolManager();
 
     // 加载同事档案 + 已知 chat_id（供 bridge 和 session 使用）
     const teammates = loadTeammateProfiles();
@@ -141,10 +148,10 @@ export class FeishuBot {
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
     Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
 
-    const skillManager = new SkillManager();
+    const skillManager = overrides.agentServices?.skillManager || new SkillManager();
 
     // 组装 AgentServices
-    this.agentServices = {
+    this.agentServices = overrides.agentServices || {
       aiService,
       toolManager,
       skillManager,

@@ -211,7 +211,7 @@ Minimal IM runtime topic design: [`docs/reference/message-runtime.md`](docs/refe
 
 ## Architecture
 
-Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md).
+Canonical architecture source: [`SPEC.md`](SPEC.md).
 
 ![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
 
@@ -361,7 +361,7 @@ Release workflow notes: [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md).
 ## Docs
 
 - [Docs Index](docs/README.md)
-- [XiaoBa-CLI Architecture Spec](docs/SPEC.md)
+- [XiaoBa-CLI Architecture Spec](SPEC.md)
 - [CD / Release](docs/ops/CD_RELEASE.md)
 - [Auto Update](docs/ops/AUTO_UPDATE.md)
 - [Reference Docs](docs/README.md#专题参考)

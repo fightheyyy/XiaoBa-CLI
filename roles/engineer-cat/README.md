@@ -4,7 +4,7 @@
 
 它不是只会改代码的 bot。它服务两条线：一条是 `runtime -> inspector -> engineer` 的 AutoDev 闭环；另一条是用户日常开发时，把任务通过 OMC 拆给 Codex、Claude Code 或 OMC team，再综合结果完成交付。
 
-角色设计和演进真相源见 [SPEC.md](./SPEC.md)。
+角色设计和演进真相源见 [SPEC.md](./SPEC.md)，当前执行计划见 [PLAN.md](./PLAN.md)。
 
 ## 角色定位
 
@@ -14,7 +14,7 @@
 - 默认行为：先读证据，再动手；优先最小改动、最小补丁、最小测试面
 - 日常工程行为：优先复用 npm 包 `oh-my-claude-sisyphus` 提供的 `omc ask` / `omc team` 能力，不在 XiaoBa 里重复实现 OMC 已有编排
 - Coding agent 协作行为：把用户需求改写成高质量 Codex / Claude Code prompt，约束范围和产物，并负责评估、追问和整合结果
-- IM 交互行为：主会话保持可响应，长任务通过 `spawn_subagent` 派给 `engineer-task-runner` 后台执行
+- IM 交互行为：主会话保持可响应，长任务优先通过 `engineer_task_run` 创建可追踪后台任务；需要隔离长对话时再派 `spawn_subagent`
 
 ## 适用场景
 
@@ -50,6 +50,8 @@
 - 支持用户或运行环境显式配置 `OMC_BIN`，不写个人机器路径 fallback
 - 使用 `omc ask codex` / `omc ask claude` 获取外部工程视角
 - 在具备 tmux 时使用 `omc team <N>:codex` / `omc team <N>:claude` 启动真实 CLI 工作者
+- 使用 `engineer_task_run` / `engineer_task_status` / `engineer_task_resume` / `engineer_task_cancel` 把日常工程需求变成可追踪后台任务
+- Codex 完成后可按显式 `validation_commands` 或基础 quality gate 推断自动运行验证，并把结果写入 `validation.md`
 - 查询项目下已有 Codex sessions，并指定 `codex_session_id` resume 到某个项目的 Codex 会话继续交互
 - 组织 coding-agent prompt，并读取、批判、整合 OMC artifacts
 - 使用 `engineer-task-runner` skill 承接 subagent 后台工程任务

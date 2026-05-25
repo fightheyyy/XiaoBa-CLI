@@ -99,7 +99,7 @@ describe('EngineerCat OMC caller skill', () => {
     assert.strictEqual(runner.metadata.userInvocable, false);
     assert.strictEqual(runner.metadata.autoInvocable, false);
     assert.match(runner.content, /ask_parent/);
-    assert.match(runner.content, /data\/engineer-runs\/<task-id>/);
+    assert.match(runner.content, /data\/engineer-tasks\/<task-id>/);
   });
 
   test('EngineerCat docs do not reintroduce hardcoded local OMC paths', () => {
@@ -118,13 +118,17 @@ describe('EngineerCat OMC caller skill', () => {
     }
   });
 
-  test('EngineerCat spec records confidence loop and current runner gap', () => {
+  test('EngineerCat spec records confidence loop and current runner progress', () => {
     const content = fs.readFileSync('roles/engineer-cat/SPEC.md', 'utf-8');
 
     assert.match(content, /## 14\. Confidence Loop/);
     assert.match(content, /缺结构化输出时写入 blocked `engineer-output\.json`/);
     assert.match(content, /缺少 `implementation\.md`/);
-    assert.match(content, /`EngineerTaskRunner` 目前主要是 skill 规程/);
-    assert.match(content, /尚未代码化/);
+    assert.match(content, /AutoDev 工程入口需要复用 `EngineerTaskRunner`/);
+    assert.match(content, /`engineer_task_\*` runtime tool/);
+    assert.match(content, /真实调用 PATH 中的本机 Codex CLI/);
+    assert.match(content, /validation_status=passed/);
+    assert.match(content, /validation_source=inferred/);
+    assert.match(content, /真实 Feishu WebSocket、真实 AutoDev 服务联调、changed-file-aware targeted test 矩阵、外部 diff review gate 和 PR 闭环仍未完全代码化或验证/);
   });
 });

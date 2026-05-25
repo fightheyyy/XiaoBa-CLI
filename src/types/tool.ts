@@ -103,6 +103,7 @@ export interface ToolExecutionContext {
   runId?: string;
   abortSignal?: AbortSignal;
   activeSkillName?: string;
+  roleName?: string;
   /** 平台通道回调（飞书/CatsCompany 等聊天会话时由平台层注入） */
   channel?: ChannelCallbacks;
 }

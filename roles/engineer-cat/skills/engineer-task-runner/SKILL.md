@@ -1,6 +1,6 @@
 ---
 name: engineer-task-runner
-description: 在 subagent 后台执行日常工程需求，完成上下文扫描、任务规划、OMC 调度、实现、验证和交付摘要。
+description: 在 subagent 后台执行日常工程需求，完成上下文扫描、任务规划、Codex/OMC 调度、实现、验证和交付摘要。
 version: 0.1.0
 author: EngineerCat Team
 user-invocable: false
@@ -33,20 +33,21 @@ max-turns: 80
 
 1. 读取 `roles/engineer-cat/SPEC.md`，按其中的 EngineerTaskRunner 设计执行。
 2. 扫描仓库上下文，优先读现有文件、配置、脚本、测试和最近变更。
-3. 创建任务工作区：`data/engineer-runs/<task-id>/`。
-4. 写入 `task.json`、`context.md`、`acceptance.md`、`plan.md`、`route.json`。
-5. 根据任务类型选择自执行、`omc ask codex`、`omc ask claude`、`omc team` 或 hybrid。
-6. 调用 OMC 前，把任务整理成高质量 coding-agent prompt。
-7. 读取 OMC 输出或 artifacts，做二次判断，不盲从。
+3. 优先用 `engineer_task_run` 创建可追踪任务，让 runtime 落盘 `data/engineer-tasks/<task-id>/task.json`、`plan.md` 和 `validation.md`。
+4. 如果需要接续已有项目会话，先用 `codex_session_list` 查询，再把明确的 `codex_session_id` 交给 `engineer_task_run`。
+5. 根据任务类型选择自执行、`engineer_task_run`、`omc ask codex`、`omc ask claude`、`omc team` 或 hybrid；涉及代码修改时优先给 `engineer_task_run` 传入最小必要的 `validation_commands`，未传时 runtime 会对 editable Node/TypeScript 项目尝试推断基础 build/test gate。
+6. 调用 Codex / OMC 前，把任务整理成高质量 coding-agent prompt。
+7. 读取 Codex / OMC 输出或 artifacts，做二次判断，不盲从。
 8. 做最小实现或整合外部结果。
-9. 运行验证；失败时读错误、修复、重跑。默认最多自动修复 1 次。
+9. 用 `engineer_task_status` 等待 Codex 完成并触发显式或推断出的验证命令；如果 Codex 留下真实 git 改动，runtime 会追加 diff whitespace/conflict-marker gate；失败时读 `validation.md`、修复、重跑。默认最多自动修复 1 次。
 10. 写入 `implementation.md`、`validation.md`、`final-summary.md`。
 
 ## 调度规则
 
 - 小改动 / 单文件 / 明确 bug：优先自己实现
-- 架构审查 / 风险判断 / 安全 / 测试策略 / diff review：优先 `omc ask codex`
-- 长链路实现 / 多文件 feature / 大重构 / Claude Code 生态任务：优先 `omc ask claude` 或 `omc team`
+- 日常工程实现 / 多轮返工 / 需要长期维护的项目任务：优先 `engineer_task_run`，由 runtime 调用本机 Codex
+- 架构审查 / 风险判断 / 安全 / 测试策略 / diff review：优先 `omc ask codex` 或只读 `engineer_task_run`
+- 长链路实现 / 多文件 feature / 大重构 / Claude Code 生态任务：优先 `engineer_task_run`；确实需要 Claude Code 生态时再用 `omc ask claude` 或 `omc team`
 - 实现后复审：优先 `omc ask codex` review diff
 - OMC team 需要 `tmux`；没有 `tmux` 时改用 `ask` 或标记 blocked
 
@@ -56,7 +57,7 @@ max-turns: 80
 
 - `context_scan: 已定位相关入口`
 - `plan: 已生成验收和实现计划`
-- `route: 已选择 omc_codex，原因是需要外部 review`
+- `route: 已选择 engineer_task_run，原因是需要本机 Codex 长任务`
 - `execute: 已完成最小实现`
 - `validate: npm run build 通过`
 - `blocked: 缺少 XXX，继续会有误改风险`
@@ -83,7 +84,7 @@ max-turns: 80
 ## 输出文件建议
 
 ```text
-data/engineer-runs/<task-id>/
+data/engineer-tasks/<task-id>/
   task.json
   context.md
   acceptance.md
