@@ -50,6 +50,7 @@
 - 支持用户或运行环境显式配置 `OMC_BIN`，不写个人机器路径 fallback
 - 使用 `omc ask codex` / `omc ask claude` 获取外部工程视角
 - 在具备 tmux 时使用 `omc team <N>:codex` / `omc team <N>:claude` 启动真实 CLI 工作者
+- 查询项目下已有 Codex sessions，并指定 `codex_session_id` resume 到某个项目的 Codex 会话继续交互
 - 组织 coding-agent prompt，并读取、批判、整合 OMC artifacts
 - 使用 `engineer-task-runner` skill 承接 subagent 后台工程任务
 - 主会话可查询、停止、恢复后台子任务；子任务可通过 `ask_parent` 挂起确认，并在完成后由主会话综合交付

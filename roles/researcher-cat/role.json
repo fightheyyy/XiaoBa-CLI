@@ -1,6 +1,6 @@
 {
   "name": "researcher-cat",
-  "displayName": "ResearcherCat",
+  "displayName": "Ishigami Senhachi",
   "description": "科研项目推进型 Cat，负责把论文、实验、审稿、编译和交付串成证据驱动的长周期研究工作流。",
   "promptFile": "researcher-cat-system-prompt.md",
   "aliases": [
@@ -15,6 +15,7 @@
     "WebCLI"
   ],
   "metadata": {
+    "petId": "ishigami-senhachi",
     "origin": "从 TTT(TimeTeachTransformer) 飞书长周期科研 case 沉淀而来",
     "caseSignals": [
       "38 天连续 IM 协作",

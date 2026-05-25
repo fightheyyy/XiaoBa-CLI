@@ -19,6 +19,19 @@ import { APP_VERSION } from '../../version';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
+const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store']);
+let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
+let dashboardNavigationRequestId = 0;
+
+function normalizeDashboardPage(value: unknown): string | null {
+  const page = typeof value === 'string' ? value.trim() : '';
+  return DASHBOARD_PAGES.has(page) ? page : null;
+}
+
+export interface DashboardApiOptions {
+  onNavigate?: (page: string) => void;
+}
+
 /**
  * 安装 skill 的 npm 依赖（读取 SKILL.md 的 npm-dependencies 字段）
  */
@@ -39,7 +52,7 @@ function installSkillNpmDeps(skillDir: string): void {
   }
 }
 
-export function createApiRouter(serviceManager: ServiceManager): Router {
+export function createApiRouter(serviceManager: ServiceManager, options: DashboardApiOptions = {}): Router {
   const router = Router();
   router.use(createPetRouter());
 
@@ -61,6 +74,36 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       skillsPath: PathResolver.getSkillsPath(),
       services,
     });
+  });
+
+  router.get('/navigation/pending', (req, res) => {
+    const since = Number.parseInt(String(req.query.since || '0'), 10) || 0;
+    if (!dashboardNavigationRequest || dashboardNavigationRequest.id <= since) {
+      res.json({ id: dashboardNavigationRequestId, page: null });
+      return;
+    }
+    res.json(dashboardNavigationRequest);
+  });
+
+  router.get('/navigation/open', (req, res) => {
+    const page = normalizeDashboardPage(req.query.page);
+    if (!page) {
+      res.status(400).json({ error: 'Invalid dashboard page' });
+      return;
+    }
+    dashboardNavigationRequest = {
+      id: ++dashboardNavigationRequestId,
+      page,
+      createdAt: Date.now(),
+    };
+    let handled = false;
+    try {
+      if (options.onNavigate) {
+        options.onNavigate(page);
+        handled = true;
+      }
+    } catch {}
+    res.json({ ok: true, handled, request: dashboardNavigationRequest });
   });
 
   // ==================== 角色管理 ====================
@@ -524,7 +567,7 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
 
 // ==================== Helpers ====================
 
-const REMOTE_REGISTRY_URL = 'https://raw.githubusercontent.com/buildsense-ai/XiaoBa-Skill-Hub/main/registry.json';
+const REMOTE_REGISTRY_URL = 'https://raw.githubusercontent.com/fightheyyy/XiaoBa-SkillHub/main/registry.json';
 let remoteRegistryCache: any[] | null = null;
 let remoteRegistryCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

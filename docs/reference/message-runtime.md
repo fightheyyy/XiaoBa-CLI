@@ -1,4 +1,4 @@
-# Minimal Message-Native Runtime
+# Message Runtime
 
 ## Goal
 

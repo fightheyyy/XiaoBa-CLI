@@ -1405,12 +1405,11 @@
 
     .pet-surface {
       display: grid;
-      grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
-      gap: 18px;
+      grid-template-columns: 1fr;
+      gap: 0;
       align-items: stretch;
     }
 
-    .pet-stage,
     .pet-chat-panel {
       border-radius: 22px;
       background: rgba(255, 255, 255, 0.72);
@@ -1420,106 +1419,26 @@
       -webkit-backdrop-filter: blur(14px) saturate(135%);
     }
 
-    .pet-stage {
-      min-height: 520px;
-      padding: 22px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      overflow: hidden;
-    }
-
-    .pet-name {
-      font-size: 20px;
-      font-weight: 800;
-      color: var(--text);
-      text-align: center;
-    }
-
-    .pet-desc {
-      margin-top: 8px;
-      color: var(--text2);
-      font-size: 13px;
-      line-height: 1.6;
-      text-align: center;
-    }
-
-    .pet-avatar-viewport {
-      width: 228px;
-      height: 246px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 16px 0;
-      border-radius: 18px;
-      cursor: pointer;
-      transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-    }
-
-    .pet-avatar-viewport:hover,
-    .pet-stage.composing .pet-avatar-viewport {
-      background: rgba(255, 255, 255, 0.34);
-      box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
-      transform: translateY(-1px);
-    }
-
-    .pet-sprite {
-      width: 192px;
-      height: 208px;
-      image-rendering: pixelated;
-      transform: scale(1.05);
-      transform-origin: center;
-      filter: drop-shadow(0 14px 18px rgba(20, 28, 40, 0.16));
-      transition: transform 160ms ease, filter 160ms ease;
-    }
-
-    .pet-avatar-viewport:hover .pet-sprite,
-    .pet-stage.composing .pet-sprite {
-      transform: translateY(-6px) scale(1.1);
-      filter: drop-shadow(0 20px 24px rgba(20, 28, 40, 0.24));
-    }
-
-    .pet-status-row {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-    }
-
-    .pet-selector {
-      width: 100%;
-      display: grid;
-      gap: 8px;
-    }
-
-    .pet-selector label {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text2);
-    }
-
     .pet-chat-panel {
-      min-height: 520px;
+      min-height: 600px;
       display: grid;
       grid-template-rows: 1fr auto;
       overflow: hidden;
     }
 
     .pet-messages {
-      padding: 20px;
+      padding: 24px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      min-height: 360px;
-      max-height: 62vh;
+      min-height: 460px;
+      max-height: 68vh;
+      --chat-column-width: min(1020px, calc(100% - 96px));
     }
 
     .pet-bubble {
-      max-width: min(720px, 86%);
+      max-width: var(--chat-column-width);
       padding: 12px 14px;
       border-radius: 16px;
       font-size: 14px;
@@ -1539,6 +1458,7 @@
 
     .pet-bubble.assistant {
       align-self: flex-start;
+      width: var(--chat-column-width);
     }
 
     .pet-event {
@@ -1550,6 +1470,167 @@
       color: var(--text2);
       background: rgba(103, 112, 133, 0.09);
       border: 1px solid rgba(103, 112, 133, 0.10);
+    }
+
+    .tool-trace {
+      width: var(--chat-column-width);
+      align-self: flex-start;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .tool-trace[open] {
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .tool-trace-summary {
+      min-height: 42px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    .tool-trace-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .tool-trace-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .tool-trace-title::before {
+      content: '';
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--green);
+      flex: 0 0 auto;
+    }
+
+    .tool-trace.running .tool-trace-title::before {
+      background: var(--accent);
+    }
+
+    .tool-trace.warning .tool-trace-title::before {
+      background: var(--orange);
+    }
+
+    .tool-trace.error .tool-trace-title::before {
+      background: var(--red);
+    }
+
+    .tool-trace-meta {
+      color: var(--text3);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .tool-trace-list {
+      display: grid;
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .tool-row {
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .tool-row[open] {
+      border-color: var(--border);
+    }
+
+    .tool-row-summary {
+      min-height: 36px;
+      padding: 8px 10px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .tool-row-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .tool-row-status {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: rgba(103, 112, 133, 0.10);
+      color: var(--text2);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .tool-row.running .tool-row-status {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .tool-row.done .tool-row-status {
+      background: var(--green-light);
+      color: var(--green);
+    }
+
+    .tool-row.warning .tool-row-status {
+      background: var(--orange-light);
+      color: var(--orange);
+    }
+
+    .tool-row.error .tool-row-status {
+      background: var(--red-light);
+      color: var(--red);
+    }
+
+    .tool-row.file .tool-row-status {
+      background: rgba(103, 112, 133, 0.10);
+      color: var(--text2);
+    }
+
+    .tool-row-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .tool-row-meta {
+      color: var(--text3);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .tool-row-detail {
+      margin: 0;
+      padding: 0 10px 10px;
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 220px;
+      overflow: auto;
     }
 
     .pet-composer {
@@ -1568,7 +1649,7 @@
       line-height: 1.5;
     }
 
-    .pet-stage.composing + .pet-chat-panel .pet-composer {
+    .pet-chat-panel.composing .pet-composer {
       box-shadow: inset 0 1px 0 rgba(59, 130, 246, 0.18);
       background: rgba(255, 255, 255, 0.76);
     }
@@ -1632,10 +1713,6 @@
 
       .pet-surface {
         grid-template-columns: 1fr;
-      }
-
-      .pet-stage {
-        min-height: 420px;
       }
 
       .pet-composer {
@@ -2027,7 +2104,6 @@
     .runtime-main-panel,
     .config-group,
     .skill-card,
-    .pet-stage,
     .pet-chat-panel,
     .store-install-bar {
       overflow: hidden;
@@ -2430,7 +2506,6 @@
     .skill-name,
     .service-cell strong,
     .status-card .value,
-    .pet-name,
     .config-group-title {
       letter-spacing: 0;
     }
@@ -2536,6 +2611,10 @@
       margin: 22px auto 0;
     }
 
+    .page-content.chat-page-active {
+      width: min(1360px, calc(100% - 24px));
+    }
+
     .runtime-hero {
       min-height: 52px;
       margin-bottom: 16px;
@@ -2572,7 +2651,6 @@
     .runtime-main-panel,
     .config-group,
     .skill-card,
-    .pet-stage,
     .pet-chat-panel,
     .store-install-bar,
     .status-card,
@@ -2680,7 +2758,18 @@
       color: #fff;
     }
 
+    .service-actions .btn-primary {
+      background: var(--text);
+      border-color: var(--text);
+      color: #fff;
+    }
+
     .btn-primary:hover:not(:disabled) {
+      background: #2b2924;
+      border-color: #2b2924;
+    }
+
+    .service-actions .btn-primary:hover:not(:disabled) {
       background: #2b2924;
       border-color: #2b2924;
     }
@@ -3008,7 +3097,6 @@
 
     .role-avatar,
     .skill-emoji,
-    .pet-avatar-viewport,
     .modal-close {
       border-radius: var(--radius-sm);
     }
@@ -3023,11 +3111,21 @@
 
     .pet-surface {
       gap: 16px;
+      grid-template-columns: 1fr;
     }
 
-    .pet-stage,
     .pet-chat-panel {
       background: var(--surface-raised);
+      min-height: clamp(560px, calc(100vh - 170px), 720px);
+    }
+
+    .pet-chat-panel {
+      height: clamp(560px, calc(100vh - 170px), 720px);
+    }
+
+    .pet-messages {
+      max-height: none;
+      min-height: 0;
     }
 
     .pet-bubble {
@@ -3040,6 +3138,29 @@
 
     .pet-bubble.assistant {
       border-bottom-left-radius: 7px;
+    }
+
+    @media (max-width: 900px) {
+      .pet-surface {
+        grid-template-columns: 1fr;
+      }
+
+      .pet-chat-panel {
+        height: clamp(520px, calc(100vh - 210px), 680px);
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .pet-chat-panel {
+        height: min(72vh, 620px);
+        min-height: 460px;
+      }
+
+      .pet-messages {
+        padding: 16px;
+        --chat-column-width: 100%;
+      }
     }
 
     .modal-header {
@@ -3192,7 +3313,7 @@
         <span class="nav-icon">+</span> <span data-i18n="navStore">Store</span>
       </a>
       <a class="nav-item" onclick="switchPage('pet')" data-page="pet">
-        <span class="nav-icon">*</span> <span data-i18n="navCompanion">Companion</span>
+        <span class="nav-icon">*</span> <span data-i18n="navCompanion">Chat</span>
       </a>
     </nav>
     <div class="sidebar-footer">
@@ -3253,30 +3374,14 @@
         <div class="signal-grid status-grid" id="status-grid"></div>
       </div>
 
-      <!-- Page: Pet -->
+      <!-- Page: Chat -->
       <div class="page" id="page-pet">
-        <div class="section-title">Pet <span class="badge" id="pet-session-key">pet</span></div>
+        <div class="section-title"><span data-i18n="pageChat">Chat</span> <span class="badge" id="pet-session-key">pet</span></div>
         <div class="pet-surface">
-          <div class="pet-stage">
-            <div>
-              <div class="pet-name" id="pet-name">Pet</div>
-              <div class="pet-desc" id="pet-desc">Loading...</div>
-            </div>
-            <div class="pet-avatar-viewport" id="pet-avatar-viewport" onclick="activatePetComposer()">
-              <canvas class="pet-sprite" id="pet-sprite" width="192" height="208"></canvas>
-            </div>
-            <div class="pet-status-row">
-              <span class="tag active" id="pet-state-label">idle</span>
-            </div>
-            <div class="pet-selector">
-              <label for="pet-select">Pet</label>
-              <select class="config-select" id="pet-select" onchange="selectPet(this.value)"></select>
-            </div>
-          </div>
           <div class="pet-chat-panel">
             <div class="pet-messages" id="pet-messages"></div>
             <div class="pet-composer">
-              <textarea class="config-input pet-input" id="pet-input" placeholder="Talk to pet..."></textarea>
+              <textarea class="config-input pet-input" id="pet-input" placeholder="Type a message..."></textarea>
               <button class="btn btn-primary" id="pet-send-btn" onclick="sendPetMessage()">Send</button>
             </div>
           </div>
@@ -3375,7 +3480,7 @@
         navSkills: 'Skills',
         navConfig: 'Config',
         navStore: 'Store',
-        navCompanion: 'Companion',
+        navCompanion: 'Chat',
         footerControlRoom: 'control room',
         topbarSurface: 'Local Dashboard',
         online: 'Online',
@@ -3385,7 +3490,8 @@
         pageSkills: 'Skills',
         pageConfig: 'Config',
         pageStore: 'Store',
-        pageCompanion: 'Companion',
+        pageCompanion: 'Chat',
+        pageChat: 'Chat',
         heroEyebrow: 'Local',
         heroTitle: 'Runtime',
         heroDesc: 'IM surfaces, roles, and local work signals.',
@@ -3449,11 +3555,21 @@
         serviceFeishu: 'Feishu',
         serviceWeixin: 'Weixin',
         servicePet: 'Pet Desk',
-        petLoadFailed: 'Unable to load pet',
-        petNoneOption: 'No pet available',
-        petNoAssets: 'No pet assets found',
-        petLocalSurface: 'Local pet interaction surface',
+        petLoadFailed: 'Unable to load chat',
+        petNoAssets: 'No chat channel available',
         petSendFailed: 'Failed to send: ',
+        toolTraceTitle: 'Work trace',
+        toolTraceRunning: 'Working',
+        toolTraceComplete: 'Complete',
+        toolTraceAttention: 'Needs attention',
+        toolStatusRunning: 'running',
+        toolStatusDone: 'done',
+        toolStatusInfo: 'info',
+        toolStatusRetry: 'retry',
+        toolStatusError: 'error',
+        toolStatusFile: 'file',
+        toolInput: 'Input',
+        toolResult: 'Result',
         skillsLoadFailed: 'Unable to load skills',
         rolesLoadFailed: 'Unable to load roles',
         noSkills: 'No skills',
@@ -3517,7 +3633,7 @@
         navSkills: '技能',
         navConfig: '配置',
         navStore: '商店',
-        navCompanion: '伙伴',
+        navCompanion: 'Chat',
         footerControlRoom: '控制室',
         topbarSurface: '本地面板',
         online: '在线',
@@ -3527,7 +3643,8 @@
         pageSkills: '技能',
         pageConfig: '配置',
         pageStore: '商店',
-        pageCompanion: '伙伴',
+        pageCompanion: 'Chat',
+        pageChat: 'Chat',
         heroEyebrow: '本地',
         heroTitle: 'Runtime',
         heroDesc: 'IM 入口、角色与本地工作信号。',
@@ -3591,11 +3708,21 @@
         serviceFeishu: '飞书机器人',
         serviceWeixin: '微信机器人',
         servicePet: 'Pet 桌宠',
-        petLoadFailed: '无法加载 pet',
-        petNoneOption: '无可用 Pet',
-        petNoAssets: '没有发现 pet 资产',
-        petLocalSurface: 'Pet 本地交互平台',
+        petLoadFailed: '无法加载 Chat',
+        petNoAssets: '没有可用对话通道',
         petSendFailed: '处理失败: ',
+        toolTraceTitle: '工作轨迹',
+        toolTraceRunning: '进行中',
+        toolTraceComplete: '已完成',
+        toolTraceAttention: '需要注意',
+        toolStatusRunning: '运行中',
+        toolStatusDone: '完成',
+        toolStatusInfo: '信息',
+        toolStatusRetry: '重试',
+        toolStatusError: '错误',
+        toolStatusFile: '文件',
+        toolInput: '输入',
+        toolResult: '结果',
         skillsLoadFailed: '无法加载',
         rolesLoadFailed: '无法加载角色',
         noSkills: '暂无 Skills',
@@ -3656,20 +3783,27 @@
     };
     const dashboardLangKey = 'xiaoba.dashboard.lang.v2';
     let currentLang = localStorage.getItem(dashboardLangKey) || 'en';
-    const pageTitles = { services:'pageRuntime', pet:'pageCompanion', config:'pageConfig', skills:'pageSkills', roles:'pageRoles', store:'pageStore' };
+    const pageTitles = { services:'pageRuntime', pet:'pageChat', config:'pageConfig', skills:'pageSkills', roles:'pageRoles', store:'pageStore' };
     let rolesState = { active: null, roles: [] };
     let skillsState = [];
     let latestStatus = null;
     let pets = [];
+    let dashboardNavigationRequestId = 0;
+    const petRoleStorageKey = 'xiaoba.pet.role';
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
+    let selectedPetRole = localStorage.getItem(petRoleStorageKey) || '';
+    let activePetRole = selectedPetRole || 'base';
     let petBusy = false;
     let currentAssistantBubble = null;
     let petIdleTimer = null;
     const petClient = new XiaoBaPetRuntime.PetClient({ api: API });
-    let petPlayer = null;
     let petEventSource = null;
     let seenPetEventIds = new Set();
     let currentPetState = 'idle';
+    let currentToolTrace = null;
+    let toolEventSeq = 0;
+    let petInputComposing = false;
+    let petInputCompositionEndedAt = 0;
     const skillGroupCollapsed = { role: false, runtime: false };
     const roleAvatars = {
       base: 'cat-icon.png',
@@ -3728,12 +3862,32 @@
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const page = document.getElementById('page-'+name);
       if (page) page.classList.add('active');
+      document.querySelector('.page-content')?.classList.toggle('chat-page-active', name === 'pet');
       const nav = document.querySelector('.nav-item[data-page="'+name+'"]');
       if (nav) nav.classList.add('active');
       const title = document.getElementById('topbar-title');
       if (title) title.textContent = t(pageTitles[name] || 'pageRuntime');
       if (name === 'roles') fetchRoles();
       if (name === 'pet') fetchPets();
+    }
+
+    function openService(name, url) {
+      if (name === 'pet') {
+        switchPage('pet');
+        return;
+      }
+      if (url) window.open(url, '_blank');
+    }
+
+    async function pollDashboardNavigation() {
+      try {
+        const res = await fetch(API+'/api/navigation/pending?since='+encodeURIComponent(String(dashboardNavigationRequestId)));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.id || data.id <= dashboardNavigationRequestId) return;
+        dashboardNavigationRequestId = data.id;
+        if (data.page && pageTitles[data.page]) switchPage(data.page);
+      } catch (e) {}
     }
 
     function escapeHtml(value) {
@@ -3750,117 +3904,103 @@
       return labelKey ? t(labelKey) : (service?.label || service?.name || '-');
     }
 
-    async function fetchPets() {
+    async function fetchPets(options = {}) {
       try {
         const data = await petClient.getPets();
         pets = Array.isArray(data.pets) ? data.pets : [];
-        if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
-          selectedPetId = data.defaultPetId || (pets[0] && pets[0].id) || '';
+        const roleKey = data.activeRole || 'base';
+        const defaultPetId = data.rolePetId || data.defaultPetId || '';
+        const roleChanged = roleKey !== selectedPetRole;
+        const defaultPetExists = defaultPetId && pets.some(p => p.id === defaultPetId);
+        activePetRole = roleKey;
+
+        if ((options.preferDefault || roleChanged) && defaultPetExists) {
+          if (selectedPetId !== defaultPetId) {
+            resetCurrentTurn();
+            seenPetEventIds = new Set();
+            document.getElementById('pet-messages').innerHTML = '';
+          }
+          selectedPetId = defaultPetId;
+          selectedPetRole = roleKey;
+          localStorage.setItem(petRoleStorageKey, selectedPetRole);
+        } else if (!selectedPetId || !pets.some(p => p.id === selectedPetId)) {
+          selectedPetId = defaultPetId || (pets[0] && pets[0].id) || '';
+          selectedPetRole = roleKey;
+          localStorage.setItem(petRoleStorageKey, selectedPetRole);
         }
         renderPet();
       } catch (e) {
-        document.getElementById('pet-desc').textContent = t('petLoadFailed');
+        document.getElementById('pet-session-key').textContent = t('loadFailed');
+        if (!document.getElementById('pet-messages').children.length) {
+          appendPetEvent(t('petLoadFailed'));
+        }
       }
     }
 
     function renderPet() {
       const pet = pets.find(p => p.id === selectedPetId) || pets[0];
-      const select = document.getElementById('pet-select');
       if (!pet) {
-        select.innerHTML = '<option value="">'+t('petNoneOption')+'</option>';
-        document.getElementById('pet-name').textContent = 'Pet';
-        document.getElementById('pet-desc').textContent = t('petNoAssets');
+        selectedPetId = '';
+        document.getElementById('pet-session-key').textContent = t('pageChat');
+        if (!document.getElementById('pet-messages').children.length) {
+          appendPetEvent(t('petNoAssets'));
+        }
         return;
       }
 
       selectedPetId = pet.id;
       localStorage.setItem('xiaoba.pet.id', selectedPetId);
-      select.innerHTML = pets.map(p => '<option value="'+escapeHtml(p.id)+'"'+(p.id===selectedPetId?' selected':'')+'>'+escapeHtml(p.displayName || p.id)+'</option>').join('');
-      document.getElementById('pet-name').textContent = pet.displayName || pet.id;
-      document.getElementById('pet-desc').textContent = pet.description || t('petLocalSurface');
-      document.getElementById('pet-session-key').textContent = 'pet:'+pet.id;
-      loadPetSprite(pet.spriteUrl);
-      setPetState('idle', true);
+      const petLabel = pet.displayName || pet.id;
+      document.getElementById('pet-session-key').textContent = petLabel;
+      currentPetState = 'idle';
       connectPetEvents();
       if (!document.getElementById('pet-messages').children.length) {
-        appendPetEvent('pet:'+pet.id);
+        appendPetEvent(petLabel);
       }
     }
 
     function selectPet(petId) {
       selectedPetId = petId;
-      currentAssistantBubble = null;
+      selectedPetRole = activePetRole || 'base';
+      localStorage.setItem(petRoleStorageKey, selectedPetRole);
+      resetCurrentTurn();
       seenPetEventIds = new Set();
       document.getElementById('pet-messages').innerHTML = '';
       renderPet();
     }
 
     function focusPetInput() {
-      const stage = document.querySelector('#page-pet .pet-stage');
+      const panel = document.querySelector('#page-pet .pet-chat-panel');
       const input = document.getElementById('pet-input');
-      if (stage) stage.classList.add('composing');
+      if (panel) panel.classList.add('composing');
       input.focus();
       const length = input.value.length;
       input.setSelectionRange(length, length);
     }
 
     function blurPetInputIfEmpty() {
-      const stage = document.querySelector('#page-pet .pet-stage');
+      const panel = document.querySelector('#page-pet .pet-chat-panel');
       const input = document.getElementById('pet-input');
-      if (stage && !input.value.trim() && !petBusy) {
-        stage.classList.remove('composing');
+      if (panel && !input.value.trim() && !petBusy) {
+        panel.classList.remove('composing');
       }
     }
 
-    async function activatePetComposer() {
-      if (!selectedPetId) return;
-      setPetState('waving');
-      focusPetInput();
-      try {
-        await petClient.wake(selectedPetId);
-      } catch (e) {
-        setPetState('failed');
-      }
+    function isPetInputComposing(event) {
+      return petInputComposing ||
+        event.isComposing ||
+        event.keyCode === 229 ||
+        event.code === 'Process' ||
+        Date.now() - petInputCompositionEndedAt < 80;
     }
 
-    async function wakePet() {
-      await activatePetComposer();
-    }
-
-    function previewPetHover() {
-      if (!selectedPetId || petBusy) return;
-      setPetState('jumping');
-    }
-
-    function clearPetHover() {
-      const stage = document.querySelector('#page-pet .pet-stage');
-      if (petBusy || stage?.classList.contains('composing')) return;
-      setPetState('idle');
-    }
-
-    function setPetState(state, force = false) {
+    function setPetState(state) {
       if (!XiaoBaPetRuntime.animations[state]) state = 'idle';
       currentPetState = state;
-      if (petPlayer) petPlayer.setState(state, force);
-      const cfg = XiaoBaPetRuntime.animations[state] || XiaoBaPetRuntime.animations.idle;
-      document.getElementById('pet-state-label').textContent = cfg.label || state;
       clearTimeout(petIdleTimer);
       if (state === 'waving' && !petBusy) {
         petIdleTimer = setTimeout(() => setPetState('idle'), 1300);
       }
-    }
-
-    function loadPetSprite(src) {
-      const canvas = document.getElementById('pet-sprite');
-      if (!petPlayer) {
-        petPlayer = new XiaoBaPetRuntime.SpritePlayer(canvas, {
-          onState: (state, cfg) => {
-            currentPetState = state;
-            document.getElementById('pet-state-label').textContent = cfg.label || state;
-          },
-        });
-      }
-      petPlayer.load(src);
     }
 
     function appendPetBubble(kind, text) {
@@ -3872,11 +4012,254 @@
       return bubble;
     }
 
+    function resetCurrentTurn() {
+      currentAssistantBubble = null;
+      currentToolTrace = null;
+    }
+
+    function discardAssistantDraft() {
+      if (!currentAssistantBubble) return;
+      currentAssistantBubble.remove();
+      currentAssistantBubble = null;
+    }
+
+    function renderAssistantText(text) {
+      const value = text || '';
+      if (!value.trim()) return;
+      if (!currentAssistantBubble) currentAssistantBubble = appendPetBubble('assistant', '');
+      currentAssistantBubble.textContent = value;
+      scrollPetMessages();
+    }
+
     function appendPetEvent(text) {
       const event = document.createElement('div');
       event.className = 'pet-event';
       event.textContent = text;
       document.getElementById('pet-messages').appendChild(event);
+      scrollPetMessages();
+    }
+
+    function ensureToolTrace() {
+      if (currentToolTrace) return currentToolTrace;
+      const trace = document.createElement('details');
+      trace.className = 'tool-trace running';
+      trace.open = true;
+
+      const summary = document.createElement('summary');
+      summary.className = 'tool-trace-summary';
+      const title = document.createElement('span');
+      title.className = 'tool-trace-title';
+      const meta = document.createElement('span');
+      meta.className = 'tool-trace-meta';
+      summary.append(title, meta);
+
+      const list = document.createElement('div');
+      list.className = 'tool-trace-list';
+      trace.append(summary, list);
+      document.getElementById('pet-messages').appendChild(trace);
+
+      currentToolTrace = {
+        el: trace,
+        title,
+        meta,
+        list,
+        rows: new Map(),
+      };
+      updateToolTrace();
+      scrollPetMessages();
+      return currentToolTrace;
+    }
+
+    function toolTraceCountText(toolCount, fileCount) {
+      if (currentLang === 'zh') {
+        const parts = [];
+        if (toolCount) parts.push(toolCount + ' 个工具');
+        if (fileCount) parts.push(fileCount + ' 个文件');
+        return parts.join(' / ') || t('toolTraceTitle');
+      }
+      const parts = [];
+      if (toolCount) parts.push(toolCount + ' tool' + (toolCount === 1 ? '' : 's'));
+      if (fileCount) parts.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
+      return parts.join(' / ') || t('toolTraceTitle');
+    }
+
+    function updateToolTrace(trace = currentToolTrace) {
+      if (!trace) return;
+      const rows = Array.from(trace.rows.values());
+      const running = rows.filter(row => row.status === 'running').length;
+      const errors = rows.filter(row => row.status === 'error').length;
+      const warnings = rows.filter(row => row.status === 'warning').length;
+      const toolCount = rows.filter(row => row.kind === 'tool').length;
+      const fileCount = rows.filter(row => row.kind === 'file').length;
+
+      trace.el.classList.remove('running', 'warning', 'error');
+      if (!rows.length) {
+        trace.title.textContent = t('toolTraceTitle');
+        trace.meta.textContent = '';
+        return;
+      }
+      if (errors) {
+        trace.el.classList.add('error');
+        trace.el.open = true;
+        trace.title.textContent = t('toolTraceTitle') + ' · ' + t('toolTraceAttention');
+      } else if (warnings) {
+        trace.el.classList.add('warning');
+        trace.el.open = true;
+        trace.title.textContent = t('toolTraceTitle') + ' · ' + t('toolTraceAttention');
+      } else if (running) {
+        trace.el.classList.add('running');
+        trace.el.open = true;
+        trace.title.textContent = t('toolTraceTitle') + ' · ' + t('toolTraceRunning');
+      } else {
+        trace.title.textContent = t('toolTraceTitle') + ' · ' + t('toolTraceComplete');
+        trace.el.open = false;
+      }
+      trace.meta.textContent = toolTraceCountText(toolCount, fileCount);
+    }
+
+    function finishToolTrace() {
+      if (!currentToolTrace) return;
+      updateToolTrace(currentToolTrace);
+      const rows = Array.from(currentToolTrace.rows.values());
+      const needsAttention = rows.some(row => row.status === 'error' || row.status === 'warning');
+      const hasRunning = rows.some(row => row.status === 'running');
+      if (!needsAttention && !hasRunning) {
+        currentToolTrace.el.open = false;
+      }
+      currentToolTrace = null;
+    }
+
+    function toolKey(event, prefix) {
+      return event.toolUseId || `${prefix}:${event.name || event.fileName || 'event'}:${++toolEventSeq}`;
+    }
+
+    function compactToolPayload(value) {
+      if (value == null || value === '') return '';
+      const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+      return text.length > 1800 ? text.slice(0, 1800) + '\n...' : text;
+    }
+
+    function setToolRowStatus(row, status, label) {
+      row.status = status;
+      row.el.classList.remove('running', 'done', 'warning', 'error', 'file');
+      row.el.classList.add(status);
+      row.statusEl.textContent = label;
+    }
+
+    function syncToolRowDetail(row) {
+      const chunks = [];
+      if (row.input) chunks.push(t('toolInput') + ':\n' + row.input);
+      if (row.result) chunks.push(t('toolResult') + ':\n' + row.result);
+      row.detail.textContent = chunks.join('\n\n');
+      row.detail.hidden = chunks.length === 0;
+    }
+
+    function createToolRow(trace, key, kind, name, status, statusLabel) {
+      const rowEl = document.createElement('details');
+      rowEl.className = 'tool-row ' + status;
+      rowEl.open = status === 'running' || status === 'warning' || status === 'error';
+
+      const summary = document.createElement('summary');
+      summary.className = 'tool-row-summary';
+      const statusEl = document.createElement('span');
+      statusEl.className = 'tool-row-status';
+      statusEl.textContent = statusLabel;
+      const nameEl = document.createElement('span');
+      nameEl.className = 'tool-row-name';
+      nameEl.textContent = name || t('toolTraceTitle');
+      const metaEl = document.createElement('span');
+      metaEl.className = 'tool-row-meta';
+      summary.append(statusEl, nameEl, metaEl);
+
+      const detail = document.createElement('pre');
+      detail.className = 'tool-row-detail';
+      detail.hidden = true;
+      rowEl.append(summary, detail);
+      trace.list.appendChild(rowEl);
+
+      const row = {
+        kind,
+        status,
+        el: rowEl,
+        statusEl,
+        nameEl,
+        metaEl,
+        detail,
+        input: '',
+        result: '',
+      };
+      trace.rows.set(key, row);
+      return row;
+    }
+
+    function upsertToolRow(event) {
+      const trace = ensureToolTrace();
+      const key = toolKey(event, 'tool');
+      return trace.rows.get(key) || createToolRow(trace, key, 'tool', event.name, 'running', t('toolStatusRunning'));
+    }
+
+    function renderToolStart(event) {
+      discardAssistantDraft();
+      const row = upsertToolRow(event);
+      setToolRowStatus(row, 'running', t('toolStatusRunning'));
+      row.metaEl.textContent = '';
+      row.input = compactToolPayload(event.input);
+      syncToolRowDetail(row);
+      row.el.open = Boolean(row.input);
+      updateToolTrace();
+      scrollPetMessages();
+    }
+
+    function renderToolEnd(event) {
+      const row = upsertToolRow(event);
+      setToolRowStatus(row, 'done', t('toolStatusDone'));
+      row.metaEl.textContent = event.name || '';
+      row.result = compactToolPayload(event.result);
+      syncToolRowDetail(row);
+      row.el.open = false;
+      updateToolTrace();
+      scrollPetMessages();
+    }
+
+    function renderToolDisplay(event) {
+      const trace = ensureToolTrace();
+      const key = toolKey(event, 'display');
+      const row = createToolRow(trace, key, 'tool', event.name, 'done', t('toolStatusInfo'));
+      row.result = compactToolPayload(event.content);
+      syncToolRowDetail(row);
+      updateToolTrace();
+      scrollPetMessages();
+    }
+
+    function renderToolRetry(event) {
+      const trace = ensureToolTrace();
+      const key = `retry:${++toolEventSeq}`;
+      const label = `${t('toolStatusRetry')} ${event.attempt || 0}/${event.maxRetries || 0}`;
+      const row = createToolRow(trace, key, 'notice', label, 'warning', t('toolStatusRetry'));
+      row.metaEl.textContent = t('toolTraceAttention');
+      row.el.open = true;
+      updateToolTrace();
+      scrollPetMessages();
+    }
+
+    function renderToolFile(event) {
+      const trace = ensureToolTrace();
+      const key = toolKey(event, 'file');
+      const row = createToolRow(trace, key, 'file', event.fileName || event.filePath || t('toolStatusFile'), 'file', t('toolStatusFile'));
+      row.result = compactToolPayload(event.filePath);
+      syncToolRowDetail(row);
+      updateToolTrace();
+      scrollPetMessages();
+    }
+
+    function renderToolError(event) {
+      const trace = ensureToolTrace();
+      const key = `error:${++toolEventSeq}`;
+      const row = createToolRow(trace, key, 'notice', event.message || t('toolStatusError'), 'error', t('toolStatusError'));
+      row.result = compactToolPayload(event.message);
+      syncToolRowDetail(row);
+      row.el.open = true;
+      updateToolTrace();
       scrollPetMessages();
     }
 
@@ -3888,21 +4271,23 @@
     const petRuntimeEventHandler = XiaoBaPetRuntime.createEventHandler({
       setState: state => setPetState(state),
       onUserMessage: event => {
-        currentAssistantBubble = null;
+        resetCurrentTurn();
         appendPetBubble('user', event.text || '');
       },
       onText: (_event, text) => {
-        if (!currentAssistantBubble) currentAssistantBubble = appendPetBubble('assistant', '');
-        currentAssistantBubble.textContent = text || '';
-        scrollPetMessages();
+        renderAssistantText(text);
       },
-      onToolStart: event => appendPetEvent('tool: '+event.name),
-      onToolEnd: event => appendPetEvent('tool done: '+event.name),
-      onToolDisplay: event => appendPetEvent('tool: '+event.name),
-      onRetry: event => appendPetEvent('retry '+event.attempt+'/'+event.maxRetries),
-      onFile: event => appendPetEvent('file: '+event.fileName),
-      onError: event => appendPetEvent('error: '+event.message),
-      onDone: () => {
+      onToolStart: event => renderToolStart(event),
+      onToolEnd: event => renderToolEnd(event),
+      onToolDisplay: event => renderToolDisplay(event),
+      onRetry: event => renderToolRetry(event),
+      onFile: event => renderToolFile(event),
+      onError: event => renderToolError(event),
+      onDone: event => {
+        if (event.visibleToUser !== false && event.text) {
+          renderAssistantText(event.text);
+        }
+        finishToolTrace();
         currentAssistantBubble = null;
         setTimeout(() => {
           if (!petBusy && currentPetState === 'waving') setPetState('idle');
@@ -3924,9 +4309,9 @@
       petBusy = true;
       document.getElementById('pet-send-btn').disabled = true;
       input.value = '';
-      currentAssistantBubble = null;
+      resetCurrentTurn();
       setPetState('waiting');
-      document.querySelector('#page-pet .pet-stage')?.classList.remove('composing');
+      document.querySelector('#page-pet .pet-chat-panel')?.classList.remove('composing');
 
       try {
         await petClient.sendMessage(selectedPetId, text, petEventSource ? undefined : handlePetEvent, { source: 'dashboard' });
@@ -3936,7 +4321,7 @@
       } finally {
         petBusy = false;
         document.getElementById('pet-send-btn').disabled = false;
-        const state = document.getElementById('pet-state-label').textContent;
+        const state = currentPetState;
         if (state === 'waving') {
           setPetState('waving');
         } else if (state !== 'failed') {
@@ -3944,7 +4329,7 @@
         }
         input.focus();
         if (!input.value.trim()) {
-          document.querySelector('#page-pet .pet-stage')?.classList.remove('composing');
+          document.querySelector('#page-pet .pet-chat-panel')?.classList.remove('composing');
         }
       }
     }
@@ -4034,7 +4419,7 @@
         const last = s.lastError ? '<span style="color:var(--red)">'+escapeHtml(s.lastError)+'</span>' : (r ? t('signalHealthy') : t('signalWaiting'));
         const statusLabel = s.status === 'running' ? t('statusRunning') : (s.status === 'error' ? t('statusError') : t('statusStopped'));
         const statusClass = ['running', 'stopped', 'error'].includes(s.status) ? s.status : 'stopped';
-        const open = r && s.url ? '<button class="btn btn-primary" onclick="window.open(\''+escapeHtml(s.url)+'\',\'_blank\')">'+t('open')+'</button>' : '';
+        const open = r && s.url ? '<button class="btn btn-primary" onclick="openService(\''+escapeHtml(escapeJs(s.name || ''))+'\',\''+escapeHtml(escapeJs(s.url))+'\')">'+t('open')+'</button>' : '';
         return '<div class="service-row">'+
           '<div class="service-cell"><strong>'+escapeHtml(label)+'</strong><div class="service-muted">'+escapeHtml(s.name || '-')+'</div></div>'+
           '<div class="service-cell"><span class="mobile-label">'+t('tableStatus')+'</span><span class="service-status '+statusClass+'">'+escapeHtml(statusLabel)+'</span></div>'+
@@ -4221,6 +4606,7 @@
         await fetchRoles();
         await fetchStatus();
         await fetchSkills();
+        await fetchPets({ preferDefault: true });
       } catch (e) {
         alert(t('switchRoleFailed')+e.message);
       }
@@ -4239,17 +4625,15 @@
     async function deleteSkill(n){if(!confirm(t('deleteSkillConfirmPrefix')+n+t('deleteSkillConfirmSuffix')))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
     function formatUptime(s){if(s<60)return Math.floor(s)+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
 
-    // === Config with collapsible LLM groups ===
+    // === Config with collapsible groups ===
     let configData={};
     const configGroups=[
       {titleKey:'configPrimaryModel', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
       {titleKey:'configBackupModel', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
-      {title:'Cats Company', collapsed:false, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
-      {titleKey:'configFeishu', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
-      {titleKey:'configWeixin', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
-      {title:'Inspector', collapsed:false, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
-      {title:'Dashboard / Server', collapsed:true, keys:[{key:'XIAOBA_DASHBOARD_HOST',label:'Dashboard Host'},{key:'XIAOBA_API_BODY_LIMIT',label:'API Body Limit'}]},
-      {title:'Pet', collapsed:true, keys:[{key:'XIAOBA_PET_HOST',label:'Pet Host'},{key:'XIAOBA_PET_PORT',label:'Pet Port'},{key:'XIAOBA_PETS_DIR',label:'Pets Dir'}]},
+      {title:'Cats Company', collapsed:true, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
+      {titleKey:'configFeishu', collapsed:true, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
+      {titleKey:'configWeixin', collapsed:true, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
+      {title:'Inspector', collapsed:true, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
     ];
 
     async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">'+t('loadFailed')+'</div>';}}
@@ -4359,13 +4743,25 @@
     fetchStatus();fetchSkills();fetchRoles();fetchConfig();fetchStore();fetchPets();
     const initialPage = new URLSearchParams(location.search).get('page');
     if (initialPage && pageTitles[initialPage]) switchPage(initialPage);
+    pollDashboardNavigation();
     setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);
-    document.getElementById('pet-avatar-viewport').addEventListener('pointerenter',previewPetHover);
-    document.getElementById('pet-avatar-viewport').addEventListener('pointerleave',clearPetHover);
-    document.getElementById('pet-input').addEventListener('focus',focusPetInput);
-    document.getElementById('pet-input').addEventListener('blur',blurPetInputIfEmpty);
-    document.getElementById('pet-input').addEventListener('keydown',e=>{
-      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPetMessage();}
+    setInterval(pollDashboardNavigation,1000);
+    const petInputEl = document.getElementById('pet-input');
+    petInputEl?.addEventListener('focus',focusPetInput);
+    petInputEl?.addEventListener('blur',blurPetInputIfEmpty);
+    petInputEl?.addEventListener('compositionstart',()=>{
+      petInputComposing = true;
+    });
+    petInputEl?.addEventListener('compositionend',()=>{
+      petInputComposing = false;
+      petInputCompositionEndedAt = Date.now();
+    });
+    petInputEl?.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&!e.shiftKey){
+        if (isPetInputComposing(e)) return;
+        e.preventDefault();
+        sendPetMessage();
+      }
       if(e.key==='Escape'){e.currentTarget.blur();blurPetInputIfEmpty();}
     });
     document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLogs();});

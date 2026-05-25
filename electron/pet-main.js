@@ -1,37 +1,75 @@
 const { app, BrowserWindow, Menu, ipcMain, screen, shell } = require('electron');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 
 const petUrl = process.env.XIAOBA_PET_URL || 'http://127.0.0.1:3900';
 const chatUrl = process.env.XIAOBA_PET_CHAT_URL || petUrl;
 
 let windowRef = null;
-let chatWindowRef = null;
 let dragState = null;
 
-function openChatWindow(url = chatUrl) {
-  if (chatWindowRef && !chatWindowRef.isDestroyed()) {
-    chatWindowRef.loadURL(url);
-    chatWindowRef.show();
-    chatWindowRef.focus();
-    return;
+function getCompanionUrl(url = chatUrl) {
+  try {
+    const target = new URL(url);
+    target.searchParams.set('page', 'pet');
+    return target;
+  } catch {
+    return null;
   }
+}
 
-  chatWindowRef = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
-    title: 'XiaoBa Dashboard',
-    backgroundColor: '#0f1117',
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
+function requestDashboardNavigation(url = chatUrl, onMiss) {
+  const target = getCompanionUrl(url);
+  if (!target) return;
+
+  const nav = new URL('/api/navigation/open', target.origin);
+  nav.searchParams.set('page', 'pet');
+  nav.searchParams.set('t', String(Date.now()));
+
+  let done = false;
+  const miss = () => {
+    if (done) return;
+    done = true;
+    if (onMiss) onMiss(target.href);
+  };
+  const hit = () => {
+    done = true;
+  };
+  const transport = nav.protocol === 'https:' ? https : http;
+  const req = transport.get(nav, res => {
+    let body = '';
+    res.setEncoding('utf8');
+    res.on('data', chunk => {
+      body += chunk;
+      if (body.length > 2048) body = body.slice(-2048);
+    });
+    res.on('end', () => {
+      if (res.statusCode && res.statusCode >= 400) {
+        miss();
+        return;
+      }
+      try {
+        const data = JSON.parse(body);
+        if (data && data.handled === false) {
+          miss();
+          return;
+        }
+      } catch {}
+      hit();
+    });
+    res.on('error', miss);
   });
+  req.setTimeout(1200, () => {
+    req.destroy();
+    miss();
+  });
+  req.on('error', miss);
+}
 
-  chatWindowRef.loadURL(url);
-  chatWindowRef.on('closed', () => {
-    chatWindowRef = null;
+function openChatWindow(url = chatUrl) {
+  requestDashboardNavigation(url, href => {
+    shell.openExternal(href);
   });
 }
 
@@ -65,7 +103,7 @@ function createPetWindow() {
   });
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: '打开 Pet 对话', click: () => openChatWindow(chatUrl) },
+    { label: '打开伙伴页', click: () => openChatWindow(chatUrl) },
     { type: 'separator' },
     { label: '退出 Pet', click: () => app.quit() },
   ]);

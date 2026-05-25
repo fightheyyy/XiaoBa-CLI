@@ -1144,3 +1144,41 @@ src/roles/reviewer-cat/tools/module-test-tool.ts
 - 用户把任意项目交给 ReviewerCat 后，它能像人类测试负责人一样找入口、找边界、跑真实路径、驱动返工
 - ReviewerCat 能稳定阻止“测试绿但产品不可用”的 closure
 - ReviewerCat 成为 EngineerCat 的独立质量门，而不是附属说明器
+
+## 17. 已合并的专题决策
+
+以下专题不再拆成独立 ReviewerCat 文档，统一沉淀在本 spec、`benchmarks/SPEC.md` 和 `benchmarks/BioBench/EVALUATION.md`。
+
+### 17.1 XiaoBa-CLI True E2E
+
+ReviewerCat 测 XiaoBa-CLI 时采用分层 adapter，而不是只靠一种入口：
+
+- `direct runtime`：先把状态机、trace、评分和返工闭环做稳。
+- `tmux / interactive CLI`：作为最接近真人终端体验的黑盒证据。
+- `one-shot CLI`：用于 smoke、错误输入和短路径验证。
+- `dashboard / pet / bridge`：只在对应入口改动或 release gate 需要时进入 E2E。
+
+一次验证只有覆盖真实入口、自然语言交互、独立证据和可复查 trace，才可以称为 true E2E。单测、集成测试和被测 agent 的自评都不能单独作为通过依据。
+
+### 17.2 Replay 策略
+
+ReviewerCat 默认优先选择便宜稳定的 `agent_session` replay；涉及入口、role 激活、channel、session key、文件交付、dashboard、pet 或 IM adapter 的风险时，再补真实 `e2e` replay。
+
+```text
+ordinary runtime / skill / verifier change -> agent_session
+entrypoint / role / channel / artifact delivery change -> agent_session + selected e2e
+release gate -> selected suite + e2e gate
+```
+
+`agent_session` 失败时先修核心 harness，不急着扩大 E2E；`agent_session` 通过但 E2E 失败时，优先归因到 adapter、role activation、channel、session、packaging 或用户可见交付。
+
+### 17.3 BioBench 所属边界
+
+BioBench 是 benchmark 资产，不是 ReviewerCat 私有文档。ReviewerCat 在 BioBench 中的职责是 release gate owner：
+
+- 把 trace-derived case 升级为 runnable case。
+- 为 fixture、expected artifacts、verifier 和 scorecard 设门槛。
+- 通过真实入口或 replay lane 运行目标 role。
+- 基于 role behavior、domain outcome 和 runtime reliability 判定 pass / fail / blocked。
+
+BioBench 的领域 taxonomy、verifier、scorecard、CI lane 和 release gate 细节统一维护在 `benchmarks/BioBench/EVALUATION.md`。

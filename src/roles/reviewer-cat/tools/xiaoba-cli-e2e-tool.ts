@@ -493,10 +493,6 @@ async function runProcessInteraction(input: {
   const child = spawn(input.command, {
     cwd: input.cwd,
     shell: true,
-    env: {
-      ...process.env,
-      XIAOBA_CHAT_VERBOSE_LOGS: process.env.XIAOBA_CHAT_VERBOSE_LOGS || '1',
-    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 

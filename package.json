@@ -18,6 +18,7 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "watch": "tsc --watch",
     "test": "tsx --test tests/**/*.test.ts",
+    "benchmark:legacy-trace": "tsx scripts/legacy-trace-benchmark.ts",
     "report": "node dist/index.js chat --exec '/report'",
     "clean-logs": "node scripts/clean-logs.mjs"
   },

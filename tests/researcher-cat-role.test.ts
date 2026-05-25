@@ -13,7 +13,7 @@ describe('ResearcherCat role assets', () => {
 
     const config = JSON.parse(fs.readFileSync(rolePath, 'utf-8'));
     assert.strictEqual(config.name, 'researcher-cat');
-    assert.strictEqual(config.displayName, 'ResearcherCat');
+    assert.strictEqual(config.displayName, 'Ishigami Senhachi');
     assert.strictEqual(config.promptFile, 'researcher-cat-system-prompt.md');
     assert.ok(config.aliases.includes('sci-paper-doctor'));
   });
@@ -25,7 +25,7 @@ describe('ResearcherCat role assets', () => {
 
     assert.match(prompt, /ResearcherCat/);
     assert.match(prompt, /长周期科研项目/);
-    assert.match(prompt, /当前角色：ResearcherCat/);
+    assert.match(prompt, /当前角色：Ishigami Senhachi/);
 
     RoleResolver.clearActiveRole();
   });

@@ -1,6 +1,6 @@
 {
   "name": "reviewer-cat",
-  "displayName": "ReviewerCat",
+  "displayName": "Aoi Hachi",
   "description": "Owner/Test 型角色，负责真实端到端验收、边界发现、驱动 Codex/Claude 返工，并独立判断 closed/reopened。",
   "promptFile": "reviewer-system-prompt.md",
   "aliases": [
@@ -15,5 +15,8 @@
     "bio-skills",
     "OfficeCLI",
     "WebCLI"
-  ]
+  ],
+  "metadata": {
+    "petId": "aoi-hachi"
+  }
 }

@@ -17,6 +17,7 @@ import {
   CodexJobResumeTool,
   CodexJobStartTool,
   CodexJobStatusTool,
+  CodexSessionListTool,
 } from './reviewer-cat/tools/codex-job-tools';
 import { ReviewerEvalPrepareTool } from './reviewer-cat/tools/reviewer-eval-tool';
 import { ReviewerXiaoBaCliE2ETool } from './reviewer-cat/tools/xiaoba-cli-e2e-tool';
@@ -49,11 +50,21 @@ export function getRoleSpecificTools(): Tool[] {
     return [
       new ReviewerEvalPrepareTool(),
       new ReviewerXiaoBaCliE2ETool(),
+      new CodexSessionListTool(),
       new CodexJobStartTool(),
       new CodexJobStatusTool(),
       new CodexJobResumeTool(),
       new CodexJobCancelTool(),
       new ReviewerModuleTestTool(),
+    ];
+  }
+  if (isEngineerRole()) {
+    return [
+      new CodexSessionListTool(),
+      new CodexJobStartTool(),
+      new CodexJobStatusTool(),
+      new CodexJobResumeTool(),
+      new CodexJobCancelTool(),
     ];
   }
   return [];

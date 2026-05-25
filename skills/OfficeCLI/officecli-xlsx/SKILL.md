@@ -35,8 +35,8 @@ officecli --version
 | Task | Action |
 |------|--------|
 | Read / analyze content | Use `view` and `get` commands below |
-| Edit existing workbook | Read [editing.md](editing.md) |
-| Create from scratch | Read [creating.md](creating.md) |
+| Edit existing workbook | Follow the editing guidance in this skill |
+| Create from scratch | Follow the creation guidance in this skill |
 
 ---
 

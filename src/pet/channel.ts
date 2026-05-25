@@ -9,6 +9,7 @@ import { AgentServices, SessionCallbacks } from '../core/agent-session';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { ChannelCallbacks } from '../types/tool';
 import { Logger } from '../utils/logger';
+import { RoleResolver } from '../utils/role-resolver';
 
 type PetState =
   | 'idle'
@@ -79,9 +80,14 @@ export class PetChannel {
 
   private mountRoutes(): void {
     this.router.get('/pet/pets', (_req, res) => {
+      const pets = this.listPets();
+      const activeRole = RoleResolver.getActiveRoleName() || null;
+      const rolePetId = this.resolveRolePetId(activeRole, pets);
       res.json({
-        pets: this.listPets(),
-        defaultPetId: this.resolveDefaultPetId(),
+        pets,
+        defaultPetId: this.resolveDefaultPetId(pets, rolePetId),
+        rolePetId,
+        activeRole,
       });
     });
 
@@ -280,9 +286,29 @@ export class PetChannel {
     return Array.from(pets.values());
   }
 
-  private resolveDefaultPetId(): string | null {
-    const pets = this.listPets();
-    return pets.find(pet => pet.id === 'tanuki-puff')?.id || pets[0]?.id || null;
+  private resolveDefaultPetId(
+    pets: Array<PetManifest & { spriteUrl: string; source: string }> = this.listPets(),
+    rolePetId: string | null = this.resolveRolePetId(RoleResolver.getActiveRoleName() || null, pets),
+  ): string | null {
+    return rolePetId || pets.find(pet => pet.id === 'xiaoba')?.id || pets[0]?.id || null;
+  }
+
+  private resolveRolePetId(
+    activeRole: string | null,
+    pets: Array<PetManifest & { spriteUrl: string; source: string }>,
+  ): string | null {
+    if (!activeRole) return null;
+
+    const config = RoleResolver.getRoleConfig(activeRole);
+    const configured = typeof config?.metadata?.petId === 'string'
+      ? config.metadata.petId.trim()
+      : '';
+
+    if (!configured || !PET_ID_PATTERN.test(configured)) {
+      return null;
+    }
+
+    return pets.some(pet => pet.id === configured) ? configured : null;
   }
 
   private resolvePet(petId: string): { manifest: PetManifest; spritesheetPath: string } {
@@ -339,7 +365,9 @@ export class PetChannel {
       { dir: path.resolve(process.cwd(), 'dashboard', 'pets'), label: 'bundled' },
       { dir: path.resolve(process.env.XIAOBA_APP_ROOT || '', 'dashboard', 'pets'), label: 'bundled' },
       { dir: path.resolve(process.env.XIAOBA_PETS_DIR || ''), label: 'custom' },
-      { dir: path.join(os.homedir(), '.codex', 'pets'), label: 'codex' },
+      ...(process.env.XIAOBA_INCLUDE_CODEX_PETS === 'true'
+        ? [{ dir: path.join(os.homedir(), '.codex', 'pets'), label: 'codex' }]
+        : []),
     ];
 
     const seen = new Set<string>();

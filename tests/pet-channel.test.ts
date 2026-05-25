@@ -6,10 +6,14 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 import { PetChannel } from '../src/pet/channel';
+import { RoleResolver } from '../src/utils/role-resolver';
 
 const originalCwd = process.cwd();
 const originalPetsDir = process.env.XIAOBA_PETS_DIR;
 const originalAppRoot = process.env.XIAOBA_APP_ROOT;
+const originalRole = process.env.XIAOBA_ROLE;
+const originalCurrentRole = process.env.CURRENT_ROLE;
+const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
 
 function writePet(root: string, id: string, displayName: string): void {
   const petDir = path.join(root, 'dashboard', 'pets', id);
@@ -25,6 +29,20 @@ function writePet(root: string, id: string, displayName: string): void {
     'utf-8',
   );
   fs.writeFileSync(path.join(petDir, 'spritesheet.webp'), Buffer.from([0x52, 0x49, 0x46, 0x46]));
+}
+
+function writeRole(root: string, name: string, petId: string): void {
+  const roleDir = path.join(root, 'roles', name);
+  fs.mkdirSync(roleDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(roleDir, 'role.json'),
+    JSON.stringify({
+      name,
+      displayName: name,
+      metadata: { petId },
+    }, null, 2),
+    'utf-8',
+  );
 }
 
 async function listen(app: express.Express): Promise<{ server: http.Server; baseUrl: string }> {
@@ -99,6 +117,7 @@ describe('PetChannel', () => {
   let baseUrl = '';
 
   beforeEach(async () => {
+    RoleResolver.clearActiveRole();
     testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-pet-'));
     writePet(testRoot, 'alpha-puff', 'Alpha Puff');
     delete process.env.XIAOBA_PETS_DIR;
@@ -134,6 +153,21 @@ describe('PetChannel', () => {
     } else {
       delete process.env.XIAOBA_APP_ROOT;
     }
+    if (typeof originalRole === 'string') {
+      process.env.XIAOBA_ROLE = originalRole;
+    } else {
+      delete process.env.XIAOBA_ROLE;
+    }
+    if (typeof originalCurrentRole === 'string') {
+      process.env.CURRENT_ROLE = originalCurrentRole;
+    } else {
+      delete process.env.CURRENT_ROLE;
+    }
+    if (typeof originalCurrentRoleDisplayName === 'string') {
+      process.env.CURRENT_ROLE_DISPLAY_NAME = originalCurrentRoleDisplayName;
+    } else {
+      delete process.env.CURRENT_ROLE_DISPLAY_NAME;
+    }
   });
 
   test('列出项目内置 pet，并暴露 pet spritesheet URL', async () => {
@@ -146,6 +180,30 @@ describe('PetChannel', () => {
     assert.strictEqual(pet!.displayName, 'Alpha Puff');
     assert.strictEqual(pet!.spriteUrl, '/api/pet/pets/alpha-puff/spritesheet');
     assert.strictEqual(pet!.source, 'bundled');
+  });
+
+  test('默认 pet 会跟随 active role 的 petId 配置', async () => {
+    writePet(testRoot, 'role-puff', 'Role Puff');
+    writeRole(testRoot, 'engineer-cat', 'role-puff');
+    RoleResolver.activateRole('engineer-cat');
+
+    const response = await fetch(`${baseUrl}/api/pet/pets`);
+    assert.strictEqual(response.status, 200);
+    const data = await response.json() as { activeRole: string; rolePetId: string; defaultPetId: string };
+
+    assert.strictEqual(data.activeRole, 'engineer-cat');
+    assert.strictEqual(data.rolePetId, 'role-puff');
+    assert.strictEqual(data.defaultPetId, 'role-puff');
+
+    const wake = await fetch(`${baseUrl}/api/pet/wake`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(wake.status, 200);
+    const wakeData = await wake.json() as { petId: string; sessionKey: string };
+    assert.strictEqual(wakeData.petId, 'role-puff');
+    assert.strictEqual(wakeData.sessionKey, 'pet:role-puff');
   });
 
   test('spritesheet endpoint 只允许解析到 pet 目录内的资源', async () => {

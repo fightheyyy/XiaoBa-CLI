@@ -1,0 +1,2003 @@
+{
+  "version": 1,
+  "sourceLabel": "sessions.zip",
+  "scannedAt": "2026-05-12T07:50:49.486Z",
+  "summary": {
+    "files": 40,
+    "lines": 9537,
+    "validJsonLines": 9537,
+    "parseErrors": 0,
+    "parseCoverage": 1,
+    "turnEntries": 519,
+    "runtimeEntries": 9018,
+    "unknownEntries": 0,
+    "platforms": {
+      "catscompany": 37,
+      "weixin": 3
+    },
+    "dates": {
+      "start": "2026-04-08",
+      "end": "2026-05-11",
+      "count": 18
+    },
+    "sessions": 17,
+    "interactions": 68,
+    "totalTokens": 31430188,
+    "promptTokens": 30010868,
+    "completionTokens": 1419320,
+    "maxPromptTokens": 539535,
+    "maxCompletionTokens": 32578,
+    "toolCalls": 3915,
+    "toolFailures": 945,
+    "toolSuccessRate": 0.7586,
+    "issueCounts": {
+      "credential_exposure": 1350,
+      "runtime_warning": 839,
+      "timeout": 259,
+      "runtime_error": 218,
+      "tool_failure": 206,
+      "context_pressure": 100,
+      "platform_command_mismatch": 40,
+      "restore_event": 39,
+      "api_or_network_failure": 13,
+      "rate_limited_retry": 11,
+      "compaction_event": 7
+    },
+    "redactionHits": 4555,
+    "benchmarkScore": 69
+  },
+  "toolStats": [
+    {
+      "name": "execute_shell",
+      "count": 2690,
+      "successes": 1765,
+      "failures": 878,
+      "avgDurationMs": 54903,
+      "maxDurationMs": 319427
+    },
+    {
+      "name": "read_file",
+      "count": 312,
+      "successes": 273,
+      "failures": 35,
+      "avgDurationMs": 1,
+      "maxDurationMs": 2
+    },
+    {
+      "name": "edit_file",
+      "count": 266,
+      "successes": 250,
+      "failures": 16,
+      "avgDurationMs": 1,
+      "maxDurationMs": 2
+    },
+    {
+      "name": "grep",
+      "count": 30,
+      "successes": 22,
+      "failures": 8,
+      "avgDurationMs": 294,
+      "maxDurationMs": 1249
+    },
+    {
+      "name": "glob",
+      "count": 118,
+      "successes": 113,
+      "failures": 5,
+      "avgDurationMs": 12,
+      "maxDurationMs": 23
+    },
+    {
+      "name": "write_file",
+      "count": 391,
+      "successes": 390,
+      "failures": 1,
+      "avgDurationMs": 4,
+      "maxDurationMs": 9
+    },
+    {
+      "name": "skill",
+      "count": 71,
+      "successes": 70,
+      "failures": 1,
+      "avgDurationMs": 11,
+      "maxDurationMs": 19
+    },
+    {
+      "name": "send_text",
+      "count": 12,
+      "successes": 11,
+      "failures": 1,
+      "avgDurationMs": 0,
+      "maxDurationMs": 0
+    },
+    {
+      "name": "send_file",
+      "count": 16,
+      "successes": 16,
+      "failures": 0,
+      "avgDurationMs": 644,
+      "maxDurationMs": 727
+    },
+    {
+      "name": "check_subagent",
+      "count": 6,
+      "successes": 6,
+      "failures": 0,
+      "avgDurationMs": 0,
+      "maxDurationMs": 0
+    },
+    {
+      "name": "spawn_subagent",
+      "count": 2,
+      "successes": 2,
+      "failures": 0,
+      "avgDurationMs": 0,
+      "maxDurationMs": 0
+    },
+    {
+      "name": "stop_subagent",
+      "count": 1,
+      "successes": 1,
+      "failures": 0,
+      "avgDurationMs": 0,
+      "maxDurationMs": 0
+    }
+  ],
+  "files": [
+    {
+      "path": "sessions/catscompany/2026-04-08/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "lines": 3,
+      "validJsonLines": 3,
+      "parseErrors": 0,
+      "turnEntries": 3,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "912cb932ed7a"
+      ],
+      "firstTimestamp": "2026-04-08T08:34:24.453Z",
+      "lastTimestamp": "2026-04-08T08:41:57.718Z",
+      "totalTokens": 139479,
+      "toolCalls": 36,
+      "toolFailures": 23,
+      "issueCounts": {
+        "timeout": 3,
+        "tool_failure": 3,
+        "platform_command_mismatch": 1,
+        "context_pressure": 1,
+        "rate_limited_retry": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-08/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "lines": 8,
+      "validJsonLines": 8,
+      "parseErrors": 0,
+      "turnEntries": 8,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "658a63355b81"
+      ],
+      "firstTimestamp": "2026-04-08T08:44:40.216Z",
+      "lastTimestamp": "2026-04-08T09:19:56.357Z",
+      "totalTokens": 158527,
+      "toolCalls": 71,
+      "toolFailures": 20,
+      "issueCounts": {
+        "timeout": 8,
+        "credential_exposure": 8,
+        "tool_failure": 4
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-08/trace-0003.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "lines": 2,
+      "validJsonLines": 2,
+      "parseErrors": 0,
+      "turnEntries": 2,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "437a79a88f0f"
+      ],
+      "firstTimestamp": "2026-04-08T09:22:46.447Z",
+      "lastTimestamp": "2026-04-08T09:23:12.045Z",
+      "totalTokens": 5675,
+      "toolCalls": 6,
+      "toolFailures": 1,
+      "issueCounts": {
+        "tool_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-08/trace-0004.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "lines": 5,
+      "validJsonLines": 5,
+      "parseErrors": 0,
+      "turnEntries": 5,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-08T08:21:48.083Z",
+      "lastTimestamp": "2026-04-08T08:30:34.948Z",
+      "totalTokens": 54039,
+      "toolCalls": 21,
+      "toolFailures": 10,
+      "issueCounts": {
+        "timeout": 4,
+        "tool_failure": 3,
+        "credential_exposure": 4,
+        "platform_command_mismatch": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 16,
+      "validJsonLines": 16,
+      "parseErrors": 0,
+      "turnEntries": 16,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "3623c5fa9de1"
+      ],
+      "firstTimestamp": "2026-04-09T02:26:36.115Z",
+      "lastTimestamp": "2026-04-09T09:56:49.894Z",
+      "totalTokens": 1905060,
+      "toolCalls": 155,
+      "toolFailures": 44,
+      "issueCounts": {
+        "timeout": 12,
+        "credential_exposure": 12,
+        "tool_failure": 10,
+        "context_pressure": 8,
+        "platform_command_mismatch": 2
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 2,
+      "validJsonLines": 2,
+      "parseErrors": 0,
+      "turnEntries": 2,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "fbd6374ac53a"
+      ],
+      "firstTimestamp": "2026-04-09T06:30:30.345Z",
+      "lastTimestamp": "2026-04-09T06:47:06.523Z",
+      "totalTokens": 541672,
+      "toolCalls": 119,
+      "toolFailures": 24,
+      "issueCounts": {
+        "context_pressure": 2,
+        "timeout": 2,
+        "tool_failure": 2,
+        "platform_command_mismatch": 2,
+        "rate_limited_retry": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0003.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 6,
+      "validJsonLines": 6,
+      "parseErrors": 0,
+      "turnEntries": 6,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "37f6bdafb67f"
+      ],
+      "firstTimestamp": "2026-04-09T07:00:03.202Z",
+      "lastTimestamp": "2026-04-09T09:58:32.826Z",
+      "totalTokens": 38327,
+      "toolCalls": 6,
+      "toolFailures": 0,
+      "issueCounts": {}
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0004.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 5,
+      "validJsonLines": 5,
+      "parseErrors": 0,
+      "turnEntries": 5,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "06c2fe7903a6"
+      ],
+      "firstTimestamp": "2026-04-09T07:43:54.540Z",
+      "lastTimestamp": "2026-04-09T08:26:25.680Z",
+      "totalTokens": 539665,
+      "toolCalls": 223,
+      "toolFailures": 97,
+      "issueCounts": {
+        "tool_failure": 5,
+        "platform_command_mismatch": 4,
+        "context_pressure": 3,
+        "timeout": 4,
+        "credential_exposure": 4
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0005.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 13,
+      "validJsonLines": 13,
+      "parseErrors": 0,
+      "turnEntries": 13,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "228b7aae41be"
+      ],
+      "firstTimestamp": "2026-04-09T08:01:56.458Z",
+      "lastTimestamp": "2026-04-09T09:59:54.194Z",
+      "totalTokens": 656774,
+      "toolCalls": 83,
+      "toolFailures": 19,
+      "issueCounts": {
+        "tool_failure": 5,
+        "platform_command_mismatch": 1,
+        "timeout": 6,
+        "credential_exposure": 6,
+        "context_pressure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0006.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 1,
+      "validJsonLines": 1,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "c080d8911f2f"
+      ],
+      "firstTimestamp": "2026-04-09T09:05:42.332Z",
+      "lastTimestamp": "2026-04-09T09:05:42.332Z",
+      "totalTokens": 28121,
+      "toolCalls": 12,
+      "toolFailures": 3,
+      "issueCounts": {
+        "timeout": 1,
+        "credential_exposure": 1,
+        "tool_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-09/trace-0007.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "lines": 19,
+      "validJsonLines": 19,
+      "parseErrors": 0,
+      "turnEntries": 19,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-09T10:05:08.554Z",
+      "lastTimestamp": "2026-04-09T10:57:30.599Z",
+      "totalTokens": 834801,
+      "toolCalls": 217,
+      "toolFailures": 87,
+      "issueCounts": {
+        "timeout": 14,
+        "credential_exposure": 12,
+        "context_pressure": 2,
+        "tool_failure": 10,
+        "platform_command_mismatch": 1,
+        "rate_limited_retry": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-11/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-11",
+      "lines": 42,
+      "validJsonLines": 42,
+      "parseErrors": 0,
+      "turnEntries": 42,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "bea2cba8e3d3"
+      ],
+      "firstTimestamp": "2026-04-11T03:21:34.528Z",
+      "lastTimestamp": "2026-04-11T07:06:08.684Z",
+      "totalTokens": 2108280,
+      "toolCalls": 287,
+      "toolFailures": 54,
+      "issueCounts": {
+        "credential_exposure": 30,
+        "tool_failure": 12,
+        "platform_command_mismatch": 3,
+        "timeout": 28,
+        "context_pressure": 12
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-11/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-11",
+      "lines": 27,
+      "validJsonLines": 27,
+      "parseErrors": 0,
+      "turnEntries": 27,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-11T02:11:07.501Z",
+      "lastTimestamp": "2026-04-11T03:20:28.279Z",
+      "totalTokens": 723842,
+      "toolCalls": 121,
+      "toolFailures": 31,
+      "issueCounts": {
+        "context_pressure": 2,
+        "tool_failure": 8,
+        "timeout": 18,
+        "credential_exposure": 17,
+        "platform_command_mismatch": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-14/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-14",
+      "lines": 35,
+      "validJsonLines": 35,
+      "parseErrors": 0,
+      "turnEntries": 35,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "bea2cba8e3d3"
+      ],
+      "firstTimestamp": "2026-04-14T01:41:04.474Z",
+      "lastTimestamp": "2026-04-14T08:44:32.164Z",
+      "totalTokens": 1654408,
+      "toolCalls": 97,
+      "toolFailures": 23,
+      "issueCounts": {
+        "context_pressure": 9,
+        "timeout": 18,
+        "credential_exposure": 19,
+        "tool_failure": 11,
+        "platform_command_mismatch": 1,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-14/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-14",
+      "lines": 1,
+      "validJsonLines": 1,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "48ee57604136"
+      ],
+      "firstTimestamp": "2026-04-14T01:40:28.484Z",
+      "lastTimestamp": "2026-04-14T01:40:28.484Z",
+      "totalTokens": 4004,
+      "toolCalls": 1,
+      "toolFailures": 0,
+      "issueCounts": {}
+    },
+    {
+      "path": "sessions/catscompany/2026-04-14/trace-0003.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-14",
+      "lines": 21,
+      "validJsonLines": 21,
+      "parseErrors": 0,
+      "turnEntries": 21,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "f28a2ab7e00d"
+      ],
+      "firstTimestamp": "2026-04-14T09:12:26.963Z",
+      "lastTimestamp": "2026-04-14T10:26:58.281Z",
+      "totalTokens": 542454,
+      "toolCalls": 129,
+      "toolFailures": 33,
+      "issueCounts": {
+        "tool_failure": 11,
+        "platform_command_mismatch": 4,
+        "timeout": 3,
+        "credential_exposure": 18
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-14/trace-0004.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-14",
+      "lines": 2,
+      "validJsonLines": 2,
+      "parseErrors": 0,
+      "turnEntries": 2,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-14T08:53:09.623Z",
+      "lastTimestamp": "2026-04-14T08:53:53.581Z",
+      "totalTokens": 18712,
+      "toolCalls": 1,
+      "toolFailures": 0,
+      "issueCounts": {}
+    },
+    {
+      "path": "sessions/catscompany/2026-04-15/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-15",
+      "lines": 7,
+      "validJsonLines": 7,
+      "parseErrors": 0,
+      "turnEntries": 7,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "f72c807dd072"
+      ],
+      "firstTimestamp": "2026-04-15T09:53:00.062Z",
+      "lastTimestamp": "2026-04-15T10:07:26.232Z",
+      "totalTokens": 93898,
+      "toolCalls": 41,
+      "toolFailures": 8,
+      "issueCounts": {
+        "timeout": 6,
+        "credential_exposure": 6,
+        "tool_failure": 4
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-15/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-15",
+      "lines": 10,
+      "validJsonLines": 10,
+      "parseErrors": 0,
+      "turnEntries": 10,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-15T02:40:59.993Z",
+      "lastTimestamp": "2026-04-15T09:24:15.144Z",
+      "totalTokens": 115658,
+      "toolCalls": 1,
+      "toolFailures": 0,
+      "issueCounts": {
+        "timeout": 1,
+        "credential_exposure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-16/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-16",
+      "lines": 8,
+      "validJsonLines": 8,
+      "parseErrors": 0,
+      "turnEntries": 8,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "f72c807dd072"
+      ],
+      "firstTimestamp": "2026-04-16T01:27:41.470Z",
+      "lastTimestamp": "2026-04-16T02:12:49.162Z",
+      "totalTokens": 1096631,
+      "toolCalls": 63,
+      "toolFailures": 15,
+      "issueCounts": {
+        "context_pressure": 2,
+        "rate_limited_retry": 2,
+        "timeout": 1,
+        "credential_exposure": 1,
+        "tool_failure": 3,
+        "platform_command_mismatch": 2
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-16/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-16",
+      "lines": 41,
+      "validJsonLines": 41,
+      "parseErrors": 0,
+      "turnEntries": 41,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-16T02:43:51.526Z",
+      "lastTimestamp": "2026-04-16T09:37:24.764Z",
+      "totalTokens": 2562043,
+      "toolCalls": 252,
+      "toolFailures": 56,
+      "issueCounts": {
+        "timeout": 16,
+        "credential_exposure": 26,
+        "tool_failure": 17,
+        "context_pressure": 11,
+        "platform_command_mismatch": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-17/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-17",
+      "lines": 1,
+      "validJsonLines": 1,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-17T03:39:49.658Z",
+      "lastTimestamp": "2026-04-17T03:39:49.658Z",
+      "totalTokens": 113562,
+      "toolCalls": 10,
+      "toolFailures": 1,
+      "issueCounts": {
+        "context_pressure": 1,
+        "timeout": 1,
+        "credential_exposure": 1,
+        "tool_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-19/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-19",
+      "lines": 5,
+      "validJsonLines": 5,
+      "parseErrors": 0,
+      "turnEntries": 5,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-19T13:37:22.309Z",
+      "lastTimestamp": "2026-04-19T13:52:02.455Z",
+      "totalTokens": 136874,
+      "toolCalls": 12,
+      "toolFailures": 1,
+      "issueCounts": {
+        "timeout": 4,
+        "credential_exposure": 4,
+        "tool_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-22/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-22",
+      "lines": 11,
+      "validJsonLines": 11,
+      "parseErrors": 0,
+      "turnEntries": 11,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-22T03:01:44.879Z",
+      "lastTimestamp": "2026-04-22T08:27:11.716Z",
+      "totalTokens": 670501,
+      "toolCalls": 61,
+      "toolFailures": 16,
+      "issueCounts": {
+        "timeout": 8,
+        "credential_exposure": 8,
+        "tool_failure": 6,
+        "context_pressure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-23/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-23",
+      "lines": 53,
+      "validJsonLines": 53,
+      "parseErrors": 0,
+      "turnEntries": 53,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-23T03:42:38.300Z",
+      "lastTimestamp": "2026-04-23T09:39:47.439Z",
+      "totalTokens": 2642393,
+      "toolCalls": 185,
+      "toolFailures": 36,
+      "issueCounts": {
+        "timeout": 8,
+        "credential_exposure": 8,
+        "tool_failure": 10,
+        "context_pressure": 16,
+        "platform_command_mismatch": 3
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-27/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-27",
+      "lines": 22,
+      "validJsonLines": 22,
+      "parseErrors": 0,
+      "turnEntries": 22,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-27T06:21:27.983Z",
+      "lastTimestamp": "2026-04-27T09:43:02.264Z",
+      "totalTokens": 1922923,
+      "toolCalls": 212,
+      "toolFailures": 21,
+      "issueCounts": {
+        "rate_limited_retry": 3,
+        "timeout": 16,
+        "credential_exposure": 16,
+        "tool_failure": 12,
+        "platform_command_mismatch": 2,
+        "context_pressure": 7
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-28/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-28",
+      "lines": 15,
+      "validJsonLines": 15,
+      "parseErrors": 0,
+      "turnEntries": 15,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-28T01:52:41.303Z",
+      "lastTimestamp": "2026-04-28T10:15:52.713Z",
+      "totalTokens": 570076,
+      "toolCalls": 76,
+      "toolFailures": 30,
+      "issueCounts": {
+        "context_pressure": 3,
+        "timeout": 5,
+        "credential_exposure": 5,
+        "tool_failure": 4,
+        "rate_limited_retry": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-29/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "lines": 1985,
+      "validJsonLines": 1985,
+      "parseErrors": 0,
+      "turnEntries": 11,
+      "runtimeEntries": 1974,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-29T07:23:42.712Z",
+      "lastTimestamp": "2026-04-29T10:00:10.659Z",
+      "totalTokens": 3108839,
+      "toolCalls": 193,
+      "toolFailures": 51,
+      "issueCounts": {
+        "restore_event": 12,
+        "runtime_warning": 182,
+        "runtime_error": 64,
+        "context_pressure": 6,
+        "timeout": 7,
+        "tool_failure": 6,
+        "compaction_event": 1,
+        "credential_exposure": 268,
+        "rate_limited_retry": 2,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-29/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "lines": 24,
+      "validJsonLines": 24,
+      "parseErrors": 0,
+      "turnEntries": 24,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-29T01:25:22.170Z",
+      "lastTimestamp": "2026-04-29T04:30:48.582Z",
+      "totalTokens": 1642378,
+      "toolCalls": 260,
+      "toolFailures": 63,
+      "issueCounts": {
+        "timeout": 14,
+        "credential_exposure": 6,
+        "tool_failure": 15,
+        "context_pressure": 7,
+        "platform_command_mismatch": 5
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-04-30/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-30",
+      "lines": 35,
+      "validJsonLines": 35,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 34,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-04-30T09:06:49.012Z",
+      "lastTimestamp": "2026-04-30T10:19:24.206Z",
+      "totalTokens": 369270,
+      "toolCalls": 2,
+      "toolFailures": 0,
+      "issueCounts": {
+        "restore_event": 3,
+        "context_pressure": 1,
+        "runtime_warning": 4,
+        "runtime_error": 1,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-07/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-07",
+      "lines": 306,
+      "validJsonLines": 306,
+      "parseErrors": 0,
+      "turnEntries": 4,
+      "runtimeEntries": 302,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-05-07T09:31:26.800Z",
+      "lastTimestamp": "2026-05-07T11:22:44.714Z",
+      "totalTokens": 529778,
+      "toolCalls": 42,
+      "toolFailures": 13,
+      "issueCounts": {
+        "restore_event": 3,
+        "context_pressure": 1,
+        "runtime_warning": 17,
+        "runtime_error": 13,
+        "credential_exposure": 17,
+        "timeout": 1,
+        "tool_failure": 2,
+        "compaction_event": 3,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-08/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-08",
+      "lines": 1226,
+      "validJsonLines": 1226,
+      "parseErrors": 0,
+      "turnEntries": 36,
+      "runtimeEntries": 1190,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "f1666715eef1"
+      ],
+      "firstTimestamp": "2026-05-08T03:28:55.681Z",
+      "lastTimestamp": "2026-05-08T09:01:57.802Z",
+      "totalTokens": 1675703,
+      "toolCalls": 156,
+      "toolFailures": 17,
+      "issueCounts": {
+        "runtime_error": 14,
+        "credential_exposure": 84,
+        "runtime_warning": 29,
+        "timeout": 17,
+        "tool_failure": 5,
+        "platform_command_mismatch": 2,
+        "api_or_network_failure": 2
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-08/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-08",
+      "lines": 749,
+      "validJsonLines": 749,
+      "parseErrors": 0,
+      "turnEntries": 8,
+      "runtimeEntries": 741,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "8dbb0ae7e4ac"
+      ],
+      "firstTimestamp": "2026-05-08T09:33:32.490Z",
+      "lastTimestamp": "2026-05-08T11:02:59.709Z",
+      "totalTokens": 147472,
+      "toolCalls": 100,
+      "toolFailures": 25,
+      "issueCounts": {
+        "credential_exposure": 103,
+        "runtime_error": 27,
+        "tool_failure": 6,
+        "platform_command_mismatch": 1,
+        "runtime_warning": 36,
+        "timeout": 6,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-08/trace-0003.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-08",
+      "lines": 2742,
+      "validJsonLines": 2742,
+      "parseErrors": 0,
+      "turnEntries": 10,
+      "runtimeEntries": 2732,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-05-08T01:43:01.281Z",
+      "lastTimestamp": "2026-05-08T10:40:59.684Z",
+      "totalTokens": 1493619,
+      "toolCalls": 284,
+      "toolFailures": 27,
+      "issueCounts": {
+        "restore_event": 12,
+        "runtime_error": 29,
+        "runtime_warning": 388,
+        "credential_exposure": 401,
+        "timeout": 7,
+        "tool_failure": 6,
+        "api_or_network_failure": 3,
+        "context_pressure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-09/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-09",
+      "lines": 99,
+      "validJsonLines": 99,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 98,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "f1666715eef1"
+      ],
+      "firstTimestamp": "2026-05-09T01:43:19.819Z",
+      "lastTimestamp": "2026-05-09T02:56:09.509Z",
+      "totalTokens": 149878,
+      "toolCalls": 16,
+      "toolFailures": 4,
+      "issueCounts": {
+        "restore_event": 3,
+        "credential_exposure": 8,
+        "runtime_error": 3,
+        "runtime_warning": 5,
+        "tool_failure": 1,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-09/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-09",
+      "lines": 1948,
+      "validJsonLines": 1948,
+      "parseErrors": 0,
+      "turnEntries": 18,
+      "runtimeEntries": 1930,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-05-09T09:10:25.343Z",
+      "lastTimestamp": "2026-05-09T11:46:31.114Z",
+      "totalTokens": 1597696,
+      "toolCalls": 248,
+      "toolFailures": 51,
+      "issueCounts": {
+        "restore_event": 3,
+        "runtime_error": 66,
+        "tool_failure": 11,
+        "platform_command_mismatch": 2,
+        "runtime_warning": 174,
+        "credential_exposure": 238,
+        "timeout": 11,
+        "context_pressure": 3,
+        "compaction_event": 3,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/catscompany/2026-05-11/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-11",
+      "lines": 18,
+      "validJsonLines": 18,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 17,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "804242a9f6b3"
+      ],
+      "firstTimestamp": "2026-05-11T03:40:47.547Z",
+      "lastTimestamp": "2026-05-11T04:53:56.363Z",
+      "totalTokens": 40084,
+      "toolCalls": 0,
+      "toolFailures": 0,
+      "issueCounts": {
+        "restore_event": 3,
+        "runtime_warning": 4,
+        "runtime_error": 1,
+        "api_or_network_failure": 1
+      }
+    },
+    {
+      "path": "sessions/weixin/2026-04-08/trace-0001.jsonl",
+      "platform": "weixin",
+      "date": "2026-04-08",
+      "lines": 20,
+      "validJsonLines": 20,
+      "parseErrors": 0,
+      "turnEntries": 20,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "a9b6d95949ea"
+      ],
+      "firstTimestamp": "2026-04-08T08:19:39.127Z",
+      "lastTimestamp": "2026-04-08T12:08:17.893Z",
+      "totalTokens": 458435,
+      "toolCalls": 91,
+      "toolFailures": 38,
+      "issueCounts": {
+        "credential_exposure": 16,
+        "tool_failure": 9,
+        "timeout": 7,
+        "platform_command_mismatch": 1
+      }
+    },
+    {
+      "path": "sessions/weixin/2026-04-09/trace-0001.jsonl",
+      "platform": "weixin",
+      "date": "2026-04-09",
+      "lines": 3,
+      "validJsonLines": 3,
+      "parseErrors": 0,
+      "turnEntries": 3,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "a9b6d95949ea"
+      ],
+      "firstTimestamp": "2026-04-09T04:20:58.757Z",
+      "lastTimestamp": "2026-04-09T07:02:54.189Z",
+      "totalTokens": 254844,
+      "toolCalls": 25,
+      "toolFailures": 3,
+      "issueCounts": {
+        "timeout": 2,
+        "credential_exposure": 2,
+        "tool_failure": 1
+      }
+    },
+    {
+      "path": "sessions/weixin/2026-04-16/trace-0001.jsonl",
+      "platform": "weixin",
+      "date": "2026-04-16",
+      "lines": 1,
+      "validJsonLines": 1,
+      "parseErrors": 0,
+      "turnEntries": 1,
+      "runtimeEntries": 0,
+      "unknownEntries": 0,
+      "sessionHashes": [
+        "a9b6d95949ea"
+      ],
+      "firstTimestamp": "2026-04-16T03:49:29.297Z",
+      "lastTimestamp": "2026-04-16T03:49:29.297Z",
+      "totalTokens": 83793,
+      "toolCalls": 0,
+      "toolFailures": 0,
+      "issueCounts": {}
+    }
+  ],
+  "cases": [
+    {
+      "id": "legacy-b902e0b13ed354",
+      "kind": "browser_recovery",
+      "sourcePath": "sessions/catscompany/2026-04-08/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "sessionHash": "912cb932ed7a",
+      "interactionId": 1,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-08T08:36:10.544Z",
+      "score": 55,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 5798,
+        "completionTokens": 735,
+        "toolCalls": 4,
+        "toolFailures": 4,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "timeout",
+          "tool_failure"
+        ],
+        "toolNames": [
+          "execute_shell"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "browser fallback path is explicit when the preferred browser harness is unavailable"
+      ]
+    },
+    {
+      "id": "legacy-95f55dd4da9a49",
+      "kind": "context_pressure",
+      "sourcePath": "sessions/catscompany/2026-04-08/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-08",
+      "sessionHash": "912cb932ed7a",
+      "interactionId": 1,
+      "startTurn": 3,
+      "endTurn": 3,
+      "timestamp": "2026-04-08T08:41:57.718Z",
+      "score": 247,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 110617,
+        "completionTokens": 4102,
+        "toolCalls": 27,
+        "toolFailures": 16,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "rate_limited_retry",
+          "timeout",
+          "tool_failure"
+        ],
+        "toolNames": [
+          "check_subagent",
+          "execute_shell",
+          "glob",
+          "read_file",
+          "skill",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget",
+        "rate-limit retries include visible backoff or a clear blocked reason"
+      ]
+    },
+    {
+      "id": "legacy-ac280eec136444",
+      "kind": "context_pressure",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "fbd6374ac53a",
+      "interactionId": 1,
+      "startTurn": 1,
+      "endTurn": 1,
+      "timestamp": "2026-04-09T06:30:30.345Z",
+      "score": 373,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 234340,
+        "completionTokens": 5587,
+        "toolCalls": 48,
+        "toolFailures": 6,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "timeout",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "skill"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-b326fa695ce985",
+      "kind": "context_pressure",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "fbd6374ac53a",
+      "interactionId": 1,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-09T06:47:06.523Z",
+      "score": 526,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 287119,
+        "completionTokens": 14626,
+        "toolCalls": 71,
+        "toolFailures": 18,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "rate_limited_retry",
+          "timeout",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "send_text",
+          "skill",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget",
+        "current runtime chooses commands compatible with the active OS/shell",
+        "rate-limit retries include visible backoff or a clear blocked reason"
+      ]
+    },
+    {
+      "id": "legacy-18fd71ad80f32d",
+      "kind": "log_hygiene_redaction",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0004.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "06c2fe7903a6",
+      "interactionId": 1,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-09T07:59:05.884Z",
+      "score": 700,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 109085,
+        "completionTokens": 19103,
+        "toolCalls": 100,
+        "toolFailures": 49,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "timeout",
+          "credential_exposure",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "glob",
+          "read_file",
+          "send_text",
+          "skill",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-c8079dba68159e",
+      "kind": "platform_command_mismatch",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0005.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "228b7aae41be",
+      "interactionId": 1,
+      "startTurn": 1,
+      "endTurn": 1,
+      "timestamp": "2026-04-09T08:01:56.458Z",
+      "score": 175,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 26299,
+        "completionTokens": 5642,
+        "toolCalls": 23,
+        "toolFailures": 4,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "glob",
+          "grep",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-4d975748a77eac",
+      "kind": "log_hygiene_redaction",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0007.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-09T10:15:06.007Z",
+      "score": 478,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 165882,
+        "completionTokens": 28929,
+        "toolCalls": 61,
+        "toolFailures": 32,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "timeout",
+          "credential_exposure",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "glob",
+          "read_file",
+          "send_file",
+          "skill",
+          "spawn_subagent",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-0c54d60a02d90d",
+      "kind": "artifact_delivery",
+      "sourcePath": "sessions/catscompany/2026-04-09/trace-0007.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-09",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 3,
+      "endTurn": 3,
+      "timestamp": "2026-04-09T10:20:12.367Z",
+      "score": 149,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 93066,
+        "completionTokens": 6739,
+        "toolCalls": 14,
+        "toolFailures": 6,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "timeout",
+          "tool_failure"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "read_file",
+          "send_file",
+          "stop_subagent"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "artifact delivery records the sent file path/name and final user-visible confirmation"
+      ]
+    },
+    {
+      "id": "legacy-869b5c77ce6261",
+      "kind": "log_hygiene_redaction",
+      "sourcePath": "sessions/catscompany/2026-04-11/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-11",
+      "sessionHash": "bea2cba8e3d3",
+      "interactionId": 1,
+      "startTurn": 13,
+      "endTurn": 13,
+      "timestamp": "2026-04-11T04:18:01.974Z",
+      "score": 895,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 438924,
+        "completionTokens": 32578,
+        "toolCalls": 135,
+        "toolFailures": 23,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "context_pressure",
+          "timeout",
+          "credential_exposure",
+          "tool_failure"
+        ],
+        "toolNames": [
+          "edit_file",
+          "execute_shell",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current context compressor keeps provider payload under the configured budget"
+      ]
+    },
+    {
+      "id": "legacy-0b173317caa34b",
+      "kind": "large_context_task",
+      "sourcePath": "sessions/catscompany/2026-04-16/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-16",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 11,
+      "endTurn": 11,
+      "timestamp": "2026-04-16T03:32:27.953Z",
+      "score": 51,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 49516,
+        "completionTokens": 3104,
+        "toolCalls": 4,
+        "toolFailures": 1,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "glob",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-63d1dcea2b60ce",
+      "kind": "large_context_task",
+      "sourcePath": "sessions/catscompany/2026-04-16/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-16",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 2,
+      "startTurn": 19,
+      "endTurn": 19,
+      "timestamp": "2026-04-16T08:13:37.653Z",
+      "score": 72,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 73816,
+        "completionTokens": 2834,
+        "toolCalls": 4,
+        "toolFailures": 2,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "timeout",
+          "tool_failure"
+        ],
+        "toolNames": [
+          "edit_file",
+          "execute_shell",
+          "read_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-4b5bb7a55d7446",
+      "kind": "artifact_delivery",
+      "sourcePath": "sessions/catscompany/2026-04-22/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-22",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 3,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-22T08:27:11.716Z",
+      "score": 64,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 5889,
+        "completionTokens": 2843,
+        "toolCalls": 6,
+        "toolFailures": 1,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "glob",
+          "read_file",
+          "send_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "artifact delivery records the sent file path/name and final user-visible confirmation"
+      ]
+    },
+    {
+      "id": "legacy-dd3584367982ea",
+      "kind": "multi_tool_task",
+      "sourcePath": "sessions/catscompany/2026-04-23/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-23",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 2,
+      "startTurn": 12,
+      "endTurn": 12,
+      "timestamp": "2026-04-23T07:59:05.513Z",
+      "score": 62,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 44400,
+        "completionTokens": 1088,
+        "toolCalls": 6,
+        "toolFailures": 1,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "edit_file",
+          "grep",
+          "read_file",
+          "skill"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-c17fa87f7da5e0",
+      "kind": "multi_tool_task",
+      "sourcePath": "sessions/catscompany/2026-04-23/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-23",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 5,
+      "startTurn": 23,
+      "endTurn": 23,
+      "timestamp": "2026-04-23T09:28:38.543Z",
+      "score": 95,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 33552,
+        "completionTokens": 1120,
+        "toolCalls": 12,
+        "toolFailures": 6,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "edit_file",
+          "execute_shell",
+          "glob",
+          "read_file",
+          "skill",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-08a30237307f46",
+      "kind": "multi_tool_task",
+      "sourcePath": "sessions/catscompany/2026-04-27/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-27",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 2,
+      "endTurn": 2,
+      "timestamp": "2026-04-27T06:30:01.028Z",
+      "score": 60,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 58143,
+        "completionTokens": 2847,
+        "toolCalls": 5,
+        "toolFailures": 1,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "glob",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-9e50b426494a42",
+      "kind": "runtime_signal",
+      "sourcePath": "sessions/catscompany/2026-04-29/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-04-29T07:33:50.765Z",
+      "score": 80,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "credential_exposure"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-b162afea299b25",
+      "kind": "runtime_signal",
+      "sourcePath": "sessions/catscompany/2026-04-29/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-04-29T07:33:59.189Z",
+      "score": 80,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "runtime_warning",
+          "credential_exposure"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-7e4eb4cb2e8d9e",
+      "kind": "platform_command_mismatch",
+      "sourcePath": "sessions/catscompany/2026-04-29/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 10,
+      "endTurn": 10,
+      "timestamp": "2026-04-29T03:40:49.339Z",
+      "score": 172,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 52825,
+        "completionTokens": 3807,
+        "toolCalls": 19,
+        "toolFailures": 3,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "timeout",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-2b4ab4625a68af",
+      "kind": "platform_command_mismatch",
+      "sourcePath": "sessions/catscompany/2026-04-29/trace-0002.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-29",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 17,
+      "endTurn": 17,
+      "timestamp": "2026-04-29T04:02:26.611Z",
+      "score": 260,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 45657,
+        "completionTokens": 10510,
+        "toolCalls": 34,
+        "toolFailures": 6,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "timeout",
+          "tool_failure",
+          "platform_command_mismatch"
+        ],
+        "toolNames": [
+          "execute_shell",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets",
+        "current runtime chooses commands compatible with the active OS/shell"
+      ]
+    },
+    {
+      "id": "legacy-b15ba49c272e5e",
+      "kind": "runtime_restore",
+      "sourcePath": "sessions/catscompany/2026-04-30/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-30",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-04-30T09:06:49.012Z",
+      "score": 40,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "restore_event"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-6690e2a6d8af88",
+      "kind": "runtime_restore",
+      "sourcePath": "sessions/catscompany/2026-04-30/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-04-30",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-04-30T09:06:49.017Z",
+      "score": 40,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "restore_event"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-7b62a3c555d017",
+      "kind": "runtime_signal",
+      "sourcePath": "sessions/catscompany/2026-05-07/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-07",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-05-07T09:35:27.835Z",
+      "score": 80,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "runtime_warning",
+          "credential_exposure"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-4d40e8db6d43a8",
+      "kind": "large_context_task",
+      "sourcePath": "sessions/catscompany/2026-05-07/trace-0001.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-07",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 1,
+      "startTurn": 3,
+      "endTurn": 3,
+      "timestamp": "2026-05-07T10:09:55.104Z",
+      "score": 50,
+      "baseline": {
+        "turns": 1,
+        "promptTokens": 45066,
+        "completionTokens": 4812,
+        "toolCalls": 4,
+        "toolFailures": 1,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "tool_failure"
+        ],
+        "toolNames": [
+          "glob",
+          "read_file",
+          "write_file"
+        ]
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    },
+    {
+      "id": "legacy-0a39103215bd73",
+      "kind": "runtime_restore",
+      "sourcePath": "sessions/catscompany/2026-05-08/trace-0003.jsonl",
+      "platform": "catscompany",
+      "date": "2026-05-08",
+      "sessionHash": "804242a9f6b3",
+      "interactionId": 0,
+      "startTurn": 0,
+      "endTurn": 0,
+      "timestamp": "2026-05-08T01:43:01.281Z",
+      "score": 40,
+      "baseline": {
+        "turns": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "toolCalls": 0,
+        "toolFailures": 0,
+        "maxToolDurationMs": 0,
+        "issueTypes": [
+          "restore_event"
+        ],
+        "toolNames": []
+      },
+      "expectations": [
+        "legacy JSONL can be normalized without losing turn, token, and tool-call counts",
+        "generated benchmark output must not contain raw credentials or private host secrets"
+      ]
+    }
+  ],
+  "warnings": []
+}

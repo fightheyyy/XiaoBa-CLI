@@ -10,9 +10,6 @@ import { SkillManager } from '../skills/skill-manager';
 import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
 
 export async function chatCommand(options: CommandOptions): Promise<void> {
-  const verboseChatLogs = isTruthyEnv(process.env.XIAOBA_CHAT_VERBOSE_LOGS);
-  Logger.openLogFile('chat', buildChatLogKey(options), !verboseChatLogs);
-
   const aiService = new AIService();
   await startCommandSupport();
 
@@ -50,7 +47,6 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     if (!activated) {
       Logger.error(`Skill "${options.skill}" 未找到，请通过 xiaoba skill list 查看可用 skills`);
       await stopCommandSupport();
-      Logger.closeLogFile();
       return;
     }
     Logger.info(`已绑定 skill: ${options.skill}`);
@@ -63,7 +59,6 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     } finally {
       await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
       await stopCommandSupport();
-      Logger.closeLogFile();
     }
     return;
   }
@@ -154,7 +149,6 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {
-        Logger.closeLogFile();
         clearInterval(keepAliveTimer);
         originalExit(code);
       }
@@ -208,7 +202,6 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         isExiting = true;
         rl.close();
         await stopCommandSupport();
-        Logger.closeLogFile();
         originalExit(0);
         return;
       }
@@ -249,7 +242,6 @@ async function interactiveChat(session: AgentSession): Promise<void> {
       isExiting = true;
       rl.close();
       Logger.info('再见！期待下次与你对话。');
-      Logger.closeLogFile();
       originalExit(0);
       return;
     }
@@ -285,18 +277,4 @@ async function interactiveChat(session: AgentSession): Promise<void> {
 
   // 显示第一个提示符
   rl.prompt();
-}
-
-function buildChatLogKey(options: CommandOptions): string {
-  const mode = options.message ? 'single' : 'interactive';
-  const role = sanitizeLogKey(options.role || process.env.CURRENT_ROLE || 'default');
-  return `${mode}_${role}`;
-}
-
-function sanitizeLogKey(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'default';
-}
-
-function isTruthyEnv(value: string | undefined): boolean {
-  return /^(1|true|yes|on)$/i.test((value || '').trim());
 }

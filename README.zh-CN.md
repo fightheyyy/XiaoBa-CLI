@@ -3,9 +3,11 @@
 
   # XiaoBa
 
-  **一个本地优先的 AI 角色 runtime：更懂你的电脑、聊天、工具和工作习惯。**
+  **小八：一个活在 IM 里的 AI 同事。**
 
-  **第一步从 IM-native 工作 agent 做起，长期承载围绕你生长的各种角色。**
+  **它待在工作真正开始的地方：聊天、文件、任务、工具和长期上下文。**
+
+  **底层是一个本地优先的 AI 角色 runtime，让不同 AI 同事围绕你持续生长。**
 
   [![CI](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -21,14 +23,16 @@
 
 ## XiaoBa 是什么？
 
-XiaoBa 不是另一个终端聊天壳子。
+XiaoBa 不是另一个终端聊天壳子，也不只是一个会在群里回复消息的机器人。
 
-它是一个 **message-native agent runtime**：一个可以长期活在 IM 里的智能体。它能理解群聊 / 私聊上下文，接收文件和任务，调用工具或外部 coding agent 到后台干活，把产物发回来，并在真实环境里逐渐贴近你。
+它是一个 **活在 IM 里的 AI 同事**：一个可以长期待在聊天里的角色。它能理解群聊 / 私聊上下文，接收文件和任务，调用工具或外部 coding agent 到后台干活，并把进度和产物发回工作开始的地方。
+
+用户看到的是聊天里的同事；底层支撑它的是一个 **本地优先的 AI 角色 runtime**：角色、skills、tools、subagents、日志、记忆和反馈闭环都会围绕你的真实环境被塑形。
 
 ```text
 IM 消息 / CLI 输入
-  -> XiaoBa Runtime
-  -> 角色身份
+  -> AI 同事
+  -> 角色 Runtime
   -> Skills + tools + subagents
   -> 电脑 / 文件 / 项目 / shell / Codex / Claude Code / AutoDev
   -> 自然回复、文件交付、进度汇报或 case 流转
@@ -36,17 +40,17 @@ IM 消息 / CLI 输入
 
 一句话：
 
-> XiaoBa 把一次性的 AI 助手，变成长期活在你真实环境里的 AI 角色。
+> XiaoBa 给 AI agent 一个 IM-native 的身体，也给它一个像同事一样协作和交付的身份。
 
 ---
 
-## 角色 Runtime 愿景
+## AI 同事 Runtime 愿景
 
-AI 角色产品已经证明：角色可以长期活在聊天里。XiaoBa 想做的是下一步：让角色活在你的真实环境里，包括你的电脑、文件、项目、工具、聊天、日志和长期记忆。
+AI 角色产品已经证明：角色可以长期活在聊天里。XiaoBa 想做的是下一步：让有用的 AI 同事也活在你的真实环境里，包括你的电脑、文件、项目、工具、聊天、日志和长期记忆。
 
-这个角色可以是同事、老师、学生、家人式陪伴、创作搭子、伴侣、审查员、督察员，也可以是只属于你的某种身份。角色可以变化，但 runtime 对你的环境和习惯的理解会持续生长。
+这个同事可以是工程师、审查员、督察员、研究员、老师、学生、创作搭子、家人式陪伴，也可以是只属于你的某种身份。可见身份可以变化，但 runtime 对你的环境和习惯的理解会持续生长。
 
-第一步先从实用场景切入：**IM-native 工作 agent**。它能从聊天里接任务，调用工具，调度 Codex 或 Claude Code，并回到聊天里汇报结果。
+第一步先从实用场景切入：**活在 IM 里的工作同事**。它能从聊天里接任务，调用工具，调度 Codex 或 Claude Code，并回到聊天里汇报进度、文件和证据。
 
 ---
 
@@ -115,17 +119,17 @@ npm run dev -- chat -i
 
 大多数 AI coding 工具都活在终端或 IDE 里。但真实工作常常从别的地方开始：一条飞书消息、一个私聊、一个群里的 bug 报告、一个别人顺手丢过来的文件。
 
-XiaoBa 做的是中间这层。
+XiaoBa 做的是中间这层。它给终端里的 coding agent 一个可以活在 IM 入口里的 AI 同事，让需求、文件、跟进和决策都留在本来发生的消息场景里。
 
 | 普通 coding agent | XiaoBa |
 | --- | --- |
 | 你打开终端才开始工作 | 可以活在 IM 入口里，响应真实消息 |
 | 通常围绕一个本地仓库 | 围绕对话、文件、角色、任务和后续汇报组织工作 |
 | 把结果打印在终端 | 可以发消息、发文件、回群汇报进度 |
-| 通常只有一个 persona | 有职业角色，不同角色有不同职责和工具边界 |
+| 通常只有一个 persona | 有不同 AI 同事身份，每个身份有自己的职责和工具边界 |
 | Memory 多是静态笔记 | 日志、工具、角色、交付口径和 runtime 行为一起被用户塑形 |
 
-XiaoBa 不试图替代 Codex、Claude Code 或其他 coding agent。它把这些工具当作一个 IM-native 角色可以调度、判断、整合和汇报的外部能力。
+XiaoBa 不试图替代 Codex、Claude Code 或其他 coding agent。它把这些工具当作一个 IM-native AI 同事可以调度、判断、整合和汇报的外部能力。
 
 ---
 
@@ -140,11 +144,11 @@ XiaoBa 不试图替代 Codex、Claude Code 或其他 coding agent。它把这些
 
 ### 角色体系
 
-- Roles 是职业身份，不只是 prompt 风格。
+- Roles 是 AI 同事身份，不只是 prompt 风格。
 - 每个角色可以定义自己的 prompt、skills、tools 和行为边界。
 - 当前内置工程、审查、督察、研究等工作流角色。
 - 角色专属工具只会在对应角色激活时加载。
-- 同一套 runtime 未来可以承载工作角色和个人角色，但每个角色的边界都应该清楚可控。
+- 同一套 runtime 未来可以承载工作同事和个人角色，但每个角色的边界都应该清楚可控。
 
 ### Skills + Tools
 
@@ -171,12 +175,12 @@ XiaoBa 不试图替代 Codex、Claude Code 或其他 coding agent。它把这些
 
 ## 角色体系
 
-| Role | 身份 | 典型工作 |
+| Role | AI 同事身份 | 典型工作 |
 | --- | --- | --- |
-| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | 活在 IM 里的工程师 | 读代码、拆任务、调用外部 coding agent、实现、验证、汇报 |
-| <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | 审查与验收负责人 | 追问证据、跑检查、审查产物、要求返工 |
-| <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime 督察员 | 读日志、发现失败、创建或流转修复 case |
-| <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | 长周期研究助手 | 读论文、跟实验、维护证据和交付件 |
+| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | 工程同事 | 读代码、拆任务、调用外部 coding agent、实现、验证、汇报 |
+| <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | 审查与验收同事 | 追问证据、跑检查、审查产物、要求返工 |
+| <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime 督察同事 | 读日志、发现失败、创建或流转修复 case |
+| <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | 长周期研究同事 | 读论文、跟实验、维护证据和交付件 |
 
 用角色启动：
 
@@ -201,11 +205,13 @@ XiaoBa 提供本地 CLI 和多个消息入口 adapter。
 | Dashboard | `npm run dev -- dashboard` | 本地服务、状态和日志管理 |
 | Desktop Pet | `npm run dev -- pet` | 本地桌宠入口 |
 
-最小 IM runtime 设计见 [`docs/minimal-message-native-runtime.md`](docs/minimal-message-native-runtime.md)。
+最小 IM runtime 专题设计见 [`docs/reference/message-runtime.md`](docs/reference/message-runtime.md)。
 
 ---
 
 ## 架构
+
+整体架构真相源见 [`docs/SPEC.md`](docs/SPEC.md)。
 
 ![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
 
@@ -334,7 +340,7 @@ npm run electron:build:win
 npm run electron:build:linux
 ```
 
-发布流程见 [`docs/CD_RELEASE.md`](docs/CD_RELEASE.md)。
+发布流程见 [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md)。
 
 ---
 
@@ -354,11 +360,11 @@ npm run electron:build:linux
 
 ## 文档
 
-- [IM-native Runtime Design](docs/minimal-message-native-runtime.md)
-- [Data Flywheel E2E](docs/DATA_FLYWHEEL_E2E.md)
-- [Case Replay Feedback Loop Spec](docs/CASE_REPLAY_FEEDBACK_LOOP_SPEC.md)
-- [CD / Release](docs/CD_RELEASE.md)
-- [Auto Update](docs/AUTO_UPDATE.md)
+- [Docs Index](docs/README.md)
+- [XiaoBa-CLI Architecture Spec](docs/SPEC.md)
+- [CD / Release](docs/ops/CD_RELEASE.md)
+- [Auto Update](docs/ops/AUTO_UPDATE.md)
+- [Reference Docs](docs/README.md#专题参考)
 - [Roles Guide](roles/README.md)
 - [EngineerCat Spec](roles/engineer-cat/SPEC.md)
 - [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)
