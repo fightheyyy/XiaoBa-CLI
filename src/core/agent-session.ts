@@ -51,6 +51,8 @@ export interface HandleMessageOptions {
   callbacks?: SessionCallbacks;
   /** 平台通道回调，注入到 ToolExecutionContext 供工具使用 */
   channel?: ChannelCallbacks;
+  /** 记录到 session turn log 的原始用户输入；用于平台层给模型补充 transient prompt 时保留用户可见文本 */
+  logInput?: string | import('../types').ContentBlock[];
 }
 
 /** 命令处理结果 */
@@ -267,7 +269,7 @@ export class AgentSession {
       let channel: ChannelCallbacks | undefined;
 
       if (callbacksOrOptions) {
-        if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions) {
+        if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions || 'logInput' in callbacksOrOptions) {
           // 新签名 HandleMessageOptions
           const opts = callbacksOrOptions as HandleMessageOptions;
           callbacks = opts.callbacks;
@@ -277,6 +279,9 @@ export class AgentSession {
           callbacks = callbacksOrOptions as SessionCallbacks;
         }
       }
+      const logInput = callbacksOrOptions && ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions || 'logInput' in callbacksOrOptions)
+        ? (callbacksOrOptions as HandleMessageOptions).logInput
+        : undefined;
 
       if (this.busy) {
         return { text: BUSY_MESSAGE, visibleToUser: true };
@@ -452,7 +457,7 @@ export class AgentSession {
           });
 
         this.sessionTurnLogger.logTurn(
-          text,
+          logInput ?? text,
           result.response || '',
           toolCalls,
           { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
@@ -482,6 +487,13 @@ export class AgentSession {
           role: 'assistant',
           content: `[处理失败: ${err.message}]`
         });
+        const metrics = Metrics.getSummary();
+        this.sessionTurnLogger.logTurn(
+          logInput ?? text,
+          errorReply,
+          [],
+          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
+        );
 
         return { text: errorReply, visibleToUser: true };
       } finally {

@@ -99,6 +99,7 @@ class RoomAgent {
       roleName: infoBase.roleName,
     };
     this.session = new AgentSession(`pet:room:${infoBase.id}`, this.services, 'pet');
+    this.session.runWithLogContext(() => Logger.info(`新建会话: ${this.session.key}`));
   }
 
   toInfo(): RoomAgentInfo {
@@ -251,6 +252,7 @@ export class RoomChannel {
     stream.setFanout(event => this.events.publish(agent.id, event));
     stream.open();
     stream.event({ type: 'user_message', text, source: 'room', sessionKey: agent.session.key });
+    agent.session.runWithLogContext(() => Logger.info(`[${agent.session.key}] 收到 room 消息: ${text.slice(0, 120)}`));
 
     await this.enqueueAgentMessage(agent, text, stream);
   }
@@ -266,7 +268,7 @@ export class RoomChannel {
         const channel = this.buildChannel(agent, sink);
         const roomPrompt = this.buildRoomPrompt(agent, text);
         sink.state('running', 'processing');
-        const result = await agent.session.handleMessage(roomPrompt, { callbacks, channel });
+        const result = await agent.session.handleMessage(roomPrompt, { callbacks, channel, logInput: text });
 
         if (result.text === BUSY_MESSAGE || result.text === ERROR_MESSAGE) {
           sink.event({ type: 'error', message: result.text });
@@ -284,7 +286,7 @@ export class RoomChannel {
       } catch (err: any) {
         agent.status = 'failed';
         agent.lastMessage = err.message || String(err);
-        Logger.error(`[room:${agent.id}] message failed: ${agent.lastMessage}`);
+        agent.session.runWithLogContext(() => Logger.error(`[room:${agent.id}] message failed: ${agent.lastMessage}`));
         sink.state('failed', 'error');
         sink.event({ type: 'error', message: agent.lastMessage });
         sink.done('', false);
@@ -338,7 +340,7 @@ export class RoomChannel {
     });
 
     void this.enqueueAgentMessage(target, incomingText, sink).catch(err => {
-      Logger.error(`[room:${target.id}] private message failed: ${err.message || err}`);
+      target.session.runWithLogContext(() => Logger.error(`[room:${target.id}] private message failed: ${err.message || err}`));
     });
 
     return {

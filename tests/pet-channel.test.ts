@@ -285,6 +285,14 @@ describe('PetChannel', () => {
     assert.match(events[2].text, /对话历史信息/);
     assert.strictEqual(events[3].state, 'waving');
     assert.strictEqual(events[4].visibleToUser, true);
+
+    const runtimeEntries = readPetSessionEntries(testRoot)
+      .filter(entry => entry.entry_type === 'runtime');
+    assert.ok(runtimeEntries.some(entry =>
+      entry.session_id === 'pet:alpha-puff'
+      && entry.session_type === 'pet'
+      && entry.message.includes('收到 pet 消息 (unknown): /history')
+    ));
   });
 
   test('events endpoint 会把 pet agent 事件广播给桌宠订阅者', async () => {
@@ -360,3 +368,28 @@ describe('PetChannel', () => {
     assert.deepStrictEqual(await invalidPet.json(), { error: 'invalid pet id' });
   });
 });
+
+function readPetSessionEntries(root: string): any[] {
+  const logRoot = path.join(root, 'logs', 'sessions', 'pet');
+  const files = collectFiles(logRoot).filter(file => file.endsWith('.jsonl'));
+  assert.ok(files.length > 0, 'expected pet session jsonl log');
+  return files.flatMap(file => fs.readFileSync(file, 'utf-8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(line => JSON.parse(line)));
+}
+
+function collectFiles(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  const result: string[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...collectFiles(fullPath));
+    } else {
+      result.push(fullPath);
+    }
+  }
+  return result;
+}

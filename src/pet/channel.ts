@@ -5,7 +5,7 @@ import * as path from 'path';
 import { AIService } from '../utils/ai-service';
 import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
-import { AgentServices, SessionCallbacks } from '../core/agent-session';
+import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { ChannelCallbacks } from '../types/tool';
 import { Logger } from '../utils/logger';
@@ -131,6 +131,7 @@ export class PetChannel {
 
   private async handleMessage(body: any, res: Response): Promise<void> {
     const stream = new PetEventStream(res);
+    let session: AgentSession | undefined;
 
     try {
       await this.skillsReady;
@@ -146,13 +147,14 @@ export class PetChannel {
         : 'unknown';
 
       const sessionKey = this.sessionKey(petId);
-      const session = this.sessionManager.getOrCreate(sessionKey, sessionKey);
+      const activeSession = this.sessionManager.getOrCreate(sessionKey, sessionKey);
+      session = activeSession;
       stream.setFanout(event => this.events.publish(petId, event));
       const channel = this.buildChannel(sessionKey, stream);
       const callbacks = this.buildCallbacks(stream);
 
       stream.open();
-      Logger.info(`[${sessionKey}] 收到 pet 消息 (${source}): ${text.slice(0, 120)}`);
+      activeSession.runWithLogContext(() => Logger.info(`[${sessionKey}] 收到 pet 消息 (${source}): ${text.slice(0, 120)}`));
       stream.event({ type: 'user_message', text, source, sessionKey });
 
       const result = await this.enqueueMessage(sessionKey, async () => {
@@ -164,14 +166,14 @@ export class PetChannel {
           const parts = text.slice(1).split(/\s+/).filter(Boolean);
           const command = parts[0] || '';
           const args = parts.slice(1);
-          const commandResult = await session.handleCommand(command, args, callbacks);
+          const commandResult = await activeSession.handleCommand(command, args, callbacks);
           resultText = commandResult.reply || '';
           visibleToUser = commandResult.handled;
           if (!commandResult.handled) {
             resultText = `未识别命令：/${command}`;
           }
         } else {
-          const messageResult = await session.handleMessage(text, { callbacks, channel });
+          const messageResult = await activeSession.handleMessage(text, { callbacks, channel });
           resultText = messageResult.text;
           visibleToUser = messageResult.visibleToUser;
         }
@@ -185,7 +187,12 @@ export class PetChannel {
       stream.state('waving', 'done');
       stream.done(result.resultText, result.visibleToUser);
     } catch (err: any) {
-      Logger.error(`[pet] 消息处理失败: ${err.message}`);
+      const logError = () => Logger.error(`[pet] 消息处理失败: ${err.message}`);
+      if (session) {
+        session.runWithLogContext(logError);
+      } else {
+        logError();
+      }
       if (!stream.isOpen) {
         res.status(500).json({ error: err.message });
         return;
