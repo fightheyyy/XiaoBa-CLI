@@ -619,33 +619,52 @@
 
     .room-shell {
       display: grid;
-      grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.8fr);
-      gap: 18px;
-      align-items: start;
+      grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: stretch;
     }
 
     .room-hero {
       margin-bottom: 18px;
-      padding: 22px 24px;
-      border-radius: 24px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(239,246,255,0.86));
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm), var(--glow);
+      padding: 20px 22px;
+      border-radius: 18px;
+      background:
+        linear-gradient(90deg, rgba(125, 211, 252, 0.09) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(245, 158, 11, 0.08) 1px, transparent 1px),
+        linear-gradient(135deg, #151820 0%, #101318 48%, #171515 100%);
+      background-size: 32px 32px, 32px 32px, auto;
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      box-shadow: 0 24px 64px rgba(18, 20, 26, 0.24), inset 0 1px 0 rgba(255,255,255,0.07);
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .room-hero::after {
+      content: '';
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 0;
+      height: 2px;
+      background: linear-gradient(90deg, #22d3ee, #f59e0b 42%, #a7f3d0 76%, transparent);
+      opacity: 0.9;
+      pointer-events: none;
     }
 
     .room-title {
-      font-size: 24px;
-      font-weight: 800;
+      color: #f8fafc;
+      font-size: 28px;
+      font-weight: 850;
       letter-spacing: 0;
       margin-bottom: 6px;
     }
 
     .room-subtitle {
-      color: var(--text2);
+      color: rgba(226, 232, 240, 0.72);
       font-size: 13px;
       line-height: 1.6;
       max-width: 760px;
@@ -660,12 +679,19 @@
     }
 
     .room-panel {
-      background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.84));
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow-sm), var(--glow);
-      padding: 18px;
+      background:
+        linear-gradient(180deg, rgba(25, 28, 35, 0.96), rgba(17, 19, 24, 0.96));
+      border: 1px solid rgba(125, 211, 252, 0.14);
+      border-radius: 16px;
+      box-shadow: 0 18px 50px rgba(17, 20, 26, 0.18), inset 0 1px 0 rgba(255,255,255,0.06);
+      padding: 16px;
       min-width: 0;
+    }
+
+    .room-panel .config-input {
+      background: rgba(7, 10, 13, 0.72);
+      border-color: rgba(125, 211, 252, 0.18);
+      color: rgba(248, 250, 252, 0.92);
     }
 
     .room-panel-header {
@@ -681,14 +707,14 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       font-weight: 800;
-      color: var(--text3);
+      color: rgba(125, 211, 252, 0.82);
     }
 
     .room-panel-subtitle {
       margin-top: 5px;
       font-size: 12px;
       line-height: 1.5;
-      color: var(--text2);
+      color: rgba(203, 213, 225, 0.62);
     }
 
     .room-agent-list {
@@ -779,7 +805,7 @@
 
     .room-field label {
       display: block;
-      color: var(--text2);
+      color: rgba(203, 213, 225, 0.68);
       font-size: 12px;
       font-weight: 800;
       margin-bottom: 7px;
@@ -879,15 +905,17 @@
 
     .room-role-dock {
       display: grid;
-      gap: 10px;
+      gap: 9px;
     }
 
     .room-role-button {
       width: 100%;
-      min-height: 70px;
-      border: 1px solid var(--border-light);
-      background: rgba(248, 250, 252, 0.78);
-      border-radius: 16px;
+      min-height: 68px;
+      border: 1px solid rgba(125, 211, 252, 0.12);
+      background:
+        linear-gradient(90deg, rgba(34, 211, 238, 0.10), transparent 42%),
+        rgba(255, 255, 255, 0.035);
+      border-radius: 12px;
       padding: 10px 12px;
       display: grid;
       grid-template-columns: 42px 1fr auto;
@@ -895,15 +923,25 @@
       align-items: center;
       font-family: inherit;
       text-align: left;
-      color: inherit;
+      color: rgba(248, 250, 252, 0.9);
       cursor: pointer;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
 
     .room-role-button:hover {
       transform: translateY(-1px);
-      border-color: rgba(59,130,246,0.22);
-      box-shadow: var(--shadow-sm);
+      border-color: rgba(34, 211, 238, 0.30);
+      box-shadow: 0 14px 30px rgba(34, 211, 238, 0.10);
+    }
+
+    .room-role-button .role-avatar {
+      background: rgba(7, 10, 13, 0.48);
+      border-color: rgba(34, 211, 238, 0.14);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 10px 24px rgba(0,0,0,0.2);
+    }
+
+    .room-role-button .room-agent-duty {
+      color: rgba(203, 213, 225, 0.62);
     }
 
     .room-role-plus {
@@ -913,10 +951,11 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: var(--accent-light);
-      color: var(--accent);
+      background: rgba(245, 158, 11, 0.14);
+      color: #fbbf24;
       font-weight: 900;
       flex-shrink: 0;
+      border: 1px solid rgba(245, 158, 11, 0.22);
     }
 
     .room-broadcast {
@@ -924,10 +963,20 @@
       grid-template-columns: 1fr auto;
       gap: 10px;
       margin-bottom: 16px;
+      padding: 10px;
+      border-radius: 16px;
+      border: 1px solid rgba(34, 211, 238, 0.16);
+      background:
+        linear-gradient(90deg, rgba(34, 211, 238, 0.10), rgba(167, 243, 208, 0.04)),
+        #111419;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
     }
 
     .room-broadcast .config-input {
       min-height: 46px;
+      background: rgba(5, 8, 11, 0.72);
+      border-color: rgba(148, 163, 184, 0.20);
+      color: rgba(248, 250, 252, 0.92);
     }
 
     .room-arena {
@@ -936,7 +985,7 @@
 
     .room-pet-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+      grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
       gap: 14px;
       align-items: stretch;
     }
@@ -956,29 +1005,71 @@
       overflow: hidden;
     }
 
-    .habitat-floor {
+    .room-floor {
       position: relative;
-      min-height: 580px;
-      border-radius: 26px;
-      border: 1px solid rgba(59,130,246,0.14);
+      min-height: 620px;
+      border-radius: 18px;
+      border: 1px solid rgba(34, 211, 238, 0.18);
       background:
-        radial-gradient(circle at 20% 18%, rgba(125,211,252,0.22), transparent 28%),
-        radial-gradient(circle at 80% 72%, rgba(30,169,113,0.15), transparent 30%),
-        linear-gradient(180deg, rgba(255,255,255,0.94), rgba(241,248,255,0.86));
-      box-shadow: var(--shadow-sm), var(--glow);
+        linear-gradient(90deg, rgba(34, 211, 238, 0.12) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(245, 158, 11, 0.09) 1px, transparent 1px),
+        repeating-linear-gradient(135deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 18px),
+        linear-gradient(180deg, #151821 0%, #0e1116 100%);
+      background-size: 44px 44px, 44px 44px, auto, auto;
+      box-shadow: 0 24px 60px rgba(17, 20, 26, 0.22), inset 0 1px 0 rgba(255,255,255,0.06);
       overflow: hidden;
     }
 
-    .habitat-floor::before {
+    .room-floor::before {
       content: '';
       position: absolute;
-      inset: 22px;
-      border: 1px dashed rgba(59,130,246,0.13);
-      border-radius: 22px;
+      inset: 58px 34px 30px;
+      border: 1px solid rgba(34, 211, 238, 0.18);
+      border-radius: 18px;
       pointer-events: none;
     }
 
-    .habitat-pet {
+    .room-floor::after {
+      content: '';
+      position: absolute;
+      left: 12%;
+      right: 12%;
+      top: 47%;
+      height: 104px;
+      border-radius: 20px;
+      border: 1px solid rgba(245, 158, 11, 0.20);
+      background:
+        linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.08), transparent),
+        rgba(255,255,255,0.025);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035);
+      pointer-events: none;
+    }
+
+    .room-floor-label {
+      position: absolute;
+      top: 16px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: rgba(226, 232, 240, 0.78);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      z-index: 2;
+    }
+
+    .room-floor-label span {
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(125, 211, 252, 0.16);
+      background: rgba(8, 12, 16, 0.62);
+    }
+
+    .room-agent-node {
       position: absolute;
       left: var(--x);
       top: var(--y);
@@ -987,50 +1078,52 @@
       min-height: 168px;
       border: 0;
       background: transparent;
-      color: inherit;
+      color: rgba(248, 250, 252, 0.92);
       font-family: inherit;
       cursor: pointer;
       padding: 0;
       text-align: center;
+      z-index: 3;
     }
 
-    .habitat-pet-stage {
+    .room-agent-stage {
       width: 112px;
       height: 122px;
       margin: 0 auto 8px;
-      border-radius: 28px;
-      background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(59,130,246,0.12);
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 32, 0.72), rgba(8, 11, 15, 0.86));
+      border: 1px solid rgba(34, 211, 238, 0.20);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 16px 32px rgba(31,34,50,0.10);
+      box-shadow: 0 16px 34px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
 
-    .habitat-pet:hover .habitat-pet-stage,
-    .habitat-pet.selected .habitat-pet-stage {
+    .room-agent-node:hover .room-agent-stage,
+    .room-agent-node.selected .room-agent-stage {
       transform: translateY(-3px);
-      border-color: rgba(59,130,246,0.28);
-      box-shadow: 0 20px 42px rgba(59,130,246,0.16);
+      border-color: rgba(245, 158, 11, 0.36);
+      box-shadow: 0 20px 42px rgba(245, 158, 11, 0.14), inset 0 1px 0 rgba(255,255,255,0.07);
     }
 
-    .habitat-pet.running .habitat-pet-stage {
-      border-color: rgba(59,130,246,0.32);
-      box-shadow: 0 20px 42px rgba(59,130,246,0.18);
+    .room-agent-node.running .room-agent-stage {
+      border-color: rgba(34, 211, 238, 0.42);
+      box-shadow: 0 20px 42px rgba(34, 211, 238, 0.17);
     }
 
-    .habitat-pet.failed .habitat-pet-stage {
+    .room-agent-node.failed .room-agent-stage {
       border-color: rgba(220,93,115,0.22);
     }
 
-    .habitat-pet canvas {
+    .room-agent-node canvas {
       width: 104px;
       height: 112px;
       image-rendering: pixelated;
     }
 
-    .habitat-speech {
+    .room-agent-speech {
       position: absolute;
       left: 50%;
       bottom: 154px;
@@ -1038,22 +1131,22 @@
       min-width: 120px;
       max-width: 210px;
       padding: 8px 10px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.94);
-      border: 1px solid rgba(103,112,133,0.12);
-      box-shadow: 0 12px 26px rgba(31,34,50,0.08);
+      border-radius: 12px;
+      background: rgba(12, 16, 21, 0.94);
+      border: 1px solid rgba(34, 211, 238, 0.20);
+      box-shadow: 0 12px 26px rgba(0,0,0,0.24);
       font-size: 12px;
       line-height: 1.42;
-      color: var(--text2);
+      color: rgba(226, 232, 240, 0.82);
       display: none;
       word-break: break-word;
     }
 
-    .habitat-speech:not(:empty) {
+    .room-agent-speech:not(:empty) {
       display: block;
     }
 
-    .habitat-pet-label {
+    .room-agent-label {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -1061,20 +1154,20 @@
       max-width: 150px;
       padding: 7px 9px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.82);
-      border: 1px solid rgba(103,112,133,0.10);
-      box-shadow: 0 10px 24px rgba(31,34,50,0.06);
+      background: rgba(10, 14, 18, 0.82);
+      border: 1px solid rgba(125, 211, 252, 0.14);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.22);
       font-size: 12px;
       font-weight: 900;
     }
 
-    .habitat-pet-label span:first-child {
+    .room-agent-label span:first-child {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .habitat-status-dot {
+    .room-agent-status-dot {
       width: 8px;
       height: 8px;
       border-radius: 999px;
@@ -1082,33 +1175,35 @@
       flex-shrink: 0;
     }
 
-    .habitat-pet.running .habitat-status-dot,
-    .habitat-pet.review .habitat-status-dot {
+    .room-agent-node.running .room-agent-status-dot,
+    .room-agent-node.review .room-agent-status-dot {
       background: var(--accent);
     }
 
-    .habitat-pet.done .habitat-status-dot,
-    .habitat-pet.waving .habitat-status-dot {
+    .room-agent-node.done .room-agent-status-dot,
+    .room-agent-node.waving .room-agent-status-dot {
       background: var(--green);
     }
 
-    .habitat-pet.failed .habitat-status-dot {
+    .room-agent-node.failed .room-agent-status-dot {
       background: var(--red);
     }
 
-    .habitat-detail {
-      min-height: 580px;
-      border-radius: 24px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.92);
-      box-shadow: var(--shadow-sm), var(--glow);
+    .room-detail {
+      min-height: 620px;
+      border-radius: 18px;
+      border: 1px solid rgba(245, 158, 11, 0.17);
+      background:
+        linear-gradient(180deg, rgba(20, 22, 27, 0.98), rgba(12, 14, 18, 0.98));
+      box-shadow: 0 24px 60px rgba(17, 20, 26, 0.20), inset 0 1px 0 rgba(255,255,255,0.06);
       padding: 16px;
       display: flex;
       flex-direction: column;
       min-width: 0;
+      color: rgba(248, 250, 252, 0.88);
     }
 
-    .habitat-detail-head {
+    .room-detail-head {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 10px;
@@ -1116,30 +1211,33 @@
       margin-bottom: 12px;
     }
 
-    .habitat-detail-title {
+    .room-detail-title {
       font-size: 16px;
       font-weight: 900;
       margin-bottom: 4px;
+      color: #f8fafc;
     }
 
-    .habitat-detail-subtitle {
+    .room-detail-subtitle {
       font-size: 12px;
-      color: var(--text2);
+      color: rgba(203, 213, 225, 0.62);
       line-height: 1.45;
     }
 
-    .habitat-detail-log {
+    .room-detail-log {
       flex: 1;
       min-height: 260px;
-      max-height: 360px;
       overflow: auto;
       display: flex;
       flex-direction: column;
       gap: 8px;
       padding: 10px;
-      border-radius: 16px;
-      background: rgba(248,250,252,0.80);
-      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      background:
+        linear-gradient(90deg, rgba(34, 211, 238, 0.06) 1px, transparent 1px),
+        rgba(4, 7, 10, 0.64);
+      background-size: 28px 28px;
+      border: 1px solid rgba(125, 211, 252, 0.12);
       margin-bottom: 10px;
     }
 
@@ -1192,30 +1290,30 @@
       font-weight: 900;
       padding: 7px 9px;
       border-radius: 999px;
-      background: rgba(103,112,133,0.1);
-      color: var(--text2);
-      border: 1px solid rgba(103,112,133,0.12);
+      background: rgba(8, 12, 16, 0.66);
+      color: rgba(203, 213, 225, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.16);
       white-space: nowrap;
     }
 
     .room-pet-status.running,
     .room-pet-status.review {
-      background: var(--accent-light);
-      color: var(--accent);
-      border-color: rgba(59,130,246,0.18);
+      background: rgba(34, 211, 238, 0.11);
+      color: rgba(125, 211, 252, 0.92);
+      border-color: rgba(34, 211, 238, 0.22);
     }
 
     .room-pet-status.done,
     .room-pet-status.waving {
-      background: var(--green-light);
-      color: var(--green);
-      border-color: rgba(30,169,113,0.16);
+      background: rgba(167, 243, 208, 0.10);
+      color: rgba(167, 243, 208, 0.88);
+      border-color: rgba(167, 243, 208, 0.18);
     }
 
     .room-pet-status.failed {
-      background: var(--red-light);
-      color: var(--red);
-      border-color: rgba(220,93,115,0.16);
+      background: rgba(220, 93, 115, 0.12);
+      color: rgba(254, 202, 202, 0.92);
+      border-color: rgba(220,93,115,0.20);
     }
 
     .room-pet-log {
@@ -1228,32 +1326,32 @@
       gap: 8px;
       padding: 10px;
       border-radius: 16px;
-      background: rgba(248,250,252,0.78);
-      border: 1px solid var(--border-light);
+      background: rgba(4, 7, 10, 0.64);
+      border: 1px solid rgba(125, 211, 252, 0.12);
     }
 
     .room-bubble {
       max-width: 92%;
       padding: 8px 10px;
-      border-radius: 14px;
+      border-radius: 10px;
       font-size: 12px;
       line-height: 1.5;
       word-break: break-word;
-      color: var(--text);
-      background: rgba(255,255,255,0.86);
-      border: 1px solid rgba(103,112,133,0.10);
+      color: rgba(248, 250, 252, 0.88);
+      background: rgba(255,255,255,0.055);
+      border: 1px solid rgba(148,163,184,0.12);
     }
 
     .room-bubble.user {
       align-self: flex-end;
-      background: rgba(59,130,246,0.10);
-      border-color: rgba(59,130,246,0.12);
+      background: rgba(34, 211, 238, 0.10);
+      border-color: rgba(34, 211, 238, 0.16);
     }
 
     .room-bubble.event {
       align-self: center;
       max-width: 100%;
-      color: var(--text3);
+      color: rgba(203, 213, 225, 0.54);
       background: transparent;
       border-color: transparent;
       padding-block: 2px;
@@ -1263,20 +1361,21 @@
       max-width: 100%;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 11px;
-      color: #42526b;
-      background: rgba(255,255,255,0.62);
+      color: rgba(125, 211, 252, 0.82);
+      background: rgba(34, 211, 238, 0.08);
+      border-color: rgba(34, 211, 238, 0.13);
     }
 
     .room-bubble.dm {
       max-width: 100%;
-      background: rgba(30,169,113,0.10);
-      border-color: rgba(30,169,113,0.14);
+      background: rgba(167, 243, 208, 0.09);
+      border-color: rgba(167, 243, 208, 0.14);
     }
 
     .room-bubble.dm.outbound {
       align-self: flex-end;
-      background: rgba(59,130,246,0.10);
-      border-color: rgba(59,130,246,0.14);
+      background: rgba(245, 158, 11, 0.10);
+      border-color: rgba(245, 158, 11, 0.16);
     }
 
     .room-pet-compose {
@@ -1292,19 +1391,34 @@
       resize: vertical;
       line-height: 1.45;
       padding: 10px 12px;
+      background: rgba(5, 8, 11, 0.72);
+      border-color: rgba(148, 163, 184, 0.18);
+      color: rgba(248, 250, 252, 0.92);
     }
 
     .room-empty {
       min-height: 420px;
-      border: 1px dashed rgba(59,130,246,0.22);
-      border-radius: 22px;
-      background: rgba(255,255,255,0.62);
+      border: 1px dashed rgba(34,211,238,0.24);
+      border-radius: 16px;
+      background: rgba(8, 12, 16, 0.52);
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
-      color: var(--text2);
+      color: rgba(203, 213, 225, 0.68);
       padding: 24px;
+    }
+
+    .room-floor > .room-empty {
+      position: absolute;
+      inset: 74px 34px 34px;
+      min-height: 0;
+      z-index: 2;
+    }
+
+    .room-detail > .room-empty {
+      flex: 1;
+      min-height: 0;
     }
 
     @media (max-width: 1180px) {
@@ -1317,8 +1431,8 @@
         grid-template-columns: 1fr;
       }
 
-      .habitat-floor,
-      .habitat-detail {
+      .room-floor,
+      .room-detail {
         min-height: 430px;
       }
 
@@ -1330,6 +1444,80 @@
       .room-actions {
         width: 100%;
         justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .room-hero {
+        padding: 18px;
+      }
+
+      .room-shell {
+        gap: 12px;
+      }
+
+      .room-panel,
+      .room-detail {
+        padding: 12px;
+      }
+
+      .room-broadcast,
+      .room-pet-compose {
+        grid-template-columns: 1fr;
+      }
+
+      .room-pet-grid {
+        gap: 12px;
+      }
+
+      .room-floor,
+      .room-detail {
+        min-height: 460px;
+      }
+
+      .room-floor::before {
+        inset: 54px 16px 22px;
+      }
+
+      .room-floor::after {
+        left: 8%;
+        right: 8%;
+        height: 84px;
+      }
+
+      .room-floor-label {
+        left: 12px;
+        right: 12px;
+        font-size: 10px;
+      }
+
+      .room-agent-node {
+        width: 132px;
+        min-height: 150px;
+      }
+
+      .room-agent-stage {
+        width: 96px;
+        height: 106px;
+      }
+
+      .room-agent-node canvas {
+        width: 90px;
+        height: 98px;
+      }
+
+      .room-agent-speech {
+        bottom: 136px;
+        min-width: 104px;
+        max-width: 168px;
+      }
+
+      .room-empty {
+        min-height: 260px;
+      }
+
+      .room-floor > .room-empty {
+        inset: 68px 16px 22px;
       }
     }
 
@@ -4152,9 +4340,9 @@
       <div class="page" id="page-room">
         <div class="room-hero">
           <div>
-            <div class="runtime-eyebrow" data-i18n="roomEyebrow">Multi-agent</div>
+            <div class="runtime-eyebrow" data-i18n="roomEyebrow">Cyber office</div>
             <div class="room-title" data-i18n="roomTitle">Room</div>
-            <div class="room-subtitle" data-i18n="roomSubtitle">Pull role pets into a shared workspace and send outcome-oriented work to each one.</div>
+            <div class="room-subtitle" data-i18n="roomSubtitle">Role crew, shared workspace, live handoff.</div>
           </div>
           <div class="room-actions">
             <span class="role-active-pill" id="room-status-pill">0 agents</span>
@@ -4166,8 +4354,8 @@
           <section class="room-panel">
             <div class="room-panel-header">
               <div>
-                <div class="room-panel-title" data-i18n="roomAgentsTitle">Pull Agents</div>
-                <div class="room-panel-subtitle" data-i18n="roomAgentsSubtitle">Start one or more role pets in this room.</div>
+                <div class="room-panel-title" data-i18n="roomAgentsTitle">Agent Bay</div>
+                <div class="room-panel-subtitle" data-i18n="roomAgentsSubtitle">Available role seats.</div>
               </div>
             </div>
             <div class="room-field" style="margin-bottom:12px">
@@ -4179,11 +4367,11 @@
 
           <section class="room-arena">
             <div class="room-broadcast">
-              <textarea class="config-input" id="room-broadcast-input" data-i18n-placeholder="roomBroadcastPlaceholder" placeholder="Describe the outcome and dispatch it to the room..."></textarea>
+              <textarea class="config-input" id="room-broadcast-input" data-i18n-placeholder="roomBroadcastPlaceholder" placeholder="Send an outcome to the Room..."></textarea>
               <button class="btn btn-primary" onclick="broadcastRoomMission()" data-i18n="roomBroadcast">Dispatch</button>
             </div>
             <div class="room-pet-grid" id="room-pet-grid">
-              <div class="room-empty" data-i18n="roomEmpty">Pull a role pet into the room to start.</div>
+              <div class="room-empty" data-i18n="roomEmpty">No agents on the floor.</div>
             </div>
           </section>
         </div>
@@ -4291,7 +4479,7 @@
     const i18n = {
       en: {
         navRuntime: 'Runtime',
-        navRoom: 'Habitat',
+        navRoom: 'Room',
         navRoles: 'Roles',
         navSkills: 'Skills',
         navConfig: 'Config',
@@ -4302,7 +4490,7 @@
         online: 'Online',
         offline: 'Offline',
         pageRuntime: 'Runtime',
-        pageRoom: 'Habitat',
+        pageRoom: 'Room',
         pageRoles: 'Roles',
         pageSkills: 'Skills',
         pageConfig: 'Config',
@@ -4312,14 +4500,14 @@
         heroEyebrow: 'Local',
         heroTitle: 'Runtime',
         heroDesc: 'IM surfaces, roles, and local work signals.',
-        roomEyebrow: 'Multi-agent habitat',
-        roomTitle: 'Habitat',
-        roomSubtitle: 'A free workspace where role pets stay, talk, and work. Details open only when you inspect a pet.',
+        roomEyebrow: 'Cyber office',
+        roomTitle: 'Room',
+        roomSubtitle: 'Role crew, shared workspace, live handoff.',
         roomReset: 'Reset',
         roomCopy: 'Copy',
         roomSendChat: 'Stage in Chat',
-        roomAgentsTitle: 'Pull Agents',
-        roomAgentsSubtitle: 'Start one or more role pets in this habitat.',
+        roomAgentsTitle: 'Agent Bay',
+        roomAgentsSubtitle: 'Available role seats.',
         roomMissionTitle: 'Mission',
         roomMissionSubtitle: 'The packet that the lead agent will dispatch.',
         roomRepo: 'Workspace',
@@ -4337,15 +4525,17 @@
         roomSent: 'Staged',
         roomNeedRequest: 'Add a request first.',
         roomBroadcast: 'Dispatch',
-        roomBroadcastPlaceholder: 'Describe the outcome and let the habitat pets work...',
-        roomEmpty: 'Pull a role pet into the habitat to start.',
+        roomBroadcastPlaceholder: 'Send an outcome to the Room...',
+        roomEmpty: 'No agents on the floor.',
+        roomFloorLabel: 'Ops floor',
+        roomOnlineLabel: 'online',
         roomAgentStarting: 'Starting...',
         roomAgentFailed: 'Agent failed: ',
         roomSend: 'Send',
-        roomInputPlaceholder: 'Send this pet a task...',
+        roomInputPlaceholder: 'Send this agent a task...',
         roomRemove: 'Remove',
-        roomNoPetSelected: 'Select a pet to inspect its work.',
-        roomNoLogs: 'No details yet.',
+        roomNoPetSelected: 'Select an agent terminal.',
+        roomNoLogs: 'Terminal idle.',
         activeRole: 'Active role: ',
         refresh: 'Refresh',
         servicesTitle: 'Services',
@@ -4480,7 +4670,7 @@
       },
       zh: {
         navRuntime: '运行时',
-        navRoom: 'Habitat',
+        navRoom: 'Room',
         navRoles: '角色',
         navSkills: '技能',
         navConfig: '配置',
@@ -4491,7 +4681,7 @@
         online: '在线',
         offline: '离线',
         pageRuntime: '运行时',
-        pageRoom: 'Habitat',
+        pageRoom: 'Room',
         pageRoles: '角色',
         pageSkills: '技能',
         pageConfig: '配置',
@@ -4501,14 +4691,14 @@
         heroEyebrow: '本地',
         heroTitle: 'Runtime',
         heroDesc: 'IM 入口、角色与本地工作信号。',
-        roomEyebrow: 'Multi-agent habitat',
-        roomTitle: 'Habitat',
-        roomSubtitle: '一群能工作的 pet 在同一个空间里待命、私信、执行；选中 pet 才看过程细节。',
+        roomEyebrow: '赛博办公室',
+        roomTitle: 'Room',
+        roomSubtitle: '角色工位 / 共享任务 / 即时交接。',
         roomReset: '重置',
         roomCopy: '复制',
         roomSendChat: '填入 Chat',
-        roomAgentsTitle: '拉起 Agents',
-        roomAgentsSubtitle: '在这个 habitat 启动一个或多个角色 pet。',
+        roomAgentsTitle: 'Agent Bay',
+        roomAgentsSubtitle: '可用角色工位。',
         roomMissionTitle: '任务',
         roomMissionSubtitle: '交给 lead agent 的调度包。',
         roomRepo: '工作区',
@@ -4526,15 +4716,17 @@
         roomSent: '已填入',
         roomNeedRequest: '先填写需求。',
         roomBroadcast: '派发',
-        roomBroadcastPlaceholder: '描述你要的结果，让 habitat 里的 pet 去工作...',
-        roomEmpty: '先把一个角色 pet 拉进 habitat。',
+        roomBroadcastPlaceholder: '把目标派发到 Room...',
+        roomEmpty: '地板上还没有 agent。',
+        roomFloorLabel: 'Ops floor',
+        roomOnlineLabel: '在线',
         roomAgentStarting: '启动中...',
         roomAgentFailed: 'Agent 异常: ',
         roomSend: '发送',
-        roomInputPlaceholder: '给这个 pet 派一个任务...',
+        roomInputPlaceholder: '给这个 agent 派一个任务...',
         roomRemove: '移除',
-        roomNoPetSelected: '选择一个 pet 查看它的工作细节。',
-        roomNoLogs: '还没有细节。',
+        roomNoPetSelected: '选择一个 agent terminal。',
+        roomNoLogs: '终端待命。',
         activeRole: '当前角色：',
         refresh: '刷新',
         servicesTitle: '服务',
@@ -4889,7 +5081,7 @@
     }
 
     function roomPetClass(agent) {
-      return 'habitat-pet '+roomAgentState(agent)+(roomSelectedAgentId === agent.id ? ' selected' : '');
+      return 'room-agent-node '+roomAgentState(agent)+(roomSelectedAgentId === agent.id ? ' selected' : '');
     }
 
     function roomPetPosition(index) {
@@ -4898,6 +5090,11 @@
       ];
       const point = positions[index % positions.length];
       return `--x:${point[0]}%;--y:${point[1]}%`;
+    }
+
+    function roomFloorLabelHtml() {
+      const count = roomState.agents.length;
+      return '<div class="room-floor-label"><span>'+escapeHtml(t('roomFloorLabel'))+'</span><span>'+count+' '+escapeHtml(t('roomOnlineLabel'))+'</span></div>';
     }
 
     function roomPetStateFromStatus(agent, eventState) {
@@ -4967,7 +5164,7 @@
     function renderRoomDetail(agentId = roomSelectedAgentId) {
       if (agentId !== roomSelectedAgentId) return;
       const agent = roomState.agents.find(item => item.id === agentId);
-      const detail = document.getElementById('habitat-detail');
+      const detail = document.getElementById('room-detail');
       if (!detail) return;
       if (!agent) {
         detail.innerHTML = '<div class="room-empty">'+escapeHtml(t('roomNoPetSelected'))+'</div>';
@@ -4975,11 +5172,11 @@
       }
       const logs = getRoomAgentLog(agent.id);
       detail.innerHTML = [
-        '<div class="habitat-detail-head">',
-        '<div><div class="habitat-detail-title">'+escapeHtml(agent.displayName)+'</div><div class="habitat-detail-subtitle">'+escapeHtml(agent.roleName)+' · '+escapeHtml(agent.cwd || '')+'</div></div>',
+        '<div class="room-detail-head">',
+        '<div><div class="room-detail-title">'+escapeHtml(agent.displayName)+'</div><div class="room-detail-subtitle">'+escapeHtml(agent.roleName)+' · '+escapeHtml(agent.cwd || '')+'</div></div>',
         '<span class="room-pet-status '+escapeHtml(agent.status || 'idle')+'">'+escapeHtml(roomStatusLabel(agent))+'</span>',
         '</div>',
-        '<div class="habitat-detail-log" id="room-log-'+escapeHtml(agent.id)+'">',
+        '<div class="room-detail-log" id="room-log-'+escapeHtml(agent.id)+'">',
         logs.length ? logs.map(entry => '<div class="room-bubble '+escapeHtml(entry.kind)+'">'+escapeHtml(entry.text)+'</div>').join('') : '<div class="room-bubble event">'+escapeHtml(t('roomNoLogs'))+'</div>',
         '</div>',
         '<div class="room-pet-compose">',
@@ -5191,22 +5388,23 @@
       if (grid) {
         if (!roomState.agents.length) {
           roomSelectedAgentId = '';
-          grid.innerHTML = '<div class="habitat-floor"><div class="room-empty">'+t('roomEmpty')+'</div></div><aside class="habitat-detail" id="habitat-detail"><div class="room-empty">'+t('roomNoPetSelected')+'</div></aside>';
+          grid.innerHTML = '<div class="room-floor">'+roomFloorLabelHtml()+'<div class="room-empty">'+t('roomEmpty')+'</div></div><aside class="room-detail" id="room-detail"><div class="room-empty">'+t('roomNoPetSelected')+'</div></aside>';
         } else {
           if (!roomSelectedAgentId || !roomState.agents.some(agent => agent.id === roomSelectedAgentId)) {
             roomSelectedAgentId = roomState.agents[0].id;
           }
           grid.innerHTML = [
-            '<div class="habitat-floor">',
+            '<div class="room-floor">',
+            roomFloorLabelHtml(),
             roomState.agents.map((agent, index) => [
               '<button type="button" class="'+escapeHtml(roomPetClass(agent))+'" id="room-card-'+escapeHtml(agent.id)+'" style="'+roomPetPosition(index)+'" onclick="selectRoomAgent(\''+escapeJs(agent.id)+'\')">',
-              '<div class="habitat-speech" id="room-speech-'+escapeHtml(agent.id)+'">'+escapeHtml(roomAgentSpeech.get(agent.id) || '')+'</div>',
-              '<div class="habitat-pet-stage"><canvas width="192" height="208" id="room-canvas-'+escapeHtml(agent.id)+'"></canvas></div>',
-              '<div class="habitat-pet-label"><span>'+escapeHtml(agent.displayName)+'</span><i class="habitat-status-dot"></i></div>',
+              '<div class="room-agent-speech" id="room-speech-'+escapeHtml(agent.id)+'">'+escapeHtml(roomAgentSpeech.get(agent.id) || '')+'</div>',
+              '<div class="room-agent-stage"><canvas width="192" height="208" id="room-canvas-'+escapeHtml(agent.id)+'"></canvas></div>',
+              '<div class="room-agent-label"><span>'+escapeHtml(agent.displayName)+'</span><i class="room-agent-status-dot"></i></div>',
               '</button>',
             ].join('')).join(''),
             '</div>',
-            '<aside class="habitat-detail" id="habitat-detail"></aside>',
+            '<aside class="room-detail" id="room-detail"></aside>',
           ].join('');
         }
       }

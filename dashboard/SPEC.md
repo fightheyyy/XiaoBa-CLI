@@ -2,7 +2,7 @@
 
 ## Problem
 
-XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Habitat page lets a human pull multiple role pets into one free workspace and send outcome-oriented tasks to each pet without turning the experience into a terminal or card wall.
+XiaoBa Dashboard is the local operator surface for runtime status, roles, skills, config, pet chat, and multi-agent pet work. The user-facing Room page lets a human pull multiple role agents into one cyber-office workspace and send outcome-oriented tasks to each agent without turning the experience into a terminal or card wall.
 
 ## Scope
 
@@ -10,12 +10,12 @@ In scope:
 
 - Static dashboard pages served by `src/dashboard/server.ts`.
 - API routes under `src/dashboard/routes/api.ts`.
-- Habitat backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
+- Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
 - Multiple room agent seats, each backed by its own `AgentSession`, role prompt, role skills, role-specific tools, pet sprite, and SSE message stream.
 - A role-neutral private-message primitive for Room agent-to-agent communication.
-- A visual multi-pet habitat in `dashboard/index.html`: free pet nodes first, detailed logs only after selecting a pet.
+- A visual multi-agent Room in `dashboard/index.html`: free pet nodes first, detailed logs only after selecting an agent terminal.
 
-Out of scope for the current Habitat:
+Out of scope for the current Room:
 
 - Durable room database across process restarts.
 - Full AutoDev case lifecycle from the room.
@@ -32,7 +32,7 @@ flowchart LR
         Mission["Outcome request"]
     end
 
-    subgraph Habitat["Habitat：multi-agent pet workspace"]
+    subgraph Room["Room：cyber-office agent workspace"]
         UI["Free pet UI"]
         API["Room API"]
         Seats["RoomAgent seats"]
@@ -68,15 +68,15 @@ flowchart LR
 
 ## Concepts
 
-- **Habitat**: A local visual workspace for multi-agent coordination, presented as free working pets rather than terminal panes.
+- **Room**: A local cyber-office workspace for multi-agent coordination, presented as free working role agents rather than terminal panes.
 - **Role pet**: A room seat backed by a role such as `engineer-cat`, `reviewer-cat`, `inspector-cat`, or `researcher-cat`.
 - **Role-scoped runtime**: Each room pet gets its own `AgentSession`, role-specific prompt, role skills, and role tools. This avoids relying on the global active dashboard role.
-- **Private message**: The only Habitat agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
+- **Private message**: The only Room agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
 - **Outcome dispatch**: A user can message one pet or fan out the same outcome request to multiple pets. The fan-out is still just repeated messages, not a special workflow protocol.
-- **Pet stream**: Habitat messages use SSE events compatible with the existing pet state model: user message, state, text, tool start/end, file, error, and done.
+- **Pet stream**: Room messages use SSE events compatible with the existing pet state model: user message, state, text, tool start/end, file, error, and done.
 - **Service logs**: Dashboard service log buttons expose child-process stdout/stderr for managed services. The `pet` log also includes in-process `pet:*` runtime logs emitted by Dashboard chat, because that chat runs inside the Dashboard process instead of a spawned child service.
 
-Habitat deliberately does not define role-specific protocol verbs such as claim, delegate, review, reopen, or complete. Those are ordinary natural-language intents inside private messages or role prompts. The runtime layer only handles delivery, traceable events, and waking the recipient.
+Room deliberately does not define role-specific protocol verbs such as claim, delegate, review, reopen, or complete. Those are ordinary natural-language intents inside private messages or role prompts. The runtime layer only handles delivery, traceable events, and waking the recipient.
 
 ## Data Contracts
 
@@ -134,7 +134,7 @@ interface SendRoomPrivateMessageRequest {
 }
 ```
 
-Habitat agents also receive a role-neutral tool:
+Room agents also receive a role-neutral tool:
 
 ```ts
 interface RoomMessageToolInput {
@@ -149,6 +149,6 @@ The tool publishes a `room_message` event to both the sender and recipient, then
 
 ## Boundaries
 
-- Habitat does not mutate files by itself; tools called by a role agent do the work.
-- Habitat communication is role-neutral; roles may have different capabilities, but the protocol treats every agent as a peer.
-- Habitat is process-local today; durable replay and cross-process A2A are future layers.
+- Room does not mutate files by itself; tools called by a role agent do the work.
+- Room communication is role-neutral; roles may have different capabilities, but the protocol treats every agent as a peer.
+- Room is process-local today; durable replay and cross-process A2A are future layers.
