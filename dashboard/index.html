@@ -3329,6 +3329,51 @@
 
     .page-content.chat-page-active {
       width: min(1360px, calc(100% - 24px));
+      height: calc(100vh - 120px);
+      height: calc(100dvh - 120px);
+      min-height: 0;
+      padding-bottom: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-content.chat-page-active #page-pet.active {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .page-content.chat-page-active .section-title {
+      flex: 0 0 auto;
+    }
+
+    .page-content.chat-page-active .pet-surface {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .page-content.chat-page-active .pet-chat-panel {
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+    }
+
+    .page-content.chat-page-active .pet-messages {
+      min-height: 0;
+      max-height: none;
+    }
+
+    @media (min-width: 641px) {
+      body.chat-page-active {
+        overflow: hidden;
+      }
+
+      body.chat-page-active .main-wrapper {
+        height: 100vh;
+        overflow: hidden;
+      }
     }
 
     .runtime-hero {
@@ -3857,18 +3902,28 @@
     }
 
     @media (max-width: 900px) {
+      .page-content.chat-page-active {
+        height: calc(100vh - 144px);
+        height: calc(100dvh - 144px);
+      }
+
       .pet-surface {
         grid-template-columns: 1fr;
       }
 
-      .pet-chat-panel {
+      .page-content:not(.chat-page-active) .pet-chat-panel {
         height: clamp(520px, calc(100vh - 210px), 680px);
         min-height: 520px;
       }
     }
 
     @media (max-width: 640px) {
-      .pet-chat-panel {
+      .page-content.chat-page-active {
+        height: calc(100vh - 220px);
+        height: calc(100dvh - 220px);
+      }
+
+      .page-content:not(.chat-page-active) .pet-chat-panel {
         height: min(72vh, 620px);
         min-height: 460px;
       }
@@ -4707,6 +4762,7 @@
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const page = document.getElementById('page-'+name);
       if (page) page.classList.add('active');
+      document.body.classList.toggle('chat-page-active', name === 'pet');
       document.querySelector('.page-content')?.classList.toggle('chat-page-active', name === 'pet');
       const nav = document.querySelector('.nav-item[data-page="'+name+'"]');
       if (nav) nav.classList.add('active');
