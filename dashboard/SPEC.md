@@ -74,6 +74,7 @@ flowchart LR
 - **Private message**: The only Habitat agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
 - **Outcome dispatch**: A user can message one pet or fan out the same outcome request to multiple pets. The fan-out is still just repeated messages, not a special workflow protocol.
 - **Pet stream**: Habitat messages use SSE events compatible with the existing pet state model: user message, state, text, tool start/end, file, error, and done.
+- **Service logs**: Dashboard service log buttons expose child-process stdout/stderr for managed services. The `pet` log also includes in-process `pet:*` runtime logs emitted by Dashboard chat, because that chat runs inside the Dashboard process instead of a spawned child service.
 
 Habitat deliberately does not define role-specific protocol verbs such as claim, delegate, review, reopen, or complete. Those are ordinary natural-language intents inside private messages or role prompts. The runtime layer only handles delivery, traceable events, and waking the recipient.
 
@@ -143,6 +144,8 @@ interface RoomMessageToolInput {
 ```
 
 The tool publishes a `room_message` event to both the sender and recipient, then enqueues the incoming private message as a normal message for the target agent.
+
+`GET /api/services/:name/logs?lines=200` returns recent display log lines. For `feishu`, `weixin`, `catscompany`, and managed `pet` child processes, these come from `ServiceManager` stdout/stderr capture. For in-Dashboard pet chat, `pet` also includes recent `Logger` runtime lines whose session id starts with `pet:`.
 
 ## Boundaries
 

@@ -13,6 +13,7 @@ flowchart LR
         Scoped["Role-scoped sessions"]
         PM["room_message private DM"]
         Stream["SSE pet events"]
+        Logs["pet runtime logs in service modal"]
     end
 
     subgraph Pending["Pending"]
@@ -27,6 +28,7 @@ flowchart LR
     API --> Scoped
     Scoped --> PM
     PM --> Stream
+    Stream --> Logs
     Stream --> Durable
     Durable --> Eval
     Eval --> A2A
@@ -69,6 +71,7 @@ flowchart LR
 - `POST /api/room/messages` can deliver a private message, publish `room_message` events to sender and recipient, and wake the recipient agent.
 - Mobile viewport does not horizontally overflow.
 - Missing model credentials fail visibly as a room pet error instead of pretending success.
+- The `pet` service log modal shows in-process Dashboard chat runtime logs for `pet:*` sessions, matching the child-process log behavior of Feishu and Weixin.
 
 ## Verification Log
 
@@ -80,6 +83,7 @@ flowchart LR
 - 2026-05-25: Browser smoke confirmed `POST /api/room/messages` publishes `DM to` on the sender pet, `DM from` on the recipient pet, keeps both pet canvases nonblank, and reports no console errors.
 - 2026-05-25: Frontend was reshaped from card-like agent panels into a Habitat surface with free pet nodes and a selected-pet detail log.
 - 2026-05-25: Playwright verified the user-facing title is `Habitat`, the page renders 2 `.habitat-pet` nodes on a `.habitat-floor`, no `.room-pet-card` nodes remain, private-message bubbles render, pet canvases are nonblank, and 390px mobile has no horizontal overflow.
+- 2026-05-25: `node --import tsx --test tests/dashboard-service-logs.test.ts tests/logger.test.ts` verified the `pet` service logs include in-process `pet:*` runtime lines while excluding Feishu and unscoped Dashboard logs.
 
 ## Risks / Open Questions
 
