@@ -189,6 +189,7 @@
         return;
       }
       if (event.type === 'tool_start') {
+        textBuffer = '';
         options.setState('running');
         options.onToolStart?.(event);
         return;
@@ -218,7 +219,7 @@
         return;
       }
       if (event.type === 'done') {
-        if (event.text && !textBuffer) options.onText?.(event, event.text);
+        textBuffer = '';
         options.setState('waving');
         options.onDone?.(event);
       }

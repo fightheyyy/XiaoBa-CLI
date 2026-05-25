@@ -567,7 +567,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
 
 // ==================== Helpers ====================
 
-const REMOTE_REGISTRY_URL = 'https://raw.githubusercontent.com/buildsense-ai/XiaoBa-Skill-Hub/main/registry.json';
+const REMOTE_REGISTRY_URL = 'https://raw.githubusercontent.com/fightheyyy/XiaoBa-SkillHub/main/registry.json';
 let remoteRegistryCache: any[] | null = null;
 let remoteRegistryCacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
