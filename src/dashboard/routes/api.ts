@@ -14,6 +14,7 @@ import { createRoomRouter } from '../room-channel';
 import { PathResolver } from '../../utils/path-resolver';
 import { RoleResolver } from '../../utils/role-resolver';
 import { SkillParser } from '../../skills/skill-parser';
+import type { Skill } from '../../types/skill';
 import matter from 'gray-matter';
 import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
@@ -21,6 +22,7 @@ import { APP_VERSION } from '../../version';
 // import { LogUploader } from '../../utils/log-uploader';
 
 const DASHBOARD_PAGES = new Set(['services', 'room', 'pet', 'config', 'skills', 'roles', 'store']);
+const DISABLED_SKILL_SUFFIX = '.disabled';
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
 let dashboardNavigationRequestId = 0;
 
@@ -271,20 +273,8 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      const active = manager.getAllSkills().map(s => ({
-        name: s.metadata.name,
-        aliases: s.metadata.aliases || [],
-        description: s.metadata.description,
-        argumentHint: s.metadata.argumentHint || null,
-        userInvocable: s.metadata.userInvocable !== false,
-        autoInvocable: s.metadata.autoInvocable !== false,
-        maxTurns: s.metadata.maxTurns || null,
-        path: s.filePath,
-        roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
-        files: getSkillFiles(s.filePath),
-        enabled: true,
-      }));
-      const disabled = findAllDisabledSkills(PathResolver.getSkillsPath());
+      const active = manager.getAllSkills().map(s => toDashboardSkillSummary(s, true));
+      const disabled = findDisabledSkillsForDashboard();
       res.json([...active, ...disabled]);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -338,7 +328,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       await manager.loadSkills();
       const skill = manager.getSkill(req.params.name);
       if (!skill) {
-        const disabled = findDisabledSkillByName(PathResolver.getSkillsPath(), req.params.name);
+        const disabled = findDisabledSkillForDashboard(req.params.name);
         if (disabled) {
           fs.rmSync(path.dirname(disabled), { recursive: true, force: true });
           return res.json({ ok: true });
@@ -367,9 +357,9 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
 
   router.post('/skills/:name/enable', async (req, res) => {
     try {
-      const f = findDisabledSkillByName(PathResolver.getSkillsPath(), req.params.name);
+      const f = findDisabledSkillForDashboard(req.params.name);
       if (!f) return res.status(404).json({ error: 'Disabled skill not found' });
-      fs.renameSync(f, f.replace('.disabled', ''));
+      fs.renameSync(f, f.slice(0, -DISABLED_SKILL_SUFFIX.length));
       res.json({ ok: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -393,7 +383,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       await manager.loadSkills();
       const installed = new Set(manager.getAllSkills().map(s => s.metadata.name));
       // 也算上disabled的
-      const disabled = findAllDisabledSkills(PathResolver.getSkillsPath());
+      const disabled = findDisabledSkillsForDashboard();
       disabled.forEach(s => installed.add(s.name));
 
       const available = registry.map(entry => ({
@@ -893,42 +883,125 @@ function restoreEnvValue(key: string, value: string | undefined): void {
   }
 }
 
-function findDisabledSkillByName(basePath: string, name: string): string | null {
-  if (!fs.existsSync(basePath)) return null;
-  for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const disabledFile = path.join(basePath, entry.name, 'SKILL.md.disabled');
-    if (fs.existsSync(disabledFile)) {
-      const content = fs.readFileSync(disabledFile, 'utf-8');
-      const m = content.match(/name:\s*(.+)/);
-      if (m && m[1].trim() === name) return disabledFile;
-    }
-    const found = findDisabledSkillByName(path.join(basePath, entry.name), name);
+interface DashboardSkillSummary {
+  name: string;
+  aliases: string[];
+  description: string;
+  argumentHint: string | null;
+  userInvocable: boolean;
+  autoInvocable: boolean;
+  maxTurns: number | null;
+  path: string;
+  roleOwned: boolean;
+  files: string[];
+  enabled: boolean;
+}
+
+function toDashboardSkillSummary(skill: Skill, enabled: boolean): DashboardSkillSummary {
+  return {
+    name: skill.metadata.name,
+    aliases: skill.metadata.aliases || [],
+    description: skill.metadata.description,
+    argumentHint: skill.metadata.argumentHint || null,
+    userInvocable: skill.metadata.userInvocable !== false,
+    autoInvocable: skill.metadata.autoInvocable !== false,
+    maxTurns: skill.metadata.maxTurns || null,
+    path: skill.filePath,
+    roleOwned: skill.filePath.includes(`${path.sep}roles${path.sep}`),
+    files: getSkillFiles(skill.filePath),
+    enabled,
+  };
+}
+
+function findDisabledSkillForDashboard(name: string): string | null {
+  for (const basePath of getDashboardSkillSearchPaths()) {
+    const found = findDisabledSkillByName(basePath, name);
     if (found) return found;
   }
   return null;
 }
 
-function findAllDisabledSkills(basePath: string): any[] {
-  const results: any[] = [];
+function findDisabledSkillsForDashboard(): DashboardSkillSummary[] {
+  const seen = new Set<string>();
+  const results: DashboardSkillSummary[] = [];
+  for (const basePath of getDashboardSkillSearchPaths()) {
+    for (const skill of findAllDisabledSkills(basePath)) {
+      if (seen.has(skill.path)) continue;
+      seen.add(skill.path);
+      results.push(skill);
+    }
+  }
+  return results;
+}
+
+function getDashboardSkillSearchPaths(): string[] {
+  const paths = [PathResolver.getBaseSkillsPath(), PathResolver.getRoleSubPath('skills')]
+    .filter((candidate): candidate is string => Boolean(candidate));
+  return Array.from(new Set(paths));
+}
+
+function findDisabledSkillByName(basePath: string, name: string): string | null {
+  if (!fs.existsSync(basePath)) return null;
+  const targetName = normalizeSkillLookupName(name);
+  for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const fullPath = path.join(basePath, entry.name);
+    const disabledFile = path.join(fullPath, 'SKILL.md.disabled');
+    if (fs.existsSync(disabledFile)) {
+      const skill = parseDisabledSkill(disabledFile, entry.name);
+      const aliases = [skill.name, ...skill.aliases, path.basename(path.dirname(disabledFile))];
+      if (aliases.some(alias => normalizeSkillLookupName(alias) === targetName)) {
+        return disabledFile;
+      }
+    }
+    const found = findDisabledSkillByName(fullPath, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findAllDisabledSkills(basePath: string): DashboardSkillSummary[] {
+  const results: DashboardSkillSummary[] = [];
   if (!fs.existsSync(basePath)) return results;
   for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const fullPath = path.join(basePath, entry.name);
     const disabledFile = path.join(fullPath, 'SKILL.md.disabled');
     if (fs.existsSync(disabledFile)) {
-      const content = fs.readFileSync(disabledFile, 'utf-8');
-      const nm = content.match(/name:\s*(.+)/);
-      const desc = content.match(/description:\s*(.+)/);
-      results.push({
-        name: nm ? nm[1].trim() : entry.name,
-        description: desc ? desc[1].trim() : '',
-        enabled: false,
-        path: disabledFile,
-        files: getSkillFiles(disabledFile),
-      });
+      results.push(parseDisabledSkill(disabledFile, entry.name));
     }
     results.push(...findAllDisabledSkills(fullPath));
   }
   return results;
+}
+
+function parseDisabledSkill(disabledFile: string, fallbackName: string): DashboardSkillSummary {
+  try {
+    return toDashboardSkillSummary(SkillParser.parse(disabledFile), false);
+  } catch {
+    const content = fs.readFileSync(disabledFile, 'utf-8');
+    const { data } = matter(content);
+    const name = asNonEmptyString(data.name) || fallbackName;
+    return {
+      name,
+      aliases: Array.isArray(data.aliases) ? data.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
+      description: asNonEmptyString(data.description) || '',
+      argumentHint: asNonEmptyString(data['argument-hint'] || data.argumentHint),
+      userInvocable: data['user-invocable'] !== false && data.invocable !== 'agent',
+      autoInvocable: data['auto-invocable'] !== false && data.autoInvocable !== false && data.invocable !== 'user',
+      maxTurns: data['max-turns'] ? Number(data['max-turns']) : null,
+      path: disabledFile,
+      roleOwned: disabledFile.includes(`${path.sep}roles${path.sep}`),
+      files: getSkillFiles(disabledFile),
+      enabled: false,
+    };
+  }
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeSkillLookupName(value: string): string {
+  return value.trim().toLowerCase();
 }
