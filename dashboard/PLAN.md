@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
+Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. A broadcast task becomes the current Room goal and appears on the wall board. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
 ```mermaid
 flowchart LR
@@ -11,6 +11,7 @@ flowchart LR
         Surface["Frontend-drawn seat UI"]
         API["Room API"]
         Scoped["Role-scoped sessions"]
+        Goal["Wall goal board"]
         PM["room_message private DM"]
         Stream["SSE pet events"]
         Logs["pet runtime logs in service modal"]
@@ -25,6 +26,7 @@ flowchart LR
 
     Nav --> Surface
     Surface --> API
+    Surface --> Goal
     API --> Scoped
     Scoped --> PM
     PM --> Stream
@@ -44,8 +46,9 @@ flowchart LR
 5. SSE event stream per room agent: completed.
 6. Role-neutral private-message primitive: completed.
 7. Frontend-drawn meeting-table Room visual refresh: completed.
-8. Durable room trace and replay: not started.
-9. Feishu room bridge / external A2A: not started.
+8. Broadcast task rendered as current Room goal on the wall board: completed.
+9. Durable room trace and replay: not started.
+10. Feishu room bridge / external A2A: not started.
 
 ## Next Steps
 
@@ -68,6 +71,7 @@ flowchart LR
 - `GET /api/room/roles` returns role agents and current `cwd`.
 - Room page can pull multiple role agents into the workspace.
 - The Room floor shows a frontend-drawn white cyber-office meeting room with a large meeting table.
+- Dispatching a task to Room updates the wall board to show that task as the current Room goal before agents begin work.
 - The visible chair count equals the supported maximum multi-agent count, currently 8, and the backend rejects more agents once all seats are occupied.
 - Each added agent occupies one seat and renders as an animated pet with a status dot, speech bubble, and selectable detail panel.
 - Every Room agent exposes the same `room_message` tool for private natural-language messages to another agent.
@@ -98,6 +102,7 @@ flowchart LR
 - 2026-05-26: Rebalanced the Room layout so Agent Bay is a 58px top tray at narrow widths, the Room floor renders before the dispatch input, and the table/seat geometry no longer overlaps; `npm run build`, browser verification, and Playwright checks at 692x663, 390x844, and 1470x900 passed with 5 active agents and no horizontal overflow.
 - 2026-05-26: Confirmed the Room backend and frontend still support 8 agents; API smoke created 8 agents and the 9th `POST /api/room/agents` returned 400. The Room floor was simplified into a cleaner meeting-table seat canvas with no fake decor or foreground table occlusion; Playwright checks at 692x663, 390x844, and 1470x900 covered empty, 5-agent, and 8-agent states with no horizontal overflow.
 - 2026-05-26: Removed the white framed backgrounds from Room pet stages so role pets render on transparent hit areas with only soft state shadows; `npm run build` passed and Playwright verified 5-agent and 8-agent states at 692x663, 390x844, and 1470x900 with transparent stage backgrounds, no label overlap, and no horizontal overflow.
+- 2026-05-26: Added the Room wall goal board. `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed; Browser verified dispatching a Room task renders it as the current goal on the wall board, keeps the composer clear, and has no horizontal overflow at 1280x720 and 390x844.
 
 ## Risks / Open Questions
 
