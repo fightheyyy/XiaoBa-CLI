@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn round table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
+Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
 ```mermaid
 flowchart LR
@@ -95,6 +95,7 @@ flowchart LR
 - 2026-05-26: Removed the redundant Room hero strip; `npm run build`, browser verification, and Playwright checks at 1470x900 and 390x844 confirmed the page now starts at `.room-shell`, keeps 8 seats and the round table, and has no horizontal overflow.
 - 2026-05-26: Compacted the Room Agent Bay on narrow layouts; browser verification and Playwright checks at 599x837, 390x844, and 1470x900 confirmed the role dock becomes a two-column compact tray, keeps all 4 role buttons usable, preserves 8 room seats, and has no horizontal overflow.
 - 2026-05-26: Reworked the Room floor visual from a heavy blueprint-style scene into a quieter white meeting table surface; browser verification and Playwright checks with 5 active agents at 599x837, 390x844, and 1470x900 confirmed no window/console placeholder elements render, narrow screens show only the selected agent label, all 8 seats remain, and there is no horizontal overflow.
+- 2026-05-26: Rebalanced the Room layout so Agent Bay is a 58px top tray at narrow widths, the Room floor renders before the dispatch input, and the table/seat geometry no longer overlaps; `npm run build`, browser verification, and Playwright checks at 692x663, 390x844, and 1470x900 passed with 5 active agents and no horizontal overflow.
 
 ## Risks / Open Questions
 
