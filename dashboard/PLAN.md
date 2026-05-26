@@ -43,7 +43,7 @@ flowchart LR
 4. Role-scoped prompt/skills/tools per room agent: completed.
 5. SSE event stream per room agent: completed.
 6. Role-neutral private-message primitive: completed.
-7. Frontend-drawn round-table Room visual refresh: completed.
+7. Frontend-drawn meeting-table Room visual refresh: completed.
 8. Durable room trace and replay: not started.
 9. Feishu room bridge / external A2A: not started.
 
@@ -67,7 +67,7 @@ flowchart LR
 - `GET /api/navigation/open?page=room` is accepted.
 - `GET /api/room/roles` returns role agents and current `cwd`.
 - Room page can pull multiple role agents into the workspace.
-- The Room floor shows a frontend-drawn white cyber-office meeting room with a large round table.
+- The Room floor shows a frontend-drawn white cyber-office meeting room with a large meeting table.
 - The visible chair count equals the supported maximum multi-agent count, currently 8, and the backend rejects more agents once all seats are occupied.
 - Each added agent occupies one seat and renders as an animated pet with a status dot, speech bubble, and selectable detail panel.
 - Every Room agent exposes the same `room_message` tool for private natural-language messages to another agent.
@@ -96,6 +96,7 @@ flowchart LR
 - 2026-05-26: Compacted the Room Agent Bay on narrow layouts; browser verification and Playwright checks at 599x837, 390x844, and 1470x900 confirmed the role dock becomes a two-column compact tray, keeps all 4 role buttons usable, preserves 8 room seats, and has no horizontal overflow.
 - 2026-05-26: Reworked the Room floor visual from a heavy blueprint-style scene into a quieter white meeting table surface; browser verification and Playwright checks with 5 active agents at 599x837, 390x844, and 1470x900 confirmed no window/console placeholder elements render, narrow screens show only the selected agent label, all 8 seats remain, and there is no horizontal overflow.
 - 2026-05-26: Rebalanced the Room layout so Agent Bay is a 58px top tray at narrow widths, the Room floor renders before the dispatch input, and the table/seat geometry no longer overlaps; `npm run build`, browser verification, and Playwright checks at 692x663, 390x844, and 1470x900 passed with 5 active agents and no horizontal overflow.
+- 2026-05-26: Confirmed the Room backend and frontend still support 8 agents; API smoke created 8 agents and the 9th `POST /api/room/agents` returned 400. The Room floor was simplified into a cleaner meeting-table seat canvas with no fake decor or foreground table occlusion; Playwright checks at 692x663, 390x844, and 1470x900 covered empty, 5-agent, and 8-agent states with no horizontal overflow.
 
 ## Risks / Open Questions
 

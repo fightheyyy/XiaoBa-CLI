@@ -33,7 +33,7 @@ flowchart LR
     end
 
     subgraph Room["Room：frontend-drawn meeting room"]
-        UI["Round-table seat UI"]
+        UI["Meeting-table seat UI"]
         API["Room API"]
         Seats["RoomAgent seats"]
         PM["Private-message bus"]

@@ -1010,14 +1010,14 @@
     .room-floor {
       position: relative;
       width: 100%;
-      height: clamp(520px, calc(100vh - 210px), 760px);
+      height: clamp(540px, calc(100vh - 200px), 760px);
       min-height: 0;
       border-radius: 18px;
       border: 1px solid rgba(222, 214, 202, 0.82);
       background:
-        radial-gradient(ellipse at 50% 88%, rgba(245,155,87,0.10), transparent 48%),
-        radial-gradient(ellipse at 50% 28%, rgba(59,130,246,0.06), transparent 46%),
-        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,252,251,0.94) 48%, rgba(250,247,242,0.94));
+        radial-gradient(ellipse at 50% 58%, rgba(96,165,250,0.10), transparent 42%),
+        radial-gradient(ellipse at 50% 86%, rgba(245,155,87,0.10), transparent 46%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(251,252,251,0.96) 44%, rgba(250,247,242,0.96));
       box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.86);
       overflow: hidden;
       isolation: isolate;
@@ -1026,14 +1026,14 @@
     .room-floor::before {
       content: '';
       position: absolute;
-      inset: 38px 30px 34px;
+      inset: 44px 28px 34px;
       border-radius: inherit;
       background:
-        linear-gradient(90deg, rgba(80, 121, 161, 0.030) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(80, 121, 161, 0.026) 1px, transparent 1px),
-        linear-gradient(180deg, rgba(255,255,255,0.48), rgba(255,255,255,0.08));
-      background-size: 76px 76px, 76px 76px, auto;
-      border: 1px solid rgba(225, 216, 203, 0.40);
+        linear-gradient(90deg, rgba(80,121,161,0.030) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(80,121,161,0.026) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.05));
+      background-size: 78px 78px, 78px 78px, auto;
+      border: 1px solid rgba(225,216,203,0.40);
       pointer-events: none;
       z-index: 1;
     }
@@ -1041,12 +1041,12 @@
     .room-floor::after {
       content: '';
       position: absolute;
-      left: 17%;
-      right: 17%;
-      bottom: 7%;
-      height: 19%;
+      left: 22%;
+      right: 22%;
+      bottom: 11%;
+      height: 18%;
       border-radius: 999px;
-      background: radial-gradient(ellipse at center, rgba(34,31,25,0.12), transparent 70%);
+      background: radial-gradient(ellipse at center, rgba(34,31,25,0.11), transparent 72%);
       filter: blur(18px);
       pointer-events: none;
       z-index: 1;
@@ -1055,27 +1055,28 @@
     .room-scene {
       position: absolute;
       inset: 0;
-      z-index: 2;
       pointer-events: none;
+      z-index: 2;
     }
 
-    .room-back-wall {
+    .room-wall {
       position: absolute;
       left: 10%;
       right: 10%;
       top: 8%;
-      height: 18%;
+      height: 17%;
       border-radius: 22px;
-      border: 1px solid rgba(222, 214, 202, 0.62);
+      border: 1px solid rgba(222,214,202,0.62);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.88), rgba(248,250,252,0.58));
+        linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,250,252,0.62));
       box-shadow: 0 16px 42px rgba(34,31,25,0.05), inset 0 1px 0 rgba(255,255,255,0.76);
+      z-index: 1;
     }
 
-    .room-screen {
+    .room-display {
       position: absolute;
       left: 50%;
-      top: 50%;
+      top: 46%;
       width: min(38%, 310px);
       height: 48%;
       transform: translate(-50%, -50%);
@@ -1086,36 +1087,35 @@
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.72);
     }
 
-    .room-screen::before,
-    .room-screen::after {
+    .room-display::before {
       content: '';
       position: absolute;
-      border-radius: 999px;
-      background: rgba(80,121,161,0.16);
-    }
-
-    .room-screen::before {
       left: 12%;
       right: 12%;
       top: 30%;
       height: 6px;
+      border-radius: 999px;
+      background: rgba(80,121,161,0.16);
       box-shadow: 0 16px 0 rgba(30,169,113,0.12), 0 32px 0 rgba(245,155,87,0.10);
     }
 
-    .room-screen::after {
+    .room-display::after {
+      content: '';
+      position: absolute;
       right: 12%;
       top: 24%;
       width: 22%;
       height: 45%;
+      border-radius: 10px;
       background: linear-gradient(180deg, rgba(80,121,161,0.14), rgba(30,169,113,0.08));
     }
 
     .room-table {
       position: absolute;
       left: 50%;
-      top: 60%;
-      width: min(40%, 460px);
-      height: min(22%, 180px);
+      top: 59%;
+      width: min(36%, 460px);
+      height: min(20%, 170px);
       transform: translate(-50%, -50%);
       border-radius: 999px / 62%;
       border: 1px solid rgba(224,213,198,0.78);
@@ -1131,8 +1131,7 @@
       inset: 18%;
       border-radius: inherit;
       border: 1px solid rgba(167,192,226,0.18);
-      background:
-        radial-gradient(ellipse at center, rgba(59,130,246,0.06), transparent 70%);
+      background: radial-gradient(ellipse at center, rgba(59,130,246,0.06), transparent 70%);
     }
 
     .room-table::after {
@@ -1168,10 +1167,13 @@
       display: none;
     }
 
+    .room-seat.back {
+      opacity: 0.88;
+    }
+
     .room-seat.occupied {
       border-color: rgba(245,155,87,0.26);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,247,237,0.74));
+      background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,247,237,0.74));
     }
 
     .room-floor-label {
@@ -1201,7 +1203,8 @@
       position: absolute;
       left: var(--x);
       top: var(--y);
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) scale(var(--scale, 1));
+      transform-origin: 50% 50%;
       width: 118px;
       min-height: 128px;
       border: 0;
@@ -1211,7 +1214,7 @@
       cursor: pointer;
       padding: 0;
       text-align: center;
-      z-index: 5;
+      z-index: var(--z);
     }
 
     .room-agent-stage {
@@ -1282,11 +1285,13 @@
       max-width: 150px;
       padding: 6px 8px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.90);
+      background: rgba(255,255,255,0.92);
       border: 1px solid rgba(224,213,198,0.72);
       box-shadow: 0 10px 24px rgba(34,31,25,0.08);
       font-size: 12px;
       font-weight: 900;
+      position: relative;
+      z-index: 2;
     }
 
     .room-agent-label span:first-child {
@@ -1717,7 +1722,7 @@
         height: 16%;
       }
 
-      .room-back-wall {
+      .room-wall {
         left: 8%;
         right: 8%;
         top: 8%;
@@ -1725,10 +1730,11 @@
       }
 
       .room-table {
-        width: min(42%, 260px);
-        height: 22%;
+        width: min(36%, 230px);
+        height: 20%;
         top: 59%;
       }
+
 
       .room-floor-label {
         left: 12px;
@@ -1737,18 +1743,18 @@
       }
 
       .room-agent-node {
-        width: 96px;
-        min-height: 128px;
+        width: 82px;
+        min-height: 104px;
       }
 
       .room-agent-stage {
-        width: 68px;
-        height: 78px;
+        width: 58px;
+        height: 68px;
       }
 
       .room-agent-node canvas {
-        width: 64px;
-        height: 72px;
+        width: 54px;
+        height: 62px;
       }
 
       .room-agent-speech {
@@ -5130,14 +5136,14 @@
     const skillGroupCollapsed = { role: false, runtime: false };
     let roomState = { cwd: '', roles: [], agents: [] };
     const ROOM_SEATS = [
-      { x: 50, y: 86, rot: 0 },
-      { x: 36, y: 82, rot: 28 },
-      { x: 64, y: 82, rot: -28 },
-      { x: 22, y: 61, rot: 74 },
-      { x: 78, y: 61, rot: -74 },
-      { x: 33, y: 42, rot: 138 },
-      { x: 50, y: 37, rot: 180 },
-      { x: 67, y: 42, rot: -138 },
+      { x: 50, y: 83, agentY: 83, rot: 0, layer: 'front', z: 8, seatZ: 4, scale: 1 },
+      { x: 24, y: 60, agentY: 60, rot: 74, layer: 'side', z: 8, seatZ: 4, scale: 0.96 },
+      { x: 76, y: 60, agentY: 60, rot: -74, layer: 'side', z: 8, seatZ: 4, scale: 0.96 },
+      { x: 35, y: 78, agentY: 78, rot: 18, layer: 'front', z: 8, seatZ: 4, scale: 0.98 },
+      { x: 65, y: 78, agentY: 78, rot: -18, layer: 'front', z: 8, seatZ: 4, scale: 0.98 },
+      { x: 34, y: 39, agentY: 39, rot: 138, layer: 'back', z: 8, seatZ: 3, scale: 0.88 },
+      { x: 50, y: 35, agentY: 35, rot: 180, layer: 'back', z: 8, seatZ: 3, scale: 0.88 },
+      { x: 66, y: 39, agentY: 39, rot: -138, layer: 'back', z: 8, seatZ: 3, scale: 0.88 },
     ];
     const ROOM_MAX_AGENTS = ROOM_SEATS.length;
     const roomPlayers = new Map();
@@ -5339,25 +5345,26 @@
       return roomBusyAgents.has(agent.id) ? 'running' : (agent.status || 'idle');
     }
 
-    function roomPetClass(agent) {
-      return 'room-agent-node '+roomAgentState(agent)+(roomSelectedAgentId === agent.id ? ' selected' : '');
+    function roomPetClass(agent, index = roomState.agents.findIndex(item => item.id === agent.id)) {
+      const seat = ROOM_SEATS[(index < 0 ? 0 : index) % ROOM_MAX_AGENTS];
+      return 'room-agent-node '+escapeHtml(seat.layer)+' '+roomAgentState(agent)+(roomSelectedAgentId === agent.id ? ' selected' : '');
     }
 
     function roomPetPosition(index) {
       const seat = ROOM_SEATS[index % ROOM_MAX_AGENTS];
-      return `--x:${seat.x}%;--y:${seat.y}%`;
+      return `--x:${seat.x}%;--y:${seat.agentY || seat.y}%;--z:${seat.z};--scale:${seat.scale || 1}`;
     }
 
     function roomSeatHtml(index) {
       const seat = ROOM_SEATS[index];
       const occupied = index < roomState.agents.length;
-      return '<span class="room-seat '+(occupied ? 'occupied' : '')+'" style="--x:'+seat.x+'%;--y:'+seat.y+'%;--rot:'+seat.rot+'deg"></span>';
+      return '<span class="room-seat '+escapeHtml(seat.layer)+' '+(occupied ? 'occupied' : '')+'" style="--x:'+seat.x+'%;--y:'+seat.y+'%;--rot:'+seat.rot+'deg;--seat-z:'+seat.seatZ+'"></span>';
     }
 
     function roomSceneHtml() {
       return [
         '<div class="room-scene" aria-hidden="true">',
-        '<div class="room-back-wall"><span class="room-screen"></span></div>',
+        '<div class="room-wall"><span class="room-display"></span></div>',
         '<div class="room-table"></div>',
         ROOM_SEATS.map((_, index) => roomSeatHtml(index)).join(''),
         '</div>',
@@ -5671,7 +5678,7 @@
             roomSceneHtml(),
             roomFloorLabelHtml(),
             roomState.agents.map((agent, index) => [
-              '<button type="button" class="'+escapeHtml(roomPetClass(agent))+'" id="room-card-'+escapeHtml(agent.id)+'" style="'+roomPetPosition(index)+'" onclick="selectRoomAgent(\''+escapeJs(agent.id)+'\')">',
+              '<button type="button" class="'+escapeHtml(roomPetClass(agent, index))+'" id="room-card-'+escapeHtml(agent.id)+'" style="'+roomPetPosition(index)+'" onclick="selectRoomAgent(\''+escapeJs(agent.id)+'\')">',
               '<div class="room-agent-speech" id="room-speech-'+escapeHtml(agent.id)+'">'+escapeHtml(roomAgentSpeech.get(agent.id) || '')+'</div>',
               '<div class="room-agent-stage"><canvas width="192" height="208" id="room-canvas-'+escapeHtml(agent.id)+'"></canvas></div>',
               '<div class="room-agent-label"><span>'+escapeHtml(agent.displayName)+'</span><i class="room-agent-status-dot"></i></div>',
