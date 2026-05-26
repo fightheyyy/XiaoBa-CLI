@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>XiaoBa Dashboard</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@700;800;900&display=swap');
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -238,6 +238,46 @@
       font-size: 11px;
       color: rgba(219, 216, 236, 0.7);
       line-height: 1.8;
+    }
+
+    .sidebar-watermark {
+      display: grid;
+      gap: 2px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      color: rgba(255,255,255,0.78);
+    }
+
+    .sidebar-watermark-name {
+      width: max-content;
+      max-width: 100%;
+      color: rgba(255,255,255,0.88);
+      font-family: 'Orbitron', 'SFMono-Regular', Consolas, monospace;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      line-height: 1.2;
+      text-decoration: none;
+      text-transform: lowercase;
+      transition: filter 0.16s ease, transform 0.16s ease;
+    }
+
+    .sidebar-watermark-name:hover {
+      filter: brightness(0.85);
+      transform: translateX(1px);
+    }
+
+    .sidebar-watermark-version {
+      color: rgba(255,255,255,0.54);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0;
+      line-height: 1.2;
     }
 
     .sidebar-footer-actions {
@@ -2929,6 +2969,29 @@
         padding: 10px 0 2px;
       }
 
+      .sidebar-watermark {
+        gap: 1px;
+        padding: 7px 3px;
+        text-align: center;
+      }
+
+      .sidebar-watermark-name {
+        font-size: 7px;
+        letter-spacing: 0;
+        overflow-wrap: normal;
+        white-space: nowrap;
+      }
+
+      .sidebar-watermark-version {
+        display: block;
+        font-size: 8px;
+        white-space: nowrap;
+      }
+
+      .sidebar-watermark-product {
+        display: none;
+      }
+
       .sidebar-footer-actions {
         justify-content: center;
         margin-top: 0;
@@ -3187,7 +3250,7 @@
     }
 
     .sidebar-footer {
-      padding: 10px 8px 2px;
+      padding: 10px 8px 16px;
       border-top: 1px solid var(--border-light);
     }
 
@@ -3196,6 +3259,29 @@
       color: var(--text3) !important;
       padding: 0 !important;
       font-weight: 600 !important;
+    }
+
+    .sidebar-watermark {
+      padding: 9px 8px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.52);
+      color: var(--text2);
+    }
+
+    .sidebar-watermark-name {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .sidebar-watermark-version {
+      color: var(--text3);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 650;
     }
 
     .sidebar-footer-actions {
@@ -4521,12 +4607,43 @@
 
     @media (max-width: 900px) {
       .sidebar {
-        width: 76px;
+        width: 92px;
         padding-inline: 10px;
       }
 
+      .sidebar-footer {
+        padding-inline: 2px;
+      }
+
+      .sidebar-watermark {
+        gap: 1px;
+        padding: 7px 1px;
+        text-align: center;
+      }
+
+      .sidebar-watermark-product {
+        display: none;
+      }
+
+      .sidebar-watermark-name {
+        font-size: 10px;
+        letter-spacing: 0;
+        transform: none;
+        white-space: nowrap;
+      }
+
+      .sidebar-watermark-name:hover {
+        transform: none;
+      }
+
+      .sidebar-watermark-version {
+        display: block;
+        font-size: 8px;
+        white-space: nowrap;
+      }
+
       .main-wrapper {
-        margin-left: 76px;
+        margin-left: 92px;
         padding-inline: 14px;
       }
 
@@ -4570,6 +4687,26 @@
 
       .sidebar-footer-info {
         display: none;
+      }
+
+      .sidebar-watermark {
+        padding: 9px 8px;
+        text-align: left;
+      }
+
+      .sidebar-watermark-name {
+        font-size: 13px;
+        white-space: normal;
+      }
+
+      .sidebar-watermark-version {
+        display: flex;
+        font-size: 10px;
+        white-space: normal;
+      }
+
+      .sidebar-watermark-product {
+        display: inline;
       }
 
       .sidebar-footer-actions {
@@ -4672,10 +4809,9 @@
       </a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-footer-info">
-        <span data-i18n="footerControlRoom" style="display:inline-block;margin-bottom:4px;font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(125,211,252,0.14);color:#bae6fd;font-weight:700">control room</span><br/>
-        <span id="footer-platform">-</span><br/>
-        <span id="footer-node">-</span>
+      <div class="sidebar-watermark" aria-label="XiaoBa CLI by fightheyyy version 2.0.0">
+        <a class="sidebar-watermark-name" href="https://fightheyyy.github.io" target="_blank" rel="noopener noreferrer">fightheyyy</a>
+        <span class="sidebar-watermark-version"><span class="sidebar-watermark-product">XiaoBa CLI</span><span>v2.0.0</span></span>
       </div>
       <div class="sidebar-footer-actions">
         <button type="button" class="sidebar-lang-toggle" id="lang-toggle-btn" onclick="toggleLanguage()" aria-label="Language">中 / EN</button>
@@ -6314,8 +6450,10 @@
         renderNextActions(data);
         renderActivity(data);
         updateActiveRolePill(data.roleDetail || null);
-        document.getElementById('footer-platform').textContent = data.platform || '-';
-        document.getElementById('footer-node').textContent = data.nodeVersion || '-';
+        const footerPlatform = document.getElementById('footer-platform');
+        const footerNode = document.getElementById('footer-node');
+        if (footerPlatform) footerPlatform.textContent = data.platform || '-';
+        if (footerNode) footerNode.textContent = data.nodeVersion || '-';
         const topbarStatus = document.getElementById('topbar-status');
         if (topbarStatus) {
           topbarStatus.textContent = t('online');
