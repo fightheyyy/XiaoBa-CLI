@@ -3584,17 +3584,20 @@
     }
 
     .service-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(58px, 1fr));
       gap: 5px;
-      justify-content: flex-end;
+      justify-self: end;
+      width: 136px;
     }
 
     .service-actions .btn {
+      justify-content: center;
       min-height: 28px;
       padding: 5px 9px;
       border-radius: 7px;
       font-size: 12px;
+      width: 100%;
     }
 
     .next-action,
