@@ -624,52 +624,6 @@
       align-items: stretch;
     }
 
-    .room-hero {
-      margin-bottom: 18px;
-      padding: 20px 22px;
-      border-radius: 18px;
-      background:
-        linear-gradient(90deg, rgba(59, 130, 246, 0.08) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(245, 155, 87, 0.07) 1px, transparent 1px),
-        linear-gradient(135deg, rgba(255,255,255,0.97), rgba(244,248,255,0.92) 54%, rgba(255,249,244,0.90));
-      background-size: 32px 32px, 32px 32px, auto;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm), var(--glow);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .room-hero::after {
-      content: '';
-      position: absolute;
-      left: 18px;
-      right: 18px;
-      bottom: 0;
-      height: 2px;
-      background: linear-gradient(90deg, rgba(59,130,246,0.72), rgba(245,155,87,0.62) 45%, rgba(30,169,113,0.52) 76%, transparent);
-      opacity: 0.74;
-      pointer-events: none;
-    }
-
-    .room-title {
-      color: var(--text);
-      font-size: 28px;
-      font-weight: 850;
-      letter-spacing: 0;
-      margin-bottom: 6px;
-    }
-
-    .room-subtitle {
-      color: var(--text2);
-      font-size: 13px;
-      line-height: 1.6;
-      max-width: 760px;
-    }
-
     .room-actions {
       display: flex;
       align-items: center;
@@ -1633,22 +1587,9 @@
         height: clamp(420px, 54vw, 520px);
       }
 
-      .room-hero {
-        align-items: flex-start;
-        flex-direction: column;
-      }
-
-      .room-actions {
-        width: 100%;
-        justify-content: flex-start;
-      }
     }
 
     @media (max-width: 640px) {
-      .room-hero {
-        padding: 18px;
-      }
-
       .room-shell {
         gap: 12px;
       }
@@ -4561,18 +4502,6 @@
 
       <!-- Page: Room -->
       <div class="page" id="page-room">
-        <div class="room-hero">
-          <div>
-            <div class="runtime-eyebrow" data-i18n="roomEyebrow">Cyber office</div>
-            <div class="room-title" data-i18n="roomTitle">Room</div>
-            <div class="room-subtitle" data-i18n="roomSubtitle">Role crew, shared workspace, live handoff.</div>
-          </div>
-          <div class="room-actions">
-            <span class="role-active-pill" id="room-status-pill">0 agents</span>
-            <button class="btn" onclick="refreshRoom()" data-i18n="refresh">Refresh</button>
-          </div>
-        </div>
-
         <div class="room-shell">
           <section class="room-panel">
             <div class="room-panel-header">
@@ -4723,9 +4652,6 @@
         heroEyebrow: 'Local',
         heroTitle: 'Runtime',
         heroDesc: 'IM surfaces, roles, and local work signals.',
-        roomEyebrow: 'Cyber office',
-        roomTitle: 'Room',
-        roomSubtitle: 'Role crew, shared workspace, live handoff.',
         roomReset: 'Reset',
         roomCopy: 'Copy',
         roomSendChat: 'Stage in Chat',
@@ -4915,9 +4841,6 @@
         heroEyebrow: '本地',
         heroTitle: 'Runtime',
         heroDesc: 'IM 入口、角色与本地工作信号。',
-        roomEyebrow: '赛博办公室',
-        roomTitle: 'Room',
-        roomSubtitle: '角色工位 / 共享任务 / 即时交接。',
         roomReset: '重置',
         roomCopy: '复制',
         roomSendChat: '填入 Chat',
@@ -5664,9 +5587,6 @@
           ].join('');
         }
       }
-
-      const pill = document.getElementById('room-status-pill');
-      if (pill) pill.textContent = roomState.agents.length + '/' + ROOM_MAX_AGENTS + ' agents';
 
       requestAnimationFrame(() => {
         syncRoomSubscriptions();
