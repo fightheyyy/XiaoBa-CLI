@@ -5,7 +5,11 @@ import * as dotenv from 'dotenv';
 import { ChatConfig } from '../types';
 
 // 加载环境变量（静默模式）
-dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env', quiet: true });
+dotenv.config({
+  path: process.env.DOTENV_CONFIG_PATH || '.env',
+  quiet: true,
+  override: process.env.DOTENV_CONFIG_OVERRIDE === 'true',
+});
 
 const CONFIG_DIR = path.join(os.homedir(), '.xiaoba');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');

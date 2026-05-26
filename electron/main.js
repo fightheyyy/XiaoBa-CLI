@@ -117,8 +117,10 @@ async function startServer() {
     fs.cpSync(promptsSrc, promptsDest, { recursive: true });
   }
 
-  // 加载dotenv
-  require('dotenv').config({ path: envPath, quiet: true });
+  // 加载dotenv；Dashboard 配置页写入的 userData/.env 应作为 Electron 运行时配置源。
+  process.env.DOTENV_CONFIG_PATH = envPath;
+  process.env.DOTENV_CONFIG_OVERRIDE = 'true';
+  require('dotenv').config({ path: envPath, quiet: true, override: true });
 
   // 告诉 dashboard server app 的实际位置（asar 内）
   process.env.XIAOBA_APP_ROOT = appRoot;

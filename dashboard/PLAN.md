@@ -79,6 +79,7 @@ flowchart LR
 - Mobile viewport does not horizontally overflow.
 - Missing model credentials fail visibly as a room agent error instead of pretending success.
 - The `pet` service log modal shows in-process Dashboard chat runtime logs for `pet:*` sessions, matching the child-process log behavior of Feishu and Weixin.
+- Saving model config from the Dashboard config page updates the running Dashboard process environment immediately, so new pet and Room agent calls use the saved provider/model without a restart.
 
 ## Verification Log
 
@@ -103,6 +104,7 @@ flowchart LR
 - 2026-05-26: Confirmed the Room backend and frontend still support 8 agents; API smoke created 8 agents and the 9th `POST /api/room/agents` returned 400. The Room floor was simplified into a cleaner meeting-table seat canvas with no fake decor or foreground table occlusion; Playwright checks at 692x663, 390x844, and 1470x900 covered empty, 5-agent, and 8-agent states with no horizontal overflow.
 - 2026-05-26: Removed the white framed backgrounds from Room pet stages so role pets render on transparent hit areas with only soft state shadows; `npm run build` passed and Playwright verified 5-agent and 8-agent states at 692x663, 390x844, and 1470x900 with transparent stage backgrounds, no label overlap, and no horizontal overflow.
 - 2026-05-26: Added the Room wall goal board. `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed; Browser verified dispatching a Room task renders it as the current goal on the wall board, keeps the composer clear, and has no horizontal overflow at 1280x720 and 390x844.
+- 2026-05-26: Dashboard config save now refreshes runtime environment values for non-masked keys, Electron Dashboard startup loads the persisted `.env` with override semantics, and `tests/dashboard-config-api.test.ts` covers immediate model/provider visibility through `/api/status`.
 
 ## Risks / Open Questions
 

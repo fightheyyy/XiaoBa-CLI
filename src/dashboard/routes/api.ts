@@ -26,6 +26,25 @@ const DISABLED_SKILL_SUFFIX = '.disabled';
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
 let dashboardNavigationRequestId = 0;
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isSensitiveConfigKey(key: string): boolean {
+  return /(^|_)(API_KEY|APP_SECRET|SECRET|PASSWORD|TOKEN)$/i.test(key);
+}
+
+function isMaskedConfigValue(value: string): boolean {
+  return value.startsWith('****');
+}
+
+function applyRuntimeEnvUpdates(updates: Record<string, string>): void {
+  for (const [key, value] of Object.entries(updates)) {
+    if (typeof value !== 'string' || isMaskedConfigValue(value)) continue;
+    process.env[key] = value;
+  }
+}
+
 function normalizeDashboardPage(value: unknown): string | null {
   const page = typeof value === 'string' ? value.trim() : '';
   return DASHBOARD_PAGES.has(page) ? page : null;
@@ -221,18 +240,12 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const content = fs.readFileSync(envPath, 'utf-8');
       const parsed = dotenv.parse(content);
 
-      const sensitiveKeys = [
-        'GAUZ_LLM_API_KEY',
-        'GAUZ_LLM_BACKUP_API_KEY',
-        'FEISHU_APP_SECRET',
-        'CATSCOMPANY_API_KEY',
-        'INSPECTOR_SERVER_API_KEY',
-        'MYSQL_PASSWORD',
-      ];
       const masked = { ...parsed };
-      for (const key of sensitiveKeys) {
+      for (const key of Object.keys(masked)) {
         if (masked[key] && masked[key].length > 4) {
-          masked[key] = '****' + masked[key].slice(-4);
+          if (isSensitiveConfigKey(key)) {
+            masked[key] = '****' + masked[key].slice(-4);
+          }
         }
       }
       res.json(masked);
@@ -250,8 +263,8 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const updatedKeys: string[] = [];
 
       for (const [key, value] of Object.entries(updates)) {
-        if (typeof value === 'string' && value.startsWith('****')) continue;
-        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (typeof value !== 'string' || isMaskedConfigValue(value)) continue;
+        const regex = new RegExp(`^${escapeRegExp(key)}=.*$`, 'm');
         if (regex.test(content)) {
           content = content.replace(regex, `${key}=${value}`);
         } else {
@@ -261,6 +274,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       }
 
       fs.writeFileSync(envPath, content);
+      applyRuntimeEnvUpdates(updates);
       res.json({ ok: true, updated: updatedKeys });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
