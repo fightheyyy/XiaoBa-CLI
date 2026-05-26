@@ -671,6 +671,10 @@
       color: var(--text2);
     }
 
+    .room-panel > .room-field {
+      margin-bottom: 12px;
+    }
+
     .room-agent-list {
       display: grid;
       gap: 10px;
@@ -1572,10 +1576,82 @@
       .room-shell,
       .room-shell[style] {
         grid-template-columns: 1fr !important;
+        gap: 12px;
       }
 
       .room-pet-grid {
         grid-template-columns: 1fr;
+      }
+
+      .room-panel {
+        padding: 12px;
+      }
+
+      .room-panel-header {
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .room-panel-subtitle {
+        display: none;
+      }
+
+      .room-panel > .room-field {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .room-panel > .room-field label {
+        margin-bottom: 0;
+      }
+
+      .room-panel > .room-field .config-input {
+        min-height: 36px;
+        height: 36px;
+        padding: 8px 11px;
+      }
+
+      .room-role-dock {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .room-role-button {
+        min-height: 52px;
+        grid-template-columns: 30px minmax(0, 1fr) 24px;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 11px;
+      }
+
+      .room-role-button .role-avatar.sm {
+        width: 26px;
+        height: 26px;
+      }
+
+      .room-role-plus {
+        width: 24px;
+        height: 24px;
+        font-size: 13px;
+      }
+
+      .room-agent-name,
+      .room-agent-duty {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .room-agent-name {
+        font-size: 13px;
+        margin-bottom: 1px;
+      }
+
+      .room-agent-duty {
+        font-size: 11px;
       }
 
       .room-floor,
@@ -1594,9 +1670,23 @@
         gap: 12px;
       }
 
-      .room-panel,
       .room-detail {
         padding: 12px;
+      }
+
+      .room-panel-title {
+        font-size: 12px;
+      }
+
+      .room-role-button {
+        min-height: 48px;
+        grid-template-columns: 28px minmax(0, 1fr) 22px;
+        gap: 7px;
+      }
+
+      .room-role-plus {
+        width: 22px;
+        height: 22px;
       }
 
       .room-broadcast,
@@ -4510,7 +4600,7 @@
                 <div class="room-panel-subtitle" data-i18n="roomAgentsSubtitle">Available role seats.</div>
               </div>
             </div>
-            <div class="room-field" style="margin-bottom:12px">
+            <div class="room-field">
               <label for="room-repo" data-i18n="roomRepo">Workspace</label>
               <input class="config-input" id="room-repo" type="text" oninput="updateRoomWorkspace()" />
             </div>
