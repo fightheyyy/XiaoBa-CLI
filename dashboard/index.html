@@ -1135,80 +1135,145 @@
     }
 
     .room-display {
+      --display-radius: 18px;
+      --display-pad-x: 16px;
+      --display-pad-y: 12px;
       position: absolute;
       left: 50%;
       top: 50%;
-      width: min(58%, 420px);
-      height: 74%;
-      min-height: 82px;
+      width: min(62%, 460px);
+      height: 78%;
+      min-height: 92px;
       transform: translate(-50%, -50%);
-      border-radius: 16px;
-      border: 1px solid rgba(167,192,226,0.36);
+      border-radius: var(--display-radius);
+      border: 1px solid rgba(96,165,250,0.42);
       background:
-        linear-gradient(135deg, rgba(255,255,255,0.96), rgba(244,248,252,0.84));
+        linear-gradient(180deg, rgba(255,255,255,0.20), transparent 18%),
+        radial-gradient(circle at 50% 18%, rgba(96,165,250,0.30), transparent 42%),
+        linear-gradient(135deg, #071526, #0b1c30 54%, #07111f);
       box-shadow:
-        0 10px 26px rgba(80,121,161,0.08),
-        inset 0 0 0 1px rgba(255,255,255,0.80);
+        0 18px 42px rgba(15,23,42,0.20),
+        0 0 28px rgba(59,130,246,0.20),
+        inset 0 0 0 1px rgba(255,255,255,0.14),
+        inset 0 0 34px rgba(59,130,246,0.18);
       display: grid;
-      align-content: center;
-      gap: 5px;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 7px;
       overflow: hidden;
-      padding: 12px 16px;
+      padding: var(--display-pad-y) var(--display-pad-x);
       text-align: left;
     }
 
     .room-display::before {
       content: '';
       position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      width: 4px;
-      background: linear-gradient(180deg, rgba(59,130,246,0.58), rgba(30,169,113,0.32));
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(rgba(255,255,255,0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(96,165,250,0.055) 1px, transparent 1px);
+      background-size: 100% 5px, 22px 100%;
+      mix-blend-mode: screen;
+      opacity: 0.68;
+      pointer-events: none;
     }
 
     .room-display::after {
       content: '';
       position: absolute;
-      right: 14px;
-      top: 12px;
+      right: calc(var(--display-pad-x) - 3px);
+      top: calc(var(--display-pad-y) - 1px);
       width: 8px;
       height: 8px;
       border-radius: 999px;
-      background: rgba(30,169,113,0.46);
-      box-shadow: 0 0 0 5px rgba(30,169,113,0.08);
+      background: #22c55e;
+      box-shadow: 0 0 0 5px rgba(34,197,94,0.10), 0 0 18px rgba(34,197,94,0.74);
     }
 
-    .room-goal-kicker {
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 900;
-      letter-spacing: 0.08em;
+    .room-goal-chrome,
+    .room-goal-terminal {
+      position: relative;
+      z-index: 1;
+    }
+
+    .room-goal-chrome {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: rgba(191,219,254,0.82);
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
       line-height: 1;
       text-transform: uppercase;
     }
 
+    .room-goal-chrome::before,
+    .room-goal-chrome::after {
+      content: '';
+      height: 1px;
+      flex: 1;
+      background: linear-gradient(90deg, transparent, rgba(96,165,250,0.48));
+    }
+
+    .room-goal-chrome::after {
+      background: linear-gradient(90deg, rgba(96,165,250,0.48), transparent);
+    }
+
+    .room-goal-terminal {
+      min-height: 0;
+      border-radius: calc(var(--display-radius) - 7px);
+      border: 1px solid rgba(96,165,250,0.24);
+      background: rgba(3,10,22,0.42);
+      box-shadow: inset 0 0 18px rgba(59,130,246,0.12);
+      padding: 8px 10px;
+      display: grid;
+      align-content: center;
+      gap: 4px;
+      overflow: hidden;
+    }
+
     .room-goal-title {
-      color: var(--text);
-      font-size: 14px;
+      color: #7dd3fc;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 10px;
       font-weight: 900;
-      line-height: 1.15;
+      letter-spacing: 0.12em;
+      line-height: 1;
+      text-shadow: 0 0 12px rgba(125,211,252,0.78);
+      text-transform: uppercase;
     }
 
     .room-goal-text {
-      color: var(--text2);
+      color: #e0f2fe;
       display: -webkit-box;
-      font-size: 12px;
-      line-height: 1.35;
-      max-width: calc(100% - 12px);
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: clamp(13px, 1.45vw, 18px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      line-height: 1.18;
+      max-width: 100%;
       overflow: hidden;
       overflow-wrap: anywhere;
+      text-shadow: 0 0 10px rgba(56,189,248,0.82), 0 0 24px rgba(59,130,246,0.42);
+      text-transform: uppercase;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
     }
 
+    .room-goal-text::before {
+      content: '> ';
+      color: #22c55e;
+      text-shadow: 0 0 12px rgba(34,197,94,0.82);
+    }
+
     .room-goal-text.muted {
-      color: var(--text3);
+      color: rgba(148,163,184,0.82);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-shadow: none;
     }
 
     .room-table {
@@ -1828,22 +1893,32 @@
       }
 
       .room-display {
-        width: min(72%, 300px);
-        height: 72%;
-        min-height: 72px;
-        padding: 10px 12px;
+        --display-radius: 15px;
+        --display-pad-x: 10px;
+        --display-pad-y: 9px;
+        width: min(76%, 310px);
+        height: 74%;
+        min-height: 82px;
+        gap: 5px;
       }
 
-      .room-goal-kicker {
-        font-size: 9px;
+      .room-goal-chrome {
+        font-size: 8px;
+        letter-spacing: 0.12em;
+      }
+
+      .room-goal-terminal {
+        padding: 7px 8px;
+        gap: 3px;
       }
 
       .room-goal-title {
-        font-size: 12px;
+        font-size: 9px;
       }
 
       .room-goal-text {
-        font-size: 11px;
+        font-size: 12px;
+        letter-spacing: 0.06em;
       }
 
       .room-table {
@@ -5642,9 +5717,11 @@
     function roomGoalBoardHtml() {
       const goal = (roomState.goal || '').trim();
       return [
-        '<span class="room-goal-kicker">'+escapeHtml(t('roomGoalKicker'))+'</span>',
+        '<div class="room-goal-chrome"><span>'+escapeHtml(t('roomGoalKicker'))+'</span></div>',
+        '<div class="room-goal-terminal">',
         '<strong class="room-goal-title">'+escapeHtml(t(goal ? 'roomGoalTitle' : 'roomGoalEmptyTitle'))+'</strong>',
         '<span class="room-goal-text '+(goal ? '' : 'muted')+'">'+escapeHtml(goal || t('roomGoalEmptyBody'))+'</span>',
+        '</div>',
       ].join('');
     }
 

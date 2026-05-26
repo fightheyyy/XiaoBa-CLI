@@ -152,6 +152,10 @@ The tool publishes a `room_message` event to both the sender and recipient, then
 
 `GET /api/services/:name/logs?lines=200` returns recent display log lines. For `feishu`, `weixin`, `catscompany`, and managed `pet` child processes, these come from `ServiceManager` stdout/stderr capture. For in-Dashboard pet chat, `pet` also includes recent `Logger` runtime lines whose session id starts with `pet:`.
 
+`GET /api/config` returns the Dashboard `.env` values with sensitive values masked.
+
+`PUT /api/config` updates the Dashboard `.env` file and immediately applies non-masked string updates to the running Dashboard process environment. This keeps new in-process pet and Room `AgentSession` calls aligned with the config page without requiring a Dashboard restart. Masked sensitive values such as `****1234` are preserved and are not written back into `process.env`.
+
 ## Boundaries
 
 - Room does not mutate files by itself; tools called by a role agent do the work.
