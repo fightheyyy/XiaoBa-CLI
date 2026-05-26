@@ -1221,31 +1221,28 @@
       width: 82px;
       height: 92px;
       margin: 0 auto 8px;
-      border-radius: 20px;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,250,243,0.72));
-      border: 1px solid rgba(224,213,198,0.70);
+      border-radius: 0;
+      background: transparent;
+      border: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 14px 30px rgba(34,31,25,0.10), inset 0 1px 0 rgba(255,255,255,0.86);
-      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      filter: drop-shadow(0 14px 12px rgba(34,31,25,0.14));
+      transition: transform 0.18s ease, filter 0.18s ease;
     }
 
     .room-agent-node:hover .room-agent-stage,
     .room-agent-node.selected .room-agent-stage {
       transform: translateY(-3px);
-      border-color: rgba(245,155,87,0.32);
-      box-shadow: 0 20px 42px rgba(245,155,87,0.14), inset 0 1px 0 rgba(255,255,255,0.9);
+      filter: drop-shadow(0 18px 16px rgba(245,155,87,0.24));
     }
 
     .room-agent-node.running .room-agent-stage {
-      border-color: rgba(59,130,246,0.28);
-      box-shadow: 0 20px 42px rgba(59,130,246,0.16);
+      filter: drop-shadow(0 18px 16px rgba(59,130,246,0.22));
     }
 
     .room-agent-node.failed .room-agent-stage {
-      border-color: rgba(220,93,115,0.22);
+      filter: drop-shadow(0 18px 16px rgba(220,93,115,0.22));
     }
 
     .room-agent-node canvas {
