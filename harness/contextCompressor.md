@@ -410,7 +410,6 @@ TTL 不是所有入口都有的全局机制。当前 60 分钟默认 TTL 来自 
 | Entry | Uses `MessageSessionManager` | TTL behavior |
 | --- | --- | --- |
 | Feishu | yes | 默认 60 分钟，可由 `feishu.sessionTTL` 配置覆盖。 |
-| CatsCompany | yes | 默认 60 分钟，可由 `catscompany.sessionTTL` 配置覆盖。 |
 | Weixin | yes | 默认 60 分钟。 |
 | Pet channel | yes | 默认 60 分钟。 |
 | CLI chat | no | 没有空闲 TTL；退出、`exit/quit`、`/summarize` 或进程清理时保存/总结。 |
@@ -449,7 +448,7 @@ SessionStore.loadContext(key)
 不会逐字节恢复：
 
 - 普通 system prompt；它会按当前 `PromptManager`、当前日期、当前角色和当前平台重新生成。
-- surface prompt；Feishu/CatsCompany/Pet 等 surface system message 会重新注入。
+- surface prompt；Feishu/Weixin/Pet 等 surface system message 会重新注入。
 - transient context：skills list、subagent status、runner hint、soft check、`__injected` context。
 - in-memory runtime state：busy、interrupt flag、active skill turn scope、wakeup callback、lastActiveAt。
 - 保存后如果恢复时上下文过大，`init()` 可能立即再压缩一次。

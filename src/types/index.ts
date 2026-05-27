@@ -33,12 +33,6 @@ export interface ChatConfig {
     botOpenId?: string;
     botAliases?: string[];
   };
-  catscompany?: {
-    serverUrl?: string;
-    apiKey?: string;
-    httpBaseUrl?: string;
-    sessionTTL?: number;
-  };
   weixin?: {
     token?: string;
     baseUrl?: string;

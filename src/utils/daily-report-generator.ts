@@ -65,7 +65,7 @@ export class DailyReportGenerator {
   private scanLogs(date: string): SessionSummary[] {
     const sessions: SessionSummary[] = [];
 
-    for (const sessionType of ['chat', 'catscompany', 'feishu']) {
+    for (const sessionType of ['chat', 'feishu', 'weixin']) {
       const dir = path.join(SESSION_LOG_DIR, sessionType, date);
 
       if (!fs.existsSync(dir)) continue;
@@ -135,8 +135,8 @@ export class DailyReportGenerator {
   private groupByType(sessions: SessionSummary[]): Record<string, SessionSummary[]> {
     const grouped: Record<string, SessionSummary[]> = {
       chat: [],
-      catscompany: [],
       feishu: [],
+      weixin: [],
     };
 
     for (const session of sessions) {
@@ -158,7 +158,7 @@ export class DailyReportGenerator {
       total_turns: Object.values(grouped).flat().reduce((sum, s) => sum + s.turn_count, 0),
       total_tokens: Object.values(grouped).flat().reduce((sum, s) => sum + s.total_tokens, 0),
       chat_sessions: grouped.chat.length,
-      team_sessions: grouped.catscompany.length + grouped.feishu.length,
+      team_sessions: grouped.feishu.length + grouped.weixin.length,
     };
 
     const prompt = this.buildPrompt(date, grouped, stats);
@@ -200,9 +200,18 @@ export class DailyReportGenerator {
       prompt += '\n';
     }
 
-    if (grouped.catscompany.length > 0) {
-      prompt += `## 团队工作（CatsCompany）\n`;
-      for (const session of grouped.catscompany) {
+    if (grouped.feishu.length > 0) {
+      prompt += `## 团队工作（Feishu）\n`;
+      for (const session of grouped.feishu) {
+        prompt += `- 会话 ${session.session_id.slice(0, 8)}（${session.turn_count} 轮）\n`;
+        prompt += `  主题：${session.topics.join(', ')}\n`;
+      }
+      prompt += '\n';
+    }
+
+    if (grouped.weixin.length > 0) {
+      prompt += `## 微信工作（Weixin）\n`;
+      for (const session of grouped.weixin) {
         prompt += `- 会话 ${session.session_id.slice(0, 8)}（${session.turn_count} 轮）\n`;
         prompt += `  主题：${session.topics.join(', ')}\n`;
       }
@@ -242,9 +251,9 @@ export class DailyReportGenerator {
       }
     }
 
-    if (grouped.catscompany.length > 0 || grouped.feishu.length > 0) {
+    if (grouped.feishu.length > 0 || grouped.weixin.length > 0) {
       report += `## 👥 团队工作\n`;
-      [...grouped.catscompany, ...grouped.feishu].forEach(session => {
+      [...grouped.feishu, ...grouped.weixin].forEach(session => {
         report += `### 会话 ${session.session_id.slice(0, 8)}\n`;
         report += `- 轮次：${session.turn_count}\n`;
         report += `- 主题：${session.topics.join(', ')}\n\n`;

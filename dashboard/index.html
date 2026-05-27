@@ -526,10 +526,6 @@
       background: linear-gradient(135deg, rgba(94, 143, 255, 0.18), rgba(212, 228, 255, 0.72));
     }
 
-    .svc-icon.catscompany {
-      background: linear-gradient(135deg, rgba(245, 155, 87, 0.2), rgba(255, 232, 204, 0.76));
-    }
-
     .svc-body {
       flex: 1;
       min-width: 0;
@@ -2800,6 +2796,7 @@
     }
 
     .pet-bubble {
+      flex: 0 0 auto;
       max-width: var(--chat-column-width);
       padding: 12px 14px;
       border-radius: 16px;
@@ -2824,6 +2821,7 @@
     }
 
     .pet-event {
+      flex: 0 0 auto;
       align-self: center;
       max-width: 92%;
       padding: 7px 10px;
@@ -2835,6 +2833,7 @@
     }
 
     .tool-trace {
+      flex: 0 0 auto;
       width: var(--chat-column-width);
       align-self: flex-start;
       border: 1px solid var(--border);
@@ -4867,9 +4866,6 @@
       <a class="nav-item active" onclick="switchPage('services')" data-page="services">
         <span class="nav-icon">&gt;</span> <span data-i18n="navRuntime">Runtime</span>
       </a>
-      <a class="nav-item" onclick="switchPage('room')" data-page="room">
-        <span class="nav-icon">[]</span> <span data-i18n="navRoom">Room</span>
-      </a>
       <a class="nav-item" onclick="switchPage('roles')" data-page="roles">
         <span class="nav-icon">@</span> <span data-i18n="navRoles">Roles</span>
       </a>
@@ -4884,6 +4880,9 @@
       </a>
       <a class="nav-item" onclick="switchPage('pet')" data-page="pet">
         <span class="nav-icon">*</span> <span data-i18n="navCompanion">Chat</span>
+      </a>
+      <a class="nav-item" onclick="switchPage('room')" data-page="room">
+        <span class="nav-icon">[]</span> <span data-i18n="navRoom">Room</span>
       </a>
     </nav>
     <div class="sidebar-footer">
@@ -5177,7 +5176,6 @@
         eventNoSurfaceMeta: 'Start one IM entry.',
         eventAllServices: 'All services active.',
         eventUptime: 'uptime',
-        serviceCatsCompany: 'Cats Company',
         serviceFeishu: 'Feishu',
         serviceWeixin: 'Weixin',
         servicePet: 'Pet Desk',
@@ -5370,7 +5368,6 @@
         eventNoSurfaceMeta: '启动一个 IM 入口。',
         eventAllServices: '服务已全部在线。',
         eventUptime: '运行',
-        serviceCatsCompany: 'Cats Company 机器人',
         serviceFeishu: '飞书机器人',
         serviceWeixin: '微信机器人',
         servicePet: 'Pet 桌宠',
@@ -5502,7 +5499,6 @@
       'reviewer-cat': 'role-icons/reviewer-cat.png',
     };
     const serviceLabelKeys = {
-      catscompany: 'serviceCatsCompany',
       feishu: 'serviceFeishu',
       weixin: 'serviceWeixin',
       pet: 'servicePet',
@@ -6379,7 +6375,7 @@
     function renderToolEnd(event) {
       const row = upsertToolRow(event);
       setToolRowStatus(row, 'done', t('toolStatusDone'));
-      row.metaEl.textContent = event.name || '';
+      row.metaEl.textContent = '';
       row.result = compactToolPayload(event.result);
       syncToolRowDetail(row);
       row.el.open = false;
@@ -6822,7 +6818,6 @@
     const configGroups=[
       {titleKey:'configPrimaryModel', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
       {titleKey:'configBackupModel', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
-      {title:'Cats Company', collapsed:true, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
       {titleKey:'configFeishu', collapsed:true, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
       {titleKey:'configWeixin', collapsed:true, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
       {title:'Inspector', collapsed:true, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},

@@ -137,7 +137,7 @@ XiaoBa 不试图替代 Codex、Claude Code 或其他 coding agent。它把这些
 
 ### IM-native Runtime
 
-- CLI、飞书、微信、CatsCompany、Dashboard、桌宠入口共用同一套 runtime。
+- CLI、飞书、微信、Dashboard、桌宠入口共用同一套 runtime。
 - 群聊、私聊、本地会话分别保留自己的 surface context。
 - 用户可见输出通过消息 / 文件工具交付，而不是依赖普通模型文本。
 - 长任务可以在后台继续，主会话仍然保持响应。
@@ -201,7 +201,6 @@ XiaoBa 提供本地 CLI 和多个消息入口 adapter。
 | CLI chat | `npm run dev -- chat -i` | 最快的本地开发循环 |
 | Feishu | `npm run dev -- feishu` | 需要 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` |
 | Weixin | `npm run dev -- weixin` | 需要 `WEIXIN_TOKEN` |
-| CatsCompany | `npm run dev -- catscompany` | 需要 `CATSCOMPANY_SERVER_URL` 和 `CATSCOMPANY_API_KEY` |
 | Dashboard | `npm run dev -- dashboard` | 本地服务、状态和日志管理 |
 | Desktop Pet | `npm run dev -- pet` | 本地桌宠入口 |
 
@@ -231,7 +230,7 @@ src/index.ts
 - [`src/tools/tool-manager.ts`](src/tools/tool-manager.ts) 注册文件、shell、消息、skill、subagent 工具。
 - [`src/bootstrap/tool-manager.ts`](src/bootstrap/tool-manager.ts) 注入 role-aware tool sets。
 - [`src/utils/ai-service.ts`](src/utils/ai-service.ts) 处理 provider 选择、重试和模型 failover。
-- [`src/commands/feishu.ts`](src/commands/feishu.ts)、[`src/commands/weixin.ts`](src/commands/weixin.ts)、[`src/commands/catscompany.ts`](src/commands/catscompany.ts) 提供 IM adapter。
+- [`src/commands/feishu.ts`](src/commands/feishu.ts)、[`src/commands/weixin.ts`](src/commands/weixin.ts) 提供 IM adapter。
 
 ---
 
@@ -264,9 +263,6 @@ FEISHU_BOT_OPEN_ID=
 FEISHU_BOT_ALIASES=小八,xiaoba
 
 WEIXIN_TOKEN=your_token
-
-CATSCOMPANY_SERVER_URL=
-CATSCOMPANY_API_KEY=
 ```
 
 AutoDev / inspection loop：
@@ -351,7 +347,7 @@ npm run electron:build:linux
 | 本地 CLI chat | 可用 |
 | Role runtime | 可用 |
 | Skill loading 和 GitHub skill install | 可用 |
-| 飞书 / 微信 / CatsCompany adapters | 可用，需要凭证 |
+| 飞书 / 微信 adapters | 可用，需要凭证 |
 | Dashboard 和桌面 shell | 开发模式可用 |
 | 桌面安装包发布 | GitHub Release workflow 已准备 |
 | npm global package | 暂未发布 |

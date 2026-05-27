@@ -15,7 +15,7 @@ export type WakeupSendFn = (channelId: string, text: string) => Promise<void>;
  *
  * 核心特性：
  * - 每个 session key 独立运行，不阻塞
- * - 不同平台（CatsCompany/Feishu）共用同一套逻辑
+ * - 不同平台（Feishu/Weixin）共用同一套逻辑
  * - session 之间不污染
  * - 群聊和私聊独立
  */
@@ -58,7 +58,7 @@ export class MessageSessionManager {
 
   /**
    * 获取或创建会话
-   * @param key - 会话唯一标识（如 cc_user:usr3, feishu_group:chat123）
+   * @param key - 会话唯一标识（如 group:chat123, user:usr3）
    * @param channelId - 通道 ID（topic 或 chatId，用于唤醒回复）
    */
   getOrCreate(key: string, channelId?: string): AgentSession {

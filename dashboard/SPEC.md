@@ -10,6 +10,7 @@ In scope:
 
 - Static dashboard pages served by `src/dashboard/server.ts`.
 - API routes under `src/dashboard/routes/api.ts`.
+- Dashboard pet chat in `dashboard/index.html`, backed by `src/pet/channel.ts`, with a visible JSONL event history for Chat work-trace replay.
 - Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
 - Multiple room agent seats, each backed by its own `AgentSession`, role prompt, role skills, role-specific tools, pet sprite, and SSE message stream.
 - A role-neutral private-message primitive for Room agent-to-agent communication.
@@ -78,11 +79,42 @@ flowchart LR
 - **Private message**: The only Room agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
 - **Outcome dispatch**: A user can message one pet or fan out the same outcome request to multiple pets. The fan-out is still just repeated messages, not a special workflow protocol.
 - **Pet stream**: Room messages use SSE events compatible with the existing pet state model: user message, state, text, tool start/end, file, error, and done.
+- **Dashboard chat visible history**: Pet Chat stores the decorated SSE events seen by the Dashboard page as append-only JSONL. This is a UI replay/work-trace record, not the canonical IM transcript and not the `AgentSession` provider context.
 - **Service logs**: Dashboard service log buttons expose child-process stdout/stderr for managed services. The `pet` log also includes in-process `pet:*` runtime logs emitted by Dashboard chat, because that chat runs inside the Dashboard process instead of a spawned child service.
 
 Room deliberately does not define role-specific protocol verbs such as claim, delegate, review, reopen, or complete. Those are ordinary natural-language intents inside private messages or role prompts. The runtime layer only handles delivery, traceable events, and waking the recipient.
 
 ## Data Contracts
+
+Dashboard pet chat visible history:
+
+```ts
+// data/chat/sessions/pet_<petId>.jsonl
+interface PetVisibleHistoryEvent {
+  type:
+    | 'user_message'
+    | 'state'
+    | 'text'
+    | 'thinking'
+    | 'tool_start'
+    | 'tool_end'
+    | 'tool_display'
+    | 'retry'
+    | 'file'
+    | 'error'
+    | 'done';
+  id: number;
+  petId: string;
+  timestamp: string;
+  [key: string]: unknown;
+}
+```
+
+`GET /api/pet/events?petId=<petId>&replay=1` streams a `connected` event, then replays the persisted visible history plus in-memory live events with duplicate ids removed.
+
+`GET /api/pet/history?petId=<petId>&limit=500` returns the latest visible history events as JSON for Dashboard inspection and future UI tooling.
+
+`DELETE /api/pet/history?petId=<petId>` deletes the Dashboard-visible replay file and clears the in-memory replay buffer for that pet. `/clear --all` in pet chat also clears this visible history before writing the clear confirmation turn.
 
 `GET /api/room/roles`:
 
@@ -150,7 +182,7 @@ interface RoomMessageToolInput {
 
 The tool publishes a `room_message` event to both the sender and recipient, then enqueues the incoming private message as a normal message for the target agent.
 
-`GET /api/services/:name/logs?lines=200` returns recent display log lines. For `feishu`, `weixin`, `catscompany`, and managed `pet` child processes, these come from `ServiceManager` stdout/stderr capture. For in-Dashboard pet chat, `pet` also includes recent `Logger` runtime lines whose session id starts with `pet:`.
+`GET /api/services/:name/logs?lines=200` returns recent display log lines. For `feishu`, `weixin`, and managed `pet` child processes, these come from `ServiceManager` stdout/stderr capture. For in-Dashboard pet chat, `pet` also includes recent `Logger` runtime lines whose session id starts with `pet:`.
 
 `GET /api/config` returns the Dashboard `.env` values with sensitive values masked.
 

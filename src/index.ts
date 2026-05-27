@@ -67,15 +67,6 @@ function main() {
     .description('启动飞书机器人（WebSocket 长连接模式）'))
     .action(feishuCommand);
 
-  // Cats Company 机器人命令
-  addRoleOption(program
-    .command('catscompany')
-    .description('启动 Cats Company 机器人（WebSocket 长连接模式）'))
-    .action(async () => {
-      const { catscompanyCommand } = await import('./commands/catscompany');
-      await catscompanyCommand();
-    });
-
   // 微信机器人命令
   addRoleOption(program
     .command('weixin')

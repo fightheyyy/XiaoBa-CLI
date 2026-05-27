@@ -44,10 +44,10 @@ export class SubAgentManager {
     return SubAgentManager.instance;
   }
 
-  // ─── 平台回调注册（由 FeishuBot / CatsCompanyBot 调用，持久化） ─
+  // ─── 平台回调注册（由 FeishuBot 等消息入口调用，持久化） ─
 
   /**
-   * 注册平台回调。FeishuBot / CatsCompanyBot 在创建/获取 session 时调用一次，
+   * 注册平台回调。消息入口在创建/获取 session 时调用一次，
    * 不随 handleMessage 结束而注销，保证子智能体完成后能通知主 Agent。
    */
   registerPlatformCallbacks(sessionKey: string, callbacks: PlatformCallbacks): void {

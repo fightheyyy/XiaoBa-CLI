@@ -46,4 +46,13 @@ describe('Dashboard service logs', () => {
     assert.ok(!logs.some(line => line.includes('feishu runtime should stay out')));
     assert.ok(!logs.some(line => line.includes('unscoped dashboard log')));
   });
+
+  test('managed service list excludes retired CatsCompany adapter', () => {
+    const serviceManager = new ServiceManager(testRoot);
+    const serviceNames = serviceManager.getAll().map(service => service.name);
+
+    assert.ok(serviceNames.includes('feishu'));
+    assert.ok(serviceNames.includes('weixin'));
+    assert.ok(!serviceNames.includes('catscompany'));
+  });
 });

@@ -109,7 +109,6 @@ export class AgentSession {
 
   private extractSessionType(key: string): string {
     if (key.startsWith('pet:')) return 'pet';
-    if (key.startsWith('catscompany:')) return 'catscompany';
     if (key.startsWith('feishu:')) return 'feishu';
     if (key.startsWith('user:')) return 'weixin';
     return 'chat';
@@ -154,21 +153,6 @@ export class AgentSession {
       this.messages.push({
         role: 'system',
         content: `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${modeInstruction}`,
-      });
-    } else if (this.isCatsCompanySession()) {
-      const modeInstruction = `【消息模式】你的每次文本输出都会立即自动发送给用户。
-
-工作流程：
-1. 简单问答：直接输出文本回答
-2. 需要工具：调用工具（read/write/grep 等）后再回答
-
-重要规则：
-- 如果还需要调用工具，不要输出任何文本
-- 只在最终准备回答用户时才输出文本`;
-
-      this.messages.push({
-        role: 'system',
-        content: `[surface:catscompany]\n当前是 Cats Company 聊天会话。\n${modeInstruction}`,
       });
     } else if (this.isPetSession()) {
       this.messages.push({
@@ -360,13 +344,11 @@ export class AgentSession {
         }
 
         const effectiveMaxTurns = this.activeSkillMaxTurns ?? this.detectSkillMaxTurns();
-        const surface = this.isCatsCompanySession()
-          ? 'catscompany'
-          : this.isFeishuSession()
-            ? 'feishu'
-            : this.isPetSession()
-              ? 'pet'
-              : 'cli';
+        const surface = this.isFeishuSession()
+          ? 'feishu'
+          : this.isPetSession()
+            ? 'pet'
+            : 'cli';
         const runner = new ConversationRunner(
           this.services.aiService,
           this.services.toolManager,
@@ -850,16 +832,8 @@ ${conversationText}`;
     return this.key.startsWith('user:') || this.key.startsWith('group:');
   }
 
-  private isCatsCompanySession(): boolean {
-    return this.key.startsWith('cc_user:') || this.key.startsWith('cc_group:');
-  }
-
   private isPetSession(): boolean {
     return this.key.startsWith('pet:');
-  }
-
-  private isChatSession(): boolean {
-    return this.isFeishuSession() || this.isCatsCompanySession();
   }
 
   private removeTransientMessages(messages: Message[]): Message[] {

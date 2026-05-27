@@ -68,17 +68,6 @@ export class ServiceManager extends EventEmitter {
       args = (name) => [entry, name];
     }
 
-    this.services.set('catscompany', {
-      info: {
-        name: 'catscompany',
-        label: 'Cats Company 机器人',
-        command,
-        args: args('catscompany'),
-        status: 'stopped',
-      },
-      logs: [],
-    });
-
     this.services.set('feishu', {
       info: {
         name: 'feishu',

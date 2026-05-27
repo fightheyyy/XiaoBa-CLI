@@ -5,7 +5,7 @@ import { Message } from '../src/types';
 
 describe('AnthropicProvider - Extra Fields in Image Block Bug', () => {
   test('should filter out extra fields (dimensions, filePath) from image blocks in user messages', () => {
-    // 模拟 CatsCompany 发来的用户消息，图片块包含额外字段
+    // 模拟 IM 入口发来的用户消息，图片块包含额外字段
     const messages: Message[] = [
       {
         role: 'system',

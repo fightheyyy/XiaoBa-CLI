@@ -2,7 +2,7 @@
 
 ## Goal
 
-Establish a minimal runtime baseline where XiaoBa behaves like a message-native agent on social surfaces such as CatsCompany and Feishu.
+Establish a minimal runtime baseline where XiaoBa behaves like a message-native agent on supported social surfaces such as Feishu and Weixin.
 
 This baseline intentionally focuses on the message loop itself and avoids mixing in memory, summary, compression, or skill-loading complexity.
 

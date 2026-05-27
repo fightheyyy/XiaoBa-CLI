@@ -226,9 +226,7 @@ export class ConversationRunner {
           finalText = finalText.replace(/^\[已发送信息\]\s*/, '');
           finalText = finalText.replace(/^\[已发送文件\]\s*/, '');
 
-          // CatsCompany 使用 Code Mode API，不自动转发，由上层统一处理
-          const surface = this.toolExecutionContext?.surface;
-          if (finalText && this.toolExecutionContext?.channel && surface !== 'catscompany') {
+          if (finalText && this.toolExecutionContext?.channel) {
             try {
               await this.toolExecutionContext.channel.reply(
                 this.toolExecutionContext.channel.chatId,
@@ -519,7 +517,7 @@ export class ConversationRunner {
 
   private isMessageSurface(): boolean {
     const surface = this.toolExecutionContext?.surface;
-    return surface === 'catscompany' || surface === 'feishu';
+    return surface === 'feishu';
   }
 
   private getToolTranscriptMode(

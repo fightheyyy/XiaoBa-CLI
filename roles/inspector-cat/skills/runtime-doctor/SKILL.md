@@ -284,7 +284,7 @@ git commit -m "fix(subagent): Windows 下优先使用 paramiko 执行 ssh
 - 如果可用，注入环境变量让 subagent 优先使用
 - 添加复现测试和验证测试
 
-来源：用户日志 logs/2026-04-09/10-22-58_catscompany.log
+来源：用户日志 logs/2026-04-09/10-22-58_im.log
 影响：Windows 用户的 subagent ssh 操作成功率提升"
 ```
 
@@ -310,7 +310,7 @@ git commit -m "fix(subagent): Windows 下优先使用 paramiko 执行 ssh
 
 **Commit**: 6a3f8e2 fix(subagent): Windows 下优先使用 paramiko
 
-**来源日志**: logs/2026-04-09/10-22-58_catscompany.log
+**来源日志**: logs/2026-04-09/10-22-58_im.log
 ```
 
 ## 注意事项

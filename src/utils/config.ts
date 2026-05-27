@@ -27,10 +27,6 @@ export class ConfigManager {
         ...(base.feishu || {}),
         ...(override.feishu || {}),
       },
-      catscompany: {
-        ...(base.catscompany || {}),
-        ...(override.catscompany || {}),
-      },
       weixin: {
         ...(base.weixin || {}),
         ...(override.weixin || {}),
