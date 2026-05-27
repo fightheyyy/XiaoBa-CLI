@@ -137,7 +137,7 @@ XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It tr
 
 ### IM-native Runtime
 
-- CLI, Feishu, Weixin, CatsCompany, Dashboard, and Pet entry points share one runtime.
+- CLI, Feishu, Weixin, Dashboard, and Pet entry points share one runtime.
 - Group chat, private chat, and local sessions keep their own surface context.
 - User-visible output is handled through message/file tools instead of plain model text.
 - Long-running work can continue while the main conversation stays responsive.
@@ -201,7 +201,6 @@ XiaoBa ships adapters for local CLI and multiple message surfaces.
 | CLI chat | `npm run dev -- chat -i` | Fast local development loop |
 | Feishu | `npm run dev -- feishu` | Requires `FEISHU_APP_ID` and `FEISHU_APP_SECRET` |
 | Weixin | `npm run dev -- weixin` | Requires `WEIXIN_TOKEN` |
-| CatsCompany | `npm run dev -- catscompany` | Requires `CATSCOMPANY_SERVER_URL` and `CATSCOMPANY_API_KEY` |
 | Dashboard | `npm run dev -- dashboard` | Local service/status/log management |
 | Desktop Pet | `npm run dev -- pet` | Local desktop companion entry |
 
@@ -231,7 +230,7 @@ Important modules:
 - [`src/tools/tool-manager.ts`](src/tools/tool-manager.ts) registers file, shell, messaging, skill, and subagent tools.
 - [`src/bootstrap/tool-manager.ts`](src/bootstrap/tool-manager.ts) injects role-aware tool sets.
 - [`src/utils/ai-service.ts`](src/utils/ai-service.ts) handles provider selection, retries, and model failover.
-- [`src/commands/feishu.ts`](src/commands/feishu.ts), [`src/commands/weixin.ts`](src/commands/weixin.ts), and [`src/commands/catscompany.ts`](src/commands/catscompany.ts) expose IM adapters.
+- [`src/commands/feishu.ts`](src/commands/feishu.ts) and [`src/commands/weixin.ts`](src/commands/weixin.ts) expose IM adapters.
 
 ---
 
@@ -264,9 +263,6 @@ FEISHU_BOT_OPEN_ID=
 FEISHU_BOT_ALIASES=小八,xiaoba
 
 WEIXIN_TOKEN=your_token
-
-CATSCOMPANY_SERVER_URL=
-CATSCOMPANY_API_KEY=
 ```
 
 AutoDev / inspection loop:
@@ -351,7 +347,7 @@ Release workflow notes: [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md).
 | Local CLI chat | Available |
 | Role runtime | Available |
 | Skill loading and GitHub skill install | Available |
-| Feishu / Weixin / CatsCompany adapters | Available, credentials required |
+| Feishu / Weixin adapters | Available, credentials required |
 | Dashboard and desktop shell | Available in development mode |
 | Packaged desktop release | GitHub Release workflow prepared |
 | npm global package | Not published yet |

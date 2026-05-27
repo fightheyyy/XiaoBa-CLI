@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Session Log 转工作日记
- * 用法: node scripts/log-to-diary.js [date] [--platform catscompany|chat|cli|all]
+ * 用法: node scripts/log-to-diary.js [date] [--platform feishu|weixin|chat|cli|all]
  */
 
 const fs = require('fs');

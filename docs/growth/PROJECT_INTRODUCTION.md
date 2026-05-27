@@ -14,7 +14,7 @@ Model is not the runtime.
 Harness is the runtime.
 ```
 
-大模型负责推理下一步，XiaoBa 负责把推理放进真实工作环境里：用户可以从 CLI、飞书、微信、CatsCompany、Dashboard 或桌宠入口发起任务；不同 AI 角色按职责加载自己的 prompt、skills 和工具边界；长任务可以派给后台 subagent 或外部 coding agent；最终结果以消息、文件、日志和 artifact evidence 的形式回到工作开始的地方。
+大模型负责推理下一步，XiaoBa 负责把推理放进真实工作环境里：用户可以从 CLI、飞书、微信、Dashboard 或桌宠入口发起任务；不同 AI 角色按职责加载自己的 prompt、skills 和工具边界；长任务可以派给后台 subagent 或外部 coding agent；最终结果以消息、文件、日志和 artifact evidence 的形式回到工作开始的地方。
 
 如果只看第一眼，XiaoBa 可能像一个 AI 助手；但真正的难点不在“能不能回复一句话”，而在“能不能长期像同事一样工作”：会接任务、会调用工具、会处理失败、会保留上下文、会让产物可追踪、会把真实运行日志沉淀成后续评测和改进资产。
 
@@ -79,7 +79,7 @@ XiaoBa 的总体架构可以理解为四层：
 flowchart LR
     subgraph Inputs["Inputs：工作入口"]
         CLI["CLI"]
-        IM["Feishu / Weixin / CatsCompany"]
+        IM["Feishu / Weixin"]
         Dashboard["Dashboard"]
         Pet["Desktop Pet"]
     end
@@ -138,7 +138,7 @@ flowchart LR
 | 模块 | 当前能力 |
 | --- | --- |
 | 本地 CLI chat | 支持交互式对话、单条消息、角色选择 |
-| IM adapters | 飞书、微信、CatsCompany 入口已接入，需要对应平台凭证 |
+| IM adapters | 飞书、微信入口已接入，需要对应平台凭证 |
 | Role runtime | 支持 engineer-cat、reviewer-cat、inspector-cat、researcher-cat 等角色 |
 | Skill system | 支持本地 skill、角色私有 skill、GitHub skill install、frontmatter parser |
 | Tool system | 支持 read、write、edit、grep、glob、bash、send text、send file、thinking、skill、subagent 等工具 |
@@ -375,7 +375,7 @@ XiaoBa 不只面向企业群聊，也可以成为个人电脑上的本地 AI run
 ### 已经可展示的状态
 
 - CLI、role runtime、skill loading、多 provider、基础工具链已经可运行。
-- 飞书、微信、CatsCompany、Dashboard、Desktop Pet 已有入口和开发路径。
+- 飞书、微信、Dashboard、Desktop Pet 已有入口和开发路径。
 - EngineerCat、ReviewerCat、InspectorCat、ResearcherCat 已有角色边界和文档。
 - session JSONL、runtime log、tool trace、token usage 和 artifact clue 已经进入 evidence 设计。
 - benchmark 通用架构和 BioBench 方向已经成型。
@@ -400,7 +400,7 @@ XiaoBa 不只面向企业群聊，也可以成为个人电脑上的本地 AI run
 - 构建 role-aware runtime，使 EngineerCat、ReviewerCat、InspectorCat、ResearcherCat 具备不同职责、skills 和工具边界。
 - 实现 subagent 后台任务机制，支持长任务派发、进度查询、停止、恢复和 ask-parent 确认。
 - 设计 trace-derived agent evaluation system，规划并部分落地从真实 session 日志到 episode、case、replay、verifier 和 scorecard 的长期回归链路。
-- 接入 OpenAI-compatible / Anthropic provider、飞书 / 微信 / CatsCompany adapter、Electron dashboard 和本地桌面发布流程。
+- 接入 OpenAI-compatible / Anthropic provider、飞书 / 微信 adapter、Electron dashboard 和本地桌面发布流程。
 
 ## 14. 可验证证据索引
 

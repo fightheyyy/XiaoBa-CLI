@@ -350,6 +350,62 @@ describe('PetChannel', () => {
     assert.match(events[3].text, /对话历史信息/);
   });
 
+  test('Dashboard chat history 会持久化为 JSONL 并在重启后 replay', async () => {
+    const message = await fetch(`${baseUrl}/api/pet/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ petId: 'alpha-puff', text: '/history', source: 'dashboard' }),
+    });
+    assert.strictEqual(message.status, 200);
+    await message.text();
+
+    const historyFile = path.join(testRoot, 'data', 'chat', 'sessions', 'pet_alpha-puff.jsonl');
+    assert.ok(fs.existsSync(historyFile), 'expected Dashboard chat JSONL history');
+
+    const stored = fs.readFileSync(historyFile, 'utf-8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line));
+    assert.deepStrictEqual(stored.map(event => event.type), ['user_message', 'state', 'text', 'state', 'done']);
+    assert.ok(stored.every(event => event.petId === 'alpha-puff'));
+    assert.ok(stored.every(event => typeof event.id === 'number'));
+    assert.ok(stored.every(event => typeof event.timestamp === 'string'));
+
+    const historyResponse = await fetch(`${baseUrl}/api/pet/history?petId=alpha-puff&limit=10`);
+    assert.strictEqual(historyResponse.status, 200);
+    const historyData = await historyResponse.json() as { petId: string; events: any[] };
+    assert.strictEqual(historyData.petId, 'alpha-puff');
+    assert.deepStrictEqual(historyData.events.map(event => event.type), ['user_message', 'state', 'text', 'state', 'done']);
+
+    await closeServer(server);
+    server = null;
+    assert.ok(channel);
+    await channel.destroy();
+    channel = null;
+
+    channel = new PetChannel();
+    const app = express();
+    app.use(express.json({ limit: '1mb' }));
+    app.use('/api', channel.router);
+    const listening = await listen(app);
+    server = listening.server;
+    baseUrl = listening.baseUrl;
+
+    const controller = new AbortController();
+    const eventsResponse = await fetch(`${baseUrl}/api/pet/events?petId=alpha-puff&replay=1`, {
+      signal: controller.signal,
+    });
+    assert.strictEqual(eventsResponse.status, 200);
+
+    const events = await readSseUntil(eventsResponse, 6);
+    controller.abort();
+
+    assert.deepStrictEqual(events.map(event => event.type), ['connected', 'user_message', 'state', 'text', 'state', 'done']);
+    assert.strictEqual(events[1].source, 'dashboard');
+    assert.strictEqual(events[1].text, '/history');
+    assert.deepStrictEqual(events.slice(1).map(event => event.id), stored.map(event => event.id));
+  });
+
   test('拒绝空消息和非法 pet id', async () => {
     const emptyMessage = await fetch(`${baseUrl}/api/pet/message`, {
       method: 'POST',

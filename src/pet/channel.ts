@@ -10,6 +10,7 @@ import { MessageSessionManager } from '../core/message-session-manager';
 import { ChannelCallbacks } from '../types/tool';
 import { Logger } from '../utils/logger';
 import { RoleResolver } from '../utils/role-resolver';
+import { PetChatHistoryStore } from './chat-history-store';
 
 type PetState =
   | 'idle'
@@ -31,6 +32,9 @@ interface PetManifest {
 
 interface PetEvent {
   type: string;
+  id?: number;
+  petId?: string;
+  timestamp?: string;
   [key: string]: unknown;
 }
 
@@ -47,7 +51,8 @@ export class PetChannel {
   private readonly services: AgentServices;
   private readonly sessionManager: MessageSessionManager;
   private readonly skillsReady: Promise<void>;
-  private readonly events = new PetEventHub();
+  private readonly chatHistory = new PetChatHistoryStore();
+  private readonly events = new PetEventHub(this.chatHistory);
   private readonly messageQueues = new Map<string, Promise<void>>();
 
   constructor() {
@@ -127,6 +132,30 @@ export class PetChannel {
     this.router.get('/pet/events', (req, res) => {
       this.handleEvents(req, res);
     });
+
+    this.router.get('/pet/history', (req, res) => {
+      try {
+        const petId = this.normalizePetId(req.query.petId);
+        const limit = this.normalizeHistoryLimit(req.query.limit);
+        res.json({
+          petId,
+          events: this.chatHistory.read(petId, limit),
+        });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
+
+    this.router.delete('/pet/history', (req, res) => {
+      try {
+        const petId = this.normalizePetId(req.query.petId || req.body?.petId);
+        this.chatHistory.delete(petId);
+        this.events.clear(petId);
+        res.json({ ok: true, petId });
+      } catch (err: any) {
+        res.status(400).json({ error: err.message });
+      }
+    });
   }
 
   private async handleMessage(body: any, res: Response): Promise<void> {
@@ -167,6 +196,10 @@ export class PetChannel {
           const command = parts[0] || '';
           const args = parts.slice(1);
           const commandResult = await activeSession.handleCommand(command, args, callbacks);
+          if (command.toLowerCase() === 'clear' && args.includes('--all')) {
+            this.chatHistory.delete(petId);
+            this.events.clear(petId);
+          }
           resultText = commandResult.reply || '';
           visibleToUser = commandResult.handled;
           if (!commandResult.handled) {
@@ -363,6 +396,13 @@ export class PetChannel {
     return petId;
   }
 
+  private normalizeHistoryLimit(value: unknown): number {
+    const raw = Array.isArray(value) ? value[0] : value;
+    const parsed = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number(raw);
+    if (!Number.isFinite(parsed)) return 500;
+    return Math.max(1, Math.min(2000, Math.trunc(parsed)));
+  }
+
   private sessionKey(petId: string): string {
     return `pet:${petId}`;
   }
@@ -432,8 +472,12 @@ class PetEventStream {
 class PetEventHub {
   private readonly subscribers = new Map<string, Set<Response>>();
   private readonly history = new Map<string, PetEvent[]>();
-  private nextId = 1;
+  private nextId: number;
   private readonly historyLimit = 80;
+
+  constructor(private readonly historyStore?: PetChatHistoryStore) {
+    this.nextId = Math.max(1, (this.historyStore?.getMaxEventId() || 0) + 1);
+  }
 
   subscribe(petId: string, res: Response, options: { replay?: boolean } = {}): void {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -448,7 +492,7 @@ class PetEventHub {
     });
 
     if (options.replay) {
-      for (const event of this.history.get(petId) || []) {
+      for (const event of this.replayEvents(petId)) {
         this.write(res, event);
       }
     }
@@ -473,6 +517,7 @@ class PetEventHub {
       timestamp: new Date().toISOString(),
     };
 
+    this.historyStore?.append(petId, decorated);
     const events = this.history.get(petId) || [];
     events.push(decorated);
     if (events.length > this.historyLimit) {
@@ -492,6 +537,32 @@ class PetEventHub {
       }
     }
     this.subscribers.clear();
+  }
+
+  clear(petId: string): void {
+    this.history.delete(petId);
+  }
+
+  private replayEvents(petId: string): PetEvent[] {
+    const byId = new Map<string, PetEvent>();
+    for (const event of this.historyStore?.read(petId) || []) {
+      byId.set(this.eventKey(event), event);
+    }
+    for (const event of this.history.get(petId) || []) {
+      byId.set(this.eventKey(event), event);
+    }
+
+    return Array.from(byId.values()).sort((a, b) => {
+      const aId = typeof a.id === 'number' ? a.id : Number.MAX_SAFE_INTEGER;
+      const bId = typeof b.id === 'number' ? b.id : Number.MAX_SAFE_INTEGER;
+      if (aId !== bId) return aId - bId;
+      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+    });
+  }
+
+  private eventKey(event: PetEvent): string {
+    if (typeof event.id === 'number') return String(event.id);
+    return `${event.timestamp || ''}:${event.type}:${JSON.stringify(event)}`;
   }
 
   private write(res: Response, event: PetEvent): void {

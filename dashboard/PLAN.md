@@ -4,6 +4,10 @@
 
 Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. A broadcast task becomes the current Room goal and appears on the wall board. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
+Dashboard pet Chat now has its own visible JSONL history for work-trace replay. The history stores decorated SSE events for the Chat page and is intentionally separate from IM-platform records and `AgentSession` provider context.
+
+Dashboard managed services now cover the maintained Feishu, Weixin, and Pet entries. The retired CatsCompany IM service is no longer exposed in service control, config editing, or service logs.
+
 ```mermaid
 flowchart LR
     subgraph Done["Done"]
@@ -14,6 +18,7 @@ flowchart LR
         Goal["Wall goal board"]
         PM["room_message private DM"]
         Stream["SSE pet events"]
+        ChatHistory["pet chat JSONL replay"]
         Logs["pet runtime logs in service modal"]
     end
 
@@ -30,6 +35,7 @@ flowchart LR
     API --> Scoped
     Scoped --> PM
     PM --> Stream
+    Stream --> ChatHistory
     Stream --> Logs
     Stream --> Durable
     Durable --> Eval
@@ -49,10 +55,12 @@ flowchart LR
 8. Broadcast task rendered as current Room goal on the wall board: completed.
 9. Durable room trace and replay: not started.
 10. Feishu room bridge / external A2A: not started.
+11. Dashboard pet Chat visible JSONL replay: completed.
 
 ## Next Steps
 
 - Add durable room trace files so a run can be replayed and reviewed.
+- Add UI affordances for clearing, searching, or filtering Dashboard pet Chat work-trace history if the visible JSONL grows beyond simple replay.
 - Add Room-specific tests with a fake AI service so message streaming can be verified without external model credentials.
 - Add ReviewerCat eval cases for Room-driven EngineerCat tasks.
 - Continue polishing the spatial Room surface: drag positions, richer movement, and compact status bubbles.
@@ -61,6 +69,7 @@ flowchart LR
 
 - Frontend surface: `dashboard/index.html`.
 - Dashboard API: `src/dashboard/routes/api.ts`.
+- Dashboard pet chat API and visible history: `src/pet/channel.ts`, `src/pet/chat-history-store.ts`, `dashboard/pet-runtime.js`.
 - Room runtime: `src/dashboard/room-channel.ts`.
 - Role-scoped prompt/skills/tools: `src/utils/prompt-manager.ts`, `src/skills/skill-manager.ts`, `src/bootstrap/tool-manager.ts`, `src/roles/runtime-role-registry.ts`.
 
@@ -79,7 +88,11 @@ flowchart LR
 - Mobile viewport does not horizontally overflow.
 - Missing model credentials fail visibly as a room agent error instead of pretending success.
 - The `pet` service log modal shows in-process Dashboard chat runtime logs for `pet:*` sessions, matching the child-process log behavior of Feishu and Weixin.
+- Dashboard service control and config screens do not expose the retired CatsCompany IM adapter.
 - Saving model config from the Dashboard config page updates the running Dashboard process environment immediately, so new pet and Room agent calls use the saved provider/model without a restart.
+- Dashboard pet Chat writes visible replay events to `data/chat/sessions/pet_<petId>.jsonl`.
+- `GET /api/pet/events?replay=1` can restore Dashboard pet Chat work trace after a process restart.
+- Dashboard pet Chat visible history remains separate from IM-platform canonical chat records and `data/sessions` provider context.
 
 ## Verification Log
 
@@ -105,6 +118,8 @@ flowchart LR
 - 2026-05-26: Removed the white framed backgrounds from Room pet stages so role pets render on transparent hit areas with only soft state shadows; `npm run build` passed and Playwright verified 5-agent and 8-agent states at 692x663, 390x844, and 1470x900 with transparent stage backgrounds, no label overlap, and no horizontal overflow.
 - 2026-05-26: Added the Room wall goal board. `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed; Browser verified dispatching a Room task renders it as the current goal on the wall board, keeps the composer clear, and has no horizontal overflow at 1280x720 and 390x844.
 - 2026-05-26: Dashboard config save now refreshes runtime environment values for non-masked keys, Electron Dashboard startup loads the persisted `.env` with override semantics, and `tests/dashboard-config-api.test.ts` covers immediate model/provider visibility through `/api/status`.
+- 2026-05-27: Added Dashboard pet Chat visible JSONL replay under `data/chat/sessions`; `node --import tsx --test tests/pet-channel.test.ts` verified write, API read, and replay after `PetChannel` restart.
+- 2026-05-27: Retired CatsCompany from Dashboard managed services and config UI; `npm run build`, `node --import tsx --test tests/dashboard-service-logs.test.ts tests/anthropic-provider-extra-fields-bug.test.ts`, and browser checks on `/?page=services` plus `/?page=config` passed with no CatsCompany entry.
 
 ## Risks / Open Questions
 

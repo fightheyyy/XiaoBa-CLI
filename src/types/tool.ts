@@ -72,15 +72,15 @@ export interface ToolResult {
   newMessages?: import('./index').Message[];
 }
 
-export type ToolSurface = 'cli' | 'feishu' | 'weixin' | 'catscompany' | 'pet' | 'agent' | 'research' | 'unknown';
+export type ToolSurface = 'cli' | 'feishu' | 'weixin' | 'pet' | 'agent' | 'research' | 'unknown';
 export type ToolPermissionProfile = 'strict' | 'default' | 'relaxed';
 
 /**
  * 平台通道回调（通过 ToolExecutionContext 传递给工具，替代 bind/unbind 模式）
- * 飞书、CatsCompany 等平台共用此接口，chatId 对应各平台的会话标识。
+ * 飞书、微信等平台共用此接口，chatId 对应各平台的会话标识。
  */
 export interface ChannelCallbacks {
-  /** 当前会话的 chatId（飞书 chatId / CatsCompany topic） */
+  /** 当前会话的 chatId（飞书 chatId / 微信会话 ID） */
   chatId: string;
   /** 发送文本消息 */
   reply: (chatId: string, text: string) => Promise<void>;
@@ -104,7 +104,7 @@ export interface ToolExecutionContext {
   abortSignal?: AbortSignal;
   activeSkillName?: string;
   roleName?: string;
-  /** 平台通道回调（飞书/CatsCompany 等聊天会话时由平台层注入） */
+  /** 平台通道回调（飞书/微信等聊天会话时由平台层注入） */
   channel?: ChannelCallbacks;
 }
 
