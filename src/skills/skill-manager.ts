@@ -4,6 +4,14 @@ import { ActiveRoleContext } from '../utils/active-role-context';
 import { SkillParser } from './skill-parser';
 import { Logger } from '../utils/logger';
 
+const DEFAULT_EXCLUDED_BASE_SKILLS = new Set([
+  'OfficeCLI',
+  'officecli-docx',
+  'officecli-pptx',
+  'officecli-xlsx',
+  'sub-agent',
+]);
+
 /**
  * Skills 管理器
  */
@@ -34,9 +42,10 @@ export class SkillManager {
       ? ActiveRoleContext.getRoleConfig(resolvedRoleName)
       : ActiveRoleContext.getActiveRoleConfig();
     const inheritBaseSkills = roleConfig?.inheritBaseSkills !== false;
-    const excludedBaseSkills = new Set(
-      (roleConfig?.excludeBaseSkills || []).map(name => name.trim()).filter(Boolean)
-    );
+    const excludedBaseSkills = new Set([
+      ...DEFAULT_EXCLUDED_BASE_SKILLS,
+      ...(roleConfig?.excludeBaseSkills || []).map(name => name.trim()).filter(Boolean),
+    ]);
 
     if (inheritBaseSkills) {
       await this.loadSkillsFromPath(PathResolver.getBaseSkillsPath(), excludedBaseSkills);
@@ -64,7 +73,7 @@ export class SkillManager {
       for (const filePath of skillFiles) {
         try {
           const skill = SkillParser.parse(filePath);
-          if (excludedSkillNames.has(skill.metadata.name)) {
+          if (this.isSkillExcluded(skill.metadata.name, filePath, excludedSkillNames)) {
             continue;
           }
           this.skills.set(skill.metadata.name, skill);
@@ -151,6 +160,26 @@ export class SkillManager {
 
   private normalizeSkillName(name: string): string {
     return name.trim().toLowerCase();
+  }
+
+  private isSkillExcluded(skillName: string, filePath: string, excludedSkillNames: Set<string>): boolean {
+    if (excludedSkillNames.size === 0) {
+      return false;
+    }
+
+    const normalizedExclusions = new Set(
+      Array.from(excludedSkillNames)
+        .map(name => this.normalizeSkillName(name))
+        .filter(Boolean),
+    );
+
+    if (normalizedExclusions.has(this.normalizeSkillName(skillName))) {
+      return true;
+    }
+
+    return filePath
+      .split(/[\\/]+/)
+      .some(segment => normalizedExclusions.has(this.normalizeSkillName(segment)));
   }
 
   private isSkillMentioned(text: string, skillName: string): boolean {
