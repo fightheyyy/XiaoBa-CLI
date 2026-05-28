@@ -1,6 +1,6 @@
 ---
 name: skill-publish
-description: "发布 Skill 到官方 SkillHub：将 skill 代码托管到独立 GitHub 仓库，并在 fightheyyy/XiaoBa-SkillHub 中只增量更新 registry.json。"
+description: "发布 Skill 到官方 SkillHub：将 skill 代码托管到独立 GitHub 仓库，并通过 fork 向 fightheyyy/XiaoBa-SkillHub 提交 registry.json 增量 PR。"
 invocable: user
 autoInvocable: false
 argument-hint: "<skill名称>"
@@ -37,10 +37,10 @@ SkillHub 发布规则：
 - 只修改 `registry.json`。
 - 只新增一个 skill registry 条目，除非用户明确要求修正已存在条目。
 - 不复制 `skills/<name>` 到 SkillHub 仓库。
-- 不 fork `fightheyyy/XiaoBa-SkillHub`。
+- 需要 fork `fightheyyy/XiaoBa-SkillHub`，但 fork 中也只改 `registry.json`。
 - 不重排、删除、批量格式化已有 registry 条目。
 - 提交前必须检查 `git diff -- registry.json`，确认 diff 只包含目标 skill 的索引增量。
-- 普通发布走官方仓分支 PR；`fightheyyy` 维护者可以按仓库 ruleset bypass 直接推 `main`。
+- 通过 fork 分支向官方仓提交 PR；`fightheyyy` 维护者如明确要求，也可以按仓库 ruleset bypass 直接推 `main`。
 
 ## 执行流程
 
@@ -79,28 +79,35 @@ xiaoba-skill-<name>
 
 然后把本地 `skills/<name>` 的内容推送到这个独立仓库。SkillHub 的 `repo` 字段必须指向这个独立仓库，而不是 SkillHub 仓库里的子目录。
 
-### Step 3：确认 GitHub 身份和 SkillHub 权限
+### Step 3：Fork 当前官方 SkillHub
 
-不要 fork SkillHub。直接使用官方仓库 `fightheyyy/XiaoBa-SkillHub`。
+默认发布方式是 fork SkillHub，再向官方仓提交 registry-only PR。
 
-优先用 `gh` 获取当前 GitHub 登录名和仓库权限：
+优先用 `gh` 获取当前 GitHub 登录名，并创建 fork：
 
 ```json
-{"command":"gh api user --jq '.login' && gh api repos/fightheyyy/XiaoBa-SkillHub/collaborators/$(gh api user --jq '.login')/permission --jq '.permission'","description":"确认当前 GitHub 身份和 SkillHub 权限"}
+{"command":"login=$(gh api user --jq '.login') && echo \"$login\" && test \"$login\" != \"fightheyyy\" && (gh repo view \"$login/XiaoBa-SkillHub\" >/dev/null 2>&1 || gh repo fork fightheyyy/XiaoBa-SkillHub --clone=false)","description":"确认 GitHub 身份并 fork SkillHub"}
 ```
 
-如果没有 `gh` 或没有 push/admin/maintain 权限，不要自动 fork。停下来告诉用户当前账号不能直接向官方 SkillHub 创建分支或推送，需要切换到有权限的 GitHub 账号，或让维护者代发。
+如果当前登录账号是 `fightheyyy`，不要把官方仓当作 fork。此时应该切换到 contributor 账号走 fork PR，或在用户明确要求时使用维护者快捷方式直接发布。
 
-### Step 4：Clone 官方 SkillHub 并从 origin/main 新建发布分支
+如果没有 `gh`，告诉用户在网页上手动 fork：
 
-1. 创建临时目录并 clone 官方仓库：
+1. 打开 https://github.com/fightheyyy/XiaoBa-SkillHub
+2. 点击右上角 **Fork**
+3. Fork 到自己的 GitHub 账号
+4. 告知 fork 地址，例如 `https://github.com/<user>/XiaoBa-SkillHub`
+
+### Step 4：Clone fork 并从官方 main 新建发布分支
+
+1. 创建临时目录并 clone fork：
 ```json
-{"command":"mkdir -p /tmp/xiaoba-publish && cd /tmp/xiaoba-publish && rm -rf XiaoBa-SkillHub && git clone https://github.com/fightheyyy/XiaoBa-SkillHub.git","description":"Clone 官方 SkillHub"}
+{"command":"mkdir -p /tmp/xiaoba-publish && cd /tmp/xiaoba-publish && rm -rf XiaoBa-SkillHub && git clone https://github.com/<user>/XiaoBa-SkillHub.git","description":"Clone SkillHub fork"}
 ```
 
-2. 从官方 main 新建增量分支：
+2. 添加官方 upstream，并从官方 main 新建增量分支：
 ```json
-{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git fetch origin main && git checkout -B add-skill-<name> origin/main","description":"从官方 main 新建发布分支"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git remote add upstream https://github.com/fightheyyy/XiaoBa-SkillHub.git 2>/dev/null || true && git fetch upstream main && git checkout -B add-skill-<name> upstream/main","description":"从官方 main 新建发布分支"}
 ```
 
 3. 检查 registry：
@@ -139,19 +146,21 @@ xiaoba-skill-<name>
 {"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git commit -m 'Add skill: <name>'","description":"提交 registry 增量"}
 ```
 
-### Step 8：发布到官方 SkillHub
+### Step 8：发布到 fork 并创建 PR
 
-默认方式：推官方仓发布分支并创建 PR。
-
-```json
-{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git push -u origin add-skill-<name>","description":"推送官方仓发布分支"}
-```
+推送到 fork 的发布分支：
 
 ```json
-{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && gh pr create --repo fightheyyy/XiaoBa-SkillHub --base main --head add-skill-<name> --title 'Add skill: <name>' --body '## New Skill: <name>\\n\\n<description>\\n\\nRegistry-only incremental PR.'","description":"创建官方仓 registry-only PR"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git push -u origin add-skill-<name>","description":"推送 fork 发布分支"}
 ```
 
-维护者快捷方式：如果当前账号是 `fightheyyy`，且用户明确要求直接发布，可以 fast-forward 到 `main` 并直接推送：
+向官方 SkillHub 创建 registry-only PR：
+
+```json
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && gh pr create --repo fightheyyy/XiaoBa-SkillHub --base main --head <user>:add-skill-<name> --title 'Add skill: <name>' --body '## New Skill: <name>\\n\\n<description>\\n\\nRegistry-only incremental PR.'","description":"创建 SkillHub registry-only PR"}
+```
+
+维护者快捷方式：如果当前账号是 `fightheyyy`，且用户明确要求直接发布，可以跳过 fork，clone 官方仓后 fast-forward 到 `main` 并直接推送：
 
 ```json
 {"command":"cd /tmp/xiaoba-publish/XiaoBa-SkillHub && git checkout main && git merge --ff-only add-skill-<name> && git push origin main","description":"fightheyyy 维护者直接推送 main"}
@@ -171,21 +180,21 @@ xiaoba-skill-<name>
 - 新条目字段完整：`name`、`description`、`category`、`recommended`、`repo`
 - `repo` 指向独立公开 GitHub 仓库
 - 独立 skill 仓库包含 `SKILL.md`
-- 没有 fork SkillHub
+- SkillHub fork 里没有 skill 源码，只包含 `registry.json` 增量
 - 没有删除、重排、批量格式化已有 registry 条目
 
 ## 注意事项
 
-- **GitHub 权限**：需要当前账号能向 `fightheyyy/XiaoBa-SkillHub` 创建分支或推送 main
+- **GitHub 权限**：普通用户只需要能 fork 并向自己的 fork 推送；不需要官方仓写权限
 - **Windows**：临时目录改用 `%TEMP%`
-- **如果推送失败**：先检查 `gh auth status` 和仓库权限，不要自动 fork
+- **如果推送失败**：先检查 `gh auth status`、fork 地址和 `origin` 是否指向自己的 fork
 - **Skill 依赖**：提醒用户在独立 skill 仓库的 README 或 SKILL.md 里说明依赖
 - **Registry-only**：SkillHub 改动不应该包含 skill 源码、README 大改或无关格式化
 
 ## 简化流程总结
 
 ```
-准备独立 skill 仓库 → clone 官方 SkillHub → 从 origin/main 新建分支 → 只增量更新 registry.json → push 官方分支并开 PR，或由 fightheyyy 直接推 main
+准备独立 skill 仓库 → fork SkillHub → clone fork → 从官方 main 新建分支 → 只增量更新 registry.json → push fork 分支 → 创建 registry-only PR
 ```
 
-这样不 fork SkillHub，也能保持 SkillHub registry 改动清晰、可审。
+这样不需要官方仓写权限，也能保持 SkillHub registry PR 清晰、可审。

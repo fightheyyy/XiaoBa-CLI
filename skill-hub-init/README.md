@@ -23,7 +23,7 @@ SkillHub PR 必须保持轻量：
 - 只修改 `registry.json`
 - 只新增或修正目标 skill 的 registry 条目
 - 不把 skill 源码复制到 SkillHub 仓库
-- 不 fork SkillHub；有权限的维护者直接在官方仓创建发布分支或直接推送
+- 通过 fork SkillHub 提交 PR；fork 中也只保留 `registry.json` 增量
 - 不重排、删除、批量格式化已有 registry 条目
 
 ## 如何发布 Skill？
@@ -41,10 +41,10 @@ XiaoBa 内置了 `skill-publish` skill，可以引导完成发布流程：
 
 1. 确认本地 skill 元数据
 2. 使用独立公开 GitHub 仓库托管 skill 代码
-3. Clone 官方 `fightheyyy/XiaoBa-SkillHub`
-4. 从官方 `main` 新建发布分支
+3. Fork 官方 `fightheyyy/XiaoBa-SkillHub`
+4. Clone fork，并从官方 `main` 新建发布分支
 5. 只对 `registry.json` 做增量更新
-6. 推送官方仓发布分支并提交 registry-only PR，或由 `fightheyyy` 维护者直接推送 `main`
+6. 推送 fork 分支并提交 registry-only PR
 
 ### 方法 2：手动发布
 
@@ -52,15 +52,15 @@ XiaoBa 内置了 `skill-publish` skill，可以引导完成发布流程：
    - 在 GitHub 创建公开仓库（建议命名：`xiaoba-skill-<name>`）
    - 推送你的 skill 代码（必须包含 `SKILL.md`）
 
-2. **Clone 本仓库**
+2. **Fork 本仓库**
 
-   Clone 当前官方仓库：
+   Fork 当前官方仓库：
 
    ```text
-   git clone https://github.com/fightheyyy/XiaoBa-SkillHub.git
+   https://github.com/fightheyyy/XiaoBa-SkillHub
    ```
 
-   不要 fork SkillHub。没有官方仓写权限时，请让维护者代发，或先申请权限。
+   然后 clone 你的 fork，并从官方 `main` 新建发布分支。
 
 3. **编辑 registry.json**
 
@@ -86,7 +86,7 @@ XiaoBa 内置了 `skill-publish` skill，可以引导完成发布流程：
    - changed files 只有 `registry.json`
    - diff 只包含目标 skill 的索引增量
 
-   `fightheyyy` 维护者也可以按仓库 ruleset bypass 直接推送 `main`，但仍必须保持 `registry.json` 单文件增量。
+   `fightheyyy` 维护者也可以按仓库 ruleset bypass 直接推送 `main`，但默认贡献流程仍推荐 fork PR。
 
 ## Registry 字段说明
 
