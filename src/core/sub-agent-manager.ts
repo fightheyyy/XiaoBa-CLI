@@ -121,10 +121,11 @@ export class SubAgentManager {
       }
 
       // 完成后保留一段时间供查询，然后清理
-      setTimeout(() => {
+      const retentionTimer = setTimeout(() => {
         this.subAgents.delete(id);
         this.parentMap.delete(id);
       }, SubAgentManager.RETENTION_MS);
+      retentionTimer.unref?.();
     });
 
     Logger.info(`[SubAgentManager] 派遣 ${id} 执行 "${skillName}" (父会话: ${parentSessionKey})`);
