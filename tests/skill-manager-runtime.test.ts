@@ -2,7 +2,7 @@ import { describe, test } from 'node:test';
 import * as assert from 'node:assert';
 import { SkillManager } from '../src/skills/skill-manager';
 import { ToolManager } from '../src/tools/tool-manager';
-import { createSubAgentToolManager } from '../src/core/sub-agent-session';
+import { createSubAgentToolExecutor } from '../src/core/sub-agent-session';
 
 describe('SkillManager runtime base skills', () => {
   test('base runtime excludes OfficeCLI and sub-agent skill wrappers', async () => {
@@ -40,12 +40,18 @@ describe('SkillManager runtime base skills', () => {
     }
   });
 
-  test('sub-agents inherit role-specific runtime tools', () => {
-    const engineerTools = createSubAgentToolManager(process.cwd(), 'test-engineer', 'engineer-cat');
-    assert.ok(engineerTools.getTool('engineer_task_run'));
-    assert.ok(engineerTools.getTool('codex_job_status'));
+  test('sub-agents inherit role-specific runtime tools without main-session control tools', () => {
+    const engineerTools = createSubAgentToolExecutor(process.cwd(), 'test-engineer', 'engineer-cat');
+    const engineerToolNames = engineerTools.getToolDefinitions().map(tool => tool.name);
+    assert.ok(engineerToolNames.includes('engineer_task_run'));
+    assert.ok(engineerToolNames.includes('codex_job_status'));
+    assert.ok(engineerToolNames.includes('ask_parent'));
+    for (const controlTool of ['spawn_subagent', 'check_subagent', 'stop_subagent', 'resume_subagent', 'skill']) {
+      assert.strictEqual(engineerToolNames.includes(controlTool), false, `${controlTool} should be hidden inside sub-agents`);
+    }
 
-    const inspectorTools = createSubAgentToolManager(process.cwd(), 'test-inspector', 'inspector-cat');
-    assert.ok(inspectorTools.getTool('run_pending_log_batch'));
+    const inspectorTools = createSubAgentToolExecutor(process.cwd(), 'test-inspector', 'inspector-cat');
+    const inspectorToolNames = inspectorTools.getToolDefinitions().map(tool => tool.name);
+    assert.ok(inspectorToolNames.includes('run_pending_log_batch'));
   });
 });

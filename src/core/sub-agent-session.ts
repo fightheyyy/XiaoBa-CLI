@@ -3,6 +3,7 @@ import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { SkillInvocationContext } from '../types/skill';
+import { ToolCall, ToolDefinition, ToolExecutionContext, ToolExecutor, ToolResult } from '../types/tool';
 import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
@@ -11,7 +12,6 @@ import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
 import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
-import { isToolAllowed } from '../utils/safety';
 
 // ─── 类型定义 ───────────────────────────────────────────
 
@@ -45,6 +45,44 @@ export interface SubAgentSpawnOptions {
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
 }
 
+const SUB_AGENT_CONTROL_PLANE_TOOLS = new Set([
+  'spawn_subagent',
+  'check_subagent',
+  'stop_subagent',
+  'resume_subagent',
+  'skill',
+]);
+
+export class SubAgentToolExecutor implements ToolExecutor {
+  constructor(private readonly inner: ToolManager) {}
+
+  getToolDefinitions(): ToolDefinition[] {
+    return this.inner
+      .getToolDefinitions()
+      .filter(tool => !SUB_AGENT_CONTROL_PLANE_TOOLS.has(tool.name));
+  }
+
+  async executeTool(
+    toolCall: ToolCall,
+    conversationHistory?: any[],
+    contextOverrides?: Partial<ToolExecutionContext>,
+  ): Promise<ToolResult> {
+    if (SUB_AGENT_CONTROL_PLANE_TOOLS.has(toolCall.function.name)) {
+      return {
+        tool_call_id: toolCall.id,
+        role: 'tool',
+        name: toolCall.function.name,
+        content: `错误：${toolCall.function.name} 是主会话控制面工具，子智能体内部不可调用。`,
+        ok: false,
+        errorCode: 'TOOL_FORBIDDEN_IN_SUBAGENT',
+        retryable: false,
+      };
+    }
+
+    return this.inner.executeTool(toolCall, conversationHistory, contextOverrides);
+  }
+}
+
 export function createSubAgentToolManager(
   workingDirectory: string,
   subAgentId: string,
@@ -60,6 +98,14 @@ export function createSubAgentToolManager(
     },
     roleName,
   );
+}
+
+export function createSubAgentToolExecutor(
+  workingDirectory: string,
+  subAgentId: string,
+  roleName?: string,
+): SubAgentToolExecutor {
+  return new SubAgentToolExecutor(createSubAgentToolManager(workingDirectory, subAgentId, roleName));
 }
 
 // ─── SubAgentSession ────────────────────────────────────
@@ -182,14 +228,14 @@ export class SubAgentSession {
     this.messages.push({ role: 'user', content: this.options.userMessage });
 
     // 4. 创建独立的 ToolManager
-    const toolManager = createSubAgentToolManager(
+    const toolExecutor = createSubAgentToolExecutor(
       this.options.workingDirectory,
       this.id,
       this.options.roleName,
     );
 
     // 创建独立的 ConversationRunner（不注入 channel，子智能体不直接和用户通信）
-    const runner = new ConversationRunner(this.aiService, toolManager, {
+    const runner = new ConversationRunner(this.aiService, toolExecutor, {
       maxTurns: skill.metadata.maxTurns ?? 100,
       initialSkillName: this.skillName,
       enableCompression: true,
