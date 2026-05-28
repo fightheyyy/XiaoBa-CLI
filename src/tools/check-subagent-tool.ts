@@ -56,6 +56,7 @@ export class CheckSubagentTool implements Tool {
       completed: '✅ 已完成',
       failed: '❌ 失败',
       stopped: '⏹️ 已停止',
+      waiting_for_input: '⏸️ 等待输入',
     };
 
     const elapsed = info.completedAt
@@ -76,6 +77,10 @@ export class CheckSubagentTool implements Tool {
 
     if (info.resultSummary) {
       lines.push(`结果摘要: ${info.resultSummary.slice(0, 500)}`);
+    }
+
+    if (info.pendingQuestion) {
+      lines.push(`待确认问题: ${info.pendingQuestion}`);
     }
 
     if (info.outputFiles && info.outputFiles.length > 0) {

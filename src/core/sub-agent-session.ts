@@ -212,6 +212,12 @@ export class SubAgentSession {
     this.reportProgress(`开始执行：${this.taskDescription}`);
     const runResult = await runner.run(this.messages, callbacks);
 
+    if (this.stopped) {
+      this.status = 'stopped';
+      this.completedAt = this.completedAt ?? Date.now();
+      return;
+    }
+
     // 8. 完成（不直接发文件，由主 Agent 根据 outputFiles 决定）
     this.status = 'completed';
     this.completedAt = Date.now();
