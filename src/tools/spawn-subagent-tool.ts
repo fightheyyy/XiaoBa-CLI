@@ -24,6 +24,7 @@ export class SpawnSubagentTool implements Tool {
 - 用户要求执行耗时较长的 skill（如论文精读、文献综述等）
 - 你判断任务需要大量工具调用轮次（>10轮），不适合在当前对话中同步执行
 - 用户可能还有其他事情要聊，你不想让他等
+- 没有专用 skill 但任务明确且适合后台执行时，使用 background-task-runner 作为通用 fallback skill
 
 注意：
 - 每个会话最多同时运行 3 个子任务
@@ -36,7 +37,7 @@ export class SpawnSubagentTool implements Tool {
       properties: {
         skill_name: {
           type: 'string',
-          description: '要执行的 skill 名称（如 paper-analysis, literature-review 等）',
+          description: '要执行的 skill 名称。没有专用 skill 但任务明确时可用 background-task-runner。',
         },
         task_description: {
           type: 'string',

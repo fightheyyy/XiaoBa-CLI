@@ -45,12 +45,14 @@ export interface SubAgentSpawnOptions {
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
 }
 
-const SUB_AGENT_CONTROL_PLANE_TOOLS = new Set([
+const SUB_AGENT_HIDDEN_TOOLS = new Set([
   'spawn_subagent',
   'check_subagent',
   'stop_subagent',
   'resume_subagent',
   'skill',
+  'send_text',
+  'send_file',
 ]);
 
 export class SubAgentToolExecutor implements ToolExecutor {
@@ -59,7 +61,7 @@ export class SubAgentToolExecutor implements ToolExecutor {
   getToolDefinitions(): ToolDefinition[] {
     return this.inner
       .getToolDefinitions()
-      .filter(tool => !SUB_AGENT_CONTROL_PLANE_TOOLS.has(tool.name));
+      .filter(tool => !SUB_AGENT_HIDDEN_TOOLS.has(tool.name));
   }
 
   async executeTool(
@@ -67,12 +69,12 @@ export class SubAgentToolExecutor implements ToolExecutor {
     conversationHistory?: any[],
     contextOverrides?: Partial<ToolExecutionContext>,
   ): Promise<ToolResult> {
-    if (SUB_AGENT_CONTROL_PLANE_TOOLS.has(toolCall.function.name)) {
+    if (SUB_AGENT_HIDDEN_TOOLS.has(toolCall.function.name)) {
       return {
         tool_call_id: toolCall.id,
         role: 'tool',
         name: toolCall.function.name,
-        content: `错误：${toolCall.function.name} 是主会话控制面工具，子智能体内部不可调用。`,
+        content: `错误：${toolCall.function.name} 是主会话控制面或外发工具，子智能体内部不可调用。`,
         ok: false,
         errorCode: 'TOOL_FORBIDDEN_IN_SUBAGENT',
         retryable: false,

@@ -13,6 +13,7 @@ describe('SkillManager runtime base skills', () => {
 
     assert.deepStrictEqual(names, [
       'agent-browser',
+      'background-task-runner',
       'remember',
       'role-publish',
       'self-evolution',
@@ -24,6 +25,12 @@ describe('SkillManager runtime base skills', () => {
     assert.strictEqual(manager.getSkill('officecli-pptx'), undefined);
     assert.strictEqual(manager.getSkill('officecli-xlsx'), undefined);
     assert.strictEqual(manager.getSkill('sub-agent'), undefined);
+
+    const fallback = manager.getSkill('background-task-runner');
+    assert.ok(fallback, 'background-task-runner should be available for spawn_subagent fallback use');
+    assert.strictEqual(fallback.metadata.userInvocable, false);
+    assert.strictEqual(fallback.metadata.autoInvocable, false);
+    assert.strictEqual(manager.getSkill('general-background-task')?.metadata.name, 'background-task-runner');
   });
 
   test('sub-agent capabilities are default runtime tools', () => {
@@ -46,8 +53,16 @@ describe('SkillManager runtime base skills', () => {
     assert.ok(engineerToolNames.includes('engineer_task_run'));
     assert.ok(engineerToolNames.includes('codex_job_status'));
     assert.ok(engineerToolNames.includes('ask_parent'));
-    for (const controlTool of ['spawn_subagent', 'check_subagent', 'stop_subagent', 'resume_subagent', 'skill']) {
-      assert.strictEqual(engineerToolNames.includes(controlTool), false, `${controlTool} should be hidden inside sub-agents`);
+    for (const hiddenTool of [
+      'spawn_subagent',
+      'check_subagent',
+      'stop_subagent',
+      'resume_subagent',
+      'skill',
+      'send_text',
+      'send_file',
+    ]) {
+      assert.strictEqual(engineerToolNames.includes(hiddenTool), false, `${hiddenTool} should be hidden inside sub-agents`);
     }
 
     const inspectorTools = createSubAgentToolExecutor(process.cwd(), 'test-inspector', 'inspector-cat');
