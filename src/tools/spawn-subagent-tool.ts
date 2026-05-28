@@ -60,11 +60,14 @@ export class SpawnSubagentTool implements Tool {
 
     const manager = SubAgentManager.getInstance();
     const sessionKey = context.sessionId || 'unknown';
+    const roleName = typeof context.roleName === 'string' && context.roleName.trim()
+      ? context.roleName.trim()
+      : undefined;
 
     // 需要 AIService 和 SkillManager 实例
     // AIService 使用默认配置创建，SkillManager 动态加载
     const aiService = new AIService();
-    const skillManager = new SkillManager();
+    const skillManager = new SkillManager(roleName);
     await skillManager.loadSkills();
 
     const result = manager.spawn(
@@ -75,6 +78,7 @@ export class SpawnSubagentTool implements Tool {
       context.workingDirectory,
       aiService,
       skillManager,
+      { roleName },
     );
 
     if ('error' in result) {

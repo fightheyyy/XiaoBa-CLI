@@ -361,6 +361,7 @@ export class AgentSession {
               surface,
               permissionProfile: 'strict',
               channel,
+              ...(this.services.roleName ? { roleName: this.services.roleName } : {}),
             },
           },
         );

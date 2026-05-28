@@ -114,6 +114,33 @@ describe('ToolManager role-specific tools', () => {
     assert.ok(manager.getTool('codex_job_cancel'));
   });
 
+  test('组合层把激活角色写入工具执行上下文', async () => {
+    RoleResolver.activateRole('engineer-cat');
+    const manager = createRoleAwareToolManager();
+    manager.registerTool({
+      definition: {
+        name: 'context_probe',
+        description: 'probe tool context',
+        parameters: { type: 'object', properties: {} },
+      },
+      async execute(_args, context) {
+        return context.roleName || '';
+      },
+    });
+
+    const result = await manager.executeTool({
+      id: 'context-probe-1',
+      type: 'function',
+      function: {
+        name: 'context_probe',
+        arguments: '{}',
+      },
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.content, 'engineer-cat');
+  });
+
   test('engineer-cat 能按项目 cwd 查询 Codex sessions', async () => {
     RoleResolver.activateRole('engineer-cat');
     const codexHome = path.join(testRoot, '.codex-home');

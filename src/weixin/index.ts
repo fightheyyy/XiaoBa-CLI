@@ -6,7 +6,8 @@ import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
-import { AgentServices } from '../core/agent-session';
+import { AgentServices, BUSY_MESSAGE } from '../core/agent-session';
+import { SubAgentManager } from '../core/sub-agent-manager';
 import { Logger } from '../utils/logger';
 import { ChannelCallbacks } from '../types/tool';
 import { promises as fs } from 'fs';
@@ -190,6 +191,9 @@ export class WeixinBot {
     const session = this.sessionManager.getOrCreate(sessionKey, msg.to_user_id);
     session.runWithLogContext(() => Logger.info(`[${sessionKey}] 收到消息: ${parsed.text?.slice(0, 50) || '[媒体消息]'}${mediaDesc}...`));
     const channel = this.buildChannel(msg.to_user_id, sessionKey);
+    SubAgentManager.getInstance().registerPlatformCallbacks(sessionKey, {
+      injectMessage: text => this.handleSubAgentFeedback(sessionKey, msg.to_user_id, text),
+    });
 
     let userText = parsed.text || '';
     if (hasMedia) {
@@ -203,6 +207,34 @@ export class WeixinBot {
     }
 
     await session.handleMessage(userText, { channel });
+  }
+
+  private async handleSubAgentFeedback(sessionKey: string, chatId: string, text: string): Promise<void> {
+    const maxRetries = 10;
+    const retryDelayMs = 5000;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+      }
+
+      const session = this.sessionManager.getOrCreate(sessionKey, chatId);
+      if (session.isBusy()) {
+        session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话忙，等待重试注入子智能体反馈 (${attempt + 1}/${maxRetries + 1})`));
+        continue;
+      }
+
+      const result = await session.handleMessage(text, {
+        channel: this.buildChannel(chatId, sessionKey),
+      });
+      if (result.text === BUSY_MESSAGE) {
+        session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`));
+        continue;
+      }
+      return;
+    }
+
+    Logger.warning(`[${sessionKey}] 子智能体反馈注入失败：主会话持续忙碌`);
   }
 
   destroy(): void {

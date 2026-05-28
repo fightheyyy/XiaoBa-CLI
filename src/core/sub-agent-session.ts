@@ -8,6 +8,7 @@ import {
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
 import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
+import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
 import { isToolAllowed } from '../utils/safety';
@@ -38,8 +39,27 @@ export interface SubAgentSpawnOptions {
   taskDescription: string;
   userMessage: string;
   workingDirectory: string;
+  /** 父会话角色，用于给后台子智能体加载 role prompt、role skills 和 role tools */
+  roleName?: string;
   /** 向主 agent 投递消息（子智能体挂起时触发主 agent 推理） */
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
+}
+
+export function createSubAgentToolManager(
+  workingDirectory: string,
+  subAgentId: string,
+  roleName?: string,
+): ToolManager {
+  return createRoleAwareToolManager(
+    workingDirectory,
+    {
+      sessionId: `subagent:${subAgentId}`,
+      surface: 'agent',
+      permissionProfile: 'strict',
+      ...(roleName ? { roleName } : {}),
+    },
+    roleName,
+  );
 }
 
 // ─── SubAgentSession ────────────────────────────────────
@@ -140,7 +160,7 @@ export class SubAgentSession {
    */
   private async _executeOnce(): Promise<void> {
     // 1. 构建独立的 system prompt
-    const systemPrompt = await PromptManager.buildSystemPrompt();
+    const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.options.roleName });
     this.messages.push({ role: 'system', content: systemPrompt });
 
     // 2. 注入 skill
@@ -162,11 +182,11 @@ export class SubAgentSession {
     this.messages.push({ role: 'user', content: this.options.userMessage });
 
     // 4. 创建独立的 ToolManager
-    const toolManager = new ToolManager(this.options.workingDirectory, {
-      sessionId: `subagent:${this.id}`,
-      surface: 'agent',
-      permissionProfile: 'strict',
-    });
+    const toolManager = createSubAgentToolManager(
+      this.options.workingDirectory,
+      this.id,
+      this.options.roleName,
+    );
 
     // 创建独立的 ConversationRunner（不注入 channel，子智能体不直接和用户通信）
     const runner = new ConversationRunner(this.aiService, toolManager, {
@@ -178,6 +198,7 @@ export class SubAgentSession {
         sessionId: `subagent:${this.id}`,
         surface: 'agent',
         permissionProfile: 'strict',
+        ...(this.options.roleName ? { roleName: this.options.roleName } : {}),
       },
     });
 

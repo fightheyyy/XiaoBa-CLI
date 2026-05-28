@@ -139,7 +139,10 @@ export class InspectPendingLogsTool implements Tool {
       return null;
     }
 
-    const skillManager = new SkillManager();
+    const roleName = typeof context.roleName === 'string' && context.roleName.trim()
+      ? context.roleName.trim()
+      : undefined;
+    const skillManager = new SkillManager(roleName);
     await skillManager.loadSkills();
     const aiService = new AIService();
     const result = SubAgentManager.getInstance().spawn(
@@ -150,6 +153,7 @@ export class InspectPendingLogsTool implements Tool {
       context.workingDirectory,
       aiService,
       skillManager,
+      { roleName },
     );
 
     if ('error' in result) {

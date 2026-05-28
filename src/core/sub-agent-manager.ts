@@ -67,6 +67,7 @@ export class SubAgentManager {
     workingDirectory: string,
     aiService: AIService,
     skillManager: SkillManager,
+    spawnOptions: Pick<SubAgentSpawnOptions, 'roleName'> = {},
   ): SubAgentInfo | { error: string } {
     // 并发限制
     const running = this.listByParent(parentSessionKey).filter(s => s.status === 'running');
@@ -93,6 +94,7 @@ export class SubAgentManager {
       taskDescription,
       userMessage,
       workingDirectory,
+      roleName: spawnOptions.roleName,
       notifyParent: async (subAgentId, taskDesc, question) => {
         const msg = `[子智能体 ${subAgentId} 反馈]\n任务：${taskDesc}\n需要你的指示：${question}`;
         await platform.injectMessage(msg);
