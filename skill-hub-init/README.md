@@ -1,6 +1,12 @@
-# XiaoBa Skill Hub
+# XiaoBa SkillHub
 
 XiaoBa 官方 Skill 商店索引仓库。
+
+当前官方仓库：
+
+```text
+https://github.com/fightheyyy/XiaoBa-SkillHub
+```
 
 ## 什么是 Skill Hub？
 
@@ -12,23 +18,32 @@ Skill Hub 是 XiaoBa 的能力扩展市场。开发者可以将自己开发的 S
 - **轻量级索引**：本仓库只维护 `registry.json` 索引文件
 - **社区驱动**：任何人都可以通过 PR 贡献新 Skill
 
+SkillHub PR 必须保持轻量：
+
+- 只修改 `registry.json`
+- 只新增或修正目标 skill 的 registry 条目
+- 不把 skill 源码复制到 SkillHub 仓库
+- 不重排、删除、批量格式化已有 registry 条目
+
 ## 如何发布 Skill？
 
 ### 方法 1：使用 skill-publish（推荐）
 
-XiaoBa 内置了 `skill-publish` skill，可以自动完成整个发布流程：
+XiaoBa 内置了 `skill-publish` skill，可以引导完成发布流程：
 
 ```bash
 # 在 XiaoBa 中执行
 /skill-publish <你的skill名称>
 ```
 
-它会自动：
-1. 在你的 GitHub 创建 `xiaoba-skill-<name>` 仓库
-2. 推送 skill 代码
-3. Fork 本仓库
-4. 更新 registry.json
-5. 提交 PR
+它会引导你：
+
+1. 确认本地 skill 元数据
+2. 使用独立公开 GitHub 仓库托管 skill 代码
+3. Fork `fightheyyy/XiaoBa-SkillHub`
+4. 从官方 `main` 新建发布分支
+5. 只对 `registry.json` 做增量更新
+6. 提交 registry-only PR
 
 ### 方法 2：手动发布
 
@@ -38,9 +53,16 @@ XiaoBa 内置了 `skill-publish` skill，可以自动完成整个发布流程：
 
 2. **Fork 本仓库**
 
+   Fork 当前官方仓库：
+
+   ```text
+   https://github.com/fightheyyy/XiaoBa-SkillHub
+   ```
+
 3. **编辑 registry.json**
 
-   添加你的 skill 条目：
+   只添加你的 skill 条目，避免改动已有条目：
+
    ```json
    {
      "name": "your-skill-name",
@@ -54,6 +76,12 @@ XiaoBa 内置了 `skill-publish` skill，可以自动完成整个发布流程：
 4. **提交 PR**
 
    PR 标题：`Add skill: <skill-name>`
+
+   PR 要求：
+
+   - base repo 是 `fightheyyy/XiaoBa-SkillHub`
+   - changed files 只有 `registry.json`
+   - diff 只包含目标 skill 的索引增量
 
 ## Registry 字段说明
 
@@ -106,8 +134,8 @@ PR 会根据以下标准审核：
 
 ## 社区
 
-- 问题反馈：[Issues](https://github.com/buildsense-ai/XiaoBa-Skill-Hub/issues)
-- 讨论交流：[Discussions](https://github.com/buildsense-ai/XiaoBa-Skill-Hub/discussions)
+- 问题反馈：[Issues](https://github.com/fightheyyy/XiaoBa-SkillHub/issues)
+- 讨论交流：[Discussions](https://github.com/fightheyyy/XiaoBa-SkillHub/discussions)
 
 ## License
 
