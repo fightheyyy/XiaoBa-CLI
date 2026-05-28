@@ -106,6 +106,7 @@
       "skills/_tool-skills/**/*",
       "skills/report/**/*",
       "skills/self-evolution/**/*",
+      "skills/role-publish/**/*",
       "skills/skill-publish/**/*",
       "skills/remember/**/*",
       "skills/README.md",
