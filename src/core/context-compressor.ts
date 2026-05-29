@@ -27,7 +27,7 @@ const TOOL_RESULT_TAIL_LINES = 6;
 const DEFAULT_COMPACTION_THRESHOLD = 0.6;
 
 export function resolveCompactionThreshold(): number {
-  const envValue = Number(process.env.GAUZ_CONTEXT_COMPACTION_THRESHOLD);
+  const envValue = Number(process.env.XIAOBA_CONTEXT_COMPACTION_THRESHOLD);
   if (Number.isFinite(envValue) && envValue > 0 && envValue < 1) {
     return envValue;
   }

@@ -65,20 +65,20 @@ export class ConfigManager {
   }
 
   static getDefaultConfig(): ChatConfig {
-    const apiUrl = process.env.GAUZ_LLM_API_BASE || 'https://api.openai.com/v1/chat/completions';
-    const model = process.env.GAUZ_LLM_MODEL || 'gpt-3.5-turbo';
+    const apiUrl = process.env.XIAOBA_LLM_API_BASE || 'https://api.openai.com/v1';
+    const model = process.env.XIAOBA_LLM_MODEL || 'gpt-3.5-turbo';
 
     // 自动检测 provider
     let provider: 'openai' | 'anthropic' = 'openai';
-    if (process.env.GAUZ_LLM_PROVIDER) {
-      provider = process.env.GAUZ_LLM_PROVIDER as 'openai' | 'anthropic';
+    if (process.env.XIAOBA_LLM_PROVIDER) {
+      provider = process.env.XIAOBA_LLM_PROVIDER as 'openai' | 'anthropic';
     } else if (apiUrl.includes('anthropic') || apiUrl.includes('claude') || model.includes('claude')) {
       provider = 'anthropic';
     }
 
     return {
       apiUrl,
-      apiKey: process.env.GAUZ_LLM_API_KEY,
+      apiKey: process.env.XIAOBA_LLM_API_KEY,
       model,
       temperature: 0.7,
       provider,

@@ -92,15 +92,15 @@ export class AIService {
   /**
    * 加载备模型配置
    * 支持两种写法：
-   * 1) GAUZ_LLM_BACKUP_*
-   * 2) GAUZ_LLM_BACKUP_1_* / GAUZ_LLM_BACKUP_2_* ...
+   * 1) XIAOBA_LLM_BACKUP_*
+   * 2) XIAOBA_LLM_BACKUP_1_* / XIAOBA_LLM_BACKUP_2_* ...
    */
   private loadBackupConfigsFromEnv(): Array<{ label: string; config: ChatConfig }> {
     const backups: Array<{ label: string; config: ChatConfig }> = [];
 
-    const slot1 = this.readBackupEnvConfig('GAUZ_LLM_BACKUP_1_');
+    const slot1 = this.readBackupEnvConfig('XIAOBA_LLM_BACKUP_1_');
     const hasSlot1 = slot1.hasAnyValue;
-    const aliasBackup = this.readBackupEnvConfig('GAUZ_LLM_BACKUP_');
+    const aliasBackup = this.readBackupEnvConfig('XIAOBA_LLM_BACKUP_');
 
     // 兼容旧格式：若未配置编号备份，则使用无编号备份
     if (!hasSlot1 && aliasBackup.hasAnyValue) {
@@ -111,7 +111,7 @@ export class AIService {
     }
 
     for (let i = 1; i <= MAX_BACKUP_SLOTS; i++) {
-      const envConfig = this.readBackupEnvConfig(`GAUZ_LLM_BACKUP_${i}_`);
+      const envConfig = this.readBackupEnvConfig(`XIAOBA_LLM_BACKUP_${i}_`);
       if (!envConfig.hasAnyValue) {
         continue;
       }
@@ -221,15 +221,15 @@ export class AIService {
   /**
    * 流式调用（默认仅在首个片段输出前允许切换备模型）
    * 默认不重试，避免部分 token 已输出后出现重复文本。
-   * 如需强制开启重试，可设置 GAUZ_STREAM_RETRY=true（需自行保证幂等）。
+   * 如需强制开启重试，可设置 XIAOBA_STREAM_RETRY=true（需自行保证幂等）。
    */
   async chatStream(messages: Message[], tools?: ToolDefinition[], callbacks?: StreamCallbacks): Promise<ChatResponse> {
     if (!this.providerChain.some(endpoint => endpoint.config.apiKey)) {
       throw new Error('API密钥未配置。请先运行: xiaoba config');
     }
 
-    const allowStreamRetry = process.env.GAUZ_STREAM_RETRY === 'true';
-    const allowFailoverOnPartial = process.env.GAUZ_STREAM_FAILOVER_ON_PARTIAL === 'true';
+    const allowStreamRetry = process.env.XIAOBA_STREAM_RETRY === 'true';
+    const allowFailoverOnPartial = process.env.XIAOBA_STREAM_FAILOVER_ON_PARTIAL === 'true';
 
     try {
       return await this.executeWithFailover(
@@ -265,7 +265,7 @@ export class AIService {
         (error) => {
           const streamError = error as StreamFailoverError;
           if (streamError.__streamTextEmitted && !allowFailoverOnPartial) {
-            Logger.warning('[AIService] 流式输出已开始，默认不切换备模型。可设置 GAUZ_STREAM_FAILOVER_ON_PARTIAL=true 强制切换。');
+            Logger.warning('[AIService] 流式输出已开始，默认不切换备模型。可设置 XIAOBA_STREAM_FAILOVER_ON_PARTIAL=true 强制切换。');
             return false;
           }
           return this.isFailoverEligible(streamError);
@@ -345,7 +345,7 @@ export class AIService {
       return true;
     }
 
-    return process.env.GAUZ_LLM_FAILOVER_ON_ANY_ERROR === 'true';
+    return process.env.XIAOBA_LLM_FAILOVER_ON_ANY_ERROR === 'true';
   }
 
   /**

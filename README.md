@@ -69,16 +69,16 @@ Add your model config to `.env`, or run `npm run dev -- config` later for the in
 
 ```bash
 # OpenAI-compatible endpoint
-GAUZ_LLM_PROVIDER=openai
-GAUZ_LLM_API_BASE=https://api.openai.com/v1/chat/completions
-GAUZ_LLM_API_KEY=your_api_key
-GAUZ_LLM_MODEL=your_model
+XIAOBA_LLM_PROVIDER=openai
+XIAOBA_LLM_API_BASE=https://api.openai.com/v1
+XIAOBA_LLM_API_KEY=your_api_key
+XIAOBA_LLM_MODEL=your_model
 
 # Or Anthropic
-# GAUZ_LLM_PROVIDER=anthropic
-# GAUZ_LLM_API_BASE=https://api.anthropic.com
-# GAUZ_LLM_API_KEY=your_api_key
-# GAUZ_LLM_MODEL=claude-sonnet-4-20250514
+# XIAOBA_LLM_PROVIDER=anthropic
+# XIAOBA_LLM_API_BASE=https://api.anthropic.com
+# XIAOBA_LLM_API_KEY=your_api_key
+# XIAOBA_LLM_MODEL=claude-sonnet-4-20250514
 ```
 
 Start a local chat:
@@ -239,19 +239,19 @@ Important modules:
 Base model config:
 
 ```env
-GAUZ_LLM_PROVIDER=openai
-GAUZ_LLM_API_BASE=https://api.openai.com/v1/chat/completions
-GAUZ_LLM_API_KEY=your_api_key
-GAUZ_LLM_MODEL=your_model
+XIAOBA_LLM_PROVIDER=openai
+XIAOBA_LLM_API_BASE=https://api.openai.com/v1
+XIAOBA_LLM_API_KEY=your_api_key
+XIAOBA_LLM_MODEL=your_model
 ```
 
 Optional backup models:
 
 ```env
-GAUZ_LLM_BACKUP_1_PROVIDER=openai
-GAUZ_LLM_BACKUP_1_API_BASE=https://backup.example/v1/chat/completions
-GAUZ_LLM_BACKUP_1_API_KEY=backup_key
-GAUZ_LLM_BACKUP_1_MODEL=backup_model
+XIAOBA_LLM_BACKUP_1_PROVIDER=openai
+XIAOBA_LLM_BACKUP_1_API_BASE=https://backup.example/v1
+XIAOBA_LLM_BACKUP_1_API_KEY=backup_key
+XIAOBA_LLM_BACKUP_1_MODEL=backup_model
 ```
 
 IM adapters:

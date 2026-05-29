@@ -69,16 +69,16 @@ cp .env.example .env
 
 ```bash
 # OpenAI-compatible endpoint
-GAUZ_LLM_PROVIDER=openai
-GAUZ_LLM_API_BASE=https://api.openai.com/v1/chat/completions
-GAUZ_LLM_API_KEY=your_api_key
-GAUZ_LLM_MODEL=your_model
+XIAOBA_LLM_PROVIDER=openai
+XIAOBA_LLM_API_BASE=https://api.openai.com/v1
+XIAOBA_LLM_API_KEY=your_api_key
+XIAOBA_LLM_MODEL=your_model
 
 # 或 Anthropic
-# GAUZ_LLM_PROVIDER=anthropic
-# GAUZ_LLM_API_BASE=https://api.anthropic.com
-# GAUZ_LLM_API_KEY=your_api_key
-# GAUZ_LLM_MODEL=claude-sonnet-4-20250514
+# XIAOBA_LLM_PROVIDER=anthropic
+# XIAOBA_LLM_API_BASE=https://api.anthropic.com
+# XIAOBA_LLM_API_KEY=your_api_key
+# XIAOBA_LLM_MODEL=claude-sonnet-4-20250514
 ```
 
 启动本地对话：
@@ -239,19 +239,19 @@ src/index.ts
 基础模型配置：
 
 ```env
-GAUZ_LLM_PROVIDER=openai
-GAUZ_LLM_API_BASE=https://api.openai.com/v1/chat/completions
-GAUZ_LLM_API_KEY=your_api_key
-GAUZ_LLM_MODEL=your_model
+XIAOBA_LLM_PROVIDER=openai
+XIAOBA_LLM_API_BASE=https://api.openai.com/v1
+XIAOBA_LLM_API_KEY=your_api_key
+XIAOBA_LLM_MODEL=your_model
 ```
 
 可选备份模型：
 
 ```env
-GAUZ_LLM_BACKUP_1_PROVIDER=openai
-GAUZ_LLM_BACKUP_1_API_BASE=https://backup.example/v1/chat/completions
-GAUZ_LLM_BACKUP_1_API_KEY=backup_key
-GAUZ_LLM_BACKUP_1_MODEL=backup_model
+XIAOBA_LLM_BACKUP_1_PROVIDER=openai
+XIAOBA_LLM_BACKUP_1_API_BASE=https://backup.example/v1
+XIAOBA_LLM_BACKUP_1_API_KEY=backup_key
+XIAOBA_LLM_BACKUP_1_MODEL=backup_model
 ```
 
 IM adapter：

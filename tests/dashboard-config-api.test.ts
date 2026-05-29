@@ -11,10 +11,10 @@ import { ServiceManager } from '../src/dashboard/service-manager';
 
 const originalCwd = process.cwd();
 const trackedEnvKeys = [
-  'GAUZ_LLM_PROVIDER',
-  'GAUZ_LLM_API_BASE',
-  'GAUZ_LLM_API_KEY',
-  'GAUZ_LLM_MODEL',
+  'XIAOBA_LLM_PROVIDER',
+  'XIAOBA_LLM_API_BASE',
+  'XIAOBA_LLM_API_KEY',
+  'XIAOBA_LLM_MODEL',
 ] as const;
 const originalEnv = new Map<string, string | undefined>(
   trackedEnvKeys.map(key => [key, process.env[key]])
@@ -61,17 +61,17 @@ describe('Dashboard config API', () => {
     testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-dashboard-config-'));
     process.chdir(testRoot);
     fs.writeFileSync(path.join(testRoot, '.env'), [
-      'GAUZ_LLM_PROVIDER=openai',
-      'GAUZ_LLM_API_BASE=https://old.example/v1',
-      'GAUZ_LLM_API_KEY=sk-old-123456',
-      'GAUZ_LLM_MODEL=MiniMax-M2.7-highspeed',
+      'XIAOBA_LLM_PROVIDER=openai',
+      'XIAOBA_LLM_API_BASE=https://old.example/v1',
+      'XIAOBA_LLM_API_KEY=sk-old-123456',
+      'XIAOBA_LLM_MODEL=MiniMax-M2.7-highspeed',
       '',
     ].join('\n'), 'utf-8');
 
-    process.env.GAUZ_LLM_PROVIDER = 'openai';
-    process.env.GAUZ_LLM_API_BASE = 'https://old.example/v1';
-    process.env.GAUZ_LLM_API_KEY = 'sk-old-123456';
-    process.env.GAUZ_LLM_MODEL = 'MiniMax-M2.7-highspeed';
+    process.env.XIAOBA_LLM_PROVIDER = 'openai';
+    process.env.XIAOBA_LLM_API_BASE = 'https://old.example/v1';
+    process.env.XIAOBA_LLM_API_KEY = 'sk-old-123456';
+    process.env.XIAOBA_LLM_MODEL = 'MiniMax-M2.7-highspeed';
 
     const app = express();
     app.use(express.json({ limit: '1mb' }));
@@ -97,18 +97,18 @@ describe('Dashboard config API', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        GAUZ_LLM_PROVIDER: 'openai',
-        GAUZ_LLM_API_BASE: 'http://127.0.0.1:8317/v1',
-        GAUZ_LLM_API_KEY: 'sk-new-654321',
-        GAUZ_LLM_MODEL: 'gpt-5.5',
+        XIAOBA_LLM_PROVIDER: 'openai',
+        XIAOBA_LLM_API_BASE: 'http://127.0.0.1:8317/v1',
+        XIAOBA_LLM_API_KEY: 'sk-new-654321',
+        XIAOBA_LLM_MODEL: 'gpt-5.5',
       }),
     });
     assert.strictEqual(saveResponse.status, 200);
 
-    assert.strictEqual(process.env.GAUZ_LLM_PROVIDER, 'openai');
-    assert.strictEqual(process.env.GAUZ_LLM_API_BASE, 'http://127.0.0.1:8317/v1');
-    assert.strictEqual(process.env.GAUZ_LLM_API_KEY, 'sk-new-654321');
-    assert.strictEqual(process.env.GAUZ_LLM_MODEL, 'gpt-5.5');
+    assert.strictEqual(process.env.XIAOBA_LLM_PROVIDER, 'openai');
+    assert.strictEqual(process.env.XIAOBA_LLM_API_BASE, 'http://127.0.0.1:8317/v1');
+    assert.strictEqual(process.env.XIAOBA_LLM_API_KEY, 'sk-new-654321');
+    assert.strictEqual(process.env.XIAOBA_LLM_MODEL, 'gpt-5.5');
 
     const statusResponse = await fetch(`${baseUrl}/api/status`);
     assert.strictEqual(statusResponse.status, 200);
@@ -122,19 +122,19 @@ describe('Dashboard config API', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        GAUZ_LLM_API_KEY: '****3456',
-        GAUZ_LLM_MODEL: 'gpt-5.5',
+        XIAOBA_LLM_API_KEY: '****3456',
+        XIAOBA_LLM_MODEL: 'gpt-5.5',
       }),
     });
     assert.strictEqual(saveResponse.status, 200);
 
-    assert.strictEqual(process.env.GAUZ_LLM_API_KEY, 'sk-old-123456');
-    assert.strictEqual(process.env.GAUZ_LLM_MODEL, 'gpt-5.5');
+    assert.strictEqual(process.env.XIAOBA_LLM_API_KEY, 'sk-old-123456');
+    assert.strictEqual(process.env.XIAOBA_LLM_MODEL, 'gpt-5.5');
 
     const configResponse = await fetch(`${baseUrl}/api/config`);
     assert.strictEqual(configResponse.status, 200);
-    const config = await configResponse.json() as { GAUZ_LLM_API_KEY: string; GAUZ_LLM_MODEL: string };
-    assert.strictEqual(config.GAUZ_LLM_API_KEY, '****3456');
-    assert.strictEqual(config.GAUZ_LLM_MODEL, 'gpt-5.5');
+    const config = await configResponse.json() as { XIAOBA_LLM_API_KEY: string; XIAOBA_LLM_MODEL: string };
+    assert.strictEqual(config.XIAOBA_LLM_API_KEY, '****3456');
+    assert.strictEqual(config.XIAOBA_LLM_MODEL, 'gpt-5.5');
   });
 });

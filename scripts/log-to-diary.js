@@ -132,9 +132,9 @@ function formatForLLM(sessions, date) {
 // ─── 调用 LLM 生成日记 ───────────────────────────────────
 
 async function generateDiary(cleanedContent, date) {
-  const apiKey = process.env.GAUZ_LLM_API_KEY;
-  const apiUrl = process.env.GAUZ_LLM_API_BASE || 'https://api.anthropic.com';
-  const model = process.env.GAUZ_LLM_MODEL || 'claude-opus-4-5';
+  const apiKey = process.env.XIAOBA_LLM_API_KEY;
+  const apiUrl = process.env.XIAOBA_LLM_API_BASE || 'https://api.anthropic.com';
+  const model = process.env.XIAOBA_LLM_MODEL || 'claude-opus-4-5';
 
   const prompt = `你是一个工作日志助手。根据以下 AI Agent 的工作记录，生成一份自然的工作日记。
 

@@ -938,7 +938,7 @@ export class ConversationRunner {
   }
 
   private resolvePromptBudget(maxContextTokens?: number): number {
-    const envBudget = Number(process.env.GAUZ_LLM_MAX_PROMPT_TOKENS);
+    const envBudget = Number(process.env.XIAOBA_LLM_MAX_PROMPT_TOKENS);
     if (Number.isFinite(envBudget) && envBudget > 0) {
       return envBudget;
     }
@@ -947,8 +947,8 @@ export class ConversationRunner {
       return maxContextTokens;
     }
 
-    const provider = (process.env.GAUZ_LLM_PROVIDER || '').trim().toLowerCase();
-    const model = (process.env.GAUZ_LLM_MODEL || '').trim().toLowerCase();
+    const provider = (process.env.XIAOBA_LLM_PROVIDER || '').trim().toLowerCase();
+    const model = (process.env.XIAOBA_LLM_MODEL || '').trim().toLowerCase();
     const isAnthropic = provider === 'anthropic' || model.includes('claude');
 
     return isAnthropic ? ANTHROPIC_PROMPT_BUDGET : DEFAULT_PROMPT_BUDGET;

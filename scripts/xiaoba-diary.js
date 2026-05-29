@@ -192,9 +192,9 @@ async function generateDiary(cleanedContent, date) {
     });
   }
 
-  const apiKey = process.env.GAUZ_LLM_API_KEY;
-  const apiUrl = process.env.GAUZ_LLM_API_BASE || 'https://api.anthropic.com';
-  const model = process.env.GAUZ_LLM_MODEL || 'claude-opus-4-5';
+  const apiKey = process.env.XIAOBA_LLM_API_KEY;
+  const apiUrl = process.env.XIAOBA_LLM_API_BASE || 'https://api.anthropic.com';
+  const model = process.env.XIAOBA_LLM_MODEL || 'claude-opus-4-5';
 
   if (!apiKey) throw new Error('未找到 API Key，请检查 .env 配置');
 

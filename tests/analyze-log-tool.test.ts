@@ -40,7 +40,7 @@ describe('AnalyzeLogTool runtime logs', () => {
       '[2026-02-25 22:08:39.644] [INFO] [Turn 1] 调用AI推理 (可用工具: 27个)',
       '[2026-02-25 22:08:44.448] [INFO] [Turn 1] AI返回 tokens: 12+2=14',
       '[2026-02-25 22:08:44.449] [INFO] [Turn 1] 执行工具: read_file | 参数: {"file_path":"E:\\\\demo\\\\paper.pdf","pages":"1-3"}',
-      '[2026-02-25 22:08:44.450] [INFO] [Turn 1] 工具完成: read_file | 耗时: 1ms | 结果: 执行被阻止: 读取路径超出工作目录。设置 GAUZ_FS_ALLOW_OUTSIDE_READ=true 可解除限制',
+      '[2026-02-25 22:08:44.450] [INFO] [Turn 1] 工具完成: read_file | 耗时: 1ms | 结果: 执行被阻止: 读取路径超出工作目录。设置 XIAOBA_FS_ALLOW_OUTSIDE_READ=true 可解除限制',
       '[2026-02-25 22:08:44.451] [ERROR] API调用失败 | Provider: anthropic | Model: claude-opus-4-6 | Endpoint: primary',
       '[2026-02-25 22:08:44.452] [ERROR] [会话 user:ou_demo] 处理失败: 请求失败: Connection error.',
       '[2026-02-25 22:08:44.453] [ERROR] 飞书消息发送失败: getaddrinfo ENOTFOUND open.feishu.cn',
@@ -189,7 +189,7 @@ describe('AnalyzeLogTool runtime logs', () => {
               id: 'tool-2',
               name: 'read_file',
               arguments: { file_path: 'E:\\demo\\paper.pdf' },
-              result: '执行被阻止: 读取路径超出工作目录。设置 GAUZ_FS_ALLOW_OUTSIDE_READ=true 可解除限制',
+              result: '执行被阻止: 读取路径超出工作目录。设置 XIAOBA_FS_ALLOW_OUTSIDE_READ=true 可解除限制',
               duration_ms: 2,
             },
             {
