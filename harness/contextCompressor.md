@@ -155,14 +155,14 @@ system
 - `src/utils/session-store.ts`
   - 持久化 compact system message 前缀，保证压缩记忆在进程退出和 TTL cleanup 后仍可恢复。
 - `src/utils/memory-finalizer.ts`
-  - TTL cleanup 时生成被动结构化 `memory/sessions/<session-key-hash>/memory.json`。
-  - 追加 `finalizations.jsonl`，记录本次归档的 counts 和来源。
-  - restore 时可把已归档 memory 渲染为 `[session_archive_memory]`，作为恢复上下文的 recall。
+  - TTL cleanup / session close 时从 context 中抽取稳定长期记忆。
+  - 写入人类可读的 `memory/sessions/<session-key-hash>/MEMORY.md`。
+  - 不参与 restore 默认注入；长期 memory 以后只允许显式或按需 recall。
 - `src/core/message-session-manager.ts`
   - TTL cleanup 调用 `session.cleanup({ checkWakeup: true, finalizeMemory: true })`。
 - `src/core/agent-session.ts`
-  - restore 时同时检查 `SessionStore` transcript 和 `memory/` archive。
-  - `/exit` / `summarizeAndDestroy()` 会生成 manual archive memory。
+  - restore 时只恢复 `SessionStore` transcript。
+  - `/exit` / `summarizeAndDestroy()` 会触发长期 memory 候选提取。
 - `src/commands/chat.ts`
   - 交互式 CLI 启动时 restore，退出时触发 `session_close` memory finalization。
   - 单次 CLI message 结束时也会 cleanup + finalization，避免 CLI 入口漏归档。
@@ -180,8 +180,8 @@ system
 - 用户已见输出和工具过程分开保存，避免重复发送或前后矛盾。
 - 压缩记忆已经能 save/restore。
 - 请求前 hard trim 已经保护 tool_calls/tool_result 配对。
-- TTL cleanup 和交互式 CLI 退出会生成被动结构化 `memory/`。
-- restore 会注入 `[session_archive_memory]` recall。
+- TTL cleanup 和交互式 CLI 退出会更新长期 Markdown memory。
+- restore 不再默认注入长期 memory；`data/sessions` 是恢复上下文主路径。
 - 全局 behavior 和角色 behavior 已合并。
 
 剩下的空间主要在质量、治理和长期记忆晋升：
@@ -190,8 +190,8 @@ system
 | --- | ---: | --- |
 | Memory extraction quality | 0.4 | 第一版 finalizer 是 deterministic extraction，稳定可测，但语义抽取质量还比较初级。 |
 | Compaction quality audit | 0.3 | 还缺 validator 证明每次压缩/归档保留了关键事实、用户已见输出和未完成承诺。 |
-| Schema validation / migration | 0.2 | `memory.json` 有版本号，但还没有 schema validator、migration 和 rollback。 |
-| Project / user promotion | 0.2 | `memory/projects`、`memory/users` 仍应保持显式晋升，不做自动写入；后续需要 promotion 工具。 |
+| Memory recall UX | 0.2 | 长期 `MEMORY.md` 已改为按需存储后，还需要明确显式 recall 命令或工具入口。 |
+| Memory extraction quality | 0.2 | 第一版长期记忆提取应保守，只接受明确偏好、习惯、默认行为和 remember-style 表达。 |
 | Token budget calibration | 0.1 | 估算能防炸，但还没有基于真实 provider usage 按模型和工具集动态校准。 |
 
 ## Optimization Roadmap
@@ -215,64 +215,50 @@ roles/
 memory/
   sessions/
     <session-key-hash>/
-      memory.json
-      compactions.jsonl
-      projections.jsonl
-  projects/
-    <project-key-hash>/memory.json
-  users/
-    <user-key-hash>/profile.json
+      MEMORY.md                   # 按 session/person 维度的长期记忆，按需 recall
 ```
 
 职责边界：
 
 - `system-prompt.md`：长期角色契约、工具使用边界、能力声明；人维护，不由 runtime 自动改。
 - `behavior.md`：长期稳定笔记和偏好；可以由 remember skill 在用户明确授权时改。它会被 prompt 读取，所以内容应该像“以后怎么做”的笔记，而不是运行时流水账。
-- `memory/`：被动生成的结构化记忆归档；主要在 TTL cleanup、显式结束/归档、session close 这类生命周期边界写入，支持 source、confidence、updatedAt、过期、去重、回滚。
+- `memory/`：人类可读的长期记忆笔记；主要在 TTL cleanup、显式结束/归档、session close 这类生命周期边界从 context 中保守提取，默认不进入 prompt。
 
 当前 `PromptManager.getBehaviorPrompt()` 是 merge 语义：全局 `prompts/behavior.md` 先加载，角色 `roles/<role>/prompts/behavior.md` 再追加。这样 remember skill 写入全局 behavior 后，在 EngineerCat 这类有角色 behavior 的场景里仍会生效。
 
-### Phase 1: Passive Structured Session Memory
+### Phase 1: Session Context Restore + Markdown Long-Term Memory
 
-新增每个 session 的结构化 memory 文档，但不要把它设计成每轮主动写的数据库。活跃会话里仍然以 transcript、compact system message、tail reserve 为主；`memory/` 是生命周期边界上的被动沉淀。
+每个 session key 在产品语义上对应一个人或一个稳定对话对象。因此恢复上下文和长期记忆要分开：
 
-`[session_memory]` 仍是活跃期 provider context 的工作记忆；`memory/sessions/*/memory.json` 是 TTL 到期、显式结束或归档时，从 compact state 和近期 transcript 中抽取出的结构化归档。
+`data/sessions/*` 是恢复上下文主路径。它保存 provider-visible transcript 和 compact system messages，用来继续同一个会话。
+
+`[session_memory]` 仍是活跃期 provider context 的工作记忆。`memory/sessions/*/MEMORY.md` 是长期 Markdown 笔记，只保存稳定偏好、习惯、默认工作方式、称呼和用户明确要求记住的事实。
 
 目标行为：
 
 - 活跃期 compactor 只更新 compact system messages，不直接改长期 memory。
 - save/restore 持久化 compact message projection，保证进程重启和 TTL 前恢复可用。
-- TTL cleanup、`summarizeAndDestroy()`、显式归档时运行 `MemoryFinalizer`，把当前 `[session_memory]`、`[im_visible_transcript]`、`[last_turn_anchor]` 和受保护 tail 抽成结构化 `memory.json`。
-- runner 只有在 session restore 或新 session recall 时，才把已归档 memory 渲染成 `[session_archive_memory]` recall。
-- schema 带版本号，后续能迁移。
+- TTL cleanup、`summarizeAndDestroy()`、显式归档时运行 `MemoryFinalizer`，只从用户消息和 compact memory 中抽取长期价值明确的记忆候选。
+- restore 只恢复 `data/sessions`，不默认加载 `MEMORY.md`。
+- 长期 memory 未来通过显式命令、工具或用户请求按需 recall，注入时应使用小而相关的 `[long_term_memory]`。
 
-第一版字段保持小而实用：
+第一版 Markdown sections 保持小而实用：
 
-- 当前任务：目标、状态、约束、下一步。
-- 稳定事实：用户偏好、项目事实、关键决策。
-- 未完成承诺：待验证、待跟进、未回答问题。
-- 产物引用：改过的文件、跑过的命令、生成输出。
-- 风险和失败：失败测试、阻塞命令、provider/tool 错误。
-- 用户已见输出：用户已经收到的重要文本或文件摘要。
+- Stable Preferences：语言、风格、默认选择。
+- Work Habits：常用工具、工作方式、稳定习惯。
+- Instructions：用户明确要求以后遵守的规则。
+- Facts：用户明确要求记住的稳定事实。
 
-建议不要把结构化 memory 混进 `data/sessions/` 的 JSONL transcript。`data/sessions/` 是消息账本，适合保存 provider-visible / replayable message；memory 是被动归档出来的一等 runtime state，应该独立成根目录 `memory/`，而不是放进 `data/` 产物区：
+建议不要把长期 memory 混进 `data/sessions/` 的 JSONL transcript。`data/sessions/` 是消息账本，适合保存 provider-visible / replayable message；memory 是人类可读的长期笔记，应该独立成根目录 `memory/`：
 
 ```text
 memory/
   sessions/
     <session-key-hash>/
-      memory.json              # session working memory canonical store
-      compactions.jsonl        # compaction audit / memory diff
-      projections.jsonl        # 可选：每次渲染出的 [session_memory] projection
-  projects/
-    <project-key-hash>/
-      memory.json              # 未来：显式晋升后的项目事实
-  users/
-    <user-key-hash>/
-      profile.json             # 未来：显式晋升后的用户偏好
+      MEMORY.md                # session/person 长期记忆，Markdown 主存储
 ```
 
-第一阶段只需要实现 `sessions/<session-key-hash>/memory.json` 和 `compactions.jsonl`，并且只在 TTL cleanup / 显式归档时写入。`projects/`、`users/` 可以先保留目录契约，不接入自动写入。
+第一阶段只实现 `sessions/<session-key-hash>/MEMORY.md`，并且只在 TTL cleanup / 显式归档时写入。不要引入 project/user 多层存储；当前产品语义里一个 session 就是一个人。
 
 ### Phase 2: Memory Tier Contract
 
@@ -284,15 +270,14 @@ memory/
 | Recent tail | provider transcript | 当前 session | 高保真最近几轮，必须保持合法 tool group。 |
 | Last-turn anchor | compact system message | 当前 session + persisted | 锚住最后一轮用户意图、已发送文本/文件和收束状态。 |
 | Working memory | compact system message | 当前 session + persisted | 活跃期会话级 working context。 |
-| Session archive memory | `memory/sessions/*/memory.json` | TTL / 显式归档后 | 被动沉淀的结构化 session 记忆。 |
-| Project memory | future optional store | cross-session | 需要显式晋升的 repo / 用户长期偏好。 |
+| Long-term memory | `memory/sessions/*/MEMORY.md` | 跨 session，按需 recall | 这个 session/person 的稳定偏好、习惯、默认行为和明确记住的事实。 |
 
 晋升规则：
 
-- raw tool output 默认不晋升。
-- 用户已见声明、文件路径、关键决策、未解决任务可以晋升。
-- 事实尽量携带 source turn id 或 timestamp。
-- 长期/project memory 必须走显式 promotion，不能靠普通压缩误写入。
+- raw tool output、失败命令、未解决任务、下一步待办默认不进入长期 memory。
+- “以后/默认/记住/我喜欢/我习惯/不要”这类明确稳定表达可以进入长期 memory。
+- 模型推断出的偏好默认不写入；第一版宁可少记。
+- 长期 memory 不默认进入 prompt，必须显式或按需 recall。
 
 ### Phase 2.5: `behavior.md` Boundary
 
@@ -314,13 +299,11 @@ memory/
 | `system-prompt.md` | 基础角色/能力边界 | 长期静态 prompt |
 | `behavior.md` | 用户/角色稳定笔记和偏好 | 长期静态 prompt |
 | `[session_memory]` | 当前 session working state | 活跃期 compact system projection |
-| `memory/sessions/*/memory.json` | TTL/归档后的 session memory | restore / recall 时可渲染回 projection |
-| `memory/projects/*/memory.json` | 显式晋升后的项目事实 | future project recall |
-| `memory/users/*/profile.json` | 显式晋升后的用户偏好 | future user recall |
+| `memory/sessions/*/MEMORY.md` | session/person 长期记忆 | on-demand recall，不默认加载 |
 | `[im_visible_transcript]` | 用户已经看到的 IM 副作用窗口 | provider-visible compact message |
 | recent transcript tail | 最近原文和合法 tool groups | provider-visible messages |
 
-自动 compaction 不能直接改 `behavior.md`。`behavior.md` 只接受用户显式要求的笔记/偏好；`memory/` 只在生命周期边界被动写入。
+自动 compaction 不能直接改 `behavior.md`。`behavior.md` 只接受全局静态行为笔记；`memory/` 只在生命周期边界保守写入 session/person 长期笔记。
 
 ### Phase 2.6: Remember Skill Split
 
@@ -328,38 +311,36 @@ memory/
 
 角色模式下已经合并全局 behavior 和角色 behavior。因此当前 remember skill 固定写根 behavior 时，内容仍会进入角色会话；未来如果要区分全局/角色笔记，再增加显式 scope。
 
-建议先不要把普通 remember skill 扩展成“主动写 memory”。它的默认职责应该是写 `behavior.md` 笔记。若未来需要写跨 session 的 user/project memory，应该做成显式 promotion，而不是普通 remember 的默认行为：
+建议先不要把普通 remember skill 扩展成“主动写 memory”。它的默认职责应该是写 `behavior.md` 笔记。`memory/sessions/*/MEMORY.md` 由 session 生命周期被动维护，用来记录当前 session/person 的长期偏好和习惯：
 
 ```text
 remember behavior
   -> prompts/behavior.md 或 roles/<role>/prompts/behavior.md
-  -> 只写稳定、低频、用户明确要求长期改变的行为偏好
+  -> 全局或角色级静态行为偏好
 
-promote memory
-  -> memory/users/<user-key-hash>/profile.json
-  -> memory/projects/<project-key-hash>/memory.json
-  -> 只在用户明确要求“作为长期事实保存/以后项目都记住”时写
+session memory finalization
+  -> memory/sessions/<session-key-hash>/MEMORY.md
+  -> 当前 session/person 的长期偏好、习惯、默认行为和明确记住的事实
 ```
 
-第一阶段不要让 remember skill 写 session working memory。session memory 应该由 context compressor 在活跃期维护 compact projection，并由 TTL cleanup / 显式归档时被动落盘；remember skill 只适合用户显式说“以后记住/偏好/我喜欢/我的名字是”这类笔记。
+第一阶段不要让 remember skill 写 session working memory。session working memory 仍由 context compressor 在活跃期维护 compact projection；长期 Markdown memory 由 TTL cleanup / 显式归档时从 context 中保守提取。
 
 推荐规则：
 
-- “以后都用中文回复”“叫我 X”“默认工作目录用 Y” -> `behavior.md`。
-- “我常用的项目是 X”“我偏好 pnpm”“我的 GitHub 用户名是 X” -> 默认先写 `behavior.md` 笔记；只有用户明确要求结构化长期事实时才 promote 到 `memory/users/*/profile.json`。
-- “这次任务已经跑到 step 3”“刚才 npm test 失败” -> 活跃期进 `[session_memory]` / tail；TTL 或显式归档时才写 `memory/sessions/*/memory.json`。
-- “这个 repo 的启动命令是 X” -> 默认作为当前 session/project 事实；必须显式晋升才写 `memory/projects/*/memory.json`。
+- “以后都用中文回复”“叫我 X”“默认工作目录用 Y” -> 可以进入 `memory/sessions/*/MEMORY.md`。
+- “我常用的项目是 X”“我偏好 pnpm”“我的 GitHub 用户名是 X” -> 可以进入 `memory/sessions/*/MEMORY.md`。
+- “这次任务已经跑到 step 3”“刚才 npm test 失败” -> 只留在 `data/sessions` / `[session_memory]`。
+- “这个 repo 的启动命令是 X” -> 只有用户表达成稳定默认事实时才进入 `MEMORY.md`。
 
 实现建议：
 
-- 给 `remember.py` 保持默认写 behavior note，不默认写 memory。
-- 可选给 behavior 写入增加 `--scope global|role`，默认仍可写全局 behavior。
-- PromptManager 保持全局 behavior + 角色 behavior 合并，避免角色模式丢掉全局用户偏好。
-- 另做 `promote-memory` 能力时再写 user/project JSON；每条 fact 至少包含 `id`、`text`、`source`、`confidence`、`updatedAt`。
+- 给 `remember.py` 保持默认写 behavior note，不直接写 session working memory。
+- PromptManager 保持全局 behavior + 角色 behavior 合并。
+- 后续若增加显式 recall，读取 `MEMORY.md` 后只注入少量相关条目。
 
 ### Phase 2.7: Memory Finalizer
 
-`MemoryFinalizer` 是被动 memory 的关键组件。它不参与每轮推理，只在生命周期边界运行。
+`MemoryFinalizer` 是长期 Markdown memory 的写入组件。它不参与每轮推理，只在生命周期边界运行。
 
 触发时机：
 
@@ -378,13 +359,11 @@ promote memory
 
 输出：
 
-- `memory/sessions/<session-key-hash>/memory.json`。
-- `memory/sessions/<session-key-hash>/compactions.jsonl` 或 `finalizations.jsonl`。
-- 可选 `projections.jsonl`，记录从结构化 memory 渲染回 `[session_memory]` 的版本。
+- `memory/sessions/<session-key-hash>/MEMORY.md`。
 
-这能保留“记忆是被动沉淀”的模型：活跃期不把每个临时状态都写成长期事实；只有会话自然结束、过期或用户要求归档时，才把值得留下的部分固化。
+这能保留“记忆是被动沉淀”的模型：活跃期不把每个临时状态都写成长期事实；只有会话自然结束、过期或用户要求归档时，才把明确稳定的偏好和习惯固化。
 
-当前 TTL cleanup 不只 `saveContext()`，还会在保存 transcript 的同时生成被动结构化 memory：
+当前 TTL cleanup 不只 `saveContext()`，还会在保存 transcript 的同时更新长期 Markdown memory：
 
 ```text
 MessageSessionManager TTL cleanup
@@ -400,8 +379,8 @@ MessageSessionManager TTL cleanup
 - `SessionStore.saveContext()` 仍然是恢复当前会话的主路径。
 - `MemoryFinalizer` 写入失败不能阻断 transcript 保存。
 - `MemoryFinalizer` 必须使用 session key hash，不把 IM 用户 id / 群 id 明文直接当文件名。
-- TTL finalization 是被动归档，不应把结构化 memory 立刻注入当前已结束的 in-memory session。
-- 下一次同 key restore 时，同时恢复 `SessionStore` transcript 和 `memory/sessions/*/memory.json` recall；当前 transcript 和用户新消息优先。
+- TTL finalization 是长期记忆落盘，不应把 `MEMORY.md` 立刻注入当前已结束的 in-memory session。
+- 下一次同 key restore 时只恢复 `SessionStore` transcript；长期 memory 仍保持 on-demand。
 
 ### Phase 2.8: Channel Lifecycle Triggers
 
@@ -415,7 +394,7 @@ TTL 不是所有入口都有的全局机制。当前 60 分钟默认 TTL 来自 
 | CLI chat | no | 没有空闲 TTL；退出、`exit/quit`、`/summarize` 或进程清理时保存/总结。 |
 | AutoDev / role workers | no | 以任务完成、失败、worker cleanup 作为生命周期边界。 |
 
-因此被动 memory finalization 不能只绑定 TTL。推荐触发矩阵：
+因此长期 memory finalization 不能只绑定 TTL。推荐触发矩阵：
 
 - IM/message channel：TTL cleanup 是主触发，显式结束/归档是补充触发。
 - CLI interactive：用户退出、`summarizeAndDestroy()`、进程退出 best-effort 是触发；当前交互式 CLI 已接入 restore 和 `session_close` finalization。
@@ -426,7 +405,7 @@ TTL 不是所有入口都有的全局机制。当前 60 分钟默认 TTL 来自 
 
 ### Restore Fidelity Contract
 
-TTL 后同 key 用户再次发消息时，恢复的是“可继续对话的 provider context”，不是 TTL 前内存对象的逐字节快照。
+TTL 后同 key 用户再次发消息时，恢复的是“可继续对话的 provider context”，不是 TTL 前内存对象的逐字节快照，也不是长期 memory 的默认注入。
 
 当前恢复路径：
 
@@ -452,6 +431,7 @@ SessionStore.loadContext(key)
 - transient context：skills list、subagent status、runner hint、soft check、`__injected` context。
 - in-memory runtime state：busy、interrupt flag、active skill turn scope、wakeup callback、lastActiveAt。
 - 保存后如果恢复时上下文过大，`init()` 可能立即再压缩一次。
+- `memory/sessions/*/MEMORY.md`：长期 memory 默认不加载，未来只能通过显式 recall 或工具按需注入。
 
 因此 contract 应该是：
 
@@ -555,8 +535,8 @@ interface StructuredSessionMemory {
 ## Acceptance Tests
 
 - save/restore 保留 compact memory prefixes 和 structured memory。
-- CLI 交互式退出会生成 `memory/sessions/*/memory.json`。
-- restore 会注入 `[session_archive_memory]` recall。
+- CLI 交互式退出会更新 `memory/sessions/*/MEMORY.md`。
+- restore 不默认注入长期 memory；`data/sessions` 是恢复上下文主路径。
 - PromptManager 会合并全局 `prompts/behavior.md` 和角色 `roles/<role>/prompts/behavior.md`。
 - fuzz transcript 不产生孤立 tool result 或未完成 assistant tool_calls。
 - 工具参数坏 JSON 返回模型可见的 tool error，不让 runner crash。

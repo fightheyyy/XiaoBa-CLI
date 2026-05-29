@@ -69,7 +69,7 @@ flowchart LR
 - session log 已是 benchmark 的主要输入方向，但结构化 artifact evidence、tool status 和 transcript verifier 仍不完整。
 - Role runtime 已支持多角色，但 role policy、tool policy、global active role 和 room role-scoped runtime 仍需进一步统一。
 - Dashboard Room 可运行多 role agents，但 durable room trace、Reviewer eval 和外部 A2A 仍未完成。
-- Memory 正在从“session archive 自动 recall”收敛为“`data/sessions` 恢复上下文 + `memory/sessions/*/MEMORY.md` 按需长期记忆”。
+- Memory 已从“session archive 自动 recall”收敛为“`data/sessions` 恢复上下文 + `memory/sessions/*/MEMORY.md` 按需长期记忆”。
 
 未开始或未闭环：
 
@@ -92,7 +92,7 @@ flowchart LR
 - Fix permission and auth boundaries before expanding network-exposed Dashboard/Pet control surfaces.
 - Promote `ToolResult` and outbound delivery evidence from string-derived logs to structured runtime facts.
 - Split provider transcript, working trace, and durable session persistence so replay and crash recovery share one evidence model.
-- Finish the memory refactor so `data/sessions` remains the only default restore path and `memory/sessions/*/MEMORY.md` stores concise on-demand long-term notes.
+- Add an explicit long-term memory recall command/tool if product UX needs memory lookup beyond automatic lifecycle extraction.
 - Implement contract / invariant cases for transcript completeness, redaction, artifact evidence, timeout, retry budget, and JSONL compatibility.
 - Add all-roles release gate that runs or blocks EngineerCat, ReviewerCat, InspectorCat, and ResearcherCat with explicit evidence.
 
@@ -123,7 +123,7 @@ flowchart LR
 - 2026-05-29：Reviewed existing module docs for dashboard, benchmarks, roles, EngineerCat, ReviewerCat, InspectorCat, and ResearcherCat before updating governance docs.
 - 2026-05-29：Unified explicit surface delivery for Feishu, Weixin, Pet, and Dashboard Room; `npm run build` and targeted runner/session/surface tests passed.
 - 2026-05-29：Tightened message-native delivery contract so channel surfaces treat `send_text` / `send_file` as the normal user-visible path and final direct replies as logged fallback only; the delivery instruction is injected once by `AgentSession` for channel surfaces instead of being copied into base/role prompts. Verification：`npm run build` passed; targeted runner/session/pet/feishu tests passed. Full `npm test` reached 193/194 passing and still fails at `tests/dashboard-skills-api.test.ts:135` (`restored` is undefined), which also fails in isolation.
-- 2026-05-30：Started memory architecture refactor target: session context restore stays in `data/sessions`; long-term per-session/person notes move to Markdown under `memory/sessions/*/MEMORY.md` and are not default-injected into provider prompts.
+- 2026-05-30：Refactored memory architecture: session context restore stays in `data/sessions`; long-term per-session/person notes move to Markdown under `memory/sessions/*/MEMORY.md` and are not default-injected into provider prompts. Verification：`npm run build` passed; targeted memory/session/agent-session/context-compressor tests passed. Full `npm test` reached 198/199 passing and still fails at `tests/dashboard-skills-api.test.ts:135` (`restored` is undefined), matching the pre-existing dashboard skills lifecycle gap.
 - 2026-05-30：Aligned top-level governance to one root spec plus five module specs; added missing Surfaces, Harness Runtime, and State/Evidence module SPEC/PLAN files and linked all five from root `SPEC.md`.
 
 ## Risks / Open Questions

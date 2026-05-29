@@ -75,11 +75,11 @@ export interface HandleMessageResult {
  *
  * 持有独立的 messages[]，封装：
  * - 系统提示词构建（幂等）
- * - 记忆搜索 & 注入
+ * - 上下文恢复和长期记忆落盘触发
  * - 完整消息处理管线（ConversationRunner）
  * - 内置命令 + skill 命令
  * - 并发保护（busy）
- * - 退出时摘要写入记忆
+ * - 退出时提取长期记忆候选
  */
 export class AgentSession {
   private messages: Message[] = [];
@@ -95,7 +95,6 @@ export class AgentSession {
   lastActiveAt: number = Date.now();
   private sessionTurnLogger: SessionTurnLogger;
   private compressor: ContextCompressor;
-  private pendingMemoryRecall?: Message;
 
   constructor(
     public readonly key: string,
@@ -164,13 +163,7 @@ export class AgentSession {
     // 加载上次会话摘要（本地文件兜底）
     // 已移除摘要机制
 
-    if (this.pendingMemoryRecall) {
-      this.messages.push(this.pendingMemoryRecall);
-      Logger.info(`[会话 ${this.key}] 已注入被动 memory recall`);
-      this.pendingMemoryRecall = undefined;
-    }
-
-      // 从 DB 恢复未归档的消息
+    // 从 DB 恢复未归档的消息
     if (this.pendingRestore) {
       this.messages.push(...this.pendingRestore);
       Logger.info(`[会话 ${this.key}] 已恢复 ${this.pendingRestore.length} 条消息`);
@@ -633,15 +626,15 @@ ${conversationText}
       // \u5f52\u6863\u6301\u4e45\u5316\u6587\u4ef6
         SessionStore.getInstance().saveContext(this.key, this.messages);
         try {
-          const archive = MemoryFinalizer.finalizeSession(this.key, this.messages, {
+          const memoryUpdate = MemoryFinalizer.finalizeSession(this.key, this.messages, {
             reason: 'manual_archive',
             sessionType: this.sessionType || this.extractSessionType(this.key),
           });
-          if (archive) {
-            Logger.info(`[会话 ${this.key}] 手动归档 memory: ${archive.facts.length} facts, ${archive.artifacts.length} artifacts`);
+          if (memoryUpdate) {
+            Logger.info(`[会话 ${this.key}] 长期 memory 已更新: +${memoryUpdate.added.length}, total=${memoryUpdate.totalRecords}`);
           }
         } catch (err: any) {
-          Logger.warning(`[会话 ${this.key}] 手动归档 memory 失败: ${err.message || String(err)}`);
+          Logger.warning(`[会话 ${this.key}] 长期 memory 更新失败: ${err.message || String(err)}`);
         }
 
         this.messages = [];
@@ -706,15 +699,15 @@ ${conversationText}`;
 
         if (options?.finalizeMemory) {
           try {
-            const archive = MemoryFinalizer.finalizeSession(this.key, this.messages, {
+            const memoryUpdate = MemoryFinalizer.finalizeSession(this.key, this.messages, {
               reason: options.finalizationReason ?? 'ttl_cleanup',
               sessionType: this.sessionType || this.extractSessionType(this.key),
             });
-            if (archive) {
-              Logger.info(`[会话 ${this.key}] 被动 memory 已归档: ${archive.facts.length} facts, ${archive.artifacts.length} artifacts`);
+            if (memoryUpdate) {
+              Logger.info(`[会话 ${this.key}] 长期 memory 已更新: +${memoryUpdate.added.length}, total=${memoryUpdate.totalRecords}`);
             }
           } catch (err: any) {
-            Logger.warning(`[会话 ${this.key}] 被动 memory 归档失败: ${err.message || String(err)}`);
+            Logger.warning(`[会话 ${this.key}] 长期 memory 更新失败: ${err.message || String(err)}`);
           }
         }
 
@@ -743,11 +736,9 @@ ${conversationText}`;
     return this.withLogContext(() => {
       const store = SessionStore.getInstance();
       const msgs = store.hasSession(this.key) ? store.loadContext(this.key) : [];
-      const memoryRecall = MemoryFinalizer.buildRecallMessage(this.key);
-      if (msgs.length === 0 && !memoryRecall) return false;
+      if (msgs.length === 0) return false;
       this.pendingRestore = msgs.length > 0 ? msgs : undefined;
-      this.pendingMemoryRecall = memoryRecall || undefined;
-      Logger.info(`[会话 ${this.key}] 标记恢复: transcript=${msgs.length}, memoryRecall=${memoryRecall ? 'yes' : 'no'}`);
+      Logger.info(`[会话 ${this.key}] 标记恢复: transcript=${msgs.length}, longTermMemory=on_demand`);
       return true;
     });
   }

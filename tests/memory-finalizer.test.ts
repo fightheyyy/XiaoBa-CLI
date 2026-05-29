@@ -1,7 +1,6 @@
 import { afterEach, describe, test } from 'node:test';
 import * as assert from 'node:assert';
 import * as fs from 'fs';
-import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { AgentSession } from '../src/core/agent-session';
 import { MemoryFinalizer } from '../src/utils/memory-finalizer';
@@ -31,38 +30,39 @@ describe('MemoryFinalizer', () => {
     }
   });
 
-  test('cleanup can finalize passive structured memory archive', async () => {
+  test('cleanup extracts conservative long-term memory into markdown', async () => {
     const key = `test-memory-finalizer-${randomUUID()}`;
     sessionKeys.push(key);
     const session = new AgentSession(key, {} as any, 'feishu');
     (session as any).messages = [
-      system('[session_memory]\n当前任务目标：优化 runtime harness。\n下一步：补 MemoryFinalizer 测试。\n不要重复的失败尝试：直接把 memory 写进 behavior.md。'),
-      system('[im_visible_transcript]\n已告诉用户会在 TTL cleanup 生成 memory/。产物路径：harness/contextCompressor.md'),
-      system('[last_turn_anchor]\nUser Input:\n继续实现 TTL memory\nSent Text:\n我会处理'),
-      user('继续实现 TTL memory'),
+      system('[session_memory]\n用户偏好回答简洁。当前任务：优化 runtime harness。下一步：补测试。'),
+      user('以后都用中文回复，回答尽量简洁。'),
+      user('我习惯默认使用 pnpm。'),
+      user('继续实现 TTL memory，刚才测试失败了。'),
       assistant('已更新 /Users/guowei/XiaoBa-CLI/src/core/agent-session.ts，并会运行 npm test。'),
     ];
 
     await session.cleanup({ finalizeMemory: true, finalizationReason: 'ttl_cleanup' });
 
-    const memoryPath = path.join(MemoryFinalizer.getSessionDir(key), 'memory.json');
-    const finalizationsPath = path.join(MemoryFinalizer.getSessionDir(key), 'finalizations.jsonl');
-    assert.ok(fs.existsSync(memoryPath), '应写入 memory.json');
-    assert.ok(fs.existsSync(finalizationsPath), '应写入 finalizations.jsonl');
+    const memoryPath = MemoryFinalizer.getMemoryPath(key);
+    assert.ok(fs.existsSync(memoryPath), '应写入 MEMORY.md');
+    const markdown = fs.readFileSync(memoryPath, 'utf-8');
 
-    const archive = JSON.parse(fs.readFileSync(memoryPath, 'utf-8'));
-    assert.equal(archive.version, 1);
-    assert.equal(archive.source, 'ttl_cleanup');
-    assert.equal(archive.sessionType, 'feishu');
-    assert.equal(archive.sessionKeyHash, MemoryFinalizer.hashSessionKey(key));
-    assert.ok(!JSON.stringify(archive).includes(key), 'memory archive 不应包含明文 session key');
-    assert.ok(archive.currentTask.goal.includes('继续实现 TTL memory'));
-    assert.ok(archive.facts.some((fact: any) => fact.kind === 'session_summary' && fact.text.includes('优化 runtime harness')));
-    assert.ok(archive.commitments.some((item: any) => item.text.includes('MemoryFinalizer 测试')));
-    assert.ok(archive.hazards.some((item: any) => item.text.includes('behavior.md')));
-    assert.ok(archive.visibleOutputs.some((item: any) => item.text.includes('TTL cleanup')));
-    assert.ok(archive.artifacts.some((artifact: any) => artifact.pathOrUrl.includes('agent-session.ts')));
+    assert.match(markdown, /loadPolicy: on_demand/);
+    assert.match(markdown, /# Long-Term Memory/);
+    assert.match(markdown, /用户希望以后都用中文回复，回答尽量简洁。/);
+    assert.match(markdown, /用户习惯默认使用 pnpm。/);
+    assert.match(markdown, /用户偏好回答简洁。/);
+    assert.ok(!markdown.includes(key), 'long-term memory 不应包含明文 session key');
+    assert.ok(!markdown.includes('刚才测试失败'), '临时任务状态不应进入长期 memory');
+    assert.ok(!markdown.includes('agent-session.ts'), '临时文件路径不应进入长期 memory');
     assert.deepEqual((session as any).messages, []);
+
+    const loaded = MemoryFinalizer.loadSessionMemory(key);
+    assert.ok(loaded);
+    assert.equal(loaded!.loadPolicy, 'on_demand');
+    assert.ok(loaded!.records.some(record => record.kind === 'instruction' && record.text.includes('中文回复')));
+    assert.ok(loaded!.records.some(record => record.kind === 'habit' && record.text.includes('pnpm')));
   });
 
   test('finalizer failure does not block restorable transcript save', async () => {
@@ -89,16 +89,19 @@ describe('MemoryFinalizer', () => {
     const loaded = SessionStore.getInstance().loadContext(key);
     assert.ok(loaded.some(message => message.role === 'user' && message.content === '保存 transcript'));
     assert.deepEqual((session as any).messages, []);
-    assert.ok(!fs.existsSync(path.join(MemoryFinalizer.getSessionDir(key), 'memory.json')));
+    assert.ok(!fs.existsSync(MemoryFinalizer.getMemoryPath(key)));
   });
 
-  test('restore injects passive memory recall even when transcript store is missing', async () => {
-    const key = `test-memory-recall-${randomUUID()}`;
+  test('restore uses data sessions and does not inject long-term memory by default', async () => {
+    const key = `test-memory-on-demand-${randomUUID()}`;
     sessionKeys.push(key);
-    MemoryFinalizer.finalizeSession(key, [
-      system('[session_memory]\n当前任务目标：恢复 memory recall。\n下一步：把归档渲染回上下文。'),
+    SessionStore.getInstance().saveContext(key, [
       user('恢复上次上下文'),
-      assistant('会从 memory/sessions 读取。'),
+      assistant('会从 data/sessions 读取。'),
+    ]);
+    MemoryFinalizer.finalizeSession(key, [
+      user('以后都用中文回复。'),
+      assistant('已记录。'),
     ], { reason: 'ttl_cleanup', sessionType: 'cli' });
 
     const session = new AgentSession(key, {} as any, 'cli');
@@ -106,15 +109,31 @@ describe('MemoryFinalizer', () => {
     await session.init();
 
     const messages = (session as any).messages as Message[];
-    const recall = messages.find(message =>
-      message.role === 'system' && String(message.content).startsWith('[session_archive_memory]')
-    );
-    assert.ok(recall);
-    assert.match(String(recall!.content), /恢复 memory recall/);
-    assert.match(String(recall!.content), /被动归档记忆/);
+    assert.ok(messages.some(message => message.role === 'user' && message.content === '恢复上次上下文'));
+    assert.ok(!messages.some(message =>
+      message.role === 'system' && String(message.content).includes('[session_archive_memory]')
+    ));
+    assert.ok(!messages.some(message =>
+      message.role === 'system' && String(message.content).includes('[long_term_memory]')
+    ));
+    assert.ok(!messages.some(message =>
+      message.role === 'system' && String(message.content).includes('以后都用中文回复')
+    ));
   });
 
-  test('summarizeAndDestroy finalizes CLI-style session memory', async () => {
+  test('memory-only sessions do not restore without data session context', async () => {
+    const key = `test-memory-only-${randomUUID()}`;
+    sessionKeys.push(key);
+    MemoryFinalizer.finalizeSession(key, [
+      user('以后默认叫我小八。'),
+      assistant('记住了。'),
+    ], { reason: 'ttl_cleanup', sessionType: 'cli' });
+
+    const session = new AgentSession(key, {} as any, 'cli');
+    assert.equal(session.restoreFromStore(), false);
+  });
+
+  test('summarizeAndDestroy updates CLI long-term markdown memory', async () => {
     const key = `test-cli-session-close-${randomUUID()}`;
     sessionKeys.push(key);
     const aiService = {
@@ -122,20 +141,20 @@ describe('MemoryFinalizer', () => {
     };
     const session = new AgentSession(key, { aiService } as any, 'cli');
     (session as any).messages = [
-      system('[session_memory]\n当前任务：CLI 退出时生成 memory。'),
-      user('退出前保存一下'),
-      assistant('已记录 roles/engineer-cat/SPEC.md。'),
+      system('[session_memory]\n用户偏好直接给结论。当前任务：CLI 退出时保存 context。'),
+      user('以后记住我喜欢先给结论。'),
+      assistant('好的。'),
     ];
 
     const ok = await session.summarizeAndDestroy();
 
     assert.equal(ok, true);
-    const archive = JSON.parse(fs.readFileSync(MemoryFinalizer.getMemoryPath(key), 'utf-8'));
-    assert.equal(archive.source, 'manual_archive');
-    assert.ok(archive.facts.some((fact: any) => fact.text.includes('CLI 退出时生成 memory')));
-    assert.ok(archive.artifacts.some((artifact: any) => artifact.pathOrUrl.includes('roles/engineer-cat/SPEC.md')));
+    const markdown = fs.readFileSync(MemoryFinalizer.getMemoryPath(key), 'utf-8');
+    assert.match(markdown, /先给结论。/);
+    assert.match(markdown, /用户偏好直接给结论。/);
+    assert.ok(!markdown.includes('CLI 退出时保存 context'));
     const loaded = SessionStore.getInstance().loadContext(key);
-    assert.ok(loaded.some(message => message.role === 'user' && message.content === '退出前保存一下'));
+    assert.ok(loaded.some(message => message.role === 'user' && message.content === '以后记住我喜欢先给结论。'));
     assert.deepEqual((session as any).messages, []);
   });
 });
