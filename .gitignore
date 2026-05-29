@@ -27,6 +27,9 @@ runtime-pr/
 .omc/
 .codex-pet-runs/
 
+# Local benchmark catalogs
+benchmarks/BioBench/
+
 # Generated or local skill content
 skills/_crafted/
 skills/_learned/
