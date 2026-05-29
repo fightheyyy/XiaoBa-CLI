@@ -1,12 +1,119 @@
-# XiaoBa Agent Evaluation System SPEC
+# Evaluation Gates SPEC
 
-本文定义 `benchmarks/` 目录下所有 agent evaluation 资产的通用工程规范。每个具体 benchmark 可以有自己的领域说明，但必须遵守这套通用模型。
+状态：Active
+最后更新：2026-05-30
+适用范围：XiaoBa 的评测回归层，包括 `benchmarks/`、`tests/`、replay、verifier、scorecard 和 release gate。
+
+本文定义 `benchmarks/` 目录下所有 agent evaluation 资产以及 `tests/` 回归入口的通用工程规范。每个具体 benchmark 可以有自己的领域说明，但必须遵守这套通用模型。
 
 工程推进计划见 [`PLAN.md`](PLAN.md)。`SPEC.md` 负责定义目标和 contract，`PLAN.md` 负责维护状态、优先级、owner 和验收条件。
 
 核心原则：
 
 > 按 session 接入 trace，按 episode 切任务，按 case 做评测，按 metadata 路由优化 runtime 或 skill。
+
+## Current Architecture
+
+当前 `benchmarks/` 已经定义通用评测模型，并保留 BioBench 作为第一个领域化落地对象；`tests/` 保存当前工程回归用例。实现状态仍偏 catalog、plan 和常规测试，replay、verifier、scorecard、CI gate 尚未形成完整闭环。
+
+```mermaid
+flowchart LR
+    subgraph Inputs["Inputs：当前来源"]
+        Logs["logs/sessions"]
+        Legacy["legacy traces"]
+        Requirements["requirements"]
+    end
+
+    subgraph Benchmarks["benchmarks"]
+        Generic["benchmarks/SPEC.md"]
+        Plan["benchmarks/PLAN.md"]
+        BioBench["benchmarks/BioBench"]
+    end
+
+    subgraph Tests["tests"]
+        Unit["unit / integration tests"]
+        E2E["e2e tests"]
+    end
+
+    subgraph CurrentAssets["Current assets：当前资产"]
+        Catalog["trace catalog"]
+        Episodes["episodes / cases metadata"]
+        DatasetCard["dataset card"]
+    end
+
+    subgraph Missing["Missing：未闭环"]
+        Replay["replay cases"]
+        Verifiers["verifiers"]
+        Scorecard["scorecard"]
+        CIGate["CI gate"]
+    end
+
+    Logs --> Generic
+    Legacy --> Generic
+    Requirements --> Generic
+    Generic --> Plan
+    Generic --> BioBench
+    Generic --> Unit
+    Unit --> E2E
+    BioBench --> Catalog
+    Catalog --> Episodes
+    Episodes --> DatasetCard
+    Episodes --> Replay
+    Replay --> Verifiers
+    Verifiers --> Scorecard
+    Scorecard --> CIGate
+```
+
+## Target Architecture
+
+目标是把 benchmark 从 trace catalog 推进为 release gate：contract cases 先作为硬门禁，trace-derived 和 requirement-driven cases 再进入 replay、verifier、scorecard 和 failure routing。
+
+```mermaid
+flowchart LR
+    subgraph Sources["Sources：case 来源"]
+        Trace["trace-derived"]
+        Requirement["requirement-driven"]
+        Contract["contract / invariant"]
+    end
+
+    subgraph Catalog["Catalog：benchmarks"]
+        Episodes["episodes"]
+        Cases["cases"]
+        Fixtures["fixtures"]
+    end
+
+    subgraph Replay["Replay：执行"]
+        AgentReplay["AgentSession replay"]
+        E2E["E2E replay"]
+    end
+
+    subgraph Evaluation["Evaluation：验收"]
+        Verifiers["verifiers"]
+        Scorecard["scorecard"]
+        Gate["release gate"]
+    end
+
+    subgraph Feedback["Feedback：回流"]
+        Runtime["src/core"]
+        Roles["roles"]
+        Skills["skills"]
+    end
+
+    Trace --> Episodes
+    Requirement --> Cases
+    Contract --> Cases
+    Episodes --> Cases
+    Cases --> Fixtures
+    Fixtures --> AgentReplay
+    Fixtures --> E2E
+    AgentReplay --> Verifiers
+    E2E --> Verifiers
+    Verifiers --> Scorecard
+    Scorecard --> Gate
+    Gate --> Runtime
+    Gate --> Roles
+    Gate --> Skills
+```
 
 ## 1. Evaluation System 目标
 

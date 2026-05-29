@@ -1,6 +1,10 @@
-# Benchmark Implementation Plan
+# Evaluation Gates PLAN
 
-本文维护 `benchmarks/` 评测体系的工程推进计划。`SPEC.md` 定义架构和 contract，本文定义优先级、owner、验收条件和当前状态。
+状态：Active
+最后更新：2026-05-30
+Owner：Evaluation maintainers
+
+本文维护 XiaoBa 评测回归层的工程推进计划。`SPEC.md` 定义 `benchmarks/`、`tests/`、replay、verifier、scorecard 和 release gate 的架构与 contract；本文定义优先级、owner、验收条件和当前状态。
 
 当前主线：
 
@@ -36,6 +40,7 @@ BioBench 是第一个落地对象。
 | Scorecard | Not started | 还没有 `scorecard.json` 聚合和 baseline diff |
 | CI gate | Not started | 还没有 `biobench:replay` / `biobench:report` |
 | Log feedback | Partial | JSONL 主线已统一；部分字段仍由 logger 推断 |
+| Spec / Plan governance | Done | `benchmarks/SPEC.md` 已补齐 Current Architecture 和 Target Architecture Mermaid |
 
 ## Milestones
 
