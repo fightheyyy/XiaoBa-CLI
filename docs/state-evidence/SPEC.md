@@ -23,10 +23,10 @@ In scope:
 
 Out of scope:
 
-- Agent loop 和 tool execution，属于 `harness/SPEC.md`。
-- 平台输入输出协议，属于 `surfaces/SPEC.md`。
-- Role/skill 策略，属于 `roles/SPEC.md`。
-- Case replay、verifier 和 scorecard，属于 `benchmarks/SPEC.md`。
+- Agent loop 和 tool execution，属于 `docs/harness/SPEC.md`。
+- 平台输入输出协议，属于 `docs/surfaces/SPEC.md`。
+- Role/skill 策略，属于 `docs/roles/SPEC.md`。
+- Case replay、verifier 和 scorecard，属于 `docs/benchmarks/SPEC.md`。
 
 ## Current Architecture
 
@@ -155,7 +155,7 @@ Structured evidence should additionally converge on:
 
 ## Interaction With Other Modules
 
-- Receives runtime facts from `harness/SPEC.md`.
-- Receives visible delivery semantics from `surfaces/SPEC.md`.
-- Stores role-specific work evidence described by `roles/SPEC.md` and role-local specs.
-- Feeds `benchmarks/SPEC.md` with trace, artifacts and replay evidence.
+- Receives runtime facts from `docs/harness/SPEC.md`.
+- Receives visible delivery semantics from `docs/surfaces/SPEC.md`.
+- Stores role-specific work evidence described by `docs/roles/SPEC.md` and role-local specs.
+- Feeds `docs/benchmarks/SPEC.md` with trace, artifacts and replay evidence.

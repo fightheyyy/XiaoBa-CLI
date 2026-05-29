@@ -23,10 +23,10 @@ In scope:
 
 Out of scope:
 
-- 平台入口协议和用户可见交付，属于 `surfaces/SPEC.md`。
-- Role/skill policy，属于 `roles/SPEC.md`。
-- 日志和 artifact 的持久化 schema，属于 `state-evidence/SPEC.md`。
-- Replay/verifier/scorecard，属于 `benchmarks/SPEC.md`。
+- 平台入口协议和用户可见交付，属于 `docs/surfaces/SPEC.md`。
+- Role/skill policy，属于 `docs/roles/SPEC.md`。
+- 日志和 artifact 的持久化 schema，属于 `docs/state-evidence/SPEC.md`。
+- Replay/verifier/scorecard，属于 `docs/benchmarks/SPEC.md`。
 
 ## Current Architecture
 
@@ -147,7 +147,7 @@ Runtime 需要稳定维护这些结构化事实：
 
 ## Interaction With Other Modules
 
-- 从 `surfaces/SPEC.md` 接收规范化 user turn 和 callbacks。
-- 从 `roles/SPEC.md` 接收 role prompt、role-scoped tools 和 skill policy。
-- 向 `state-evidence/SPEC.md` 输出 session logs、runtime events、artifact evidence 和 durable state。
-- 由 `benchmarks/SPEC.md` 的 contract/invariant cases 验证 transcript completeness、failure observability、privacy 和 JSONL compatibility。
+- 从 `docs/surfaces/SPEC.md` 接收规范化 user turn 和 callbacks。
+- 从 `docs/roles/SPEC.md` 接收 role prompt、role-scoped tools 和 skill policy。
+- 向 `docs/state-evidence/SPEC.md` 输出 session logs、runtime events、artifact evidence 和 durable state。
+- 由 `docs/benchmarks/SPEC.md` 的 contract/invariant cases 验证 transcript completeness、failure observability、privacy 和 JSONL compatibility。

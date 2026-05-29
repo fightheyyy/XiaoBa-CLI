@@ -29,10 +29,10 @@ In scope:
 
 Out of scope:
 
-- Provider 调用和 transcript 修复，属于 `harness/SPEC.md`。
-- Role/skill 策略，属于 `roles/SPEC.md`。
-- 日志、memory、artifact 的持久化 schema，属于 `state-evidence/SPEC.md`。
-- Replay、verifier 和 release gate，属于 `benchmarks/SPEC.md`。
+- Provider 调用和 transcript 修复，属于 `docs/harness/SPEC.md`。
+- Role/skill 策略，属于 `docs/roles/SPEC.md`。
+- 日志、memory、artifact 的持久化 schema，属于 `docs/state-evidence/SPEC.md`。
+- Replay、verifier 和 release gate，属于 `docs/benchmarks/SPEC.md`。
 
 ## Current Architecture
 
@@ -143,7 +143,7 @@ flowchart LR
 
 ## Interaction With Other Modules
 
-- 调用 `harness/SPEC.md` 定义的 `AgentSession` 和 runner，不直接调用 provider。
-- 使用 `roles/SPEC.md` 定义的 role/skill policy，不自行拼接角色运行时。
-- 将可观测输出写入 `state-evidence/SPEC.md` 定义的日志、visible history 或 artifact evidence。
-- 入口级 contract 测试最终进入 `benchmarks/SPEC.md` 的 release gate。
+- 调用 `docs/harness/SPEC.md` 定义的 `AgentSession` 和 runner，不直接调用 provider。
+- 使用 `docs/roles/SPEC.md` 定义的 role/skill policy，不自行拼接角色运行时。
+- 将可观测输出写入 `docs/state-evidence/SPEC.md` 定义的日志、visible history 或 artifact evidence。
+- 入口级 contract 测试最终进入 `docs/benchmarks/SPEC.md` 的 release gate。

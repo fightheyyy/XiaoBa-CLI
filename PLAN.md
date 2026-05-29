@@ -110,7 +110,7 @@ flowchart LR
 ## Acceptance Criteria
 
 - Root `SPEC.md` and `PLAN.md` exist and stay in sync.
-- The five top-level module specs exist and stay discoverable from root `SPEC.md`: `surfaces/SPEC.md`, `harness/SPEC.md`, `roles/SPEC.md`, `state-evidence/SPEC.md`, and `benchmarks/SPEC.md`.
+- The five top-level module specs exist and stay discoverable from root `SPEC.md`: `docs/surfaces/SPEC.md`, `docs/harness/SPEC.md`, `roles/SPEC.md`, `docs/state-evidence/SPEC.md`, and `benchmarks/SPEC.md`.
 - Every substantial long-lived module has `SPEC.md` and `PLAN.md`, or a documented reason why it is still a small utility.
 - Every substantial `SPEC.md` includes `Current Architecture` and `Target Architecture` Mermaid diagrams.
 - Any production architecture change updates the relevant current diagram and plan status in the same change.
@@ -126,6 +126,7 @@ flowchart LR
 - 2026-05-30：Refactored memory architecture: session context restore stays in `data/sessions`; long-term per-session/person notes move to Markdown under `memory/sessions/*/MEMORY.md` and are not default-injected into provider prompts. Verification：`npm run build` passed; targeted memory/session/agent-session/context-compressor tests passed. Full `npm test` reached 198/199 passing and still fails at `tests/dashboard-skills-api.test.ts:135` (`restored` is undefined), matching the pre-existing dashboard skills lifecycle gap.
 - 2026-05-30：Aligned top-level governance to one root spec plus five module specs; added missing Surfaces, Harness Runtime, and State/Evidence module SPEC/PLAN files and linked all five from root `SPEC.md`.
 - 2026-05-30：Cleaned `docs/` into a focused spec/plan index containing the project SPEC/PLAN plus the five top-level module SPEC/PLAN copies; removed stale reference/ops/growth/archive docs links from README.
+- 2026-05-30：Reduced duplicate documentation roots: root `SPEC.md` / `PLAN.md` remain canonical, `docs/SPEC.md` / `docs/PLAN.md` now point back to them, and conceptual module docs live under `docs/` instead of root-only folders.
 
 ## Risks / Open Questions
 

@@ -1,0 +1,4 @@
+# Shared Python tool dependencies.
+#
+# Keep this file present so the root requirements.txt can remain a stable
+# compatibility entrypoint for Python tooling.

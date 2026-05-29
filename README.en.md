@@ -25,7 +25,7 @@
 
 XiaoBa is not another terminal chat wrapper, and it is not just a bot that replies in a group.
 
-XiaoBa is an **IM-native AI colleague**: a long-lived role that can stay in your chats, understand group/private context, receive files and tasks, and call tools. Under the `engineer-cat` role, it can dispatch Codex / Claude Code or other external coding agents in the background and report progress back where the work started.
+XiaoBa is an **IM-native AI colleague**: a long-lived role that can stay in your chats, understand group/private context, receive files and tasks, and call tools. Under the `engineer-cat` role, it can dispatch the local Codex CLI in the background and report progress back where the work started.
 
 The product face is a colleague in chat. The technical base is a **local-first AI role runtime**: roles, skills, tools, subagents, logs, memory, and feedback loops shaped around your real environment.
 
@@ -35,7 +35,7 @@ IM message / CLI prompt
   -> Role runtime
   -> Skills + tools + subagents
   -> Computer / files / projects / shell / AutoDev
-  -> EngineerCat can dispatch Codex / Claude Code
+  -> EngineerCat can dispatch local Codex CLI
   -> Natural reply, file delivery, progress update, or case handoff
 ```
 
@@ -51,7 +51,11 @@ AI character products prove that roles can live in chat. XiaoBa's bet is that us
 
 A colleague can be an engineer, reviewer, inspector, researcher, teacher, student, creative partner, family-like companion, or something entirely personal. The visible identity can change; the runtime's understanding of your environment and habits keeps growing.
 
-The first slice is practical: **an IM-native work colleague** that can take tasks from chats and use tools. EngineerCat can dispatch Codex or Claude Code, then report back with progress, files, and evidence.
+The goal can be simple: build an agent with your own taste, then let it live across the social platforms where you already are.
+
+![Personal agents living across social platforms](assets/xiaoba-personal-agent-social.png)
+
+The first slice is practical: **an IM-native work colleague** that can take tasks from chats and use tools. EngineerCat can dispatch the local Codex CLI, then report back with progress, files, and evidence.
 
 ---
 
@@ -130,7 +134,7 @@ XiaoBa is built for that messy middle layer. It gives terminal-native agents a c
 | Usually one persona | Has colleague identities with different duties and tool boundaries |
 | Memory is often a note store | Harness behavior, logs, tools, roles, and delivery style all become user-shaped |
 
-XiaoBa does not try to replace Codex, Claude Code, or other coding agents. It keeps those tools inside EngineerCat's engineering boundary, then uses runtime evidence, ReviewerCat, and user feedback to judge, integrate, and accept the work.
+XiaoBa does not try to replace Codex or other coding agents. EngineerCat currently commits to the verified local Codex CLI background-task path, then uses runtime evidence, ReviewerCat, and user feedback to judge, integrate, and accept the work.
 
 ---
 
@@ -209,7 +213,7 @@ XiaoBa ships adapters for local CLI and multiple message surfaces.
 
 ## Architecture
 
-Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md), with execution status in [`docs/PLAN.md`](docs/PLAN.md).
+Canonical architecture source: [`SPEC.md`](SPEC.md), with execution status in [`PLAN.md`](PLAN.md). The consolidated docs index is under [`docs/`](docs/README.md).
 
 ```mermaid
 flowchart LR
@@ -226,6 +230,8 @@ flowchart LR
     Gates --> Harness
     Gates --> Policy
 ```
+
+![XiaoBa Agent Runtime Architecture](assets/xiaoba-agent-runtime.png)
 
 Top-level module specs: [`surfaces`](docs/surfaces/SPEC.md), [`harness`](docs/harness/SPEC.md), [`roles`](docs/roles/SPEC.md), [`state-evidence`](docs/state-evidence/SPEC.md), and [`benchmarks`](docs/benchmarks/SPEC.md).
 
@@ -370,8 +376,8 @@ npm run electron:build:linux
 ## Docs
 
 - [Docs Index](docs/README.md)
-- [Project SPEC](docs/SPEC.md)
-- [Project PLAN](docs/PLAN.md)
+- [Project SPEC](SPEC.md)
+- [Project PLAN](PLAN.md)
 - [Surfaces SPEC](docs/surfaces/SPEC.md)
 - [Harness Runtime SPEC](docs/harness/SPEC.md)
 - [Roles & Skills SPEC](docs/roles/SPEC.md)
