@@ -396,5 +396,5 @@ contract hard gate
 - `state-evidence/SPEC.md` 定义状态、日志、memory、artifact 和证据 contract。
 - `benchmarks/SPEC.md` 定义 Evaluation Gates、benchmark 资产和测试回归结构。
 - `dashboard/SPEC.md`、`roles/*/SPEC.md`、`benchmarks/*/SPEC.md` 是对应顶层模块下的 durable 子模块 spec。
-- `docs/reference/*` 是专题背景，不是总架构真相源。
+- `docs/` 是项目级和五大模块 spec/plan 的浏览入口；历史 reference、ops、growth、archive 文档已清理，不再作为架构真相源。
 - 如果实现改变了本文定义的组件边界、状态机、日志 schema 或 eval contract，必须同步更新本文。

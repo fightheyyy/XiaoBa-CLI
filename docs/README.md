@@ -1,32 +1,24 @@
 # XiaoBa-CLI Docs
 
-根目录 [`../SPEC.md`](../SPEC.md) 是 XiaoBa-CLI 唯一的整体架构 spec。`docs/` 下的文档只作为专题说明、运维记录或技术参考。
+`docs/` 现在只保留项目级和五大顶层模块的 spec / plan 浏览入口。根目录和模块目录下的 `SPEC.md` / `PLAN.md` 仍作为工程治理入口保留；本目录提供集中阅读版本。
 
-## 文档结构
+## Project
 
-```text
-docs/
-├── README.md                 # 文档索引和维护规则
-├── SPEC.md                   # 历史链接兼容入口，指向 ../SPEC.md
-├── ops/                      # 发布、自动更新、运维流程
-├── reference/                # 专题设计和历史技术参考
-└── proposal-assets/          # README / proposal 使用的图片资产
-```
+- [Project SPEC](SPEC.md)
+- [Project PLAN](PLAN.md)
 
-## 必读文档
+## Top-Level Modules
 
-- [Architecture Spec](../SPEC.md)
-- [CD / Release](./ops/CD_RELEASE.md)
-- [Auto Update](./ops/AUTO_UPDATE.md)
+| 模块 | SPEC | PLAN |
+| --- | --- | --- |
+| Surfaces：入口层 | [SPEC](surfaces/SPEC.md) | [PLAN](surfaces/PLAN.md) |
+| Harness Runtime：核心运行时 | [SPEC](harness/SPEC.md) | [PLAN](harness/PLAN.md) |
+| Roles & Skills：策略层 | [SPEC](roles/SPEC.md) | [PLAN](roles/PLAN.md) |
+| State & Evidence：状态证据层 | [SPEC](state-evidence/SPEC.md) | [PLAN](state-evidence/PLAN.md) |
+| Evaluation Gates：评测回归层 | [SPEC](benchmarks/SPEC.md) | [PLAN](benchmarks/PLAN.md) |
 
-## 专题参考
+## Maintenance
 
-- [Message Runtime](./reference/message-runtime.md)
-- [Replay Loop](./reference/replay-loop.md)
-- [Post-Training](./reference/post-training.md)
-
-## 维护规则
-
-- 整体架构变更只更新根目录 `SPEC.md`；专题文档不能替代总 spec。
-- 发布、自动更新和运维流程放在 `ops/`。
-- 仍有参考价值但不是当前架构真相源的设计文档放在 `reference/`。
+- 更新根目录或模块目录的 `SPEC.md` / `PLAN.md` 后，同步更新本目录副本。
+- 不再把历史 proposal、ops、growth、archive 或 reference 文档放在 `docs/` 下。
+- 更细的 durable 子模块文档继续保留在对应模块目录，例如 `dashboard/`、`roles/<role-name>/`、`benchmarks/BioBench/`。

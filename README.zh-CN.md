@@ -205,13 +205,11 @@ XiaoBa 提供本地 CLI 和多个消息入口 adapter。
 | Dashboard | `npm run dev -- dashboard` | 本地服务、状态和日志管理 |
 | Desktop Pet | `npm run dev -- pet` | 本地桌宠入口 |
 
-最小 IM runtime 专题设计见 [`docs/reference/message-runtime.md`](docs/reference/message-runtime.md)。
-
 ---
 
 ## 架构
 
-整体架构真相源见 [`SPEC.md`](SPEC.md)。
+整体架构真相源见 [`docs/SPEC.md`](docs/SPEC.md)，执行计划见 [`docs/PLAN.md`](docs/PLAN.md)。
 
 ```mermaid
 flowchart LR
@@ -229,9 +227,7 @@ flowchart LR
     Gates --> Policy
 ```
 
-五大模块 spec：[`surfaces`](surfaces/SPEC.md)、[`harness`](harness/SPEC.md)、[`roles`](roles/SPEC.md)、[`state-evidence`](state-evidence/SPEC.md)、[`benchmarks`](benchmarks/SPEC.md)。
-
-![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
+五大模块 spec：[`surfaces`](docs/surfaces/SPEC.md)、[`harness`](docs/harness/SPEC.md)、[`roles`](docs/roles/SPEC.md)、[`state-evidence`](docs/state-evidence/SPEC.md)、[`benchmarks`](docs/benchmarks/SPEC.md)。
 
 ```text
 src/index.ts
@@ -355,8 +351,6 @@ npm run electron:build:win
 npm run electron:build:linux
 ```
 
-发布流程见 [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md)。
-
 ---
 
 ## 项目状态
@@ -376,10 +370,13 @@ npm run electron:build:linux
 ## 文档
 
 - [Docs Index](docs/README.md)
-- [XiaoBa-CLI Architecture Spec](SPEC.md)
-- [CD / Release](docs/ops/CD_RELEASE.md)
-- [Auto Update](docs/ops/AUTO_UPDATE.md)
-- [Reference Docs](docs/README.md#专题参考)
+- [Project SPEC](docs/SPEC.md)
+- [Project PLAN](docs/PLAN.md)
+- [Surfaces SPEC](docs/surfaces/SPEC.md)
+- [Harness Runtime SPEC](docs/harness/SPEC.md)
+- [Roles & Skills SPEC](docs/roles/SPEC.md)
+- [State & Evidence SPEC](docs/state-evidence/SPEC.md)
+- [Evaluation Gates SPEC](docs/benchmarks/SPEC.md)
 - [Roles Guide](roles/README.md)
 - [EngineerCat Spec](roles/engineer-cat/SPEC.md)
 - [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)

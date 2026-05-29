@@ -205,13 +205,11 @@ XiaoBa ships adapters for local CLI and multiple message surfaces.
 | Dashboard | `npm run dev -- dashboard` | Local service/status/log management |
 | Desktop Pet | `npm run dev -- pet` | Local desktop companion entry |
 
-Minimal IM runtime topic design: [`docs/reference/message-runtime.md`](docs/reference/message-runtime.md).
-
 ---
 
 ## Architecture
 
-Canonical architecture source: [`SPEC.md`](SPEC.md).
+Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md), with execution status in [`docs/PLAN.md`](docs/PLAN.md).
 
 ```mermaid
 flowchart LR
@@ -229,9 +227,7 @@ flowchart LR
     Gates --> Policy
 ```
 
-Top-level module specs: [`surfaces`](surfaces/SPEC.md), [`harness`](harness/SPEC.md), [`roles`](roles/SPEC.md), [`state-evidence`](state-evidence/SPEC.md), and [`benchmarks`](benchmarks/SPEC.md).
-
-![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
+Top-level module specs: [`surfaces`](docs/surfaces/SPEC.md), [`harness`](docs/harness/SPEC.md), [`roles`](docs/roles/SPEC.md), [`state-evidence`](docs/state-evidence/SPEC.md), and [`benchmarks`](docs/benchmarks/SPEC.md).
 
 ```text
 src/index.ts
@@ -355,8 +351,6 @@ npm run electron:build:win
 npm run electron:build:linux
 ```
 
-Release workflow notes: [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md).
-
 ---
 
 ## Project Status
@@ -376,10 +370,13 @@ Release workflow notes: [`docs/ops/CD_RELEASE.md`](docs/ops/CD_RELEASE.md).
 ## Docs
 
 - [Docs Index](docs/README.md)
-- [XiaoBa-CLI Architecture Spec](SPEC.md)
-- [CD / Release](docs/ops/CD_RELEASE.md)
-- [Auto Update](docs/ops/AUTO_UPDATE.md)
-- [Reference Docs](docs/README.md#专题参考)
+- [Project SPEC](docs/SPEC.md)
+- [Project PLAN](docs/PLAN.md)
+- [Surfaces SPEC](docs/surfaces/SPEC.md)
+- [Harness Runtime SPEC](docs/harness/SPEC.md)
+- [Roles & Skills SPEC](docs/roles/SPEC.md)
+- [State & Evidence SPEC](docs/state-evidence/SPEC.md)
+- [Evaluation Gates SPEC](docs/benchmarks/SPEC.md)
 - [Roles Guide](roles/README.md)
 - [EngineerCat Spec](roles/engineer-cat/SPEC.md)
 - [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)
