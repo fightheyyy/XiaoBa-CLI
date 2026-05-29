@@ -14,7 +14,7 @@
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [English](README.md)
+  [English](README.en.md)
 
   [快速开始](#快速开始) · [为什么是-xiaoba](#为什么是-xiaoba) · [角色体系](#角色体系) · [IM 入口](#im-入口) · [架构](#架构) · [文档](#文档)
 </div>
@@ -211,6 +211,24 @@ XiaoBa 提供本地 CLI 和多个消息入口 adapter。
 ## 架构
 
 整体架构真相源见 [`SPEC.md`](SPEC.md)。
+
+```mermaid
+flowchart LR
+    Surfaces["入口层<br/>CLI / 飞书 / 微信 / 桌宠 / Dashboard"]
+    Harness["核心运行时<br/>AgentSession / Runner / Providers / Tools"]
+    Policy["角色与技能<br/>roles / skills / prompts / tool policy"]
+    Evidence["状态与证据<br/>data / logs / memory / output"]
+    Gates["评测回归层<br/>benchmarks / tests / replay / scorecard"]
+
+    Surfaces --> Harness
+    Policy --> Harness
+    Harness --> Evidence
+    Evidence --> Gates
+    Gates --> Harness
+    Gates --> Policy
+```
+
+五大模块 spec：[`surfaces`](surfaces/SPEC.md)、[`harness`](harness/SPEC.md)、[`roles`](roles/SPEC.md)、[`state-evidence`](state-evidence/SPEC.md)、[`benchmarks`](benchmarks/SPEC.md)。
 
 ![XiaoBa Architecture](docs/proposal-assets/xiaoba-cli-architecture-imagegen.png)
 
