@@ -30,6 +30,16 @@ runtime-pr/
 # Local benchmark catalogs
 benchmarks/BioBench/
 
+# Local launch/install wrappers and scratch docs
+/start.sh
+/start.bat
+/xiaoba.bat
+/install.sh
+/install.ps1
+/BUILD_MAC.md
+/TODO.md
+/CLAUDE.md
+
 # Generated or local skill content
 skills/_crafted/
 skills/_learned/
