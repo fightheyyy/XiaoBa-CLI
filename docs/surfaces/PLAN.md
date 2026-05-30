@@ -83,6 +83,7 @@ flowchart LR
 ## Verification Log
 
 - 2026-05-30：Added `surfaces/SPEC.md` and `surfaces/PLAN.md` to make Surfaces one of the five top-level module specs.
+- 2026-05-30：Weixin now passes explicit `surface: weixin`, preserves session context through per-turn durable save, and does not start legacy AutoDev log ingest during Weixin startup. Verification：targeted Weixin surface/session and log ingest scheduler tests passed.
 
 ## Risks / Open Questions
 

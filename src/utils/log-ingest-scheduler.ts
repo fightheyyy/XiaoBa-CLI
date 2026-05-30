@@ -47,8 +47,13 @@ export class LogIngestScheduler {
       .trim()
       .toLowerCase()
       .replace(/[\s_]+/g, '-');
+    const normalizedPlatform = String(process.env.CURRENT_PLATFORM || '')
+      .trim()
+      .toLowerCase();
     return LogIngestScheduler.isEnabled()
       && normalizedRole !== 'inspector-cat'
+      && normalizedPlatform !== '微信'
+      && normalizedPlatform !== 'weixin'
       && !!getLogIngestServerUrl();
   }
 

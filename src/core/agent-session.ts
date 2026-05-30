@@ -3,7 +3,7 @@ import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { SkillActivationSignal, SkillInvocationContext } from '../types/skill';
-import { ChannelCallbacks } from '../types/tool';
+import { ChannelCallbacks, ToolSurface } from '../types/tool';
 import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
@@ -24,6 +24,18 @@ const TRANSIENT_SOFT_CHECK_PREFIX = '[transient_soft_check]';
 const TRANSIENT_SKILLS_LIST_PREFIX = '[transient_skills_list]';
 export const BUSY_MESSAGE = '正在处理上一条消息，请稍候...';
 export const ERROR_MESSAGE = '不好意思，刚才处理出了点问题，你再试一次？';
+
+const CHANNEL_DELIVERY_INSTRUCTION = `【消息交付规则（强制）】当前是 channel-delivered 消息会话。正常路径只有 send_text 和 send_file 会产生用户可见输出；最终直接文本回复只是 runtime 防止用户无响应的兜底，不是交付方式。
+
+工作流程：
+1. 所有要让用户看到的文本都用 send_text；短答也用 send_text
+2. 长文本分多次 send_text，每段 50-150 字
+3. 超长内容、报告、代码块或详细说明先 write_file，再 send_file
+4. 需要工具时，先调用 read/write/grep 等工具，准备交付时再调用 send_text/send_file
+
+重要规则：
+- 不要依赖最终直接回复来和用户沟通
+- 如果已经调用 send_text 或 send_file，不要再输出最终确认文本`;
 
 // ─── 接口定义 ───────────────────────────────────────────
 
@@ -51,6 +63,8 @@ export interface HandleMessageOptions {
   callbacks?: SessionCallbacks;
   /** 平台通道回调，注入到 ToolExecutionContext 供工具使用 */
   channel?: ChannelCallbacks;
+  /** 显式入口 surface；平台层必须传入，避免从 session key 误判 */
+  surface?: ToolSurface;
   /** 记录到 session turn log 的原始用户输入；用于平台层给模型补充 transient prompt 时保留用户可见文本 */
   logInput?: string | import('../types').ContentBlock[];
 }
@@ -102,6 +116,7 @@ export class AgentSession {
     private sessionType?: string,
   ) {
     const type = sessionType || this.extractSessionType(key);
+    this.sessionType = type;
     this.sessionTurnLogger = new SessionTurnLogger(type, key);
     this.compressor = new ContextCompressor(services.aiService);
   }
@@ -129,34 +144,30 @@ export class AgentSession {
   // ─── 初始化 ─────────────────────────────────────────
 
   /** 构建系统提示词（幂等，仅首次生效） */
-  async init(): Promise<void> {
+  async init(surface?: ToolSurface): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+    const resolvedSurface = this.resolveSurface(surface);
     const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.services.roleName });
     if (systemPrompt.trim()) {
       this.messages.push({ role: 'system', content: systemPrompt });
     }
-    if (this.isFeishuSession()) {
+    if (resolvedSurface === 'feishu') {
       const isGroup = this.key.startsWith('group:');
       const chatType = isGroup ? '群聊' : '私聊';
-      const modeInstruction = `【消息模式】你的每次文本输出都会立即自动发送给用户。
-
-工作流程：
-1. 简单问答：直接输出文本回答
-2. 需要工具：调用工具（read/write/grep 等）后再回答
-
-重要规则：
-- 如果还需要调用工具，不要输出任何文本
-- 只在最终准备回答用户时才输出文本`;
-
       this.messages.push({
         role: 'system',
-        content: `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${modeInstruction}`,
+        content: `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
       });
-    } else if (this.isPetSession()) {
+    } else if (resolvedSurface === 'weixin') {
       this.messages.push({
         role: 'system',
-        content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收流式回复；pet 会表现你的等待、审查、运行、完成和失败状态。请保持回答适合本地 pet 气泡展示，必要时可以使用工具。`,
+        content: `[surface:weixin]\n当前是微信会话。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
+      });
+    } else if (resolvedSurface === 'pet') {
+      this.messages.push({
+        role: 'system',
+        content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收回复；pet 会表现你的等待、审查、运行、完成和失败状态。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
       });
     }
 
@@ -244,21 +255,24 @@ export class AgentSession {
       // 兼容旧签名：如果传入的对象有 onText/onToolStart 等字段，视为 SessionCallbacks
       let callbacks: SessionCallbacks | undefined;
       let channel: ChannelCallbacks | undefined;
+      let explicitSurface: ToolSurface | undefined;
 
       if (callbacksOrOptions) {
-        if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions || 'logInput' in callbacksOrOptions) {
+        if (this.isHandleMessageOptions(callbacksOrOptions)) {
           // 新签名 HandleMessageOptions
           const opts = callbacksOrOptions as HandleMessageOptions;
           callbacks = opts.callbacks;
           channel = opts.channel;
+          explicitSurface = opts.surface;
         } else {
           // 旧签名 SessionCallbacks
           callbacks = callbacksOrOptions as SessionCallbacks;
         }
       }
-      const logInput = callbacksOrOptions && ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions || 'logInput' in callbacksOrOptions)
+      const logInput = callbacksOrOptions && this.isHandleMessageOptions(callbacksOrOptions)
         ? (callbacksOrOptions as HandleMessageOptions).logInput
         : undefined;
+      const surface = this.resolveSurface(explicitSurface);
 
       if (this.busy) {
         return { text: BUSY_MESSAGE, visibleToUser: true };
@@ -284,7 +298,7 @@ export class AgentSession {
       }
 
       try {
-        await this.init();
+        await this.init(surface);
         const textContent = typeof text === 'string' ? text : '';
         this.tryAutoActivateSkill(textContent);
         this.messages.push({ role: 'user', content: text });
@@ -337,11 +351,6 @@ export class AgentSession {
         }
 
         const effectiveMaxTurns = this.activeSkillMaxTurns ?? this.detectSkillMaxTurns();
-        const surface = this.isFeishuSession()
-          ? 'feishu'
-          : this.isPetSession()
-            ? 'pet'
-            : 'cli';
         const runner = new ConversationRunner(
           this.services.aiService,
           this.services.toolManager,
@@ -473,6 +482,7 @@ export class AgentSession {
 
         return { text: errorReply, visibleToUser: true };
       } finally {
+        this.saveRestorableContext();
         this.busy = false;
       }
     });
@@ -743,6 +753,11 @@ ${conversationText}`;
     });
   }
 
+  private saveRestorableContext(): void {
+    if (this.messages.length === 0) return;
+    SessionStore.getInstance().saveContext(this.key, this.messages);
+  }
+
   // ─── 私有方法 ──────────────────────────────────────
 
   /** 从 messages 中检测已激活 skill 的 maxTurns（兜底机制） */
@@ -820,12 +835,30 @@ ${conversationText}`;
     return false;
   }
 
-  private isFeishuSession(): boolean {
-    return this.key.startsWith('user:') || this.key.startsWith('group:');
+  private isHandleMessageOptions(value: SessionCallbacks | HandleMessageOptions): value is HandleMessageOptions {
+    return (
+      'channel' in value
+      || 'callbacks' in value
+      || 'logInput' in value
+      || 'surface' in value
+    );
   }
 
-  private isPetSession(): boolean {
-    return this.key.startsWith('pet:');
+  private resolveSurface(explicitSurface?: ToolSurface): ToolSurface {
+    if (explicitSurface) return explicitSurface;
+
+    if (this.sessionType === 'feishu' || this.sessionType === 'weixin' || this.sessionType === 'pet') {
+      return this.sessionType;
+    }
+
+    if (this.sessionType === 'agent' || this.sessionType === 'research') {
+      return this.sessionType;
+    }
+
+    if (this.key.startsWith('pet:')) return 'pet';
+    if (this.key.startsWith('group:')) return 'feishu';
+    if (this.key.startsWith('user:')) return 'weixin';
+    return 'cli';
   }
 
   private removeTransientMessages(messages: Message[]): Message[] {

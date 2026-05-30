@@ -3,7 +3,6 @@ import * as path from 'path';
 import { Message } from '../types';
 import { Logger } from './logger';
 
-const SESSIONS_DIR = path.resolve(process.cwd(), 'data', 'sessions');
 const PERSISTENT_SYSTEM_PREFIXES = [
   '[compact_boundary]',
   '[session_memory]',
@@ -11,8 +10,13 @@ const PERSISTENT_SYSTEM_PREFIXES = [
   '[last_turn_anchor]',
 ];
 
+function sessionsDir(): string {
+  return path.resolve(process.cwd(), 'data', 'sessions');
+}
+
 function ensureDir(): void {
-  if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  const dir = sessionsDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 function keyToFilename(key: string): string {
@@ -20,7 +24,7 @@ function keyToFilename(key: string): string {
 }
 
 function filePath(key: string): string {
-  return path.join(SESSIONS_DIR, keyToFilename(key));
+  return path.join(sessionsDir(), keyToFilename(key));
 }
 
 function shouldPersistMessage(message: Message): boolean {

@@ -21,8 +21,9 @@ export async function weixinCommand(): Promise<void> {
   const shutdown = () => {
     Promise.resolve(stopCommandSupport())
       .catch(() => undefined)
+      .then(() => bot.destroy())
+      .catch(() => undefined)
       .finally(() => {
-        bot.destroy();
         process.exit(0);
       });
   };

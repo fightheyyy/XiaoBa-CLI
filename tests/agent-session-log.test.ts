@@ -21,6 +21,21 @@ class ScriptedAIService {
   }
 }
 
+class RecordingAIService {
+  requests: Message[][] = [];
+
+  constructor(private readonly response: ChatResponse) {}
+
+  async chatStream(messages: Message[], _tools: ToolDefinition[]): Promise<ChatResponse> {
+    this.requests.push(messages.map(message => ({ ...message })));
+    return this.response;
+  }
+
+  async chat(messages: Message[], tools: ToolDefinition[]): Promise<ChatResponse> {
+    return this.chatStream(messages, tools);
+  }
+}
+
 class FailingAIService {
   async chatStream(): Promise<ChatResponse> {
     throw new Error('provider exploded');
@@ -74,6 +89,59 @@ describe('AgentSession session log alignment', () => {
     assert.ok(turn);
     assert.strictEqual(turn.user.text, 'raw task');
     assert.strictEqual(turn.assistant.text, 'done');
+  });
+
+  test('weixin message sessions use weixin surface prompt instead of feishu prompt', async () => {
+    const aiService = new RecordingAIService({ content: '收到' });
+    const replies: Array<{ chatId: string; text: string }> = [];
+    const session = new AgentSession('user:wx-user', {
+      aiService: aiService as any,
+      toolManager: new ToolManager(),
+      skillManager: new EmptySkillManager() as any,
+    }, 'weixin');
+
+    const result = await session.handleMessage('你好', {
+      surface: 'weixin',
+      channel: {
+        chatId: 'wx-chat',
+        reply: async (chatId, text) => {
+          replies.push({ chatId, text });
+        },
+        sendFile: async () => undefined,
+      },
+    });
+
+    assert.strictEqual(result.text, '收到');
+    assert.strictEqual(result.visibleToUser, true);
+    assert.deepStrictEqual(replies, [{ chatId: 'wx-chat', text: '收到' }]);
+    const systemTexts = aiService.requests[0]
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content));
+    assert.ok(systemTexts.some(text => text.includes('[surface:weixin]')));
+    assert.ok(systemTexts.some(text => text.includes('消息交付规则（强制）')));
+    assert.ok(systemTexts.some(text => text.includes('正常路径只有 send_text 和 send_file')));
+    assert.ok(!systemTexts.some(text => text.includes('当前是飞书')));
+
+    const savedPath = path.join(testRoot, 'data', 'sessions', 'user_wx-user.jsonl');
+    assert.ok(fs.existsSync(savedPath), 'weixin turn should be saved for restart restore');
+    const savedMessages = fs.readFileSync(savedPath, 'utf-8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line) as Message);
+    assert.ok(savedMessages.some(message => message.role === 'user' && message.content === '你好'));
+    assert.ok(savedMessages.some(message => message.role === 'assistant' && message.content === '收到'));
+
+    const restored = new AgentSession('user:wx-user', {
+      aiService: new RecordingAIService({ content: '继续' }) as any,
+      toolManager: new ToolManager(),
+      skillManager: new EmptySkillManager() as any,
+    }, 'weixin');
+    assert.equal(restored.restoreFromStore(), true);
+    await restored.init('weixin');
+    const restoredMessages = (restored as any).messages as Message[];
+    assert.ok(restoredMessages.some(message => message.role === 'user' && message.content === '你好'));
+    assert.ok(restoredMessages.some(message => message.role === 'assistant' && message.content === '收到'));
   });
 
   test('failed provider calls still produce a turn entry for replay', async () => {

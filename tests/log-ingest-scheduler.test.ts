@@ -17,6 +17,7 @@ describe('LogIngestScheduler', () => {
     stableMinutes: process.env.LOG_INGEST_STABLE_MINUTES,
     maxFiles: process.env.LOG_INGEST_AUTO_MAX_FILES,
     xiaobaRole: process.env.XIAOBA_ROLE,
+    currentPlatform: process.env.CURRENT_PLATFORM,
   };
 
   beforeEach(() => {
@@ -40,6 +41,7 @@ describe('LogIngestScheduler', () => {
     restoreEnv('LOG_INGEST_STABLE_MINUTES', originalEnv.stableMinutes);
     restoreEnv('LOG_INGEST_AUTO_MAX_FILES', originalEnv.maxFiles);
     restoreEnv('XIAOBA_ROLE', originalEnv.xiaobaRole);
+    restoreEnv('CURRENT_PLATFORM', originalEnv.currentPlatform);
   });
 
   test('未显式开启时不自动启动补传，即使配置了 AutoDev server', () => {
@@ -52,6 +54,16 @@ describe('LogIngestScheduler', () => {
 
     process.env.LOG_INGEST_AUTO_ENABLED = 'true';
     assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), true);
+  });
+
+  test('微信入口不启动自动补传，即使遗留环境变量显式开启', () => {
+    process.env.AUTODEV_SERVER_URL = 'http://127.0.0.1:9';
+    process.env.LOG_INGEST_AUTO_ENABLED = 'true';
+    process.env.CURRENT_PLATFORM = '微信';
+    delete process.env.XIAOBA_ROLE;
+
+    assert.strictEqual(LogIngestScheduler.isEnabled(), true);
+    assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), false);
   });
 
   test('启动补传只 ingest 稳定且未上传过的 session 日志，并在文件变化后再次 ingest', async () => {

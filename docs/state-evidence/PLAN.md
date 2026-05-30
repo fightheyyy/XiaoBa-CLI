@@ -79,6 +79,7 @@ flowchart LR
 ## Verification Log
 
 - 2026-05-30：Added `state-evidence/SPEC.md` and `state-evidence/PLAN.md` to make State/Evidence one of the five top-level module specs.
+- 2026-05-30：Session runtime now saves restorable context to `data/sessions` after each handled turn, so IM surfaces can restore after process restart without waiting for TTL cleanup or graceful shutdown. Verification：targeted AgentSession/session-store/memory tests passed.
 
 ## Risks / Open Questions
 

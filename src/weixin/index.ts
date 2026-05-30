@@ -206,7 +206,7 @@ export class WeixinBot {
       userText = userText ? `${userText}\n${attachmentContext}` : `[用户仅上传了附件，暂未给出明确任务]\n${attachmentContext}`;
     }
 
-    await session.handleMessage(userText, { channel });
+    await session.handleMessage(userText, { channel, surface: 'weixin' });
   }
 
   private async handleSubAgentFeedback(sessionKey: string, chatId: string, text: string): Promise<void> {
@@ -226,6 +226,7 @@ export class WeixinBot {
 
       const result = await session.handleMessage(text, {
         channel: this.buildChannel(chatId, sessionKey),
+        surface: 'weixin',
       });
       if (result.text === BUSY_MESSAGE) {
         session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`));
@@ -237,8 +238,9 @@ export class WeixinBot {
     Logger.warning(`[${sessionKey}] 子智能体反馈注入失败：主会话持续忙碌`);
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     this.isRunning = false;
+    await this.sessionManager.destroy();
     Logger.info('[微信] 机器人已停止');
   }
 }
