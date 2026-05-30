@@ -291,8 +291,10 @@ AutoDev / inspection loop:
 ```env
 AUTODEV_SERVER_URL=http://127.0.0.1:8090
 AUTODEV_API_KEY=
-LOG_INGEST_AUTO_ENABLED=true
+LOG_INGEST_AUTO_ENABLED=false
 ```
+
+Set `LOG_INGEST_AUTO_ENABLED=true` to auto-upload local session logs to AutoDev; it is disabled by default.
 
 Full sample: [`.env.example`](.env.example).
 

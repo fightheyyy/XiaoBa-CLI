@@ -42,6 +42,18 @@ describe('LogIngestScheduler', () => {
     restoreEnv('XIAOBA_ROLE', originalEnv.xiaobaRole);
   });
 
+  test('未显式开启时不自动启动补传，即使配置了 AutoDev server', () => {
+    process.env.AUTODEV_SERVER_URL = 'http://127.0.0.1:9';
+    delete process.env.LOG_INGEST_AUTO_ENABLED;
+    delete process.env.XIAOBA_ROLE;
+
+    assert.strictEqual(LogIngestScheduler.isEnabled(), false);
+    assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), false);
+
+    process.env.LOG_INGEST_AUTO_ENABLED = 'true';
+    assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), true);
+  });
+
   test('启动补传只 ingest 稳定且未上传过的 session 日志，并在文件变化后再次 ingest', async () => {
     const sessionLogDir = path.join(testRoot, 'logs', 'sessions', 'feishu', '2026-04-14');
     fs.mkdirSync(sessionLogDir, { recursive: true });

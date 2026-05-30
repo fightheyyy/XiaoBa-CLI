@@ -11,7 +11,7 @@ export function getLogIngestServerUrl(): string {
 export function isLogIngestAutoEnabled(): boolean {
   const raw = process.env.LOG_INGEST_AUTO_ENABLED;
   if (raw == null || raw === '') {
-    return true;
+    return false;
   }
   return String(raw).trim().toLowerCase() === 'true';
 }
