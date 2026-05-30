@@ -111,4 +111,4 @@ flowchart LR
 - Any role prompt, skill, tool, or runtime boundary change must update that role's SPEC/PLAN.
 - Any shared skill activation, visibility, tool requirement or evidence expectation change must update this plan and `roles/SPEC.md`.
 - Do not mark a role capability complete without evidence in tests, logs, artifacts, or an explicit blocked reason.
-- Role specs define responsibilities; root `SPEC.md` still owns harness-wide invariants.
+- Role specs define responsibilities; [`docs/SPEC.md`](../docs/SPEC.md) still owns harness-wide invariants.

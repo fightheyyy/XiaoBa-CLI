@@ -183,4 +183,4 @@ Shared skills under `skills/**` and runtime support under `src/skills/**` should
 - `surfaces/SPEC.md` owns user entrypoints; Dashboard can create role-scoped Room agents.
 - `state-evidence/SPEC.md` owns logs, artifacts and durable evidence written by role/skill execution.
 - `benchmarks/SPEC.md` and `ReviewerCat` verify role/skill effectiveness and release gates.
-- Root `SPEC.md` owns project-level harness contracts; role specs cannot weaken those contracts.
+- [`docs/SPEC.md`](../docs/SPEC.md) owns project-level harness contracts; role specs cannot weaken those contracts.

@@ -182,7 +182,7 @@ XiaoBa does not try to replace Codex or other coding agents. EngineerCat current
 
 | Role | Colleague identity | Typical Work |
 | --- | --- | --- |
-| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | Engineering colleague | Read code, split tasks, call external coding agents, implement, verify, report |
+| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | Engineering colleague | Read code, split tasks, call the local Codex runner, implement, verify, report |
 | <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | Review and acceptance colleague | Ask for evidence, run checks, inspect artifacts, request rework |
 | <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime inspection colleague | Read logs, detect failures, create or route fix cases |
 | <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | Long-running research colleague | Read papers, track experiments, maintain evidence and deliverables |
@@ -213,7 +213,7 @@ XiaoBa ships adapters for local CLI and multiple message surfaces.
 
 ## Architecture
 
-Canonical architecture source: [`SPEC.md`](SPEC.md), with execution status in [`PLAN.md`](PLAN.md). The consolidated docs index is under [`docs/`](docs/README.md).
+Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md), with execution status in [`docs/PLAN.md`](docs/PLAN.md).
 
 ```mermaid
 flowchart LR
@@ -378,8 +378,8 @@ npm run electron:build:linux
 ## Docs
 
 - [Docs Index](docs/README.md)
-- [Project SPEC](SPEC.md)
-- [Project PLAN](PLAN.md)
+- [Project SPEC](docs/SPEC.md)
+- [Project PLAN](docs/PLAN.md)
 - [Surfaces SPEC](docs/surfaces/SPEC.md)
 - [Harness Runtime SPEC](docs/harness/SPEC.md)
 - [Roles & Skills SPEC](docs/roles/SPEC.md)

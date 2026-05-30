@@ -889,7 +889,7 @@ CI gate 示例：
 
 ## 11. 与具体 Benchmark 的关系
 
-根目录 `SPEC.md` 定义通用工程规范。
+项目级通用工程规范由 [`docs/SPEC.md`](../docs/SPEC.md) 定义。
 
 具体 benchmark 可以有自己的领域补充，例如：
 
