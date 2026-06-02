@@ -45,6 +45,18 @@ skills/_crafted/
 skills/_learned/
 skills/bio-skills/
 
+# Unreviewed role drafts
+roles/inspector-cat/SPEC.md
+roles/inspector-cat/PLAN.md
+roles/researcher-cat/SPEC.md
+roles/researcher-cat/PLAN.md
+roles/reviewer-cat/PLAN.md
+roles/secretary-cat/
+src/roles/secretary-cat/
+tests/secretary-cat-role.test.ts
+tests/secretary-feishu-tools.test.ts
+docs/roles/secretary-cat-prd.md
+
 # Python caches
 __pycache__/
 *.py[cod]

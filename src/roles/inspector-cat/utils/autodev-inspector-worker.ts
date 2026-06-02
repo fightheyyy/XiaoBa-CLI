@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../../../utils/logger';
+import { isAutoDevRuntimeEnabled } from '../../../utils/autodev-config';
 import { AutoDevClient, AutoDevLogDetail, AutoDevSessionLogSummary } from '../../../utils/autodev-client';
 import { AutoDevInspectorHandoff, readJsonFile } from '../../../utils/autodev-loop-contract';
 import { InspectorCaseRecord } from './inspector-case-store';
@@ -66,7 +67,7 @@ export class AutoDevInspectorWorker {
   }
 
   static isEnabled(): boolean {
-    return new AutoDevClient().isConfigured();
+    return isAutoDevRuntimeEnabled();
   }
 
   start(): void {

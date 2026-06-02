@@ -60,6 +60,7 @@ flowchart LR
 
     subgraph Runtime["src/roles：运行时扩展"]
         Registry["src/roles/runtime-role-registry.ts"]
+        AutoDevGate["legacy AutoDev gate<br/>AUTODEV_ENABLED=true"]
         EngineerRuntime["src/roles/engineer-cat"]
         InspectorRuntime["src/roles/inspector-cat"]
         ReviewerRuntime["src/roles/reviewer-cat"]
@@ -80,9 +81,13 @@ flowchart LR
     Registry --> Core
     Registry --> SkillRuntime
     Registry --> Tools
+    Registry --> AutoDevGate
     Engineer --> EngineerRuntime
     Inspector --> InspectorRuntime
     Reviewer --> ReviewerRuntime
+    AutoDevGate --> EngineerRuntime
+    AutoDevGate --> InspectorRuntime
+    AutoDevGate --> ReviewerRuntime
     EngineerRuntime --> Tools
     InspectorRuntime --> Tools
     ReviewerRuntime --> Tools
@@ -113,6 +118,7 @@ flowchart LR
         Registry["runtime role registry"]
         ToolPolicy["role-scoped tools"]
         SkillPolicy["role-scoped skills"]
+        LegacyAdapters["legacy adapters<br/>explicit opt-in"]
         Sessions["AgentSession"]
     end
 
@@ -132,6 +138,7 @@ flowchart LR
     RoleSkills --> SkillPolicy
     SharedSkills --> SkillPolicy
     Registry --> Sessions
+    Registry --> LegacyAdapters
     ToolPolicy --> Sessions
     SkillPolicy --> Sessions
     Sessions --> Logs
@@ -167,7 +174,9 @@ Runtime extensions under `src/roles/<role-name>/` should define:
 - tool names and argument schemas,
 - role-scoped runner or worker state,
 - evidence artifacts written under `data/**`,
-- integration points with shared tools, AgentSession, Dashboard, AutoDev, or benchmark gates.
+- integration points with shared tools, AgentSession, Dashboard, optional legacy AutoDev adapters, or benchmark gates.
+
+AutoDev is a legacy integration. Background AutoDev workers and automatic log ingest must remain disabled by default, even when an old `AUTODEV_SERVER_URL` value exists. Runtime startup may connect to AutoDev only when `AUTODEV_ENABLED=true` (or `XIAOBA_AUTODEV_ENABLED=true`) and a server URL are both present; manual tools can still report missing configuration or use an explicitly configured server when the user asks for them.
 
 Shared skills under `skills/**` and runtime support under `src/skills/**` should define:
 

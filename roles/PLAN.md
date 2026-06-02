@@ -8,7 +8,7 @@ Owner：Policy maintainers
 
 ## Current Status
 
-`roles/` 当前包含四个长期角色：`engineer-cat`、`inspector-cat`、`reviewer-cat`、`researcher-cat`。所有角色都有 `role.json`、README、prompt 和 role-local skills；`engineer-cat`、`inspector-cat`、`reviewer-cat` 有对应 `src/roles/**` runtime 扩展；`researcher-cat` 当前主要是 prompt + skills 驱动。`skills/` 和 `src/skills/` 作为同一顶层策略模块的一部分，提供共享 workflow skill、skill loader、parser、activation 和 executor。
+`roles/` 当前包含四个长期角色：`engineer-cat`、`inspector-cat`、`reviewer-cat`、`researcher-cat`。所有角色都有 `role.json`、README、prompt 和 role-local skills；`engineer-cat`、`inspector-cat`、`reviewer-cat` 有对应 `src/roles/**` runtime 扩展；`researcher-cat` 当前主要是 prompt + skills 驱动。`skills/` 和 `src/skills/` 作为同一顶层策略模块的一部分，提供共享 workflow skill、skill loader、parser、activation 和 executor。AutoDev 已降级为 legacy optional adapter，后台 worker 和自动日志补传默认关闭，必须通过 `AUTODEV_ENABLED=true` 显式启用。
 
 ```mermaid
 flowchart LR
@@ -72,6 +72,7 @@ flowchart LR
 - Add role effectiveness cases that cover InspectorCat, EngineerCat, ReviewerCat and ResearcherCat separately.
 - Define structured handoff evidence between InspectorCat -> EngineerCat -> ReviewerCat.
 - Decide whether ResearcherCat needs `src/roles/researcher-cat/**` runtime support for durable Research Board state.
+- Keep legacy AutoDev integrations behind explicit opt-in so stale server URL config cannot start unmaintained background workers.
 - Keep role docs aligned when prompt, skill, tool, or runtime behavior changes.
 
 ## Owners
@@ -99,6 +100,7 @@ flowchart LR
 - 2026-05-29：Added baseline SPEC/PLAN docs for InspectorCat and ResearcherCat.
 - 2026-05-29：Aligned EngineerCat and ReviewerCat specs with Current/Target architecture diagrams.
 - 2026-05-30：Expanded `roles/SPEC.md` / `roles/PLAN.md` to represent the top-level Roles & Skills policy module for the five-module spec structure.
+- 2026-06-02：Marked AutoDev as legacy optional runtime support and gated role background workers plus automatic log ingest behind explicit `AUTODEV_ENABLED=true`; stale `AUTODEV_SERVER_URL` alone no longer starts AutoDev services. Verification：`node --test -r tsx tests/autodev-default-disabled.test.ts tests/log-ingest-scheduler.test.ts` and `npm run build` passed.
 
 ## Risks / Open Questions
 

@@ -289,12 +289,13 @@ WEIXIN_TOKEN=your_token
 AutoDev / inspection loop:
 
 ```env
-AUTODEV_SERVER_URL=http://127.0.0.1:8090
+AUTODEV_ENABLED=false
+AUTODEV_SERVER_URL=
 AUTODEV_API_KEY=
 LOG_INGEST_AUTO_ENABLED=false
 ```
 
-Set `LOG_INGEST_AUTO_ENABLED=true` to auto-upload local session logs to AutoDev; it is disabled by default.
+AutoDev is a legacy integration and is disabled by default. Role background workers connect to AutoDev only when both `AUTODEV_ENABLED=true` and `AUTODEV_SERVER_URL` are set; automatic session log ingest also requires `LOG_INGEST_AUTO_ENABLED=true`.
 
 Full sample: [`.env.example`](.env.example).
 

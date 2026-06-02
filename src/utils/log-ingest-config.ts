@@ -1,4 +1,4 @@
-import { getAutoDevServerUrl } from './autodev-config';
+import { getAutoDevServerUrl, isAutoDevEnabled } from './autodev-config';
 
 const DEFAULT_AUTO_INGEST_TIME = '23:59';
 const DEFAULT_STABLE_MINUTES = 5;
@@ -9,6 +9,9 @@ export function getLogIngestServerUrl(): string {
 }
 
 export function isLogIngestAutoEnabled(): boolean {
+  if (!isAutoDevEnabled()) {
+    return false;
+  }
   const raw = process.env.LOG_INGEST_AUTO_ENABLED;
   if (raw == null || raw === '') {
     return false;

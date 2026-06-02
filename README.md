@@ -289,12 +289,13 @@ WEIXIN_TOKEN=your_token
 AutoDev / inspection loop：
 
 ```env
-AUTODEV_SERVER_URL=http://127.0.0.1:8090
+AUTODEV_ENABLED=false
+AUTODEV_SERVER_URL=
 AUTODEV_API_KEY=
 LOG_INGEST_AUTO_ENABLED=false
 ```
 
-`LOG_INGEST_AUTO_ENABLED=true` 时才会自动补传本地 session 日志到 AutoDev；默认关闭。
+AutoDev 是 legacy 集成，默认关闭。只有同时设置 `AUTODEV_ENABLED=true` 和 `AUTODEV_SERVER_URL` 时，角色后台 worker 才会连接 AutoDev；`LOG_INGEST_AUTO_ENABLED=true` 还需要 `AUTODEV_ENABLED=true` 才会自动补传本地 session 日志。
 
 完整示例见 [`.env.example`](.env.example)。
 

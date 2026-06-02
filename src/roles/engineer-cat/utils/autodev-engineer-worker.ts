@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { isAutoDevRuntimeEnabled } from '../../../utils/autodev-config';
 import { AutoDevCaseDetail, AutoDevCaseSummary, AutoDevClient, AutoDevArtifactRecord } from '../../../utils/autodev-client';
 import {
   AutoDevEngineerArtifactDescriptor,
@@ -78,7 +79,7 @@ export class AutoDevEngineerWorker {
   }
 
   static isEnabled(): boolean {
-    return new AutoDevClient().isConfigured();
+    return isAutoDevRuntimeEnabled();
   }
 
   start(): void {

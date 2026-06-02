@@ -10,6 +10,7 @@ describe('LogIngestScheduler', () => {
   let testRoot: string;
   let server: http.Server | null = null;
   const originalEnv = {
+    autodevEnabled: process.env.AUTODEV_ENABLED,
     autoDevServerUrl: process.env.AUTODEV_SERVER_URL,
     autoDevApiKey: process.env.AUTODEV_API_KEY,
     autoEnabled: process.env.LOG_INGEST_AUTO_ENABLED,
@@ -34,6 +35,7 @@ describe('LogIngestScheduler', () => {
       fs.rmSync(testRoot, { recursive: true, force: true });
     }
 
+    restoreEnv('AUTODEV_ENABLED', originalEnv.autodevEnabled);
     restoreEnv('AUTODEV_SERVER_URL', originalEnv.autoDevServerUrl);
     restoreEnv('AUTODEV_API_KEY', originalEnv.autoDevApiKey);
     restoreEnv('LOG_INGEST_AUTO_ENABLED', originalEnv.autoEnabled);
@@ -46,6 +48,7 @@ describe('LogIngestScheduler', () => {
 
   test('未显式开启时不自动启动补传，即使配置了 AutoDev server', () => {
     process.env.AUTODEV_SERVER_URL = 'http://127.0.0.1:9';
+    delete process.env.AUTODEV_ENABLED;
     delete process.env.LOG_INGEST_AUTO_ENABLED;
     delete process.env.XIAOBA_ROLE;
 
@@ -53,10 +56,16 @@ describe('LogIngestScheduler', () => {
     assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), false);
 
     process.env.LOG_INGEST_AUTO_ENABLED = 'true';
+    assert.strictEqual(LogIngestScheduler.isEnabled(), false);
+    assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), false);
+
+    process.env.AUTODEV_ENABLED = 'true';
+    assert.strictEqual(LogIngestScheduler.isEnabled(), true);
     assert.strictEqual(LogIngestScheduler.shouldStartForCurrentRuntime(), true);
   });
 
   test('微信入口不启动自动补传，即使遗留环境变量显式开启', () => {
+    process.env.AUTODEV_ENABLED = 'true';
     process.env.AUTODEV_SERVER_URL = 'http://127.0.0.1:9';
     process.env.LOG_INGEST_AUTO_ENABLED = 'true';
     process.env.CURRENT_PLATFORM = '微信';
@@ -117,6 +126,7 @@ describe('LogIngestScheduler', () => {
     const address = server.address();
     assert.ok(address && typeof address === 'object');
 
+    process.env.AUTODEV_ENABLED = 'true';
     process.env.AUTODEV_SERVER_URL = `http://127.0.0.1:${address.port}`;
     process.env.AUTODEV_API_KEY = 'demo-key';
     process.env.LOG_INGEST_AUTO_ENABLED = 'true';

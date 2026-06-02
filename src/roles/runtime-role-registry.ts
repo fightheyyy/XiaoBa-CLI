@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Tool } from '../types/tool';
 import { RoleResolver } from '../utils/role-resolver';
-import { isAutoDevConfigured } from '../utils/autodev-config';
+import { isAutoDevRuntimeEnabled } from '../utils/autodev-config';
 import { AutoDevEngineerWorker } from './engineer-cat/utils/autodev-engineer-worker';
 import {
   EngineerTaskCancelTool,
@@ -99,7 +99,7 @@ export async function startRoleRuntimeServices(
   options: InspectorHookRuntimeOptions = {},
 ): Promise<RoleRuntimeSupport | null> {
   if (isInspectorRole()) {
-    if (isAutoDevConfigured()) {
+    if (isAutoDevRuntimeEnabled()) {
       const worker = new AutoDevInspectorWorker({
         workingDirectory: options.workingDirectory,
         reviewExecutor: options.reviewExecutor,
@@ -120,7 +120,7 @@ export async function startRoleRuntimeServices(
   }
 
   if (isEngineerRole()) {
-    if (!isAutoDevConfigured()) {
+    if (!isAutoDevRuntimeEnabled()) {
       return null;
     }
 
@@ -136,7 +136,7 @@ export async function startRoleRuntimeServices(
   }
 
   if (isReviewerRole()) {
-    if (!isAutoDevConfigured()) {
+    if (!isAutoDevRuntimeEnabled()) {
       return null;
     }
 
