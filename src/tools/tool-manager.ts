@@ -9,7 +9,6 @@ import { GrepTool } from './grep-tool';
 import { SkillTool } from './skill-tool';
 import { SendFileTool } from './send-file-tool';
 import { SendTextTool } from './send-text-tool';
-import { IngestLogTool } from './ingest-log-tool';
 import { SpawnSubagentTool } from './spawn-subagent-tool';
 import { CheckSubagentTool } from './check-subagent-tool';
 import { StopSubagentTool } from './stop-subagent-tool';
@@ -76,7 +75,6 @@ export class ToolManager implements ToolExecutor {
     // 通信工具 (2)
     this.registerTool(new SendTextTool());
     this.registerTool(new SendFileTool());
-    this.registerTool(new IngestLogTool());
 
     // 元工具
     this.registerTool(new SpawnSubagentTool());
