@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { glob } from 'glob';
 import { isReadPathAllowed } from '../utils/safety';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 interface GlobResult {
   numFiles: number;
@@ -39,7 +40,7 @@ export class GlobTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { pattern, path: searchPath, limit = 100 } = args;
     const startTime = Date.now();
 
@@ -51,12 +52,16 @@ export class GlobTool implements Tool {
 
       const pathPermission = isReadPathAllowed(cwd, context.workingDirectory);
       if (!pathPermission.allowed) {
-        return JSON.stringify({ error: `执行被阻止: ${pathPermission.reason}` });
+        return toolBlocked(
+          JSON.stringify({ error: `执行被阻止: ${pathPermission.reason}` }),
+          'PATH_DENIED',
+          pathPermission.reason || 'Glob search path is outside the allowed workspace.',
+        );
       }
 
       // 检查目录是否存在
       if (!fs.existsSync(cwd)) {
-        return JSON.stringify({ error: `目录不存在: ${cwd}` });
+        return toolFailure(JSON.stringify({ error: `目录不存在: ${cwd}` }), 'DIRECTORY_NOT_FOUND');
       }
 
       // 执行 glob 搜索
@@ -69,7 +74,7 @@ export class GlobTool implements Tool {
       });
 
       if (files.length === 0) {
-        return `未找到匹配的文件。\n模式: ${pattern}\n目录: ${searchPath || '.'}`;
+        return toolSuccess(`未找到匹配的文件。\n模式: ${pattern}\n目录: ${searchPath || '.'}`);
       }
 
       // 使用Promise.allSettled容错处理stat（文件可能在glob后被删除）
@@ -96,9 +101,9 @@ export class GlobTool implements Tool {
         durationMs: Date.now() - startTime
       };
 
-      return this.formatResult(result, pattern, searchPath);
+      return toolSuccess(this.formatResult(result, pattern, searchPath));
     } catch (error: any) {
-      return JSON.stringify({ error: `Glob 搜索失败: ${error.message}` });
+      return toolFailure(JSON.stringify({ error: `Glob 搜索失败: ${error.message}` }), 'GLOB_SEARCH_FAILED');
     }
   }
 

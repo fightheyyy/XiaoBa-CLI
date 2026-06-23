@@ -11,11 +11,20 @@ export function createRoleAwareToolManager(
   const contextRoleName = typeof contextDefaults.roleName === 'string' && contextDefaults.roleName.trim()
     ? contextDefaults.roleName.trim()
     : undefined;
-  const effectiveRoleName = roleName || contextRoleName || RoleResolver.getActiveRoleName();
+  const requestedRoleName = roleName || contextRoleName || RoleResolver.getActiveRoleName();
+  const effectiveRoleName = requestedRoleName
+    ? RoleResolver.resolveRoleDirectoryName(requestedRoleName) || requestedRoleName
+    : undefined;
+  const roleConfig = effectiveRoleName ? RoleResolver.getRoleConfig(effectiveRoleName) : undefined;
 
   return new ToolManager(
     workingDirectory,
     { ...contextDefaults, ...(effectiveRoleName ? { roleName: effectiveRoleName } : {}) },
     getRoleSpecificToolsForRole(effectiveRoleName),
+    {
+      inheritBaseTools: roleConfig?.inheritBaseTools,
+      baseToolAllowlist: roleConfig?.baseToolAllowlist,
+      baseToolDenylist: roleConfig?.baseToolDenylist,
+    },
   );
 }

@@ -24,7 +24,7 @@ function addRoleOption(command: Command): Command {
   return command.option('-r, --role <name>', '使用指定角色（roles/<name>）');
 }
 
-function main() {
+async function main() {
   const program = new Command();
 
   // 显示品牌标识
@@ -99,6 +99,21 @@ function main() {
       await dashboardCommand(options);
     });
 
+  addRoleOption(program
+    .command('replay')
+    .description('从历史 trace 复跑同款用户输入')
+    .requiredOption('--trace <file>', '历史 logs/sessions/**/traces.jsonl')
+    .option('--out <dir>', '输出目录')
+    .option('--cwd <dir>', '工作目录，默认当前目录')
+    .option('--pet-id <id>', 'Pet id，默认从 trace session_id 推断')
+    .option('--session-key <key>', '新的 replay session key')
+    .option('--max-turns <n>', '只复跑前 n 个用户输入')
+    .option('--timeout-ms <n>', '单轮超时时间，默认 180000'))
+    .action(async (options) => {
+      const { replayCommand } = await import('./commands/replay');
+      await replayCommand(options);
+    });
+
   // Skill 管理命令
   registerSkillCommand(program);
 
@@ -109,7 +124,10 @@ function main() {
       chatCommand({ interactive: true, skill: opts.skill });
     });
 
-  program.parse();
+  await program.parseAsync();
 }
 
-main();
+main().catch((error: any) => {
+  Logger.error(error?.message || String(error));
+  process.exit(1);
+});

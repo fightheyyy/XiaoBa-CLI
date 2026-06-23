@@ -1,22 +1,26 @@
+import * as crypto from 'crypto';
 import { Message } from '../types';
 import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { SkillActivationSignal, SkillInvocationContext } from '../types/skill';
-import { ChannelCallbacks, ToolSurface } from '../types/tool';
+import { ChannelCallbacks, ToolResult, ToolSurface } from '../types/tool';
 import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
-import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
+import { ConversationRunner, RunnerCallbacks, RunToolResult } from './conversation-runner';
 import { SubAgentManager } from './sub-agent-manager';
 import { PromptManager } from '../utils/prompt-manager';
+import { RoleResolver } from '../utils/role-resolver';
 import { Logger } from '../utils/logger';
-import { SessionTurnLogger } from '../utils/session-turn-logger';
+import { SessionStateBoundaryLog, SessionTurnLogger } from '../utils/session-turn-logger';
 import { SessionStore } from '../utils/session-store';
 import { Metrics } from '../utils/metrics';
 import { ContextCompressor } from './context-compressor';
 import { MemoryFinalizer, MemoryFinalizationReason } from '../utils/memory-finalizer';
+import { visibleHistoryFilePath } from '../utils/visible-history-paths';
+import { getObservability, ObservabilitySpan, ObservabilitySpanContext } from '../observability';
 
 const TRANSIENT_SUBAGENT_STATUS_PREFIX = '[transient_subagent_status]';
 const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
@@ -25,16 +29,17 @@ const TRANSIENT_SKILLS_LIST_PREFIX = '[transient_skills_list]';
 export const BUSY_MESSAGE = '正在处理上一条消息，请稍候...';
 export const ERROR_MESSAGE = '不好意思，刚才处理出了点问题，你再试一次？';
 
-const CHANNEL_DELIVERY_INSTRUCTION = `【消息交付规则（强制）】当前是 channel-delivered 消息会话。正常路径只有 send_text 和 send_file 会产生用户可见输出；最终直接文本回复只是 runtime 防止用户无响应的兜底，不是交付方式。
+const CHANNEL_DELIVERY_INSTRUCTION = `【消息交付规则（强制）】当前是 channel-delivered 消息会话。只有 send_text 和 send_file 会产生用户可见输出；最终直接文本回复默认不会发送给用户。
 
 工作流程：
 1. 所有要让用户看到的文本都用 send_text；短答也用 send_text
 2. 长文本分多次 send_text，每段 50-150 字
-3. 超长内容、报告、代码块或详细说明先 write_file，再 send_file
-4. 需要工具时，先调用 read/write/grep 等工具，准备交付时再调用 send_text/send_file
+3. 超长内容、报告、代码块或详细说明：如果 write_file 可见，先写文件再 send_file；如果不可见，就分段 send_text
+4. 需要工具时，先调用当前可见的查询/读写工具，准备交付时再调用 send_text/send_file
 
 重要规则：
 - 不要依赖最终直接回复来和用户沟通
+- 如果需要用户看到一句话，也必须调用 send_text
 - 如果已经调用 send_text 或 send_file，不要再输出最终确认文本`;
 
 // ─── 接口定义 ───────────────────────────────────────────
@@ -67,6 +72,22 @@ export interface HandleMessageOptions {
   surface?: ToolSurface;
   /** 记录到 session turn log 的原始用户输入；用于平台层给模型补充 transient prompt 时保留用户可见文本 */
   logInput?: string | import('../types').ContentBlock[];
+  /** 已解析的父级观测上下文，用于跨 surface / 跨进程 trace 串联。 */
+  observabilityContext?: ObservabilitySpanContext;
+  /** W3C traceparent；runtime 只在内存中解析为 parent context，不写入本地 evidence。 */
+  traceparent?: string;
+  /** Channel surface final text fallback；默认 false，开启后才把 final text 合成为 send_text 交付。 */
+  deliveryFallbackFinalReply?: boolean;
+}
+
+/** 命令处理选项。skill slash 命令带参数时会继续进入 handleMessage，需要保留入口上下文。 */
+export interface HandleCommandOptions {
+  callbacks?: SessionCallbacks;
+  channel?: ChannelCallbacks;
+  surface?: ToolSurface;
+  observabilityContext?: ObservabilitySpanContext;
+  traceparent?: string;
+  deliveryFallbackFinalReply?: boolean;
 }
 
 /** 命令处理结果 */
@@ -80,6 +101,26 @@ export interface HandleMessageResult {
   visibleToUser: boolean;
   /** code mode 过程数据（thinking / tool_use / tool_result） */
   newMessages?: import('../types').Message[];
+}
+
+interface ProviderFailureBudgetEvidence {
+  status: 'failure' | 'blocked';
+  error_code: string;
+  retryable: boolean;
+  retry_count: number;
+  retry_budget: number;
+  retry_budget_exhausted: boolean;
+  blocked_reason?: string;
+  provider_failure_budget: {
+    scope: 'session';
+    fingerprint: string;
+    prior_failure_count: number;
+  };
+}
+
+interface ProviderTranscriptDegradationInput {
+  providerError: Record<string, unknown>;
+  failureBudget: ProviderFailureBudgetEvidence;
 }
 
 // ─── AgentSession 核心类 ────────────────────────────────
@@ -96,11 +137,13 @@ export interface HandleMessageResult {
  * - 退出时提取长期记忆候选
  */
 export class AgentSession {
+  private static readonly PROVIDER_RETRY_BUDGET = 1;
   private messages: Message[] = [];
   private initialized = false;
   private busy = false;
   private activeSkillName?: string;
   private activeSkillMaxTurns?: number;
+  private activeSkillToolsets?: string[];
   private pendingRestore?: Message[];
   /** 过期时主动唤醒用户的回调（由平台 SessionManager 注入） */
   private wakeupReply?: (text: string) => Promise<void>;
@@ -109,6 +152,7 @@ export class AgentSession {
   lastActiveAt: number = Date.now();
   private sessionTurnLogger: SessionTurnLogger;
   private compressor: ContextCompressor;
+  private providerFailureCounts = new Map<string, number>();
 
   constructor(
     public readonly key: string,
@@ -168,6 +212,11 @@ export class AgentSession {
       this.messages.push({
         role: 'system',
         content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收回复；pet 会表现你的等待、审查、运行、完成和失败状态。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
+      });
+    } else if (resolvedSurface === 'dashboard') {
+      this.messages.push({
+        role: 'system',
+        content: `[surface:dashboard]\n当前是 XiaoBa Dashboard Room 会话。用户通过本地 Dashboard 房间发送消息并通过 SSE 接收文本、文件和状态事件。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
       });
     }
 
@@ -256,6 +305,9 @@ export class AgentSession {
       let callbacks: SessionCallbacks | undefined;
       let channel: ChannelCallbacks | undefined;
       let explicitSurface: ToolSurface | undefined;
+      let explicitObservabilityContext: ObservabilitySpanContext | undefined;
+      let explicitTraceparent: string | undefined;
+      let deliveryFallbackFinalReply = false;
 
       if (callbacksOrOptions) {
         if (this.isHandleMessageOptions(callbacksOrOptions)) {
@@ -264,6 +316,9 @@ export class AgentSession {
           callbacks = opts.callbacks;
           channel = opts.channel;
           explicitSurface = opts.surface;
+          explicitObservabilityContext = opts.observabilityContext;
+          explicitTraceparent = opts.traceparent;
+          deliveryFallbackFinalReply = opts.deliveryFallbackFinalReply === true;
         } else {
           // 旧签名 SessionCallbacks
           callbacks = callbacksOrOptions as SessionCallbacks;
@@ -277,6 +332,40 @@ export class AgentSession {
       if (this.busy) {
         return { text: BUSY_MESSAGE, visibleToUser: true };
       }
+
+      const observability = getObservability();
+      const parentObservabilityContext = explicitObservabilityContext
+        || observability.parseTraceparent(explicitTraceparent);
+      const baseObservabilityAttrs = {
+        'xiaoba.session.id_hash': observability.sessionIdHash(this.key),
+        'xiaoba.session.type': this.sessionType || this.extractSessionType(this.key),
+        'xiaoba.surface': surface,
+        ...(parentObservabilityContext && { 'xiaoba.trace.parent_propagated': true }),
+        ...(this.services.roleName && { 'xiaoba.role.name': this.services.roleName }),
+        ...observability.userInputAttributes(logInput ?? text),
+      };
+      const sessionSpan: ObservabilitySpan = observability.startSpan(
+        'xiaoba.session',
+        baseObservabilityAttrs,
+        parentObservabilityContext,
+      );
+      const sessionStartMs = Date.now();
+      let sessionSpanEnded = false;
+      const finishSessionSpan = (status: 'ok' | 'error', attrs: Record<string, unknown> = {}, message?: string) => {
+        if (sessionSpanEnded) return;
+        sessionSpanEnded = true;
+        observability.endSpan(sessionSpan, {
+          status,
+          message,
+          attributes: attrs as any,
+        });
+      };
+      this.sessionTurnLogger.logRuntimeEvent('session_started', {
+        surface,
+        status: 'started',
+      });
+      observability.mirrorMetric('xiaoba.session.started', 1, baseObservabilityAttrs);
+      observability.recordLog('xiaoba.session.started', baseObservabilityAttrs, 'INFO', sessionSpan.context);
 
       // 按"单次消息"统计 metrics，避免跨轮次累积导致定位困难
       Metrics.reset();
@@ -348,6 +437,7 @@ export class AgentSession {
           const detectedSkill = this.services.skillManager.getSkill(detectedSkillName);
           this.activeSkillName = detectedSkillName;
           this.activeSkillMaxTurns = detectedSkill?.metadata.maxTurns;
+          this.activeSkillToolsets = detectedSkill?.metadata.toolsets;
         }
 
         const effectiveMaxTurns = this.activeSkillMaxTurns ?? this.detectSkillMaxTurns();
@@ -357,6 +447,7 @@ export class AgentSession {
           {
             ...(effectiveMaxTurns ? { maxTurns: effectiveMaxTurns } : {}),
             initialSkillName: this.activeSkillName,
+            initialSkillToolsets: this.activeSkillToolsets,
             shouldContinue: () => !this.interruptRequested,
             toolExecutionContext: {
               sessionId: this.key,
@@ -365,6 +456,9 @@ export class AgentSession {
               channel,
               ...(this.services.roleName ? { roleName: this.services.roleName } : {}),
             },
+            observabilityContext: sessionSpan.context,
+            observabilityMetricMode: 'mirror_only',
+            deliveryFallbackFinalReply,
           },
         );
         const runnerCallbacks: RunnerCallbacks = {
@@ -376,6 +470,7 @@ export class AgentSession {
         };
 
         const result = await runner.run(contextMessages, runnerCallbacks);
+        this.providerFailureCounts.clear();
         const persistedMessages = this.removeTransientMessages(result.messages);
         this.messages = [...persistedMessages];
 
@@ -410,9 +505,14 @@ export class AgentSession {
           }
         }
 
-        // 清除 skill 激活状态（turn-scoped，避免状态泄漏到下一轮）
-        this.activeSkillName = undefined;
-        this.activeSkillMaxTurns = undefined;
+        // 默认 skill activation is run-scoped. Roles that opt into skill_scoped
+        // tool visibility keep only the active domain state so confirmation turns
+        // can still see the relevant confirmed tools.
+        if (!this.shouldPersistActiveSkillForToolVisibility()) {
+          this.activeSkillName = undefined;
+          this.activeSkillMaxTurns = undefined;
+          this.activeSkillToolsets = undefined;
+        }
 
         // 移除 skill 系统消息（下一轮需要时会重新注入）
         this.messages = this.messages.filter(m => {
@@ -422,41 +522,63 @@ export class AgentSession {
           return true;
         });
 
-        // 记录本轮对话到 session log
-        const toolCalls = result.newMessages
-          .filter(m => m.role === 'assistant' && m.tool_calls)
-          .flatMap(m => m.tool_calls || [])
-          .map(tc => {
-            const resultMsg = result.newMessages.find(m => m.role === 'tool' && m.tool_call_id === tc.id);
-            const resultContent = resultMsg?.content || '';
-            const resultStr = typeof resultContent === 'string'
-              ? resultContent
-              : resultContent.map(b => b.type === 'text' ? (b as any).text : '[非文本内容]').join('');
+        const visibleToUser = result.finalResponseVisible || this.hasDeliveredOutput(result.toolResults);
+        const completionAttrs = {
+          ...baseObservabilityAttrs,
+          'xiaoba.session.status': 'success',
+          'xiaoba.session.duration_ms': Date.now() - sessionStartMs,
+          'xiaoba.session.visible_to_user': visibleToUser,
+          'xiaoba.session.final_response_visible': result.finalResponseVisible,
+          'xiaoba.tokens.prompt': metrics.totalPromptTokens,
+          'xiaoba.tokens.completion': metrics.totalCompletionTokens,
+          'xiaoba.tokens.total': metrics.totalTokens,
+          'xiaoba.model.call_count': metrics.aiCalls,
+          'xiaoba.tool.call_count': metrics.toolCalls,
+          'xiaoba.tool.duration_ms': metrics.toolDurationMs,
+        };
+        this.sessionTurnLogger.logRuntimeEvent('session_completed', {
+          surface,
+          status: 'success',
+          duration_ms: completionAttrs['xiaoba.session.duration_ms'],
+          model_call_count: metrics.aiCalls,
+          tool_call_count: metrics.toolCalls,
+          tool_duration_ms: metrics.toolDurationMs,
+          visible_to_user: visibleToUser,
+          final_response_visible: result.finalResponseVisible,
+        });
 
-            return {
-              id: tc.id,
-              name: tc.function.name,
-              arguments: tc.function.arguments,
-              result: resultStr,
-            };
-          });
+        // 记录本次用户请求 trace；pending lifecycle events are embedded into it.
+        const toolCalls = result.toolResults.map(record => this.toSessionToolCallLog(record));
 
         this.sessionTurnLogger.logTurn(
           logInput ?? text,
           result.response || '',
           toolCalls,
-          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
+          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens },
+          result.toolVisibility,
+          this.buildStateBoundary(surface),
         );
+
+        observability.mirrorMetric('xiaoba.session.completed', 1, completionAttrs);
+        observability.mirrorMetric('xiaoba.session.result', 1, completionAttrs);
+        observability.mirrorMetric('xiaoba.session.duration_ms', completionAttrs['xiaoba.session.duration_ms'], completionAttrs, 'ms');
+        observability.recordLog('xiaoba.session.completed', completionAttrs, 'INFO', sessionSpan.context);
+        finishSessionSpan('ok', completionAttrs);
 
         return {
           text: result.finalResponseVisible ? (result.response || '[无回复]') : '',
-          visibleToUser: result.finalResponseVisible,
+          visibleToUser,
           newMessages: result.newMessages,
         };
       } catch (err: any) {
         // 不删除用户消息，而是添加一个错误回复，保持上下文连贯
         // 这样用户说"继续"时可以接上
-        Logger.error(`[会话 ${this.key}] 处理失败: ${err.message}`);
+        const providerErrorEvidence = this.toProviderErrorEvidence(err);
+        const providerFailureBudget = this.recordProviderFailureBudget(providerErrorEvidence);
+        const providerErrorCode = String(providerErrorEvidence.error_code || 'PROVIDER_ERROR');
+        const providerStatus = providerErrorEvidence.status ? ` status=${providerErrorEvidence.status}` : '';
+        const providerBudgetStatus = providerFailureBudget.retry_budget_exhausted ? ' retry_budget_exhausted=true' : '';
+        Logger.error(`[会话 ${this.key}] 处理失败: ${providerErrorCode}${providerStatus}${providerBudgetStatus}`);
 
         // 识别多模态相关错误
         const errorMsg = err.message || String(err);
@@ -465,27 +587,295 @@ export class AgentSession {
         let errorReply = ERROR_MESSAGE;
         if (isVisionError) {
           errorReply = '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。';
+        } else if (providerFailureBudget.status === 'blocked') {
+          errorReply = this.providerBlockedReply(providerErrorEvidence, providerFailureBudget);
         }
 
         // 添加错误回复到上下文，保持对话连贯性
         this.messages.push({
           role: 'assistant',
-          content: `[处理失败: ${err.message}]`
+          content: `[处理失败: ${providerErrorCode}${providerStatus}${providerBudgetStatus}]`
         });
         const metrics = Metrics.getSummary();
+        const providerAttrs = {
+          ...baseObservabilityAttrs,
+          'xiaoba.session.status': providerFailureBudget.status,
+          'xiaoba.session.duration_ms': Date.now() - sessionStartMs,
+          'xiaoba.error_code': providerErrorCode,
+          'xiaoba.provider.retryable': providerFailureBudget.retryable,
+          'xiaoba.provider.retry_count': providerFailureBudget.retry_count,
+          'xiaoba.provider.retry_budget': providerFailureBudget.retry_budget,
+          'xiaoba.provider.retry_budget_exhausted': providerFailureBudget.retry_budget_exhausted,
+          'xiaoba.tokens.prompt': metrics.totalPromptTokens,
+          'xiaoba.tokens.completion': metrics.totalCompletionTokens,
+          'xiaoba.tokens.total': metrics.totalTokens,
+          'xiaoba.model.call_count': metrics.aiCalls,
+          'xiaoba.tool.call_count': metrics.toolCalls,
+          'xiaoba.tool.duration_ms': metrics.toolDurationMs,
+          ...(String(providerErrorEvidence.provider || '') && { 'xiaoba.provider.name': String(providerErrorEvidence.provider) }),
+          ...(String(providerErrorEvidence.model || '') && { 'xiaoba.provider.model': String(providerErrorEvidence.model) }),
+          ...(providerFailureBudget.blocked_reason && { 'xiaoba.blocked_reason': providerFailureBudget.blocked_reason }),
+        };
+        observability.mirrorMetric('xiaoba.provider.error', 1, providerAttrs);
+        observability.mirrorMetric('xiaoba.session.result', 1, providerAttrs);
+        observability.mirrorMetric('xiaoba.session.duration_ms', providerAttrs['xiaoba.session.duration_ms'], providerAttrs, 'ms');
+        observability.recordLog('xiaoba.provider.error', providerAttrs, 'ERROR', sessionSpan.context);
+        this.sessionTurnLogger.logRuntimeEvent('provider_error', {
+          surface,
+          status: providerFailureBudget.status,
+          duration_ms: providerAttrs['xiaoba.session.duration_ms'],
+          error_code: providerFailureBudget.error_code,
+          retryable: providerFailureBudget.retryable,
+          retry_count: providerFailureBudget.retry_count,
+          retry_budget: providerFailureBudget.retry_budget,
+          retry_budget_exhausted: providerFailureBudget.retry_budget_exhausted,
+          ...(providerFailureBudget.blocked_reason && { blocked_reason: providerFailureBudget.blocked_reason }),
+          provider_failure_budget: providerFailureBudget.provider_failure_budget,
+          provider_error: providerErrorEvidence,
+          tokens: { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens },
+        });
         this.sessionTurnLogger.logTurn(
           logInput ?? text,
           errorReply,
           [],
-          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
+          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens },
+          undefined,
+          this.buildStateBoundary(surface, {
+            providerError: providerErrorEvidence,
+            failureBudget: providerFailureBudget,
+          }),
         );
+
+        finishSessionSpan('error', {
+          ...providerAttrs,
+        }, providerErrorCode);
 
         return { text: errorReply, visibleToUser: true };
       } finally {
+        finishSessionSpan('error', {
+          ...baseObservabilityAttrs,
+          'xiaoba.error_code': 'SESSION_ABORTED',
+        }, 'Session ended before completion evidence was recorded.');
         this.saveRestorableContext();
         this.busy = false;
       }
     });
+  }
+
+  private toSessionToolCallLog(record: RunToolResult) {
+    const toolResult = record.result;
+    const errorCode = toolResult.error_code || toolResult.errorCode;
+    return {
+      id: record.toolCall.id,
+      tool_call_id: toolResult.tool_call_id || record.toolCall.id,
+      name: toolResult.name || record.toolName || record.toolCall.function.name,
+      arguments: this.parseToolArgumentsForLog(record.toolCall.function.arguments),
+      result: this.toolResultContentToString(toolResult),
+      ...(toolResult.duration_ms !== undefined && { duration_ms: toolResult.duration_ms }),
+      ...(toolResult.status && { status: toolResult.status }),
+      ...(errorCode && { error_code: errorCode }),
+      ...(toolResult.retryable !== undefined && { retryable: toolResult.retryable }),
+      ...(toolResult.retry_count !== undefined && { retry_count: toolResult.retry_count }),
+      ...(toolResult.retry_budget !== undefined && { retry_budget: toolResult.retry_budget }),
+      ...(toolResult.retry_budget_exhausted !== undefined && { retry_budget_exhausted: toolResult.retry_budget_exhausted }),
+      ...(toolResult.blocked_reason && { blocked_reason: toolResult.blocked_reason }),
+      ...(toolResult.artifact_manifest?.length && { artifact_manifest: toolResult.artifact_manifest }),
+      ...(toolResult.delivery_evidence?.length && { delivery_evidence: toolResult.delivery_evidence }),
+      ...(toolResult.external_delivery_receipts?.length && { external_delivery_receipts: toolResult.external_delivery_receipts }),
+    };
+  }
+
+  private hasDeliveredOutput(records: RunToolResult[]): boolean {
+    return records.some(record => {
+      return record.result.delivery_evidence?.some(delivery => delivery.status === 'delivered') === true;
+    });
+  }
+
+  private toProviderErrorEvidence(error: any): Record<string, unknown> {
+    const message = this.errorMessage(error);
+    const status = this.extractProviderStatus(error, message);
+    const providerError: Record<string, unknown> = {
+      provider: this.firstString(
+        error?.provider,
+        error?.provider_kind,
+        error?.providerKind,
+        error?.providerName,
+      ) || 'unknown',
+      error_code: this.classifyProviderErrorCode(error, status, message),
+      retryable: this.isRetryableProviderError(error, status, message),
+      message,
+    };
+
+    const model = this.firstString(error?.model, error?.model_name, error?.modelName);
+    if (model) {
+      providerError.model = model;
+    }
+
+    const endpoint = this.firstString(error?.endpoint, error?.endpoint_label, error?.endpointLabel);
+    if (endpoint) {
+      providerError.endpoint = endpoint;
+    }
+
+    if (status !== undefined) {
+      providerError.status = status;
+    }
+
+    return providerError;
+  }
+
+  private recordProviderFailureBudget(providerError: Record<string, unknown>): ProviderFailureBudgetEvidence {
+    const errorCode = String(providerError.error_code || 'PROVIDER_ERROR');
+    const retryable = providerError.retryable === true;
+    const retryBudget = retryable ? AgentSession.PROVIDER_RETRY_BUDGET : 0;
+    const fingerprint = this.providerFailureFingerprint(providerError);
+    const priorFailureCount = this.providerFailureCounts.get(fingerprint) ?? 0;
+    const retryBudgetExhausted = priorFailureCount >= retryBudget;
+    this.providerFailureCounts.set(fingerprint, priorFailureCount + 1);
+
+    const blockedReason = retryBudgetExhausted
+      ? this.providerBlockedReason(errorCode, retryable, priorFailureCount)
+      : undefined;
+
+    return {
+      status: retryBudgetExhausted ? 'blocked' : 'failure',
+      error_code: errorCode,
+      retryable,
+      retry_count: priorFailureCount,
+      retry_budget: retryBudget,
+      retry_budget_exhausted: retryBudgetExhausted,
+      ...(blockedReason && { blocked_reason: blockedReason }),
+      provider_failure_budget: {
+        scope: 'session',
+        fingerprint,
+        prior_failure_count: priorFailureCount,
+      },
+    };
+  }
+
+  private providerFailureFingerprint(providerError: Record<string, unknown>): string {
+    const parts = [
+      providerError.provider,
+      providerError.model,
+      providerError.endpoint,
+      providerError.status,
+      providerError.error_code,
+    ].map(value => String(value ?? '').trim().toLowerCase());
+    const digest = crypto.createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
+    return `sha256:${digest}`;
+  }
+
+  private providerBlockedReason(errorCode: string, retryable: boolean, priorFailureCount: number): string {
+    if (!retryable) {
+      return `Provider returned non-retryable error ${errorCode}; blocked until provider configuration, credentials, or request compatibility changes.`;
+    }
+    return `Provider retry budget exhausted after ${priorFailureCount} prior failure${priorFailureCount === 1 ? '' : 's'} for ${errorCode}.`;
+  }
+
+  private providerBlockedReply(
+    providerError: Record<string, unknown>,
+    budget: ProviderFailureBudgetEvidence,
+  ): string {
+    const errorCode = String(providerError.error_code || budget.error_code || 'PROVIDER_ERROR');
+    if (errorCode === 'PROVIDER_AUTH_ERROR') {
+      return '当前模型服务鉴权失败，已停止继续请求。请检查 API Key、模型权限或 provider 配置后再试。';
+    }
+    if (errorCode === 'MODEL_RATE_LIMIT') {
+      return '模型服务连续限流，已停止继续请求。请稍后再试，或者切换模型/provider。';
+    }
+    if (errorCode === 'PROVIDER_TIMEOUT' || errorCode === 'PROVIDER_NETWORK_ERROR' || errorCode === 'PROVIDER_UPSTREAM_ERROR') {
+      return '模型服务连续不可用，已停止继续请求。请稍后再试，或者切换模型/provider。';
+    }
+    return '模型服务连续失败，已停止继续请求。请检查 provider 配置或稍后再试。';
+  }
+
+  private errorMessage(error: any): string {
+    return String(error?.message || error || 'unknown provider error');
+  }
+
+  private extractProviderStatus(error: any, message: string): number | undefined {
+    const status = Number(error?.status ?? error?.response?.status);
+    if (Number.isInteger(status) && status > 0) {
+      return status;
+    }
+
+    const match = message.match(/(?:API错误|HTTP)\s*\(?(\d{3})\)?/i);
+    if (match) {
+      return Number(match[1]);
+    }
+
+    return undefined;
+  }
+
+  private classifyProviderErrorCode(error: any, status: number | undefined, message: string): string {
+    const explicitCode = this.firstString(error?.error_code, error?.errorCode);
+    if (explicitCode) {
+      return explicitCode;
+    }
+
+    const code = this.firstString(error?.code, error?.error?.code)?.toUpperCase() || '';
+    if (status === 429 || /rate limit|too many requests|限流/i.test(message)) {
+      return 'MODEL_RATE_LIMIT';
+    }
+    if (status === 401 || status === 403 || /unauthorized|forbidden|api key|api密钥|鉴权|认证|权限/i.test(message)) {
+      return 'PROVIDER_AUTH_ERROR';
+    }
+    if (status === 408 || /timeout|timed out|ETIMEDOUT/i.test(`${message} ${code}`)) {
+      return 'PROVIDER_TIMEOUT';
+    }
+    if (/ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|network error|fetch failed|socket hang up/i.test(`${message} ${code}`)) {
+      return 'PROVIDER_NETWORK_ERROR';
+    }
+    if (status && [500, 502, 503, 504, 529].includes(status)) {
+      return 'PROVIDER_UPSTREAM_ERROR';
+    }
+    return 'PROVIDER_ERROR';
+  }
+
+  private isRetryableProviderError(error: any, status: number | undefined, message: string): boolean {
+    if (typeof error?.retryable === 'boolean') {
+      return error.retryable;
+    }
+
+    const code = this.firstString(error?.code, error?.error?.code)?.toUpperCase() || '';
+    if (status && [408, 429, 500, 502, 503, 504, 529].includes(status)) {
+      return true;
+    }
+    return /rate limit|too many requests|timeout|timed out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|network error|fetch failed|socket hang up|限流/i
+      .test(`${message} ${code}`);
+  }
+
+  private firstString(...values: unknown[]): string | undefined {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return undefined;
+  }
+
+  private parseToolArgumentsForLog(argumentsJson: string): unknown {
+    try {
+      return JSON.parse(argumentsJson || '{}');
+    } catch {
+      return argumentsJson;
+    }
+  }
+
+  private toolResultContentToString(toolResult: ToolResult): string {
+    const content = toolResult.content as unknown;
+    if (typeof content === 'string') {
+      return content;
+    }
+    if (!Array.isArray(content)) {
+      if (content && typeof content === 'object' && '_imageForNewMessage' in content) {
+        const image = content as { filePath?: unknown };
+        return `已读取图片: ${typeof image.filePath === 'string' ? image.filePath : 'unknown'}`;
+      }
+      return '';
+    }
+    return content
+      .map(block => block.type === 'text' ? (block as any).text : '[非文本内容]')
+      .join('');
   }
 
   // ─── 命令处理 ───────────────────────────────────────
@@ -494,9 +884,10 @@ export class AgentSession {
   async handleCommand(
     command: string,
     args: string[],
-    callbacks?: SessionCallbacks,
+    callbacksOrOptions?: SessionCallbacks | HandleCommandOptions,
   ): Promise<CommandResult> {
     return this.withLogContext(async () => {
+      const commandOptions = this.normalizeCommandOptions(callbacksOrOptions);
       const commandName = command.toLowerCase();
 
       // /stop - 中断当前正在运行的请求
@@ -536,7 +927,7 @@ export class AgentSession {
 
 
       // skill 斜杠命令
-      return this.handleSkillCommand(commandName, args, callbacks);
+      return this.handleSkillCommand(commandName, args, commandOptions);
     });
   }
 
@@ -548,12 +939,13 @@ export class AgentSession {
     this.initialized = false;
     this.activeSkillName = undefined;
     this.activeSkillMaxTurns = undefined;
+    this.activeSkillToolsets = undefined;
     this.lastActiveAt = Date.now();
   }
 
   /** 清空历史（同时删除文件） */
   clear(): void {
-    SessionStore.getInstance().deleteSession(this.key);
+    SessionStore.getInstance().deleteSession(this.key, this.sessionStoreType());
     this.reset();
   }
 
@@ -634,7 +1026,7 @@ ${conversationText}
 
 
       // \u5f52\u6863\u6301\u4e45\u5316\u6587\u4ef6
-        SessionStore.getInstance().saveContext(this.key, this.messages);
+        SessionStore.getInstance().saveContext(this.key, this.messages, this.sessionStoreType());
         try {
           const memoryUpdate = MemoryFinalizer.finalizeSession(this.key, this.messages, {
             reason: 'manual_archive',
@@ -704,7 +1096,7 @@ ${conversationText}`;
           }
         }
         // 保存完整 context 到 SessionStore
-        SessionStore.getInstance().saveContext(this.key, this.messages);
+        SessionStore.getInstance().saveContext(this.key, this.messages, this.sessionStoreType());
         Logger.info(`会话已保存: ${this.key}, ${this.messages.length} 条消息`);
 
         if (options?.finalizeMemory) {
@@ -745,7 +1137,8 @@ ${conversationText}`;
   restoreFromStore(): boolean {
     return this.withLogContext(() => {
       const store = SessionStore.getInstance();
-      const msgs = store.hasSession(this.key) ? store.loadContext(this.key) : [];
+      const sessionType = this.sessionStoreType();
+      const msgs = store.hasSession(this.key, sessionType) ? store.loadContext(this.key, sessionType) : [];
       if (msgs.length === 0) return false;
       this.pendingRestore = msgs.length > 0 ? msgs : undefined;
       Logger.info(`[会话 ${this.key}] 标记恢复: transcript=${msgs.length}, longTermMemory=on_demand`);
@@ -755,7 +1148,93 @@ ${conversationText}`;
 
   private saveRestorableContext(): void {
     if (this.messages.length === 0) return;
-    SessionStore.getInstance().saveContext(this.key, this.messages);
+    SessionStore.getInstance().saveContext(this.key, this.messages, this.sessionStoreType());
+  }
+
+  private sessionStoreType(): string {
+    return this.sessionType || this.extractSessionType(this.key);
+  }
+
+  private buildStateBoundary(
+    surface: ToolSurface,
+    providerDegradation?: ProviderTranscriptDegradationInput,
+  ): SessionStateBoundaryLog {
+    const store = SessionStore.getInstance();
+    const durableSessionRef = store.getContextFilePath(this.key, this.sessionStoreType());
+    const workingTraceRef = this.sessionTurnLogger.getLogFilePath();
+    const boundary: SessionStateBoundaryLog = {
+      durable_session: {
+        kind: 'durable_session',
+        ref: durableSessionRef,
+        scope: 'surface_restore',
+      },
+      working_trace: {
+        kind: 'working_trace',
+        ref: workingTraceRef,
+        schema: 'session-log-v3',
+      },
+      provider_transcript: {
+        kind: 'provider_transcript_ref',
+        ref: this.providerTranscriptDigestRef(workingTraceRef),
+        mode: 'reference',
+        raw_messages_stored: false,
+        tool_result_payload_stored: false,
+        raw_request_stored: false,
+        raw_response_stored: false,
+        raw_payload_stored: false,
+        ...(providerDegradation && this.providerTranscriptDegradationFields(providerDegradation)),
+      },
+    };
+
+    if (surface === 'pet') {
+      boundary.visible_history = {
+        kind: 'visible_history',
+        ref: visibleHistoryFilePath('pet', this.key),
+        scope: 'surface_visible_history',
+      };
+    }
+
+    if (surface === 'dashboard') {
+      boundary.visible_history = {
+        kind: 'visible_history',
+        ref: visibleHistoryFilePath('dashboard', this.key),
+        scope: 'surface_visible_history',
+      };
+    }
+
+    return boundary;
+  }
+
+  private providerTranscriptDigestRef(workingTraceRef: string): string {
+    const digest = crypto.createHash('sha256')
+      .update([
+        'provider_transcript_ref',
+        this.key,
+        this.sessionStoreType(),
+        workingTraceRef,
+      ].join('\n'))
+      .digest('hex');
+    return `provider-transcripts/sha256:${digest}`;
+  }
+
+  private providerTranscriptDegradationFields(input: ProviderTranscriptDegradationInput): Partial<SessionStateBoundaryLog['provider_transcript']> {
+    const provider = String(input.providerError.provider || 'unknown');
+    const endpoint = String(input.providerError.endpoint || '').trim();
+    const terminalStatus = input.failureBudget.status === 'blocked' ? 'blocked' : 'degraded';
+    const fallbackChain = [
+      endpoint ? `${provider}:${endpoint}` : provider,
+      terminalStatus === 'blocked' ? 'runtime_blocked_fallback' : 'runtime_error_fallback',
+    ];
+
+    return {
+      status: terminalStatus,
+      degraded: true,
+      degradation_reason: input.failureBudget.error_code,
+      error_code: input.failureBudget.error_code,
+      fallback_chain: fallbackChain,
+      blocked_reason: input.failureBudget.blocked_reason
+        || `Provider transcript degraded after ${input.failureBudget.error_code}; raw provider payload omitted.`,
+    };
   }
 
   // ─── 私有方法 ──────────────────────────────────────
@@ -841,7 +1320,25 @@ ${conversationText}`;
       || 'callbacks' in value
       || 'logInput' in value
       || 'surface' in value
+      || 'observabilityContext' in value
+      || 'traceparent' in value
+      || 'deliveryFallbackFinalReply' in value
     );
+  }
+
+  private normalizeCommandOptions(callbacksOrOptions?: SessionCallbacks | HandleCommandOptions): HandleCommandOptions {
+    if (!callbacksOrOptions) return {};
+    if (
+      'channel' in callbacksOrOptions
+      || 'callbacks' in callbacksOrOptions
+      || 'surface' in callbacksOrOptions
+      || 'observabilityContext' in callbacksOrOptions
+      || 'traceparent' in callbacksOrOptions
+      || 'deliveryFallbackFinalReply' in callbacksOrOptions
+    ) {
+      return callbacksOrOptions as HandleCommandOptions;
+    }
+    return { callbacks: callbacksOrOptions as SessionCallbacks };
   }
 
   private resolveSurface(explicitSurface?: ToolSurface): ToolSurface {
@@ -889,7 +1386,7 @@ ${conversationText}`;
   private async handleSkillCommand(
     commandName: string,
     args: string[],
-    callbacks?: SessionCallbacks,
+    options: HandleCommandOptions = {},
   ): Promise<CommandResult> {
     const skill = this.services.skillManager.getSkill(commandName);
     if (!skill) return { handled: false };
@@ -907,13 +1404,21 @@ ${conversationText}`;
     };
     const activation = buildSkillActivationSignal(skill, context);
 
-    await this.init();
+    await this.init(options.surface);
     this.applySkillActivation(activation);
     Logger.info(`[${this.key}] 已激活 skill: ${skill.metadata.name}${skill.metadata.maxTurns ? ` (maxTurns=${skill.metadata.maxTurns})` : ''}`);
 
     // 如果有参数，自动作为用户消息发送给 AI
     if (args.length > 0) {
-      const reply = await this.handleMessage(args.join(' '), callbacks);
+      const reply = await this.handleMessage(args.join(' '), {
+        callbacks: options.callbacks,
+        channel: options.channel,
+        surface: options.surface,
+        logInput: context.userMessage,
+        observabilityContext: options.observabilityContext,
+        traceparent: options.traceparent,
+        deliveryFallbackFinalReply: options.deliveryFallbackFinalReply,
+      });
       return { handled: true, reply: reply.text };
     }
 
@@ -924,6 +1429,14 @@ ${conversationText}`;
     upsertSkillSystemMessage(this.messages, activation);
     this.activeSkillName = activation.skillName;
     this.activeSkillMaxTurns = activation.maxTurns;
+    this.activeSkillToolsets = activation.toolsets;
+  }
+
+  private shouldPersistActiveSkillForToolVisibility(): boolean {
+    const roleName = this.services.roleName;
+    if (!roleName) return false;
+    const resolvedRole = RoleResolver.resolveRoleDirectoryName(roleName) || roleName;
+    return RoleResolver.getRoleConfig(resolvedRole)?.toolVisibility?.mode === 'skill_scoped';
   }
 
   private parseActivationFromSystemMessage(msg: Message): SkillActivationSignal | null {
@@ -945,6 +1458,7 @@ ${conversationText}`;
       skillName,
       prompt,
       maxTurns: skill?.metadata.maxTurns,
+      toolsets: skill?.metadata.toolsets,
     };
   }
 }

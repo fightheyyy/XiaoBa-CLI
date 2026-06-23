@@ -1,4 +1,5 @@
 import { ContentBlock } from './index';
+import type { ObservabilitySpanContext } from '../observability';
 
 /**
  * 工具参数定义
@@ -22,6 +23,69 @@ export interface ToolParameter {
  */
 export type ToolTranscriptMode = 'default' | 'outbound_message' | 'outbound_file' | 'suppress';
 export type ToolControlMode = 'pause_turn';
+export type ToolResultStatus = 'success' | 'failure' | 'timeout' | 'cancelled' | 'blocked';
+export type ArtifactAction = 'created' | 'updated' | 'sent' | 'generated' | 'captured';
+export type DeliveryEvidenceStatus = 'delivered' | 'failed' | 'blocked';
+export type DeliveryEvidenceType = 'text' | 'file';
+export type ExternalDeliveryReceiptType = 'message' | 'file' | 'upload' | 'download';
+export type ExternalDeliveryReceiptStatus = 'accepted' | 'available' | 'delivered' | 'failed' | 'blocked';
+
+export interface ArtifactManifestItem {
+  path: string;
+  type: string;
+  action: ArtifactAction;
+  metadata?: Record<string, unknown>;
+}
+
+export interface DeliveryEvidence {
+  delivery_id?: string;
+  surface?: ToolSurface;
+  channel_id?: string;
+  delivery_type: DeliveryEvidenceType;
+  status: DeliveryEvidenceStatus;
+  timestamp: string;
+  text_preview?: string;
+  file_name?: string;
+  file_path?: string;
+  error_code?: string;
+}
+
+export interface ExternalDeliveryReceipt {
+  receipt_id?: string;
+  receipt_type: ExternalDeliveryReceiptType;
+  surface?: ToolSurface;
+  status: ExternalDeliveryReceiptStatus;
+  timestamp: string;
+  platform_message_id?: string;
+  platform_file_key?: string;
+  delivery_id?: string;
+  file_name?: string;
+  artifact_path?: string;
+  evidence_refs?: string[];
+  error_code?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export type ChannelDeliveryReceipt = ExternalDeliveryReceipt | ExternalDeliveryReceipt[];
+
+export interface ToolExecutionOutput {
+  toolContent: string | ContentBlock[];
+  /** Explicit terminal execution state. New tools should set this instead of relying on prose prefixes. */
+  status?: ToolResultStatus;
+  /** Stable snake_case execution error code for non-success states. */
+  error_code?: string;
+  /** Backward-compatible camelCase execution error code. Prefer error_code for new code. */
+  errorCode?: string;
+  /** Human-readable reason when status is blocked. */
+  blocked_reason?: string;
+  retryable?: boolean;
+  retry_count?: number;
+  retry_budget?: number;
+  retry_budget_exhausted?: boolean;
+  newMessages?: import('./index').Message[];
+  delivery_evidence?: DeliveryEvidence[];
+  external_delivery_receipts?: ExternalDeliveryReceipt[];
+}
 
 export interface ToolDefinition {
   name: string;
@@ -34,7 +98,7 @@ export interface ToolDefinition {
   /**
    * 控制工具结果如何进入后续 transcript。
    * default: 保留 tool_result；
-   * outbound_message/outbound_file: 成功后折叠为用户已看到的外发结果。
+   * outbound_message/outbound_file: 成功后代表用户已经看到对应文本/文件，runner 会据此避免重复最终回复并记录 delivery fallback。
    * suppress: 成功后不进入后续 transcript（适合控制类工具）。
    */
   transcriptMode?: ToolTranscriptMode;
@@ -65,14 +129,29 @@ export interface ToolResult {
   role: 'tool';
   name: string;
   content: string | import('./index').ContentBlock[];
+  /** Canonical structured terminal state for this tool call. */
+  status?: ToolResultStatus;
+  /** Canonical snake_case error code used by evidence logs and eval gates. */
+  error_code?: string;
+  /** Human-readable reason when status is blocked. */
+  blocked_reason?: string;
+  duration_ms?: number;
+  retry_count?: number;
+  retry_budget?: number;
+  retry_budget_exhausted?: boolean;
+  artifact_manifest?: ArtifactManifestItem[];
+  delivery_evidence?: DeliveryEvidence[];
+  external_delivery_receipts?: ExternalDeliveryReceipt[];
+  /** Backward-compatible boolean success marker. Prefer status for new code. */
   ok?: boolean;
+  /** Backward-compatible camelCase error code. Prefer error_code for new code. */
   errorCode?: string;
   retryable?: boolean;
   controlSignal?: ToolControlMode;
   newMessages?: import('./index').Message[];
 }
 
-export type ToolSurface = 'cli' | 'feishu' | 'weixin' | 'pet' | 'agent' | 'research' | 'unknown';
+export type ToolSurface = 'cli' | 'feishu' | 'weixin' | 'dashboard' | 'pet' | 'agent' | 'research' | 'unknown';
 export type ToolPermissionProfile = 'strict' | 'default' | 'relaxed';
 
 /**
@@ -83,13 +162,25 @@ export interface ChannelCallbacks {
   /** 当前会话的 chatId（飞书 chatId / 微信会话 ID） */
   chatId: string;
   /** 发送文本消息 */
-  reply: (chatId: string, text: string) => Promise<void>;
+  reply: (chatId: string, text: string) => Promise<ChannelDeliveryReceipt | void>;
   /** 发送文件 */
-  sendFile: (chatId: string, filePath: string, fileName: string) => Promise<void>;
+  sendFile: (chatId: string, filePath: string, fileName: string) => Promise<ChannelDeliveryReceipt | void>;
 }
 
 /** @deprecated Use ChannelCallbacks instead */
 export type FeishuChannelCallbacks = ChannelCallbacks;
+
+export interface SubAgentServiceFactoryInput {
+  roleName?: string;
+  skillName?: string;
+  workingDirectory: string;
+  parentSessionId?: string;
+}
+
+export interface SubAgentServiceFactoryResult {
+  aiService: unknown;
+  skillManager: unknown;
+}
 
 /**
  * 工具执行上下文
@@ -103,9 +194,16 @@ export interface ToolExecutionContext {
   runId?: string;
   abortSignal?: AbortSignal;
   activeSkillName?: string;
+  activeToolsets?: string[];
   roleName?: string;
+  /** Parent trace context for tool-owned sub-runs or child processes. */
+  observabilityContext?: ObservabilitySpanContext;
   /** 平台通道回调（飞书/微信等聊天会话时由平台层注入） */
   channel?: ChannelCallbacks;
+  /** Optional factory used by deterministic eval/runtime harnesses to inject sub-agent services. */
+  subAgentServiceFactory?: (
+    input: SubAgentServiceFactoryInput
+  ) => Promise<SubAgentServiceFactoryResult> | SubAgentServiceFactoryResult;
 }
 
 /**
@@ -113,7 +211,16 @@ export interface ToolExecutionContext {
  */
 export interface Tool {
   definition: ToolDefinition;
-  execute(args: any, context: ToolExecutionContext): Promise<string | ContentBlock[]>;
+  execute(args: any, context: ToolExecutionContext): Promise<string | ContentBlock[] | ToolExecutionOutput>;
+  /**
+   * Optional tool-owned artifact evidence. Prefer this over ToolManager output
+   * inference when the tool knows exactly which artifacts it created/updated.
+   */
+  getArtifactManifest?(
+    args: any,
+    result: string | ContentBlock[] | ToolExecutionOutput,
+    context: ToolExecutionContext
+  ): ArtifactManifestItem[];
 }
 
 /**
@@ -121,7 +228,7 @@ export interface Tool {
  * ToolManager 和 AgentToolExecutor 均实现此接口
  */
 export interface ToolExecutor {
-  getToolDefinitions(allowedNames?: string[]): ToolDefinition[];
+  getToolDefinitions(contextOverrides?: Partial<ToolExecutionContext>): ToolDefinition[];
   executeTool(
     toolCall: ToolCall,
     conversationHistory?: any[],

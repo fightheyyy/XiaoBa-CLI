@@ -1,22 +1,24 @@
 # XiaoBa-CLI SPEC
 
 状态：Draft
-最后更新：2026-05-30
+最后更新：2026-06-23
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。专题文档可以解释某个角色、benchmark、运维流程或历史方案，但不能替代本文的整体边界定义。
 
-## 五大模块 Spec 索引
+## 五大架构模块索引
 
-XiaoBa-CLI 维护一个项目级大 spec 和五个顶层模块小 spec。五个小 spec 是架构模块 spec，可能横跨多个代码目录；更细的 durable 子模块可以继续维护自己的 `SPEC.md` / `PLAN.md`。
+XiaoBa-CLI 维护一个项目级大 spec 和五个顶层架构模块。五个模块是简历、架构介绍和代码 review 的统一口径：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation。`test/` 是工程验证边界，不属于 Evaluation gate，也不单独作为第六个架构模块；`docs/observability-evidence/state-evidence` 是 Observability & Evidence 的持久化证据子文档。
 
-| 模块 | Spec | Plan | 覆盖范围 |
+| 模块 | Primary Spec | Plan / Supporting Docs | 覆盖范围 |
 | --- | --- | --- | --- |
-| Surfaces：入口层 | [`surfaces/SPEC.md`](surfaces/SPEC.md) | [`surfaces/PLAN.md`](surfaces/PLAN.md) | `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`dashboard`、`electron` |
-| Harness Runtime：核心运行时 | [`harness/SPEC.md`](harness/SPEC.md) | [`harness/PLAN.md`](harness/PLAN.md) | `src/core`、`src/providers`、`src/tools`、runtime 类型和 agent loop |
-| Roles & Skills：策略层 | [`roles/SPEC.md`](roles/SPEC.md) | [`roles/PLAN.md`](roles/PLAN.md) | `roles`、`src/roles`、`skills`、`src/skills` |
-| State & Evidence：状态证据层 | [`state-evidence/SPEC.md`](state-evidence/SPEC.md) | [`state-evidence/PLAN.md`](state-evidence/PLAN.md) | `data`、`logs`、`memory`、`output` 和 evidence schema |
-| Evaluation Gates：评测回归层 | [`benchmarks/SPEC.md`](benchmarks/SPEC.md) | [`benchmarks/PLAN.md`](benchmarks/PLAN.md) | `benchmarks`、`tests`、replay、verifier、scorecard 和 release gate |
+| Surface：入口层 | [`surface/SPEC.md`](surface/SPEC.md) | [`surface/PLAN.md`](surface/PLAN.md) | `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`dashboard`、`electron` |
+| Agent Runtime：会话与工具编排层 | [`agent-runtime/SPEC.md`](agent-runtime/SPEC.md) | [`agent-runtime/PLAN.md`](agent-runtime/PLAN.md) | `src/core`、`src/providers`、`src/tools`、runtime 类型、session lifecycle 和 agent loop |
+| Roles & Skills：策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | `roles`、`src/roles`、`skills`、`src/skills` |
+| Observability & Evidence：观测证据层 | [`observability-evidence/SPEC.md`](observability-evidence/SPEC.md) | [`observability-evidence/PLAN.md`](observability-evidence/PLAN.md)、[`observability-evidence/state-evidence/SPEC.md`](observability-evidence/state-evidence/SPEC.md)、[`observability-evidence/state-evidence/PLAN.md`](observability-evidence/state-evidence/PLAN.md) | `src/observability`、`logs`、`data`、`memory`、`output`、trace projection 和 artifact evidence |
+| Evaluation：trace replay + live agent eval 层 | [`trace-replay/SPEC.md`](trace-replay/SPEC.md)、[`evaluation/SPEC.md`](evaluation/SPEC.md) | [`trace-replay/PLAN.md`](trace-replay/PLAN.md)、[`evaluation/PLAN.md`](evaluation/PLAN.md)、[`../test/SPEC.md`](../test/SPEC.md)、[`../test/PLAN.md`](../test/PLAN.md) | `src/replay`、`scripts/run-trace-replay.ts`、`eval`、`eval/benchmarks`、BaseRuntime live agent eval、hard verifiers、scorecard |
+
+外部观测导出不是当前模块边界。本地 JSONL、artifact evidence 和 role/runtime scorecard 是权威事实；Observability 只输出本地 summary / trace evidence，不拥有 pass/fail，也不能自动接受生成的 benchmark candidate。
 
 ## 1. 核心定位
 
@@ -29,6 +31,17 @@ Model is not the runtime.
 Harness is the runtime.
 ```
 
+核心运行术语：
+
+- `session`：一个长期会话，可跨多次用户请求和进程重启恢复。
+- `trace`：一次用户请求从进入 runtime 到本次 `ConversationRunner` while loop 截止的闭环，是产品、观测、eval 和 benchmark 的最小用户意图单元。
+- `turn`：`ConversationRunner` 内部 while loop 的一次 model request / tool result 推进一步。`turn` 不再指完整用户请求。
+- `span`：trace 内可计时的子操作，例如 model、tool、provider、delivery。
+- `event`：trace 内的离散事实，例如 `session_started`、`session_completed`、`provider_error`；新日志默认嵌在 trace 主记录里。
+- `metric`：token、latency、count 等数值事实，由 trace/event/tool facts 投影产生。
+- `case`：trace 清洗、裁剪、补充 rubric 后进入 eval/benchmark 的评测样本。
+- session-log-v2 里的 `entry_type="turn"`、`turn_id`、`turn` 是历史兼容字段；session-log-v3 新写入使用 `entry_type="trace"`、`trace_id`、`trace_index`。
+
 模型负责下一步推理，harness 负责工程边界：
 
 - provider transcript 必须合法。
@@ -36,7 +49,7 @@ Harness is the runtime.
 - session state 必须隔离、可恢复、可清理。
 - context compression 不能丢当前任务和硬约束。
 - artifact 生成与发送必须有 evidence。
-- 日志必须可解析、可脱敏、可 replay。
+- 日志必须可解析、可投影、可 replay。
 - 失败必须能归因到 runtime、skill、role 或外部系统。
 
 ## Current Architecture
@@ -54,10 +67,10 @@ flowchart LR
         Electron["electron"]
     end
 
-    subgraph Harness["Harness：核心运行时"]
+    subgraph Harness["Agent Runtime：会话与工具编排"]
         Core["src/core"]
         Providers["src/providers"]
-        Tools["src/tools"]
+        Tools["src/tools<br/>base / role / surface tools"]
     end
 
     subgraph Policy["Policy：角色和技能"]
@@ -65,16 +78,22 @@ flowchart LR
         Roles["src/roles + roles"]
     end
 
-    subgraph Evidence["Evidence：本地状态和证据"]
+    subgraph Observe["Observability & Evidence：观测证据"]
         Data["data"]
         Logs["logs"]
         Memory["memory<br/>on-demand MD notes"]
         Output["output"]
+        Obs["src/observability<br/>local summary / trace projection"]
     end
 
-    subgraph Gates["Gates：评测和回归"]
-        Benchmarks["benchmarks"]
-        Tests["tests"]
+    subgraph TestHarness["Test Harness：工程验证"]
+        Test["test<br/>verification boundary"]
+    end
+
+    subgraph Evaluation["Evaluation：复跑与评测"]
+        Replay["src/replay<br/>trace replay"]
+        Eval["eval<br/>live agent eval"]
+        EvalBench["eval/benchmarks<br/>BaseRuntime live cases"]
     end
 
     Commands --> Core
@@ -92,9 +111,16 @@ flowchart LR
     Core --> Logs
     Core --> Memory
     Tools --> Output
+    Logs --> Obs
+    Output --> Obs
 
-    Logs --> Benchmarks
-    Benchmarks --> Tests
+    Logs --> Replay
+    Replay --> Logs
+    Replay --> Output
+    Eval --> EvalBench
+    Logs --> EvalBench
+    EvalBench --> Eval
+    Obs --> Eval
 ```
 
 ## Target Architecture
@@ -103,7 +129,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Surfaces["Surfaces：入口模块"]
+    subgraph Surfaces["Surface：入口模块"]
         Commands["src/commands"]
         Feishu["src/feishu"]
         Weixin["src/weixin"]
@@ -116,22 +142,28 @@ flowchart LR
         Skills["skills + src/skills"]
     end
 
-    subgraph Harness["Harness：核心运行时"]
+    subgraph Harness["Agent Runtime：会话与工具编排"]
         Core["src/core"]
         Providers["src/providers"]
-        Tools["src/tools"]
+        Tools["src/tools<br/>layered tool registry"]
     end
 
-    subgraph Evidence["Evidence：状态和证据"]
+    subgraph Observe["Observability & Evidence：状态和证据"]
         Data["data"]
         Memory["memory"]
         Logs["logs"]
         Output["output"]
+        Observability["src/observability<br/>local summary / trace projection"]
     end
 
-    subgraph Gates["Gates：验证和回归"]
-        Benchmarks["benchmarks"]
-        Tests["tests"]
+    subgraph TestHarness["Test Harness：工程验证"]
+        Test["test<br/>code correctness / contract smoke"]
+    end
+
+    subgraph Evaluation["Evaluation：trace replay + live agent eval"]
+        Replay["src/replay<br/>historical trace rerun"]
+        Eval["eval<br/>live eval standards / gate"]
+        EvalBench["eval/benchmarks<br/>BaseRuntime / future role live benchmarks"]
     end
 
     Surfaces --> Core
@@ -143,11 +175,17 @@ flowchart LR
     Core --> Memory
     Core --> Logs
     Tools --> Output
-    Logs --> Benchmarks
-    Output --> Benchmarks
-    Benchmarks --> Tests
-    Tests --> Roles
-    Tests --> Skills
+    Logs --> Observability
+    Output --> Observability
+    Logs --> Replay
+    Replay --> Output
+    Eval --> EvalBench
+    Logs --> EvalBench
+    Output --> EvalBench
+    Test --> Roles
+    Test --> Skills
+    Core --> Observability
+    Eval --> Observability
 ```
 
 ## 核心组件边界
@@ -156,12 +194,16 @@ flowchart LR
 | --- | --- | --- |
 | `AgentSession` | 管 session 生命周期、busy/interrupt、上下文压缩触发、skill 激活、session log、context restore 和长期 memory 落盘触发 | 不直接实现 tool 业务；不直接适配某个平台 API；不默认把长期 memory 注入 provider prompt |
 | `ConversationRunner` | 管 agent loop：model call -> tool calls -> tool results -> next model call；保证 transcript 合法 | 不保存长期 session；不决定角色配置 |
-| `ToolManager` | 管工具定义、参数解析、执行边界、结果归一化、错误码和 retryable 信号 | 不参与模型推理；不维护多轮对话状态 |
+| `ToolManager` | 管三层工具注册、可见性、参数解析、执行边界、结果归一化、错误码和 retryable 信号；工具层级包括 base tool、role tool 和 surface tool | 不参与模型推理；不维护多轮对话状态；不把平台交付工具伪装成角色工具 |
 | `ContextCompressor` | 管长上下文状态迁移，在压缩后保留任务目标、约束、artifact 状态和最近上下文 | 不做业务总结；不替代 memory |
-| `SessionTurnLogger` | 管运行证据：turn、tool call、tool result、tokens、runtime event、artifact clues | 不做最终质量评分；不作为业务数据库 |
+| `SessionTurnLogger` | 管运行证据：trace、legacy turn alias、tool call、tool result、tokens、embedded runtime events、artifact clues；`traces.jsonl` append 后投影到 observability local summary，普通 runtime 文本写入 `runtime.log` | 不做最终质量评分；不作为业务数据库 |
+| `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
-| `benchmarks/*` | 评估 harness/role/skill 改动是否退化或变好 | 不保存原始私密 trace |
+| `test/*` | 定义代码正确性、集成测试和 deterministic runtime contract smoke | 不承载 live agent eval benchmark；不保存 eval scorecard policy |
+| `src/replay/*` | 定义历史 trace replay：从本地 `traces.jsonl` 抽用户输入，重新驱动当前 runtime，产生 fresh trace 和轻量对比 | 不打 benchmark 分；不自动接受 eval case；不上传或脱敏本地 trace |
+| `eval/*` | 只定义 live agent eval：curated benchmark input、setup、runtime replay、tool/result verifier 和 scorecard | 不保存原始私密 trace；不承载普通单测；不保存 schema/contract/rubric governance；不收静态 JSONL regression |
+| `eval/benchmarks/*` | 存放 live agent eval benchmark source、suite、case mapping | 不保存原始私密 trace；不承载普通单测；不保存非 live role/static fixtures |
 
 ## Agent Loop 状态机
 
@@ -174,7 +216,7 @@ flowchart LR
     ProviderRequest["provider request"]
     AssistantDecision["assistant decision<br/>text or tool_calls"]
     ToolExecution["tool execution"]
-    ToolResult["tool result<br/>success / failure / timeout"]
+    ToolResult["tool result<br/>success / failure / timeout / cancelled / blocked"]
     TranscriptUpdate["transcript update"]
     FinalReply["final reply / artifact delivery"]
     Evidence["session JSONL / metrics / artifacts"]
@@ -196,10 +238,11 @@ flowchart LR
 
 状态机不变量：
 
-- 每个 assistant tool call 必须进入一个合法终态：success、failure、timeout、cancel 或 blocked。
+- 每个 assistant tool call 必须进入一个合法终态：success、failure、timeout、cancelled 或 blocked。
 - 每个 tool call id 必须有 matching tool result，不能把 dangling tool call 送进下一轮 provider request。
+- 模型可见工具必须由 `ToolManager` 根据 role policy 和 surface context 计算；隐藏工具即使被模型硬调也必须返回 forbidden tool result。
 - provider-visible transcript、runtime-visible trace、user-visible message 三者可以不同，但必须可关联。
-- outbound tools 例如 `send_text` / `send_file` 的成功必须进入 artifact / delivery evidence。
+- outbound tools 例如 `send_text` / `send_file` 的成功必须进入 structured delivery evidence，并能被 `delivery_evidence_contract` 验证；channel-backed tools 和 surface runtime replay 还可以记录 `external_delivery_receipts`，用于保存平台 message/file/upload ack 的结构化事实。
 - 已经对用户可见的消息不能因为后续 provider 失败而被 runtime 当作未发生。
 
 ## 三层状态模型
@@ -208,24 +251,24 @@ XiaoBa 的状态不能只用一个 `messages[]` 描述。需要区分三层：
 
 | 层 | 内容 | 作用 |
 | --- | --- | --- |
-| Durable Session | session key、`data/sessions` 持久化上下文、active skill、按需读取的长期 memory 笔记 | 跨 turn / restart 恢复 |
-| Working Trace | 当前 run 的 user input、thinking、tool calls、tool results、artifacts、runtime events | debug、replay、scorecard 证据 |
+| Durable Session | surface、session key、`data/sessions/<surface>` 持久化上下文、active skill、按需读取的长期 memory 笔记 | 跨 trace / restart 恢复 |
+| Trace | 当前用户请求的 user input、runner turns、tool calls、tool results、artifacts、runtime events | debug、replay、scorecard 证据 |
 | Provider Transcript | 真正发送给模型 provider 的 system/user/assistant/tool messages | 保证 provider 协议合法和 token budget |
 
 设计原则：
 
 - Durable session 不能直接等同于 provider transcript。
-- Working trace 是事实证据，不一定全部进入下一次 provider request。
+- Trace 是事实证据，不一定全部进入下一次 provider request。
 - Context compression 应该迁移状态，而不是简单裁剪文本。
-- Session log 是 replay/eval 的输入资产，但 `episode_id`、`case_id`、`scorecard` 属于后处理或评测产物。
+- Session log 是 replay/eval 的输入资产；新写入应带 `trace_id` / `trace_index`，而 `case_id`、`scorecard` 属于后处理或评测产物。
 
 ## Memory Contract
 
-`data/sessions` 是会话恢复主路径：保存 provider-visible transcript 和 compact system messages，用于同一个 session 断开、TTL cleanup 或进程重启后继续上下文。
+`data/sessions/<surface>/<session-key>.jsonl` 是会话恢复主路径：保存 provider-visible transcript 和 compact system messages，用于同一个入口里的同一个 session 断开、TTL cleanup 或进程重启后继续上下文。迁移期兼容读取旧的 `data/sessions/<session-key>.jsonl`，但新写入必须落到 surface 子目录。
 
 `memory/sessions/<session-key-hash>/MEMORY.md` 是按 session/person 维度维护的长期记忆笔记：只保存稳定偏好、习惯、称呼、默认工作方式和用户明确要求记住的事实。它是 Markdown 主存储，便于人类阅读、diff、编辑和删除。
 
-长期 memory 不默认加载进 provider prompt。恢复会话时只恢复 `data/sessions`；长期 memory 只能通过显式 recall、后续工具或用户请求按需注入，并且注入内容必须小而相关。当前任务进度、刚失败的命令、下一步待办和临时文件路径属于 `data/sessions` / `[session_memory]`，不能自动固化为长期 memory。
+长期 memory 不默认加载进 provider prompt。恢复会话时只恢复对应 surface 下的 `data/sessions`；长期 memory 只能通过显式 recall、后续工具或用户请求按需注入，并且注入内容必须小而相关。当前任务进度、刚失败的命令、下一步待办和临时文件路径属于 `data/sessions` / `[session_memory]`，不能自动固化为长期 memory。
 
 ## Message-Native Runtime
 
@@ -233,11 +276,11 @@ XiaoBa 面向 IM、桌宠和 CLI 多入口，但 runtime 统一收敛到 `AgentS
 
 入口边界：
 
-- CLI 可以直接返回文本。
-- Feishu / Weixin / Pet 是 channel-delivered message surface：平台层必须显式传入 `surface` 和 `channel callbacks`，不能从 `session key` 猜入口类型。
-- IM / Pet 以用户可见消息和文件交付为准；正常路径只有 `send_text` / `send_file` 产生用户可见输出。
-- 最终直接文本回复只是 `ConversationRunner` 的 `delivery_fallback_final_reply`，用于防止模型漏调外发工具时用户视角完全无响应；它不是 role 的合格主交付路径。
-- `send_text` / `send_file` 属于 outbound side effect，不能只当作普通工具文本。
+- CLI 可以直接返回文本；CLI 不注入 `send_text` / `send_file`。
+- Feishu / Weixin / Pet / Dashboard 是 channel-delivered surface：平台层必须显式传入 `surface` 和 `channel callbacks`，不能从 `session key` 猜入口类型。
+- Channel surface 以用户可见消息和文件交付为准；正常路径只有 `send_text` / `send_file` 产生用户可见输出。
+- Channel surface 默认不把最终直接文本回复外发给用户；模型要让用户看到回复，必须调用 `send_text` / `send_file`。`ConversationRunner` 的 `delivery_fallback_final_reply` 只是一项显式 opt-in 兼容策略，默认关闭；一旦入口选择开启，fallback 外发仍必须记录 synthetic `send_text` ToolResult 和 structured `delivery_evidence`。
+- `send_text` / `send_file` 属于 surface tool 和 outbound side effect，不能只当作普通工具文本，也不能作为 CLI 或角色默认工具暴露。
 - 各入口只负责鉴权、消息解析、文件上传下载、channel callback，不复制 agent loop。
 
 新增入口必须定义：
@@ -267,8 +310,9 @@ Skill 是 instruction pack，用于注入领域流程和工作策略。Skill 不
 
 - `engineer-cat`：实现修复和工程交付。
 - `reviewer-cat`：复跑、验收、证据判断、closed/reopened。
-- `inspector-cat`：日志分析、case mining、失败归因、反馈入口。
-- `researcher-cat`：研究和资料整理。
+- `inspector-cat`：runtime triage、evidence forensics、issue profile、handoff routing、skill/benchmark 机会挖掘。
+- `researcher` / `researcher-cat`：研究和资料整理。
+- `secretary-cat`：本地优先个人秘书，使用窄 Feishu wrapper tools 管理授权、日程、联系人、消息草稿和日常简报。
 
 ## Evidence And Logging
 
@@ -277,7 +321,9 @@ Skill 是 instruction pack，用于注入领域流程和工作策略。Skill 不
 当前主线：
 
 ```text
-logs/sessions/<session_type>/<date>/<session_type>_<session_id>.jsonl
+logs/sessions/<surface>/<date>/<session_id>/
+├── traces.jsonl
+└── runtime.log
 ```
 
 稳定记录：
@@ -286,7 +332,10 @@ logs/sessions/<session_type>/<date>/<session_type>_<session_id>.jsonl
 - `entry_type`
 - `session_id`
 - `session_type`
+- `trace_id`
+- `trace_index`
 - `turn_id`
+- `turn`
 - `user.text`
 - `assistant.text`
 - `assistant.tool_calls`
@@ -305,47 +354,60 @@ logs/sessions/<session_type>/<date>/<session_type>_<session_id>.jsonl
 日志设计目标：
 
 - 可逐行 parse。
-- 可脱敏。
-- 可关联 turn / tool / artifact / token。
+- 本地原样保真；共享/入库 benchmark 前由 curation 边界另行裁剪或脱敏。
+- 可关联 trace / runner turn / tool / artifact / token。
 - 可被 Inspector 分析。
 - 可被 benchmark ingestion 消费。
 - 可反哺 runtime schema。
 
 ## Evaluation System
 
-XiaoBa 的评测不是单一 benchmark，而是 harness evolution loop。
+XiaoBa 的评测现在只保留两层 eval 加一套观测证据系统。
 
 ```text
-Agent Evaluation System
-├── trace-derived eval
-├── requirement-driven eval
-└── contract / invariant eval
+Quality System
+├── Test Harness
+│   ├── unit / integration
+│   └── contract smoke
+├── Eval / Benchmark
+│   ├── BaseRuntime benchmark
+│   └── role eval / benchmark
+└── Observability Evidence System
 ```
 
-三类 eval：
+`test/` 维护代码正确性和 deterministic contract smoke：unit / integration tests 在 `test/**/*.test.ts`，runtime contract smoke 在 `test/contract-smoke/suites` 和 `test/contract-smoke/fixtures`。`src/replay` / `xiaoba replay --trace` 维护历史 trace replay：输入本地 `traces.jsonl`，抽取真实用户输入，重新驱动当前 runtime 并生成 fresh trace 对比。`eval/` 只维护 live agent eval benchmark：curated 输入请求 + setup + runtime replay + tool/result verifier + scorecard。`check:benchmarks` 只验证 live benchmark manifest、case id 和 referenced suite。`eval/benchmarks/BaseRuntime/` 是当前唯一 live eval benchmark root，包含 11 条 Pet/IM runtime replay cases。`eval:gate` 默认只聚合这套 live BaseRuntime eval。
 
-- Trace-derived eval：从真实 trace 抽 episode/case，回答真实历史场景有没有退化。
-- Requirement-driven eval：从产品需求或用户任务构造 case，回答新能力能不能端到端完成。
-- Contract / invariant eval：验证 runtime/harness 永远不能破的协议和状态机不变量。
+Live runtime alignment：`AgentSession` provider failure fallback turns now emit the same degraded provider transcript boundary facts required by the deterministic State/Evidence gate, while production-network provider replay remains a later E2E layer.
+
+Provider-network readiness alignment：provider-network readiness remains an opt-in diagnostic script for real provider credentials, outside the public `eval:*` command surface.
+
+Historical output alignment：old generated `output/**` roots are not current observability source-of-truth unless an owner explicitly moves them into a maintained check or live eval source.
+
+三类 case 来源：
+
+- Test harness case：从 contract、JSONL、provider、surface runtime、state/evidence 和 resilience 不变量构造稳定 smoke，归 `test/contract-smoke`。
+- Trace replay：从历史 `traces.jsonl` 抽取真实用户输入，重新跑当前 runtime，观察 fresh trace 是否还能复现同类行为。
+- Live agent eval case：从 curated 用户输入、setup、replay、expected tool/result 和 verifier 构造可重新运行的 benchmark 行为评测。
+- Observability evidence：从 trace / event / metric / artifact 生成可审证据，可辅助定位和候选 case 设计，但不自动接受为 benchmark。
 
 评估顺序：
 
 ```text
 contract hard gate
-  -> replay / e2e run
+  -> runtime harness replay or role benchmark replay
   -> hard gate verifier
-  -> domain verifier
+  -> role/domain verifier when owned by a role benchmark
+  -> deterministic soft judge
   -> LLM / VLM judge
   -> human review for high-value or disputed cases
   -> quality / efficiency scorecard
-  -> baseline vs candidate A/B
 ```
 
 质量原则：
 
 - contract fail 直接 block。
 - 必需 artifact 缺失直接 fail。
-- privacy leak 直接 fail。
+- provider payload boundary 或必需 evidence 违规直接 fail。
 - quality 先过门槛，efficiency 再排序。
 - LLM/VLM judge 只做语义评估和初筛，不能替代程序化 evidence。
 
@@ -354,12 +416,12 @@ contract hard gate
 这些 contract 是 release hard gate，不是业务加分项：
 
 - Transcript completeness：每个 tool call 必须有 matching tool result。
-- Failure observability：timeout、cancel、throw 必须转成可观测 `status/error_code`。
+- Failure observability：timeout、cancelled、throw 必须转成可观测 `status/error_code`。
 - Retry budget：失败重试必须有上限，重复失败后要变更策略或报告 blocked reason。
-- Privacy boundary：reply、log、artifact、scorecard 不得泄漏 credential、token、私有 host。
+- Privacy boundary：reply、log、artifact、scorecard 不得泄漏 credential、token、私有 host；release JSONL fixtures 和 artifact fixtures 在进入 eval evidence 前必须通过隐私预检；`data/sessions` durable restore store 属于私有恢复状态，不等同于可发布 evidence。
 - Artifact evidence：生成、更新、发送用户文件必须有 manifest 或 delivery evidence。
 - Context continuity：restore/compaction 后保留当前任务目标、硬约束、关键路径和 artifact 状态。
-- JSONL compatibility：session log 必须逐行可解析，schema 变更必须兼容 ingestion。
+- JSONL compatibility：session log 必须逐行可解析，schema 变更必须兼容 ingestion；release suite `inputs.jsonl` 必须声明 `session-log-v2` schema 或 explicit non-session contract，且 non-session contract 必须有 dedicated shape + semantic gate。
 
 ## Extension Rules
 
@@ -373,10 +435,13 @@ contract hard gate
 新增工具必须定义：
 
 - tool name / description / args schema。
+- tool layer：`base`、`role` 或 `surface`。
+- visibility policy：base tool 是否受 role 继承/allowlist/denylist 控制，surface tool 需要哪些 surface context。
 - transcript mode。
 - side effect 边界。
 - error code。
 - retryable 语义。
+- blocked / cancelled 终态与 bounded failure 语义。
 - artifact evidence。
 
 新增角色必须定义：
@@ -390,10 +455,12 @@ contract hard gate
 ## 文档边界
 
 - `docs/SPEC.md` 是项目级总 spec。
-- `docs/surfaces/SPEC.md` 定义入口层 contract。
-- `docs/harness/SPEC.md` 定义核心运行时、provider transcript 和 tool boundary。
-- `docs/roles/SPEC.md` 定义 Roles & Skills 策略层入口。
-- `docs/state-evidence/SPEC.md` 定义状态、日志、memory、artifact 和证据 contract。
-- `docs/benchmarks/SPEC.md` 定义 Evaluation Gates、benchmark 资产和测试回归结构入口。
-- `dashboard/SPEC.md`、`roles/*/SPEC.md`、`benchmarks/*/SPEC.md` 是对应顶层模块下的 durable 子模块 spec。
-- 如果实现改变了本文定义的组件边界、状态机、日志 schema 或 eval contract，必须同步更新本文。
+- `docs/surface/SPEC.md` 定义入口层 contract。
+- `docs/agent-runtime/SPEC.md` 定义核心运行时、provider transcript 和 tool boundary。
+- `docs/roles-skills/SPEC.md` 定义 Roles & Skills 策略层入口。
+- `docs/observability-evidence/state-evidence/SPEC.md` 定义状态、日志、memory、artifact 和证据 contract。
+- `test/SPEC.md` 定义 unit / integration / contract smoke 测试边界。
+- `eval/SPEC.md` 定义 live agent eval 准入标准、BaseRuntime live benchmark 和 gate policy。
+- `eval/benchmarks/SPEC.md` 定义 live benchmark source。
+- `dashboard/SPEC.md`、`roles/*/SPEC.md`、`eval/benchmarks/*/SPEC.md` 是对应顶层模块下的 durable 子模块 spec。
+- 如果实现改变了本文定义的组件边界、状态机、日志格式或 live eval 边界，必须同步更新本文。

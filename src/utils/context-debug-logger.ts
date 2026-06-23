@@ -4,8 +4,6 @@ import { Message } from '../types';
 import { ToolDefinition } from '../types/tool';
 import { estimateMessageTokens, estimateToolsTokens } from '../core/token-estimator';
 
-const DEBUG_DIR = path.resolve('logs/context-debug');
-
 export interface ContextDebugEntry {
   request_id: string;
   timestamp: string;
@@ -110,9 +108,12 @@ export class ContextDebugLogger {
   flush(): void {
     if (!this.enabled) return;
     try {
-      fs.mkdirSync(DEBUG_DIR, { recursive: true });
-      const filePath = path.join(DEBUG_DIR, `${this.entry.request_id}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(this.entry, null, 2));
+      fs.mkdirSync(ContextDebugLogger.debugDir(), { recursive: true });
+      const filePath = path.join(ContextDebugLogger.debugDir(), `${this.entry.request_id}.json`);
+      fs.writeFileSync(filePath, JSON.stringify({
+        raw_payload_stored: true,
+        ...this.entry,
+      }, null, 2));
     } catch { /* debug log 写入失败不影响主流程 */ }
   }
 
@@ -134,16 +135,21 @@ export class ContextDebugLogger {
       const ts = `${now.getHours().toString().padStart(2, '0')}-${now.getMinutes().toString().padStart(2, '0')}-${now.getSeconds().toString().padStart(2, '0')}`;
       const seq = ContextDebugLogger.sdkDumpCounter.toString().padStart(4, '0');
       const fileName = `${ts}_${seq}_sdk_${stage}${requestId ? `_${requestId.slice(0, 8)}` : ''}.json`;
-      fs.mkdirSync(DEBUG_DIR, { recursive: true });
+      fs.mkdirSync(ContextDebugLogger.debugDir(), { recursive: true });
       fs.writeFileSync(
-        path.join(DEBUG_DIR, fileName),
+        path.join(ContextDebugLogger.debugDir(), fileName),
         JSON.stringify({
           timestamp: now.toISOString(),
           stage,
           request_id: requestId,
-          data
+          raw_payload_stored: true,
+          data,
         }, null, 2)
       );
     } catch { /* SDK dump 写入失败不影响主流程 */ }
+  }
+
+  private static debugDir(): string {
+    return path.resolve('logs/context-debug');
   }
 }

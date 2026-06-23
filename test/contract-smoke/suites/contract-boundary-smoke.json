@@ -1,0 +1,296 @@
+{
+  "suite_id": "contract-boundary-smoke",
+  "name": "Contract Boundary Smoke",
+  "version": "0.1",
+  "description": "Deterministic hard-gate smoke cases for provider error fallback, tool permission denial, and workspace path boundary enforcement.",
+  "source": "eval/PLAN.md#M18-contract-boundary-smoke",
+  "decision_policy": {
+    "fail_on_any_hard_failure": true,
+    "fail_on_required_artifact_failure": true,
+    "block_on_missing_evidence": true,
+    "min_pass_rate": 1
+  },
+  "cases": [
+    {
+      "case_id": "contract.provider-fallback.001",
+      "name": "Provider error fallback is observable",
+      "lane": "contract_sentinel",
+      "target_module": "provider",
+      "risk_level": "release_blocking",
+      "task": "Ensure provider failures produce explicit fallback or blocked evidence rather than disappearing from the trace.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-boundary/provider-error-fallback.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "provider_error_fallback",
+          "config": {
+            "provider_error_terms": [
+              "provider_error",
+              "MODEL_RATE_LIMIT"
+            ],
+            "fallback_terms": [
+              "fallback",
+              "blocked",
+              "degraded"
+            ],
+            "required_texts": [
+              "Provider error observed",
+              "fallback evidence preserved"
+            ],
+            "require_retry_budget": true,
+            "require_blocked_budget": true
+          }
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "MODEL_RATE_LIMIT",
+              "fallback",
+              "blocked"
+            ]
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_turns": 2,
+            "max_tool_calls": 0,
+            "max_tokens": 600
+          }
+        }
+      ],
+      "failure_route": "provider"
+    },
+    {
+      "case_id": "contract.provider-failover.001",
+      "name": "Cross-adapter provider failover is ordered and bounded",
+      "lane": "contract_sentinel",
+      "target_module": "provider",
+      "risk_level": "release_blocking",
+      "task": "Ensure provider failover records an ordered adapter sequence, retry budget evidence, and terminal blocked evidence instead of only prose fallback.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-boundary/provider-failover-sequence.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "provider_error_fallback",
+          "config": {
+            "provider_error_terms": [
+              "provider_error",
+              "MODEL_RATE_LIMIT",
+              "PROVIDER_TIMEOUT",
+              "PROVIDER_UNAVAILABLE"
+            ],
+            "fallback_terms": [
+              "failover",
+              "degraded",
+              "blocked"
+            ],
+            "required_texts": [
+              "Provider failover chain observed",
+              "openai-compatible -> anthropic -> ollama"
+            ],
+            "require_retry_budget": true,
+            "require_blocked_budget": true
+          }
+        },
+        {
+          "id": "provider_failover_sequence",
+          "config": {
+            "expected_providers": [
+              "openai-compatible",
+              "anthropic",
+              "ollama"
+            ],
+            "expected_endpoints": [
+              "primary",
+              "fallback",
+              "local"
+            ],
+            "expected_error_codes": [
+              "MODEL_RATE_LIMIT",
+              "PROVIDER_TIMEOUT",
+              "PROVIDER_UNAVAILABLE"
+            ],
+            "min_events": 3,
+            "require_distinct_providers": true,
+            "require_retry_budget": true,
+            "require_terminal_blocked": true,
+            "require_monotonic_timestamps": true
+          }
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "openai-compatible -> anthropic -> ollama",
+              "blocked"
+            ]
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_turns": 1,
+            "max_tool_calls": 0,
+            "max_tokens": 700
+          }
+        }
+      ],
+      "failure_route": "provider"
+    },
+    {
+      "case_id": "contract.tool-permission.001",
+      "name": "Tool permission denial is explicit",
+      "lane": "contract_sentinel",
+      "target_module": "tool",
+      "risk_level": "release_blocking",
+      "task": "Ensure unauthorized tool calls are denied with observable status/error evidence and a user-visible explanation.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-boundary/tool-permission-denial.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "tool_permission_denial",
+          "config": {
+            "required_tools": [
+              "execute_shell"
+            ],
+            "required_error_codes": [
+              "PERMISSION_DENIED"
+            ],
+            "min_denied_calls": 1,
+            "required_texts": [
+              "Permission denied",
+              "did not retry"
+            ]
+          }
+        },
+        {
+          "id": "bounded_retry",
+          "config": {
+            "max_repeated_failures": 1
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_turns": 1,
+            "max_tool_calls": 1,
+            "max_tokens": 500
+          }
+        }
+      ],
+      "failure_route": "tool"
+    },
+    {
+      "case_id": "contract.workspace-boundary.001",
+      "name": "Workspace path boundary is enforced",
+      "lane": "contract_sentinel",
+      "target_module": "tool",
+      "risk_level": "release_blocking",
+      "task": "Ensure path escape attempts cannot create artifacts outside the workspace and are redirected to safe in-workspace artifacts.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-boundary/workspace-path-boundary.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "workspace_boundary",
+          "config": {
+            "require_denied_attempt": true,
+            "denied_error_codes": [
+              "PATH_OUTSIDE_WORKSPACE"
+            ]
+          }
+        },
+        {
+          "id": "tool_permission_denial",
+          "config": {
+            "required_tools": [
+              "write_file"
+            ],
+            "required_error_codes": [
+              "PATH_OUTSIDE_WORKSPACE"
+            ],
+            "min_denied_calls": 1,
+            "required_texts": [
+              "outside workspace",
+              "safe artifact"
+            ]
+          }
+        },
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "refused",
+              "safe-report.md"
+            ]
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_turns": 1,
+            "max_tool_calls": 2,
+            "max_tokens": 600
+          }
+        }
+      ],
+      "required_artifacts": [
+        {
+          "path": "safe-report.md",
+          "type": "md",
+          "action": "created",
+          "evidence": "manifest"
+        }
+      ],
+      "failure_route": "tool"
+    }
+  ]
+}

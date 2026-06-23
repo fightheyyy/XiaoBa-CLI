@@ -4,6 +4,7 @@ import { ToolDefinition } from '../types/tool';
 import { AIProvider, StreamCallbacks } from '../providers/provider';
 import { AnthropicProvider } from '../providers/anthropic-provider';
 import { OpenAIProvider } from '../providers/openai-provider';
+import { OllamaProvider } from '../providers/ollama-provider';
 import { Logger } from './logger';
 
 /**
@@ -17,7 +18,7 @@ const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 const MAX_BACKUP_SLOTS = 5;
 
-type ProviderKind = 'openai' | 'anthropic';
+type ProviderKind = 'openai' | 'anthropic' | 'ollama';
 
 interface ProviderEndpoint {
   label: string;
@@ -35,6 +36,15 @@ interface BackupEnvConfig {
 
 interface StreamFailoverError extends Error {
   __streamTextEmitted?: boolean;
+}
+
+interface ProviderCallError extends Error {
+  provider?: string;
+  model?: string;
+  endpoint?: string;
+  status?: number;
+  error_code?: string;
+  retryable?: boolean;
 }
 
 export class AIService {
@@ -55,6 +65,8 @@ export class AIService {
   private createProvider(config: ChatConfig): AIProvider {
     if (config.provider === 'anthropic') {
       return new AnthropicProvider(config);
+    } else if (config.provider === 'ollama') {
+      return new OllamaProvider(config);
     } else {
       return new OpenAIProvider(config);
     }
@@ -138,10 +150,10 @@ export class AIService {
 
     let provider: ProviderKind | undefined;
     if (providerRaw) {
-      if (providerRaw === 'openai' || providerRaw === 'anthropic') {
+      if (providerRaw === 'openai' || providerRaw === 'anthropic' || providerRaw === 'ollama') {
         provider = providerRaw;
       } else {
-        Logger.warning(`[AIService] 忽略 ${prefix}PROVIDER=${providerRaw}，仅支持 openai/anthropic`);
+        Logger.warning(`[AIService] 忽略 ${prefix}PROVIDER=${providerRaw}，仅支持 openai/anthropic/ollama`);
       }
     }
 
@@ -158,17 +170,17 @@ export class AIService {
    * 将备模型 env 配置转换为 ChatConfig
    */
   private toBackupChatConfig(envConfig: BackupEnvConfig, label: string): ChatConfig | null {
-    if (!envConfig.apiUrl || !envConfig.apiKey || !envConfig.model) {
-      Logger.warning(
-        `[AIService] 跳过 ${label}：配置不完整（需要 API_BASE/API_KEY/MODEL）`
-      );
-      return null;
-    }
-
     const provider = envConfig.provider ?? this.resolveProvider({
       apiUrl: envConfig.apiUrl,
       model: envConfig.model,
     });
+
+    if (!envConfig.apiUrl || !envConfig.model || (provider !== 'ollama' && !envConfig.apiKey)) {
+      Logger.warning(
+        `[AIService] 跳过 ${label}：配置不完整（${provider === 'ollama' ? '需要 API_BASE/MODEL' : '需要 API_BASE/API_KEY/MODEL'}）`
+      );
+      return null;
+    }
 
     return {
       ...this.config,
@@ -190,7 +202,7 @@ export class AIService {
   }
 
   private resolveProvider(config: Partial<ChatConfig>): ProviderKind {
-    if (config.provider === 'openai' || config.provider === 'anthropic') {
+    if (config.provider === 'openai' || config.provider === 'anthropic' || config.provider === 'ollama') {
       return config.provider;
     }
 
@@ -201,14 +213,27 @@ export class AIService {
       return 'anthropic';
     }
 
+    if (
+      apiUrl.includes('ollama')
+      || apiUrl.includes(':11434')
+      || apiUrl.endsWith('/api/chat')
+      || model.includes('ollama')
+    ) {
+      return 'ollama';
+    }
+
     return 'openai';
+  }
+
+  private hasUsableCredentials(endpoint: ProviderEndpoint): boolean {
+    return endpoint.config.provider === 'ollama' || Boolean(endpoint.config.apiKey);
   }
 
   /**
    * 普通调用（非流式），带自动重试 + 主备切换
    */
   async chat(messages: Message[], tools?: ToolDefinition[]): Promise<ChatResponse> {
-    if (!this.providerChain.some(endpoint => endpoint.config.apiKey)) {
+    if (!this.providerChain.some(endpoint => this.hasUsableCredentials(endpoint))) {
       throw new Error('API密钥未配置。请先运行: xiaoba config');
     }
 
@@ -224,7 +249,7 @@ export class AIService {
    * 如需强制开启重试，可设置 XIAOBA_STREAM_RETRY=true（需自行保证幂等）。
    */
   async chatStream(messages: Message[], tools?: ToolDefinition[], callbacks?: StreamCallbacks): Promise<ChatResponse> {
-    if (!this.providerChain.some(endpoint => endpoint.config.apiKey)) {
+    if (!this.providerChain.some(endpoint => this.hasUsableCredentials(endpoint))) {
       throw new Error('API密钥未配置。请先运行: xiaoba config');
     }
 
@@ -296,11 +321,40 @@ export class AIService {
       || error?.message
       || String(error);
 
-    if (status) {
-      return new Error(`API错误 (${status}): ${errorMessage}`);
+    const wrapped = new Error(status ? `API错误 (${status}): ${errorMessage}` : `请求失败: ${errorMessage}`) as ProviderCallError;
+    wrapped.provider = provider || 'unknown';
+    if (model) {
+      wrapped.model = model;
     }
+    if (endpoint?.label) {
+      wrapped.endpoint = endpoint.label;
+    }
+    if (status) {
+      wrapped.status = status;
+    }
+    wrapped.error_code = this.classifyProviderErrorCode(error, status, errorMessage);
+    wrapped.retryable = this.isRetryable(error);
+    return wrapped;
+  }
 
-    return new Error(`请求失败: ${errorMessage}`);
+  private classifyProviderErrorCode(error: any, status: number | null, message: string): string {
+    const code = String(error?.code || error?.error?.code || '').toUpperCase();
+    if (status === 429 || /rate limit|too many requests|限流/i.test(message)) {
+      return 'MODEL_RATE_LIMIT';
+    }
+    if (status === 401 || status === 403 || /unauthorized|forbidden|api key|api密钥|鉴权|认证|权限/i.test(message)) {
+      return 'PROVIDER_AUTH_ERROR';
+    }
+    if (status === 408 || /timeout|timed out|ETIMEDOUT/i.test(`${message} ${code}`)) {
+      return 'PROVIDER_TIMEOUT';
+    }
+    if (/ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|network error|fetch failed|socket hang up/i.test(`${message} ${code}`)) {
+      return 'PROVIDER_NETWORK_ERROR';
+    }
+    if (status && RETRYABLE_STATUS_CODES.has(status)) {
+      return 'PROVIDER_UPSTREAM_ERROR';
+    }
+    return 'PROVIDER_ERROR';
   }
 
   /**

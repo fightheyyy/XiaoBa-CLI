@@ -1,0 +1,326 @@
+{
+  "suite_id": "surface-runtime-smoke",
+  "name": "Surface Runtime Smoke",
+  "version": "0.1.0",
+  "description": "Deterministic runtime smoke for production FeishuBot event handling, Dashboard Room router, and Pet router.",
+  "source": "eval/PLAN.md#M21-surface-runtime-smoke",
+  "decision_policy": {
+    "fail_on_any_hard_failure": true,
+    "fail_on_required_artifact_failure": true,
+    "block_on_missing_evidence": true,
+    "min_pass_rate": 1
+  },
+  "cases": [
+    {
+      "case_id": "surface.feishu-runtime.001",
+      "name": "FeishuBot event handler delivers through production channel callback",
+      "lane": "requirement_acceptance",
+      "target_module": "surface",
+      "risk_level": "release_blocking",
+      "task": "Drive a Feishu im.message.receive_v1 event through FeishuBot.onMessage and verify visible channel delivery evidence.",
+      "replay": {
+        "mode": "surface_runtime",
+        "surface": "feishu",
+        "user_message": "@小八 surface runtime smoke via Feishu",
+        "surface_event": {
+          "event_id": "om_runtime_feishu_001",
+          "event_type": "im.message.receive_v1",
+          "message_ref": "feishu:message:om_runtime_feishu_001",
+          "room_ref": "oc_runtime_eval",
+          "user_ref": "ou_runtime_eval_user",
+          "adapter_config": {
+            "bot_open_id": "ou_runtime_eval_bot",
+            "bot_aliases": [
+              "小八",
+              "xiaoba"
+            ]
+          },
+          "raw": {
+            "sender": {
+              "sender_id": {
+                "open_id": "ou_runtime_eval_user"
+              }
+            },
+            "message": {
+              "message_id": "om_runtime_feishu_001",
+              "chat_id": "oc_runtime_eval",
+              "chat_type": "group",
+              "message_type": "text",
+              "content": "{\"text\":\"@_user_1 surface runtime smoke via Feishu\"}",
+              "mentions": [
+                {
+                  "key": "@_user_1",
+                  "name": "小八",
+                  "id": {
+                    "open_id": "ou_runtime_eval_bot"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "model_responses": [
+          {
+            "tool_calls": [
+              {
+                "id": "call-feishu-runtime-send-text",
+                "name": "send_text",
+                "arguments": {
+                  "text": "Feishu surface runtime smoke delivered."
+                }
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 840,
+              "completion_tokens": 80
+            }
+          },
+          {
+            "content": "",
+            "usage": {
+              "prompt_tokens": 900,
+              "completion_tokens": 0
+            }
+          }
+        ]
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "surface_runtime_e2e",
+          "config": {
+            "expected_surface": "feishu",
+            "expected_runtime_id": "feishu_bot_event",
+            "expected_status_code": 200,
+            "expected_session_key": "group:oc_runtime_eval",
+            "expected_channel_id": "oc_runtime_eval",
+            "required_event_types": [
+              "feishu.event.received",
+              "feishu.reply"
+            ],
+            "user_message_contains": [
+              "surface runtime smoke"
+            ],
+            "min_visible_deliveries": 1
+          }
+        },
+        {
+          "id": "delivery_evidence_contract",
+          "config": {
+            "min_delivery_evidence": 1,
+            "require_delivery_tools": false
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_tokens": 2200,
+            "max_turns": 1
+          }
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 2200
+      },
+      "failure_route": "surface"
+    },
+    {
+      "case_id": "surface.dashboard-runtime.001",
+      "name": "Dashboard Room router streams visible SSE delivery",
+      "lane": "requirement_acceptance",
+      "target_module": "surface",
+      "risk_level": "release_blocking",
+      "task": "Create a Dashboard Room agent through the production router and send a message through the Room SSE endpoint.",
+      "replay": {
+        "mode": "surface_runtime",
+        "surface": "dashboard",
+        "user_message": "surface runtime smoke via Dashboard Room",
+        "surface_event": {
+          "event_id": "room-runtime-message-001",
+          "event_type": "dashboard.room.message",
+          "room_ref": "engineer-cat",
+          "user_ref": "dashboard-runtime-user",
+          "raw": {
+            "text": "surface runtime smoke via Dashboard Room",
+            "userId": "dashboard-runtime-user",
+            "messageId": "room-runtime-message-001"
+          }
+        },
+        "model_responses": [
+          {
+            "tool_calls": [
+              {
+                "id": "call-dashboard-runtime-send-text",
+                "name": "send_text",
+                "arguments": {
+                  "text": "Dashboard Room surface runtime smoke delivered."
+                }
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 920,
+              "completion_tokens": 90
+            }
+          },
+          {
+            "content": "",
+            "usage": {
+              "prompt_tokens": 980,
+              "completion_tokens": 0
+            }
+          }
+        ]
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "surface_runtime_e2e",
+          "config": {
+            "expected_surface": "dashboard",
+            "expected_runtime_id": "dashboard_room_router",
+            "expected_status_code": 200,
+            "required_event_types": [
+              "user_message",
+              "state",
+              "text",
+              "done"
+            ],
+            "user_message_contains": [
+              "surface runtime smoke"
+            ],
+            "min_visible_deliveries": 1
+          }
+        },
+        {
+          "id": "delivery_evidence_contract",
+          "config": {
+            "min_delivery_evidence": 1,
+            "require_delivery_tools": false
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_tokens": 2400,
+            "max_turns": 1
+          }
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 2400
+      },
+      "failure_route": "surface"
+    },
+    {
+      "case_id": "surface.pet-runtime.001",
+      "name": "Pet router streams visible SSE delivery",
+      "lane": "requirement_acceptance",
+      "target_module": "surface",
+      "risk_level": "release_blocking",
+      "task": "Send a message through the production Pet router and verify visible SSE delivery evidence.",
+      "replay": {
+        "mode": "surface_runtime",
+        "surface": "pet",
+        "user_message": "surface runtime smoke via Pet",
+        "surface_event": {
+          "event_id": "pet-runtime-message-001",
+          "event_type": "pet.message",
+          "room_ref": "alpha-puff",
+          "user_ref": "pet:alpha-puff",
+          "raw": {
+            "petId": "alpha-puff",
+            "text": "surface runtime smoke via Pet",
+            "source": "widget",
+            "eventId": "pet-runtime-message-001"
+          }
+        },
+        "model_responses": [
+          {
+            "tool_calls": [
+              {
+                "id": "call-pet-runtime-send-text",
+                "name": "send_text",
+                "arguments": {
+                  "text": "Pet surface runtime smoke delivered."
+                }
+              }
+            ],
+            "usage": {
+              "prompt_tokens": 860,
+              "completion_tokens": 80
+            }
+          },
+          {
+            "content": "",
+            "usage": {
+              "prompt_tokens": 920,
+              "completion_tokens": 0
+            }
+          }
+        ]
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "surface_runtime_e2e",
+          "config": {
+            "expected_surface": "pet",
+            "expected_runtime_id": "pet_channel_router",
+            "expected_status_code": 200,
+            "expected_session_key": "pet:alpha-puff",
+            "expected_channel_id": "pet:alpha-puff",
+            "required_event_types": [
+              "user_message",
+              "state",
+              "text",
+              "done"
+            ],
+            "user_message_contains": [
+              "surface runtime smoke"
+            ],
+            "min_visible_deliveries": 1
+          }
+        },
+        {
+          "id": "delivery_evidence_contract",
+          "config": {
+            "min_delivery_evidence": 1,
+            "require_delivery_tools": false
+          }
+        },
+        {
+          "id": "budget_check",
+          "config": {
+            "max_tokens": 2200,
+            "max_turns": 1
+          }
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 2200
+      },
+      "failure_route": "surface"
+    }
+  ]
+}

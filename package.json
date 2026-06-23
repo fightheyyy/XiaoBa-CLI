@@ -18,9 +18,12 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "watch": "tsc --watch",
     "test": "node scripts/run-tests.mjs",
-    "benchmark:legacy-trace": "tsx scripts/legacy-trace-benchmark.ts",
     "report": "node dist/index.js chat --exec '/report'",
-    "clean-logs": "node scripts/clean-logs.mjs"
+    "clean-logs": "node scripts/clean-logs.mjs",
+    "check:benchmarks": "tsx scripts/check-benchmarks.ts",
+    "eval:base-runtime": "tsx scripts/run-eval-benchmark.ts --out output/eval/base-runtime",
+    "eval:gate": "tsx scripts/run-eval-gate.ts --live-agent-eval-only --out output/eval-gate",
+    "replay:trace": "tsx scripts/run-trace-replay.ts"
   },
   "keywords": [
     "cli",
@@ -44,6 +47,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
     "@larksuiteoapi/node-sdk": "^1.58.0",
+    "ajv": "^8.20.0",
     "axios": "^1.16.0",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",

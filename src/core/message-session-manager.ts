@@ -9,6 +9,7 @@ const DEFAULT_SESSION_TTL = 60 * 60 * 1000;
  * 平台层注入具体的发送实现
  */
 export type WakeupSendFn = (channelId: string, text: string) => Promise<void>;
+export type AgentServicesResolver = (sessionKey: string) => AgentServices;
 
 /**
  * MessageSessionManager - 统一的消息会话生命周期管理器
@@ -35,6 +36,7 @@ export class MessageSessionManager {
     private agentServices: AgentServices,
     sessionType: string,
     ttl?: number,
+    private readonly agentServicesResolver?: AgentServicesResolver,
   ) {
     this.sessionType = sessionType;
     this.ttl = ttl ?? DEFAULT_SESSION_TTL;
@@ -64,7 +66,8 @@ export class MessageSessionManager {
   getOrCreate(key: string, channelId?: string): AgentSession {
     let session = this.sessions.get(key);
     if (!session) {
-      session = new AgentSession(key, this.agentServices, this.sessionType);
+      const services = this.agentServicesResolver?.(key) || this.agentServices;
+      session = new AgentSession(key, services, this.sessionType);
       session.restoreFromStore();
       if (this.contextInjector) {
         this.contextInjector(session);

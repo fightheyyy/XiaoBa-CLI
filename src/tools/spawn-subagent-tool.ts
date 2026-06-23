@@ -1,12 +1,14 @@
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
 import { Logger } from '../utils/logger';
+import { RoleResolver } from '../utils/role-resolver';
 import { styles } from '../theme/colors';
+import { toolFailure, toolSuccess } from './tool-result';
 
 /**
- * spawn_subagent - 派遣子智能体后台执行 skill
+ * spawn_subagent - 派遣子智能体后台执行 skill 或 role-scoped task
  *
  * 主 agent 像"甩活给小弟"一样使用这个工具：
  * 调用后立即返回，子智能体在后台独立运行，
@@ -15,7 +17,7 @@ import { styles } from '../theme/colors';
 export class SpawnSubagentTool implements Tool {
   definition: ToolDefinition = {
     name: 'spawn_subagent',
-    description: `派遣一个子智能体在后台独立执行某个 skill 任务。
+    description: `派遣一个子智能体在后台独立执行某个 skill 任务，或指定 role 后让子智能体自行选择 role-local skill。
 
 调用后立即返回，不会阻塞当前对话。子智能体完成后会通知你（主 agent），并附上产出文件列表。
 由你决定是否将结果和文件转发给用户。
@@ -24,7 +26,9 @@ export class SpawnSubagentTool implements Tool {
 - 用户要求执行耗时较长的 skill（如论文精读、文献综述等）
 - 你判断任务需要大量工具调用轮次（>10轮），不适合在当前对话中同步执行
 - 用户可能还有其他事情要聊，你不想让他等
-- 没有专用 skill 但任务明确且适合后台执行时，使用 background-task-runner 作为通用 fallback skill
+- 当前 role 有明确后台 skill 时，传 skill_name
+- 需要切到另一个 role 时，只传 role_name，让子智能体自己用 skill 工具选择该 role 的 skill
+- role_name 和 skill_name 二选一，不要同时传
 
 注意：
 - 每个会话最多同时运行 3 个子任务
@@ -37,7 +41,11 @@ export class SpawnSubagentTool implements Tool {
       properties: {
         skill_name: {
           type: 'string',
-          description: '要执行的 skill 名称。没有专用 skill 但任务明确时可用 background-task-runner。',
+          description: '可选：要执行的当前 role 可见 skill。只填 skill_name 时会继承父会话 role；指定 role_name 时不要同时填 skill_name。',
+        },
+        role_name: {
+          type: 'string',
+          description: '可选：子智能体使用的角色名或别名。只填 role_name 时，子智能体会在该 role 内自行选择 skill；传 base/default/none 表示不使用角色，此时必须填 skill_name。',
         },
         task_description: {
           type: 'string',
@@ -48,55 +56,112 @@ export class SpawnSubagentTool implements Tool {
           description: '传递给子智能体的完整用户指令（包含文件路径等必要信息）',
         },
       },
-      required: ['skill_name', 'task_description', 'user_message'],
+      required: ['task_description', 'user_message'],
     },
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
-    const { skill_name, task_description, user_message } = args;
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
+    const { skill_name, role_name, task_description, user_message } = args;
+    const requestedSkillName = typeof skill_name === 'string' ? skill_name.trim() : '';
+    const requestedRoleName = typeof role_name === 'string' ? role_name.trim() : '';
 
-    if (!skill_name || !task_description || !user_message) {
-      return '错误：skill_name、task_description、user_message 均为必填参数';
+    if (!task_description || !user_message) {
+      return toolFailure('错误：task_description、user_message 均为必填参数', 'INVALID_TOOL_ARGUMENTS');
+    }
+    if (!requestedSkillName && !requestedRoleName) {
+      return toolFailure('错误：role_name 和 skill_name 至少填写一个。指定 role_name 时由子智能体自行选择 skill；只填 skill_name 时使用父会话当前 role。', 'INVALID_TOOL_ARGUMENTS');
+    }
+    if (requestedSkillName && requestedRoleName) {
+      return toolFailure('错误：role_name 和 skill_name 只能二选一。跨 role 派遣时只传 role_name，让子智能体在目标 role 内自行选择 skill；当前 role 的明确后台任务才只传 skill_name。', 'INVALID_TOOL_ARGUMENTS');
     }
 
     const manager = SubAgentManager.getInstance();
     const sessionKey = context.sessionId || 'unknown';
-    const roleName = typeof context.roleName === 'string' && context.roleName.trim()
-      ? context.roleName.trim()
-      : undefined;
+    const roleResolution = resolveSubAgentRoleName(
+      requestedRoleName || undefined,
+      requestedSkillName ? context.roleName : undefined,
+    );
+    if (roleResolution.error) {
+      return toolFailure(roleResolution.error, 'ROLE_NOT_FOUND');
+    }
+    const roleName = roleResolution.roleName;
+    if (!requestedSkillName && !roleName) {
+      return toolFailure('错误：role_name 指向 base/default/none 时不会加载角色上下文；请改为只填 skill_name。', 'INVALID_TOOL_ARGUMENTS');
+    }
 
-    // 需要 AIService 和 SkillManager 实例
-    // AIService 使用默认配置创建，SkillManager 动态加载
-    const aiService = new AIService();
-    const skillManager = new SkillManager(roleName);
+    // Production uses default services; deterministic eval can inject scripted sub-agent services.
+    const injectedServices = context.subAgentServiceFactory
+      ? await context.subAgentServiceFactory({
+        roleName,
+        skillName: requestedSkillName || undefined,
+        workingDirectory: context.workingDirectory,
+        parentSessionId: sessionKey,
+      })
+      : undefined;
+    const aiService = (injectedServices?.aiService as AIService | undefined) || new AIService();
+    const skillManager = (injectedServices?.skillManager as SkillManager | undefined) || new SkillManager(roleName);
     await skillManager.loadSkills();
 
     const result = manager.spawn(
       sessionKey,
-      skill_name,
+      requestedSkillName || undefined,
       task_description,
       user_message,
       context.workingDirectory,
       aiService,
       skillManager,
-      { roleName },
+      {
+        roleName,
+        observabilityContext: context.observabilityContext,
+      },
     );
 
     if ('error' in result) {
-      return `派遣失败：${result.error}`;
+      return toolFailure(`派遣失败：${result.error}`, 'SUBAGENT_SPAWN_FAILED');
     }
 
-    console.log('\n' + styles.highlight(`🚀 派遣子智能体: ${task_description}`));
-    console.log(styles.text(`   ID: ${result.id}`));
-    console.log(styles.text(`   Skill: ${skill_name}\n`));
+    if (!Logger.isSilentMode()) {
+      console.log('\n' + styles.highlight(`🚀 派遣子智能体: ${task_description}`));
+      console.log(styles.text(`   ID: ${result.id}`));
+      if (roleName) {
+        console.log(styles.text(`   Role: ${roleName}`));
+      }
+      console.log(styles.text(`   Skill: ${requestedSkillName || '由子智能体自行选择'}\n`));
+    }
 
-    return [
+    return toolSuccess([
       `子智能体 ${result.id} 已派遣，正在后台执行「${task_description}」。`,
-      `Skill: ${skill_name}`,
+      ...(roleName ? [`Role: ${roleName}`] : []),
+      `Skill: ${requestedSkillName || '由子智能体自行选择'}`,
       `状态: running`,
       ``,
       `子智能体完成后会通知你结果和产出文件列表。届时请用 reply 和 send_file 转发给用户。`,
       `你可以用 check_subagent 查看进度，用 stop_subagent 停止任务。`,
-    ].join('\n');
+    ].join('\n'));
   }
+}
+
+function resolveSubAgentRoleName(requestedRole: unknown, inheritedRole: unknown): { roleName?: string; error?: string } {
+  const requested = typeof requestedRole === 'string' ? requestedRole.trim() : '';
+  const inherited = typeof inheritedRole === 'string' ? inheritedRole.trim() : '';
+  const rawRole = requested || inherited;
+  if (!rawRole) {
+    return {};
+  }
+
+  const normalized = RoleResolver.normalizeRoleName(rawRole);
+  if (normalized === '' || normalized === 'base' || normalized === 'default' || normalized === 'none') {
+    return {};
+  }
+
+  const resolved = RoleResolver.resolveRoleDirectoryName(rawRole);
+  if (resolved) {
+    return { roleName: resolved };
+  }
+
+  const available = RoleResolver.listAvailableRoles();
+  const detail = available.length > 0
+    ? `可用角色：${available.join(', ')}`
+    : '当前项目还没有 roles 目录或角色定义。';
+  return { error: `错误：未找到 role_name "${rawRole}"。${detail}` };
 }

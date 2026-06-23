@@ -53,6 +53,9 @@ export class SkillParser {
       userInvocable: data.invocable === 'user' || data.invocable === 'both',
       autoInvocable: data.autoInvocable !== false && data.invocable !== 'user',
       maxTurns: data['max-turns'] ? Number(data['max-turns']) : undefined,
+      toolsets: Array.isArray(data.toolsets)
+        ? data.toolsets.filter((toolset: unknown): toolset is string => typeof toolset === 'string')
+        : undefined,
     };
 
     if (!this.validate(metadata)) {
@@ -84,6 +87,9 @@ export class SkillParser {
       userInvocable: data['user-invocable'] !== false,
       autoInvocable: data['auto-invocable'] !== false,
       maxTurns: data['max-turns'] ? Number(data['max-turns']) : undefined,
+      toolsets: Array.isArray(data.toolsets)
+        ? data.toolsets.filter((toolset: unknown): toolset is string => typeof toolset === 'string')
+        : undefined,
     };
 
     if (!this.validate(metadata)) {

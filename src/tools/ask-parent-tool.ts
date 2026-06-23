@@ -1,5 +1,6 @@
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { SubAgentManager } from '../core/sub-agent-manager';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * ask_parent - 子智能体向父会话请求输入
@@ -28,19 +29,23 @@ export class AskParentTool implements Tool {
     },
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { question } = args || {};
     if (!question || typeof question !== 'string') {
-      return '错误：请提供 question';
+      return toolFailure('错误：请提供 question', 'INVALID_TOOL_ARGUMENTS');
     }
 
     const sessionId = context.sessionId || '';
     if (!sessionId.startsWith('subagent:')) {
-      return '错误：ask_parent 只能在子智能体会话中使用';
+      return toolBlocked(
+        '错误：ask_parent 只能在子智能体会话中使用',
+        'TOOL_FORBIDDEN_FOR_CONTEXT',
+        'ask_parent can only run inside a subagent session.',
+      );
     }
 
     const subAgentId = sessionId.slice('subagent:'.length);
     const answer = await SubAgentManager.getInstance().requestParentInput(subAgentId, question);
-    return `主会话回复：${answer}`;
+    return toolSuccess(`主会话回复：${answer}`);
   }
 }

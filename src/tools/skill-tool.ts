@@ -1,8 +1,9 @@
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { SkillManager } from '../skills/skill-manager';
 import { SkillInvocationContext } from '../types/skill';
 import { buildSkillActivationSignal } from '../skills/skill-activation-protocol';
 import { Logger } from '../utils/logger';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * Skill 工具 - 调用已注册的 skills
@@ -27,7 +28,7 @@ export class SkillTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { skill: skillName, args: skillArgs = '' } = args;
 
     try {
@@ -36,7 +37,7 @@ export class SkillTool implements Tool {
       if (skillName === 'reload' || skillName === '__reload__') {
         await skillManager.loadSkills();
         const count = skillManager.getAllSkills().length;
-        return JSON.stringify({ __reload_skills__: true, message: `已重新加载 ${count} 个 skills` });
+        return toolSuccess(JSON.stringify({ __reload_skills__: true, message: `已重新加载 ${count} 个 skills` }));
       }
 
       // 加载所有 skills
@@ -50,12 +51,16 @@ export class SkillTool implements Tool {
           .map(s => s.metadata.name)
           .join(', ');
 
-        return `错误：未找到 skill "${skillName}"。\n\n可用的 skills: ${availableSkills}`;
+        return toolFailure(`错误：未找到 skill "${skillName}"。\n\n可用的 skills: ${availableSkills}`, 'SKILL_NOT_FOUND');
       }
 
       // 检查 skill 是否可被用户调用
       if (skill.metadata.userInvocable === false) {
-        return `错误：Skill "${skillName}" 不允许用户调用。`;
+        return toolBlocked(
+          `错误：Skill "${skillName}" 不允许用户调用。`,
+          'SKILL_NOT_USER_INVOCABLE',
+          `Skill "${skillName}" is not user invocable.`,
+        );
       }
 
       Logger.info(`执行 Skill: ${skillName}`);
@@ -77,10 +82,10 @@ export class SkillTool implements Tool {
       // 返回结构化激活信号，由 ConversationRunner 统一处理
       const signal = buildSkillActivationSignal(skill, invocationContext);
 
-      return JSON.stringify(signal);
+      return toolSuccess(JSON.stringify(signal));
     } catch (error: any) {
       Logger.error(`Skill 执行失败: ${error.message}`);
-      return `Skill 执行失败: ${error.message}`;
+      return toolFailure(`Skill 执行失败: ${error.message}`, 'SKILL_EXECUTION_FAILED');
     }
   }
 }

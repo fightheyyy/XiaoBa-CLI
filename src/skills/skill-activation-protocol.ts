@@ -23,6 +23,10 @@ export function buildSkillActivationSignal(
     signal.maxTurns = skill.metadata.maxTurns;
   }
 
+  if (skill.metadata.toolsets?.length) {
+    signal.toolsets = skill.metadata.toolsets;
+  }
+
   return signal;
 }
 
@@ -50,6 +54,15 @@ export function parseSkillActivationSignal(content: string): SkillActivationSign
 
     if (typeof parsed.maxTurns === 'number' && Number.isFinite(parsed.maxTurns)) {
       signal.maxTurns = parsed.maxTurns;
+    }
+
+    if (Array.isArray(parsed.toolsets)) {
+      const toolsets = parsed.toolsets.filter((toolset: unknown): toolset is string =>
+        typeof toolset === 'string' && Boolean(toolset.trim())
+      );
+      if (toolsets.length) {
+        signal.toolsets = toolsets.map((toolset: string) => toolset.trim());
+      }
     }
 
     return signal;

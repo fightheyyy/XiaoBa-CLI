@@ -25,7 +25,12 @@ export interface ChatConfig {
   model?: string;
   temperature?: number;
   maxTokens?: number;
-  provider?: 'openai' | 'anthropic';
+  provider?: 'openai' | 'anthropic' | 'ollama';
+  ollama?: {
+    think?: boolean;
+    keepAlive?: string;
+    numCtx?: number;
+  };
   feishu?: {
     appId?: string;
     appSecret?: string;
@@ -68,6 +73,8 @@ export interface CommandOptions {
   config?: string;
   skill?: string;
   role?: string;
+  resume?: boolean;
+  verbose?: boolean;
 }
 
 // 导出 Agent 相关类型
