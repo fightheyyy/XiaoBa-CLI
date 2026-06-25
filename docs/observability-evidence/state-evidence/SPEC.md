@@ -282,7 +282,7 @@ Generated/shareable evidence roots:
 
 State boundary evidence:
 
-- New live `AgentSession` trace logs emit `state_boundary` facts for `durable_session`, `working_trace` and `provider_transcript`; Pet and Dashboard Room surface traces also emit `visible_history` when the local chat history path is known. `working_trace` remains the boundary key for compatibility, while the referenced schema is `session-log-v3`.
+- New live `AgentSession` trace logs emit `state_boundary` facts for `durable_session`, `working_trace` and `provider_transcript`; Pet surface traces also emit `visible_history` when the local chat history path is known. `working_trace` remains the boundary key for compatibility, while the referenced schema is `session-log-v3`.
 - Curated release-grade session fixtures may also expose `state_boundary` facts.
 - Required boundary names are `durable_session`, `working_trace` and `provider_transcript`; `visible_history` is required when a case opts in.
 - Each boundary must carry a non-empty relative `ref`; boundary refs must be distinct and must not be absolute, home-expanded, file-URI or parent-relative paths.

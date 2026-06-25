@@ -60,7 +60,9 @@ function seedObservability(includePrivatePreview: boolean, includeRepresentative
     'xiaoba.tool.name': 'execute_shell',
     'xiaoba.tool.status': 'blocked',
     'xiaoba.error_code': 'COMMAND_DENIED',
-    'xiaoba.blocked_reason': 'requires_approval',
+    'xiaoba.blocked_reason': includePrivatePreview
+      ? 'requires_approval: cat /Users/guowei/private.txt token=secret-token-1234567890'
+      : 'requires_approval',
     ...(includePrivatePreview
       ? { 'xiaoba.tool.arguments.preview': '{"cmd":"cat /Users/guowei/private.txt"}' }
       : {}),
@@ -192,7 +194,7 @@ describe('Dashboard observability API', () => {
     }
   });
 
-  test('returns local-only raw SLO summary', async () => {
+  test('returns redacted local-only SLO summary', async () => {
     const response = await fetch(`${baseUrl}/api/observability/summary`);
     assert.strictEqual(response.status, 200);
     const summary = await response.json() as any;
@@ -204,20 +206,28 @@ describe('Dashboard observability API', () => {
     assert.strictEqual(summary.latency.tool.p95Ms, 42);
     assert.strictEqual(summary.top.roles[0].name, 'engineer-cat');
     assert.strictEqual(summary.drilldown.recentErrors[0].attributes['xiaoba.error_code'], 'COMMAND_DENIED');
-    assert.strictEqual(summary.drilldown.blockedReasons[0].name, 'requires_approval');
+    assert.match(summary.drilldown.blockedReasons[0].name, /^requires_approval:/);
+    assert.match(summary.drilldown.blockedReasons[0].name, /<redacted-path>/);
+    assert.match(summary.drilldown.blockedReasons[0].name, /<redacted-secret>/);
+    assert.match(summary.drilldown.recentErrors[0].attributes['xiaoba.blocked_reason'], /<redacted-path>/);
+    assert.match(summary.drilldown.recentErrors[0].attributes['xiaoba.blocked_reason'], /<redacted-secret>/);
     assert.deepStrictEqual(summary.drilldown.policyDecisions, []);
     assert.strictEqual(summary.traces.rawTraceparentExported, false);
     assert.strictEqual(summary.traces.spanCount, 2);
     assert.strictEqual(summary.traces.recent[0].status, 'error');
     assert.strictEqual(summary.traces.recent[0].spans[0].attributes['xiaoba.role.name'], 'engineer-cat');
     assert.match(summary.traces.recent[0].traceIdHash, /^[0-9a-f]{16}$/);
+    assert.strictEqual(summary.recent[0].attributes['xiaoba.tool.arguments.preview'], undefined);
+    assert.strictEqual(summary.drilldown.recentErrors[0].attributes['xiaoba.tool.arguments.preview'], undefined);
+    assert.strictEqual(summary.traces.recent[0].spans[0].attributes['xiaoba.user_input.preview'], undefined);
 
     const serialized = JSON.stringify(summary);
-    assert.match(serialized, /guowei/);
-    assert.match(serialized, /secret-token-1234567890/);
-    assert.match(serialized, /\/Users\/guowei/);
-    assert.match(serialized, /private\.txt/);
-    assert.match(serialized, /arguments\.preview/);
+    assert.doesNotMatch(serialized, /guowei/);
+    assert.doesNotMatch(serialized, /secret-token-1234567890/);
+    assert.doesNotMatch(serialized, /\/Users\/guowei/);
+    assert.doesNotMatch(serialized, /private\.txt/);
+    assert.doesNotMatch(serialized, /arguments\.preview/);
+    assert.doesNotMatch(serialized, /user_input\.preview/);
   });
 
   test('returns readonly observability review state without generation actions', async () => {

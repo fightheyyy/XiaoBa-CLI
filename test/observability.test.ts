@@ -302,16 +302,16 @@ describe('Local observability', () => {
     try {
       process.chdir(tempDir);
       const parentSpan = observability.startSpan('xiaoba.parent.surface', {
-        'xiaoba.surface': 'dashboard',
+        'xiaoba.surface': 'pet',
       });
       const session = new AgentSession('pet:trace-agent', {
         aiService: new FinalAIService() as any,
         toolManager: new ToolManager(),
         skillManager: new ObservabilitySkillManager() as any,
-      }, 'dashboard');
+      }, 'pet');
 
       const result = await session.handleMessage('trace me', {
-        surface: 'dashboard',
+        surface: 'pet',
         traceparent: observability.traceparent(parentSpan.context),
       });
       observability.endSpan(parentSpan, { status: 'ok' });
@@ -348,12 +348,12 @@ describe('Local observability', () => {
         aiService: new SendTextThenFinalAIService() as any,
         toolManager: new ToolManager(),
         skillManager: new ObservabilitySkillManager() as any,
-      }, 'dashboard');
+      }, 'pet');
 
       const result = await session.handleMessage('deliver visible output', {
-        surface: 'dashboard',
+        surface: 'pet',
         channel: {
-          chatId: 'dashboard-chat',
+          chatId: 'pet-chat',
           reply: async (_chatId, text) => {
             replies.push(text);
           },
@@ -443,7 +443,7 @@ class DeliveryToolExecutor implements ToolExecutor {
       duration_ms: 7,
       delivery_evidence: [{
         delivery_id: 'delivery-1',
-        surface: 'dashboard',
+        surface: 'pet',
         delivery_type: 'text',
         status: 'delivered',
         timestamp: new Date(0).toISOString(),

@@ -1,7 +1,7 @@
 # Test Harness PLAN
 
 状态：Active
-最后更新：2026-06-23
+最后更新：2026-06-25
 Owner：Runtime / evaluation maintainers
 
 ## Current Status
@@ -64,6 +64,9 @@ flowchart LR
 
 ## Verification Log
 
+- 2026-06-25：Added regression coverage for Feishu text delivery failures and main Dashboard pet Chat role-scoped session/message-mode rendering. Verification：`node --test -r tsx test/feishu-message-sender.test.ts test/dashboard-pet-runtime.test.ts`（6/6）；`npm test`（358/358）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run build`；`git diff --check`。
+- 2026-06-25：Non-Room release-blocker follow-up added regression coverage for Weixin visible final delivery, Dashboard blocked-reason redaction, and Pet live benchmark payload preflight. Verification：`npm test`（354/354）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run check:benchmarks`（1 manifest，11 cases）；`npm run build`。
+- 2026-06-25：Non-Room PR blocker sweep restored the maintained test gates: provider buildability, canonical AgentToolExecutor facts, single `test/` runner boundary, exposed `test:contract-smoke`, Feishu delivery semantics, Dashboard observability redaction, and replay session-key compatibility are all covered by current Feishu/Pet gates. Verification：`npm test`（351/351）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run check:benchmarks`（1 manifest，11 cases）；`npm run build`。
 - 2026-06-23：Removed low-level replay contract smoke suites and package scripts: no `test:replay`、`test:agent`、`test:delivery` or `test:surface-adapter`; aggregate contract smoke now runs the six maintained runtime/test suites. Verification：`npm run test:contract-smoke`（6/6 items，28/28 cases）；`node --test -r tsx test/eval-gate.test.ts test/eval-benchmark-bridge.test.ts test/eval-runner.test.ts test/provider-network-readiness-runner.test.ts`（42/42）；`npm test`（360/360）；`npm run build`；`git diff --check`。
 - 2026-06-23：Test runner naming boundary landed: deterministic suite CLI moved from `scripts/run-eval.ts` to `scripts/run-test-suite.ts`, aggregate contract smoke moved to `scripts/run-contract-smoke.ts`, and `test:contract-smoke` no longer uses `src/eval/gate-runner.ts` runtime-harness profiles. Verification：`npm run test:contract-smoke`（10/10 items，34/34 cases）；`node --test -r tsx test/eval-gate.test.ts test/eval-benchmark-bridge.test.ts test/eval-runner.test.ts`（43/43）；`npm test`（364/364）；`git diff --check`。
 - 2026-06-23：Removed the `eval-smoke` benchmark wrapper so `test/contract-smoke` remains the direct deterministic contract-smoke boundary. Verification：`npm run build`; `npm run check:benchmarks`（6 manifests，52 cases）；`node --test -r tsx test/eval-benchmark-bridge.test.ts test/eval-gate.test.ts test/logger.test.ts`（12/12）；runtime-harness direct gate to `/tmp/xiaoba-contract-smoke-cleanup`（10/10 items，34/34 cases）。

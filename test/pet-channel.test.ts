@@ -285,6 +285,24 @@ describe('PetChannel', () => {
     assert.strictEqual(invalid.traceparent, undefined);
   });
 
+  test('allows role-scoped session suffixes but rejects non-role pet sessions', () => {
+    const event = normalizePetMessageSurfaceEvent({
+      petId: 'alpha-puff',
+      sessionKey: 'pet:alpha-puff:role-engineer-cat:run-trace-001',
+      text: 'hello',
+    });
+    assert.strictEqual(event.sessionKey, 'pet:alpha-puff:role-engineer-cat:run-trace-001');
+
+    assert.throws(
+      () => normalizePetMessageSurfaceEvent({
+        petId: 'alpha-puff',
+        sessionKey: 'pet:alpha-puff:thread-trace-001',
+        text: 'hello',
+      }),
+      /invalid pet session key/,
+    );
+  });
+
   afterEach(async () => {
     await closeServer(server);
     server = null;

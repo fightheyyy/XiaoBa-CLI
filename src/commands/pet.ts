@@ -5,10 +5,6 @@ export async function petCommand(options: { port?: string; host?: string; deskto
   const port = options.port ? parseInt(options.port, 10) : parseInt(process.env.XIAOBA_PET_PORT || '3900', 10);
   const host = options.host || process.env.XIAOBA_PET_HOST || '127.0.0.1';
 
-  if (!process.env.LOG_INGEST_AUTO_ENABLED) {
-    process.env.LOG_INGEST_AUTO_ENABLED = 'false';
-  }
-
   await startPetServer(port, options.host);
 
   if (options.desktop !== false && process.env.XIAOBA_PET_DESKTOP !== 'false') {

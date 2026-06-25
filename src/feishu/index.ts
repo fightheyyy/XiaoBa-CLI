@@ -37,6 +37,7 @@ interface QueuedMessage {
   userText: string;
   chatId: string;
   senderId: string;
+  traceparent?: string;
 }
 
 interface FeishuBotRuntimeOverrides {
@@ -162,7 +163,9 @@ export class FeishuBot {
       'feishu',
       config.sessionTTL,
     );
-    this.sessionManager.setWakeupSendFn((channelId, text) => this.sender.reply(channelId, text));
+    this.sessionManager.setWakeupSendFn(async (channelId, text) => {
+      await this.sender.reply(channelId, text);
+    });
 
     // H1: 注入同事档案到 session
     const teammateCtx = buildTeammateContext(teammates);
@@ -228,7 +231,7 @@ export class FeishuBot {
       chatId,
       reply: async (targetChatId: string, text: string) => {
         opts?.replyInterceptor?.(text);
-        await this.sender.reply(targetChatId, text);
+        const receipts = await this.sender.reply(targetChatId, text);
         // 广播给所有 bridge peer（仅群聊）
         const isGroupChat = !opts?.sessionKey || opts.sessionKey.startsWith('group:');
         if (isGroupChat && this.bridgeClient && this.bridgeConfig) {
@@ -238,9 +241,10 @@ export class FeishuBot {
             content: text,
           });
         }
+        return receipts;
       },
       sendFile: async (targetChatId: string, filePath: string, fileName: string) => {
-        await this.sender.sendFile(targetChatId, filePath, fileName);
+        return this.sender.sendFile(targetChatId, filePath, fileName);
       },
     };
 
@@ -303,15 +307,29 @@ export class FeishuBot {
     // 处理斜杠命令
     if (msg.text.startsWith('/')) {
       const parts = msg.text.slice(1).split(/\s+/);
-      const command = parts[0];
+      const command = parts[0] || '';
+      if (!command) return;
       const args = parts.slice(1);
 
-      const result = await session.handleCommand(command, args);
-      if (result.handled && result.reply) {
-        await this.sender.reply(msg.chatId, result.reply);
-        Logger.info(`[feishu_command_reply] 已发送: ${result.reply.slice(0, 80)}...`);
+      const commandChannel = this.buildChannel(msg.chatId, {
+        sessionKey: key,
+        senderId: msg.senderId,
+      });
+      const result = await session.handleCommand(command, args, {
+        channel: commandChannel,
+        surface: 'feishu',
+        traceparent: msg.traceparent,
+      });
+      const commandName = command.toLowerCase();
+      const isBuiltInCommand = ['stop', 'clear', 'skills', 'history', 'exit'].includes(commandName);
+      const reply = result.reply;
+      const shouldDirectReply = Boolean(reply)
+        && (isBuiltInCommand || args.length === 0 || result.finalResponseVisible === true);
+      if (result.handled && shouldDirectReply && reply) {
+        await this.sender.reply(msg.chatId, reply);
+        Logger.info(`[feishu_command_reply] 已发送: ${reply.slice(0, 80)}...`);
       }
-      if (result.handled && command.toLowerCase() === 'clear') {
+      if (result.handled && commandName === 'clear') {
         this.pendingAttachments.delete(key);
       }
       if (result.handled) return;
@@ -364,7 +382,7 @@ export class FeishuBot {
         session.runWithLogContext(() => Logger.warning(`[${key}] 检测到用户中断请求，已请求中止当前回合`));
       }
       const queue = this.messageQueue.get(key) ?? [];
-      queue.push({ userText, chatId: msg.chatId, senderId: msg.senderId });
+      queue.push({ userText, chatId: msg.chatId, senderId: msg.senderId, traceparent: msg.traceparent });
       this.messageQueue.set(key, queue);
       session.runWithLogContext(() => Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`));
       return;
@@ -377,8 +395,8 @@ export class FeishuBot {
     });
 
     try {
-      const result = await session.handleMessage(userText, { channel });
-      if (result.text === BUSY_MESSAGE || result.text === ERROR_MESSAGE) {
+      const result = await session.handleMessage(userText, { channel, surface: 'feishu', traceparent: msg.traceparent });
+      if (result.finalResponseVisible && result.text) {
         await this.sender.reply(msg.chatId, result.text);
       }
     } finally {
@@ -421,12 +439,12 @@ export class FeishuBot {
       });
 
       try {
-        const result = await session.handleMessage(text, { channel });
+        const result = await session.handleMessage(text, { channel, surface: 'feishu' });
         if (result.text === BUSY_MESSAGE) {
           session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`));
           continue;
         }
-        if (result.text === ERROR_MESSAGE) {
+        if (result.finalResponseVisible && result.text) {
           await this.sender.reply(chatId, result.text);
         }
         await this.drainMessageQueue(sessionKey);
@@ -463,8 +481,8 @@ export class FeishuBot {
     });
 
     try {
-      const result = await session.handleMessage(mergedText, { channel });
-      if (result.text === ERROR_MESSAGE) {
+      const result = await session.handleMessage(mergedText, { channel, surface: 'feishu', traceparent: last.traceparent });
+      if (result.finalResponseVisible && result.text) {
         await this.sender.reply(last.chatId, result.text);
       }
     } finally {
@@ -560,7 +578,7 @@ export class FeishuBot {
     }
     const channel = this.buildChannel(msg.chat_id);
     try {
-      await session.handleMessage(messageText, { channel });
+      await session.handleMessage(messageText, { channel, surface: 'feishu' });
     } finally {
       this.clearPendingAnswerBySession(sessionKey);
     }
@@ -609,7 +627,7 @@ export class FeishuBot {
   private buildAttachmentOnlyPrompt(attachments: PendingAttachment[]): string {
     return [
       '[用户仅上传了附件，暂未给出明确任务]',
-      '[当前会话是飞书聊天：给老师可见的文本请通过 reply 工具发送；发送文件请用 send_file 工具]',
+      '[当前会话是飞书聊天：用户可见文本请通过 send_text 工具发送；发送文件请用 send_file 工具]',
       '请你先判断最合理的下一步，不要默认进入任何特定 skill（例如 paper-analysis）。',
       '如果任务不明确，先提出一个最小澄清问题；如果任务足够明确，再自行执行。',
       this.formatAttachmentContext(attachments),

@@ -29,19 +29,6 @@ const TRANSIENT_SKILLS_LIST_PREFIX = '[transient_skills_list]';
 export const BUSY_MESSAGE = '正在处理上一条消息，请稍候...';
 export const ERROR_MESSAGE = '不好意思，刚才处理出了点问题，你再试一次？';
 
-const CHANNEL_DELIVERY_INSTRUCTION = `【消息交付规则（强制）】当前是 channel-delivered 消息会话。只有 send_text 和 send_file 会产生用户可见输出；最终直接文本回复默认不会发送给用户。
-
-工作流程：
-1. 所有要让用户看到的文本都用 send_text；短答也用 send_text
-2. 长文本分多次 send_text，每段 50-150 字
-3. 超长内容、报告、代码块或详细说明：如果 write_file 可见，先写文件再 send_file；如果不可见，就分段 send_text
-4. 需要工具时，先调用当前可见的查询/读写工具，准备交付时再调用 send_text/send_file
-
-重要规则：
-- 不要依赖最终直接回复来和用户沟通
-- 如果需要用户看到一句话，也必须调用 send_text
-- 如果已经调用 send_text 或 send_file，不要再输出最终确认文本`;
-
 // ─── 接口定义 ───────────────────────────────────────────
 
 /** 共享服务集合 */
@@ -94,11 +81,15 @@ export interface HandleCommandOptions {
 export interface CommandResult {
   handled: boolean;
   reply?: string;
+  /** True when reply is intended for direct surface delivery. */
+  finalResponseVisible?: boolean;
 }
 
 export interface HandleMessageResult {
   text: string;
   visibleToUser: boolean;
+  /** True when text itself should be delivered directly to the user. */
+  finalResponseVisible?: boolean;
   /** code mode 过程数据（thinking / tool_use / tool_result） */
   newMessages?: import('../types').Message[];
 }
@@ -193,6 +184,7 @@ export class AgentSession {
     this.initialized = true;
     const resolvedSurface = this.resolveSurface(surface);
     const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.services.roleName });
+    const surfacePrompt = PromptManager.getSurfacePrompt();
     if (systemPrompt.trim()) {
       this.messages.push({ role: 'system', content: systemPrompt });
     }
@@ -201,22 +193,17 @@ export class AgentSession {
       const chatType = isGroup ? '群聊' : '私聊';
       this.messages.push({
         role: 'system',
-        content: `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
+        content: `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${surfacePrompt}`,
       });
     } else if (resolvedSurface === 'weixin') {
       this.messages.push({
         role: 'system',
-        content: `[surface:weixin]\n当前是微信会话。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
+        content: `[surface:weixin]\n当前是微信会话。\n${surfacePrompt}`,
       });
     } else if (resolvedSurface === 'pet') {
       this.messages.push({
         role: 'system',
-        content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收回复；pet 会表现你的等待、审查、运行、完成和失败状态。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
-      });
-    } else if (resolvedSurface === 'dashboard') {
-      this.messages.push({
-        role: 'system',
-        content: `[surface:dashboard]\n当前是 XiaoBa Dashboard Room 会话。用户通过本地 Dashboard 房间发送消息并通过 SSE 接收文本、文件和状态事件。\n${CHANNEL_DELIVERY_INSTRUCTION}`,
+        content: `[surface:pet]\n当前是 XiaoBa Pet 本地具身交互平台。用户通过桌宠唤醒、输入消息并接收回复；pet 会表现你的等待、审查、运行、完成和失败状态。\n${surfacePrompt}`,
       });
     }
 
@@ -330,7 +317,7 @@ export class AgentSession {
       const surface = this.resolveSurface(explicitSurface);
 
       if (this.busy) {
-        return { text: BUSY_MESSAGE, visibleToUser: true };
+        return { text: BUSY_MESSAGE, visibleToUser: true, finalResponseVisible: true };
       }
 
       const observability = getObservability();
@@ -568,6 +555,7 @@ export class AgentSession {
         return {
           text: result.finalResponseVisible ? (result.response || '[无回复]') : '',
           visibleToUser,
+          finalResponseVisible: result.finalResponseVisible,
           newMessages: result.newMessages,
         };
       } catch (err: any) {
@@ -650,7 +638,7 @@ export class AgentSession {
           ...providerAttrs,
         }, providerErrorCode);
 
-        return { text: errorReply, visibleToUser: true };
+        return { text: errorReply, visibleToUser: true, finalResponseVisible: true };
       } finally {
         finishSessionSpan('error', {
           ...baseObservabilityAttrs,
@@ -893,17 +881,17 @@ export class AgentSession {
       // /stop - 中断当前正在运行的请求
       if (commandName === 'stop') {
         this.requestInterrupt();
-        return { handled: true, reply: '正在停止当前请求...' };
+        return { handled: true, reply: '正在停止当前请求...', finalResponseVisible: true };
       }
 
       // /clear
       if (commandName === 'clear') {
         if (args.includes('--all')) {
           this.clear();
-          return { handled: true, reply: '历史已清空，文件已删除' };
+          return { handled: true, reply: '历史已清空，文件已删除', finalResponseVisible: true };
         }
         this.reset();
-        return { handled: true, reply: '历史已清空' };
+        return { handled: true, reply: '历史已清空', finalResponseVisible: true };
       }
 
       // /skills
@@ -916,13 +904,14 @@ export class AgentSession {
         return {
           handled: true,
           reply: `对话历史信息:\n当前历史长度: ${this.messages.length} 条消息\n上下文压缩: 由 ConversationRunner 自动管理`,
+          finalResponseVisible: true,
         };
       }
 
       // /exit
       if (commandName === 'exit') {
         await this.summarizeAndDestroy();
-        return { handled: true, reply: '再见！期待下次与你对话。' };
+        return { handled: true, reply: '再见！期待下次与你对话。', finalResponseVisible: true };
       }
 
 
@@ -1194,14 +1183,6 @@ ${conversationText}`;
       };
     }
 
-    if (surface === 'dashboard') {
-      boundary.visible_history = {
-        kind: 'visible_history',
-        ref: visibleHistoryFilePath('dashboard', this.key),
-        scope: 'surface_visible_history',
-      };
-    }
-
     return boundary;
   }
 
@@ -1373,13 +1354,13 @@ ${conversationText}`;
   private handleSkillsCommand(): CommandResult {
     const skills = this.services.skillManager.getUserInvocableSkills();
     if (skills.length === 0) {
-      return { handled: true, reply: '暂无可用的 skills。' };
+      return { handled: true, reply: '暂无可用的 skills。', finalResponseVisible: true };
     }
     const lines = skills.map(s => {
       const hint = s.metadata.argumentHint ? ` ${s.metadata.argumentHint}` : '';
       return `/${s.metadata.name}${hint}\n  ${s.metadata.description}`;
     });
-    return { handled: true, reply: '可用的 Skills:\n\n' + lines.join('\n\n') };
+    return { handled: true, reply: '可用的 Skills:\n\n' + lines.join('\n\n'), finalResponseVisible: true };
   }
 
   /** skill 斜杠命令处理 */
@@ -1392,7 +1373,7 @@ ${conversationText}`;
     if (!skill) return { handled: false };
 
     if (!skill.metadata.userInvocable) {
-      return { handled: true, reply: `Skill "${commandName}" 不允许用户调用` };
+      return { handled: true, reply: `Skill "${commandName}" 不允许用户调用`, finalResponseVisible: true };
     }
 
     // 执行 skill，生成 prompt
@@ -1419,10 +1400,14 @@ ${conversationText}`;
         traceparent: options.traceparent,
         deliveryFallbackFinalReply: options.deliveryFallbackFinalReply,
       });
-      return { handled: true, reply: reply.text };
+      return {
+        handled: true,
+        reply: reply.text,
+        finalResponseVisible: reply.finalResponseVisible,
+      };
     }
 
-    return { handled: true, reply: `已激活 skill: ${skill.metadata.name}` };
+    return { handled: true, reply: `已激活 skill: ${skill.metadata.name}`, finalResponseVisible: true };
   }
 
   private applySkillActivation(activation: SkillActivationSignal): void {

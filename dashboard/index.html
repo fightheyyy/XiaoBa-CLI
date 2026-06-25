@@ -5456,6 +5456,7 @@
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
     let selectedPetRole = localStorage.getItem(petRoleStorageKey) || '';
     let activePetRole = selectedPetRole || 'base';
+    let selectedSessionKey = '';
     let petBusy = false;
     let currentAssistantBubble = null;
     let petIdleTimer = null;
@@ -6103,6 +6104,7 @@
       const pet = pets.find(p => p.id === selectedPetId) || pets[0];
       if (!pet) {
         selectedPetId = '';
+        selectedSessionKey = '';
         document.getElementById('pet-session-key').textContent = t('pageChat');
         if (!document.getElementById('pet-messages').children.length) {
           appendPetEvent(t('petNoAssets'));
@@ -6113,7 +6115,8 @@
       selectedPetId = pet.id;
       localStorage.setItem('xiaoba.pet.id', selectedPetId);
       const petLabel = pet.displayName || pet.id;
-      document.getElementById('pet-session-key').textContent = petLabel;
+      selectedSessionKey = roleScopedSessionKey(selectedPetId, selectedPetRole);
+      document.getElementById('pet-session-key').textContent = selectedSessionKey || petLabel;
       currentPetState = 'idle';
       connectPetEvents();
       if (!document.getElementById('pet-messages').children.length) {
@@ -6129,6 +6132,22 @@
       seenPetEventIds = new Set();
       document.getElementById('pet-messages').innerHTML = '';
       renderPet();
+    }
+
+    function normalizeRoleKey(roleKey) {
+      const normalized = String(roleKey || 'base')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return normalized || 'base';
+    }
+
+    function roleScopedSessionKey(petId, roleKey) {
+      if (!petId) return '';
+      const base = 'pet:' + petId;
+      const role = normalizeRoleKey(roleKey);
+      return role === 'base' ? base : base + ':role-' + role;
     }
 
     function focusPetInput() {
@@ -6179,15 +6198,14 @@
       currentToolTrace = null;
     }
 
-    function discardAssistantDraft() {
-      if (!currentAssistantBubble) return;
-      currentAssistantBubble.remove();
-      currentAssistantBubble = null;
-    }
-
-    function renderAssistantText(text) {
+    function renderAssistantText(text, meta = {}) {
       const value = text || '';
       if (!value.trim()) return;
+      if (meta.mode === 'message') {
+        appendPetBubble('assistant', value);
+        currentAssistantBubble = null;
+        return;
+      }
       if (!currentAssistantBubble) currentAssistantBubble = appendPetBubble('assistant', '');
       currentAssistantBubble.textContent = value;
       scrollPetMessages();
@@ -6361,7 +6379,6 @@
     }
 
     function renderToolStart(event) {
-      discardAssistantDraft();
       const row = upsertToolRow(event);
       setToolRowStatus(row, 'running', t('toolStatusRunning'));
       row.metaEl.textContent = '';
@@ -6436,8 +6453,8 @@
         resetCurrentTurn();
         appendPetBubble('user', event.text || '');
       },
-      onText: (_event, text) => {
-        renderAssistantText(text);
+      onText: (_event, text, meta) => {
+        renderAssistantText(text, meta);
       },
       onToolStart: event => renderToolStart(event),
       onToolEnd: event => renderToolEnd(event),
@@ -6460,7 +6477,7 @@
     function connectPetEvents() {
       if (petEventSource) petEventSource.close();
       if (!selectedPetId) return;
-      petEventSource = petClient.connect(selectedPetId, handlePetEvent, { replay: true });
+      petEventSource = petClient.connect(selectedPetId, handlePetEvent, { replay: true, sessionKey: selectedSessionKey });
     }
 
     async function sendPetMessage() {
@@ -6476,7 +6493,7 @@
       document.querySelector('#page-pet .pet-chat-panel')?.classList.remove('composing');
 
       try {
-        await petClient.sendMessage(selectedPetId, text, petEventSource ? undefined : handlePetEvent, { source: 'dashboard' });
+        await petClient.sendMessage(selectedPetId, text, petEventSource ? undefined : handlePetEvent, { source: 'dashboard', sessionKey: selectedSessionKey });
       } catch (e) {
         setPetState('failed');
         appendPetEvent(t('petSendFailed')+e.message);

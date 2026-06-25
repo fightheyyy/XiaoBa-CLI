@@ -831,7 +831,7 @@ export class ConversationRunner {
 
   private usesChannelDelivery(): boolean {
     const surface = this.toolExecutionContext?.surface;
-    return surface === 'feishu' || surface === 'weixin' || surface === 'pet' || surface === 'dashboard';
+    return surface === 'feishu' || surface === 'weixin' || surface === 'pet';
   }
 
   private async deliverFallbackFinalText(finalText: string, turn: number): Promise<RunToolResult | null> {

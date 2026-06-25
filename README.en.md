@@ -9,7 +9,6 @@
 
   **Under the hood, XiaoBa is a local-first AI role runtime for colleagues that grow with you.**
 
-  [![CI](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml/badge.svg)](https://github.com/fightheyyy/XiaoBa-CLI/actions/workflows/ci.yml)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
@@ -34,7 +33,7 @@ IM message / CLI prompt
   -> XiaoBa colleague
   -> Role runtime
   -> Skills + tools + subagents
-  -> Computer / files / projects / shell / AutoDev
+  -> Computer / files / projects / shell
   -> EngineerCat can dispatch local Codex CLI
   -> Natural reply, file delivery, progress update, or case handoff
 ```
@@ -61,7 +60,7 @@ The first slice is practical: **an IM-native work colleague** that can take task
 
 ## Quickstart
 
-XiaoBa is currently best run from source. Packaged desktop releases are prepared through GitHub Releases, but the fastest path for now is local development mode.
+XiaoBa is currently best run from source. Desktop packages are produced with local Electron packaging scripts; this repository no longer ships a remote release workflow.
 
 ```bash
 git clone https://github.com/fightheyyy/XiaoBa-CLI.git
@@ -84,6 +83,16 @@ XIAOBA_LLM_MODEL=your_model
 # XIAOBA_LLM_API_BASE=https://api.anthropic.com
 # XIAOBA_LLM_API_KEY=your_api_key
 # XIAOBA_LLM_MODEL=claude-sonnet-4-20250514
+
+# Or local Ollama (no API key required)
+# XIAOBA_LLM_PROVIDER=ollama
+# XIAOBA_LLM_API_BASE=http://localhost:11434
+# XIAOBA_LLM_API_KEY=
+# XIAOBA_LLM_MODEL=qwen3:8b
+# XIAOBA_LLM_MAX_TOKENS=1024
+# XIAOBA_OLLAMA_THINK=false
+# XIAOBA_OLLAMA_KEEP_ALIVE=30m
+# XIAOBA_OLLAMA_NUM_CTX=8192
 ```
 
 Start a local chat:
@@ -157,7 +166,7 @@ XiaoBa does not try to replace Codex or other coding agents. EngineerCat current
 
 ### Skills + Tools
 
-- Built-in file, shell, grep, edit, send text, send file, log ingest, and subagent tools.
+- Built-in file, shell, grep, edit, send text, send file, and subagent tools.
 - Skills are local instruction packs stored under `skills/` or `roles/<role>/skills/`.
 - GitHub skill installation is supported through `xiaoba skill install-github owner/repo`.
 - Claude Code style skill frontmatter is supported by the parser.
@@ -174,7 +183,7 @@ XiaoBa does not try to replace Codex or other coding agents. EngineerCat current
 - Session JSONL, runtime logs, tool traces, token usage, and artifacts are kept for replay.
 - Memory finalization can extract facts, preferences, and working habits from sessions.
 - Context compression keeps recent high-value turns while reducing stale history.
-- AutoDev integration can turn logs into inspect -> engineer -> review feedback loops.
+- Inspector, EngineerCat, and ReviewerCat can turn logs and handoffs into inspect -> engineer -> review feedback loops.
 
 ---
 
@@ -221,19 +230,19 @@ flowchart LR
     Harness["Harness Runtime<br/>AgentSession / Runner / Providers / Tools"]
     Policy["Roles & Skills<br/>roles / skills / prompts / tool policy"]
     Evidence["State & Evidence<br/>data / logs / memory / output"]
-    Gates["Evaluation Gates<br/>benchmarks / tests / replay / scorecard"]
+    Quality["Quality<br/>test / eval / eval/benchmarks"]
 
     Surfaces --> Harness
     Policy --> Harness
     Harness --> Evidence
-    Evidence --> Gates
-    Gates --> Harness
-    Gates --> Policy
+    Evidence --> Quality
+    Quality --> Harness
+    Quality --> Policy
 ```
 
 ![XiaoBa Agent Runtime Architecture](assets/xiaoba-agent-runtime.png)
 
-Top-level module specs: [`surfaces`](docs/surfaces/SPEC.md), [`harness`](docs/harness/SPEC.md), [`roles`](docs/roles/SPEC.md), [`state-evidence`](docs/state-evidence/SPEC.md), and [`benchmarks`](docs/benchmarks/SPEC.md).
+Top-level module specs: [`surfaces`](docs/surfaces/SPEC.md), [`harness`](docs/harness/SPEC.md), [`roles`](docs/roles/SPEC.md), and [`state-evidence`](docs/state-evidence/SPEC.md). Test boundary: [`test`](test/SPEC.md). Agent evaluation and benchmark control plane: [`eval`](eval/README.md).
 
 ```text
 src/index.ts
@@ -260,10 +269,23 @@ Important modules:
 Base model config:
 
 ```env
-XIAOBA_LLM_PROVIDER=openai
+XIAOBA_LLM_PROVIDER=openai # openai / anthropic / ollama
 XIAOBA_LLM_API_BASE=https://api.openai.com/v1
 XIAOBA_LLM_API_KEY=your_api_key
 XIAOBA_LLM_MODEL=your_model
+```
+
+For local Ollama, use the native provider:
+
+```env
+XIAOBA_LLM_PROVIDER=ollama
+XIAOBA_LLM_API_BASE=http://localhost:11434
+XIAOBA_LLM_API_KEY=
+XIAOBA_LLM_MODEL=qwen3:8b
+XIAOBA_LLM_MAX_TOKENS=1024
+XIAOBA_OLLAMA_THINK=false
+XIAOBA_OLLAMA_KEEP_ALIVE=30m
+XIAOBA_OLLAMA_NUM_CTX=8192
 ```
 
 Optional backup models:
@@ -275,6 +297,18 @@ XIAOBA_LLM_BACKUP_1_API_KEY=backup_key
 XIAOBA_LLM_BACKUP_1_MODEL=backup_model
 ```
 
+Optional OpenTelemetry export, disabled by default:
+
+```env
+XIAOBA_OTEL_ENABLED=false
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_TRACES_EXPORTER=otlp
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp
+```
+
+When enabled, XiaoBa exports redacted metrics / logs / traces. Prompt text, tool args, file content, and raw provider payloads are not exported by default. For a developer-only local Collector smoke route, see [docs/observability/COLLECTOR.md](docs/observability/COLLECTOR.md); it still requires `XIAOBA_OTEL_ENABLED=true` and does not change the default local-user behavior.
+
 IM adapters:
 
 ```env
@@ -285,17 +319,6 @@ FEISHU_BOT_ALIASES=小八,xiaoba
 
 WEIXIN_TOKEN=your_token
 ```
-
-AutoDev / inspection loop:
-
-```env
-AUTODEV_ENABLED=false
-AUTODEV_SERVER_URL=
-AUTODEV_API_KEY=
-LOG_INGEST_AUTO_ENABLED=false
-```
-
-AutoDev is a legacy integration and is disabled by default. Role background workers connect to AutoDev only when both `AUTODEV_ENABLED=true` and `AUTODEV_SERVER_URL` are set; automatic session log ingest also requires `LOG_INGEST_AUTO_ENABLED=true`.
 
 Full sample: [`.env.example`](.env.example).
 
@@ -371,7 +394,7 @@ npm run electron:build:linux
 | Skill loading and GitHub skill install | Available |
 | Feishu / Weixin adapters | Available, credentials required |
 | Dashboard and desktop shell | Available in development mode |
-| Packaged desktop release | GitHub Release workflow prepared |
+| Packaged desktop release | Local Electron packaging scripts remain; GitHub workflows removed |
 | npm global package | Not published yet |
 
 ---
@@ -385,7 +408,8 @@ npm run electron:build:linux
 - [Harness Runtime SPEC](docs/harness/SPEC.md)
 - [Roles & Skills SPEC](docs/roles/SPEC.md)
 - [State & Evidence SPEC](docs/state-evidence/SPEC.md)
-- [Evaluation Gates SPEC](docs/benchmarks/SPEC.md)
+- [Test Harness SPEC](test/SPEC.md)
+- [Agent Evaluation Strategy](eval/README.md)
 - [Roles Guide](roles/README.md)
 - [EngineerCat Spec](roles/engineer-cat/SPEC.md)
 - [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)

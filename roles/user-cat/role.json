@@ -1,0 +1,25 @@
+{
+  "name": "user-cat",
+  "displayName": "UserCat",
+  "description": "Low-information realistic user pressure role for producing candidate multi-turn traces, not judging or accepting benchmarks.",
+  "promptFile": "user-system-prompt.md",
+  "aliases": [
+    "user",
+    "real-user",
+    "trace-user",
+    "low-info-user"
+  ],
+  "inheritBaseSkills": false,
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "read_file",
+    "grep",
+    "glob",
+    "skill"
+  ],
+  "metadata": {
+    "toolPolicy": "user_trace_run-candidate-trace-production-only",
+    "curationOwner": "reviewer-cat",
+    "benchmarkAcceptance": "forbidden"
+  }
+}

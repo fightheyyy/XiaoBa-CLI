@@ -1,7 +1,7 @@
 # Trace Replay PLAN
 
 状态：Active
-最后更新：2026-06-23
+最后更新：2026-06-25
 Owner：Runtime / Evaluation maintainers
 
 ## Current Status
@@ -20,7 +20,7 @@ Trace Replay 已成为 XiaoBa 评测体系里的第一条正式主线，和 Live
 3. M2：新增 `xiaoba replay --trace` 和 `npm run replay:trace` 入口：completed。
 4. M3：输出 manifest / extracted inputs / replay results / comparison / report：completed。
 5. M4：支持 workspace snapshot / restore：not started。
-6. M5：支持跨 surface replay（Feishu / Weixin / Dashboard Room）：not started。
+6. M5：支持跨 surface replay（Feishu / Weixin / Pet）：not started。
 
 ## Next Steps
 
@@ -39,6 +39,7 @@ Trace Replay 已成为 XiaoBa 评测体系里的第一条正式主线，和 Live
 
 ## Verification Log
 
+- 2026-06-25：Trace Replay generated Pet session keys now use the role-scoped `pet:<petId>:role-base:<safe-run-id>` form, matching the current Pet channel session contract while preserving replay isolation. Verification：`node --test -r tsx test/trace-replay-runner.test.ts test/eval-benchmark-bridge.test.ts`（3/3）；`npm test`（353/353）；`npm run build`。
 - 2026-06-23：新增 Trace Replay 文档、runner、CLI/script 入口和 focused tests。Verification：`node --test -r tsx test/trace-replay-runner.test.ts`；`npm run build`；`npm run check:benchmarks`；`npm run replay:trace -- --help`；`node dist/index.js replay --help`；真实 Pet trace one-turn smoke 产出 `output/replay/manual-smoke-userboundary20-one-final`、fresh trace 和 visible history。
 
 ## Risks / Open Questions

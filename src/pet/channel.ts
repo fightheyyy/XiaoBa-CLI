@@ -48,6 +48,7 @@ interface PetEvent {
 const DEFAULT_SESSION_TTL = 60 * 60 * 1000;
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/i;
 const PET_SESSION_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/i;
+const PET_ROLE_SESSION_SEGMENT_PATTERN = /^role-[a-z0-9][a-z0-9_-]{0,80}$/i;
 
 export function normalizePetIdInput(value: unknown, defaultPetId?: string | null): string {
   const petId = typeof value === 'string' && value.trim()
@@ -73,8 +74,11 @@ export function normalizePetSessionKey(petId: string, value: unknown): string {
     throw new Error('invalid pet session key');
   }
 
-  const sessionId = sessionKey.slice(baseSessionKey.length + 1);
-  if (!PET_SESSION_ID_PATTERN.test(sessionId)) {
+  const sessionSegments = sessionKey.slice(baseSessionKey.length + 1).split(':');
+  if (sessionSegments.some(segment => !PET_SESSION_ID_PATTERN.test(segment))) {
+    throw new Error('invalid pet session key');
+  }
+  if (!PET_ROLE_SESSION_SEGMENT_PATTERN.test(sessionSegments[0])) {
     throw new Error('invalid pet session key');
   }
   return sessionKey;
@@ -222,7 +226,7 @@ export class PetChannel {
   }
 
   private resolveRoleNameFromSessionKey(sessionKey: string): string | undefined {
-    const match = sessionKey.match(/^pet:[^:]+:role-(.+)$/);
+    const match = sessionKey.match(/^pet:[^:]+:role-([^:]+)(?::|$)/);
     const roleKey = match?.[1]?.trim();
     if (!roleKey || RoleResolver.normalizeRoleName(roleKey) === 'base') {
       return undefined;

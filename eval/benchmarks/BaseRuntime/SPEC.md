@@ -120,6 +120,8 @@ Every JSONL row must include:
 - `verifier_ids`
 - `budgets`
 
+Pet `surface_runtime` suite payloads must use production-valid session keys. Base runtime cases use `pet:<petId>:role-base:<case-suffix>` so they remain isolated per case while still exercising the maintained default-role PetChannel path.
+
 ## Boundaries
 
 - Real trace patterns may inspire synthetic live cases, but raw/historical trace rows do not live here.

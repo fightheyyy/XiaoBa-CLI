@@ -3,7 +3,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
 import { prepareReviewEval } from '../utils/review-eval-profile';
 
 const execAsync = promisify(exec);
@@ -179,6 +179,10 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
       changedFiles: [],
     });
     const runDir = prepared.runDir;
+    if (args && typeof args === 'object') {
+      args.__xiaoba_artifact_run_id = runId;
+      args.__xiaoba_artifact_run_dir = runDir;
+    }
     const traceDir = path.join(runDir, 'trace');
     const evidenceDir = path.join(runDir, 'evidence');
     fs.mkdirSync(traceDir, { recursive: true });
@@ -310,6 +314,13 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
     fs.writeFileSync(gitAfterPath, await captureCommand('git status --short', cwd), 'utf-8');
 
     const sessionLogPaths = collectSessionLogs(cwd, startedAt.getTime());
+    const threeLayerEvidence = summarizeThreeLayerEvidence({
+      cwd,
+      sessionLogPaths,
+      traceEventsPath,
+      cleanPanePath,
+      finalCapture,
+    });
     const decision = decide({
       blockedReason,
       interactionStarted,
@@ -326,6 +337,18 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
       errors,
     });
     const completedAt = new Date().toISOString();
+    const roleEffectiveness = buildRoleEffectivenessScore({
+      decision,
+      targetRole,
+      actualSurface,
+      messages,
+      interactionStarted,
+      completionMatched,
+      verifierResults,
+      sessionLogPaths,
+      errors,
+      threeLayerEvidence,
+    });
 
     const manifest: E2EManifest = {
       version: 1,
@@ -388,6 +411,22 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
       blockedReason,
       fallbackReason,
       errors,
+      rubric: {
+        minimumPassingScore: 80,
+        dimensions: roleEffectiveness.dimensions.map((dimension: any) => ({
+          id: dimension.id,
+          maxScore: dimension.maxScore,
+          requirement: dimension.requirement,
+        })),
+        gates: [
+          'real entrypoint interaction must start or the run is blocked',
+          'human-like task must produce an observable completion signal or residual risk',
+          'independent verifier evidence must pass for release-gate closure',
+          'three-layer evidence must be observed or explicitly listed as missing',
+        ],
+      },
+      roleEffectiveness,
+      threeLayerEvidence,
       evidence: {
         traceManifest: path.relative(runDir, manifestPath).replace(/\\/g, '/'),
         rawPane: path.relative(runDir, rawPanePath).replace(/\\/g, '/'),
@@ -428,14 +467,67 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
       verifierResults,
       blockedReason,
       fallbackReason,
+      roleEffectiveness,
+      threeLayerEvidence,
     }, context.workingDirectory), maxChars);
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    const runDir = inferE2ERunDir(args, result, context.workingDirectory);
+    if (!runDir) return [];
+
+    const artifacts = [
+      artifactFromPath(path.join(runDir, 'e2e-task.json'), 'generated', context.workingDirectory, {
+        artifact_role: 'e2e_task',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'trace', 'manifest.json'), 'generated', context.workingDirectory, {
+        artifact_role: 'trace_manifest',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'trace', 'normalized-transcript.jsonl'), 'captured', context.workingDirectory, {
+        artifact_role: 'working_trace',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'trace', 'tmux-captures.jsonl'), 'captured', context.workingDirectory, {
+        artifact_role: 'surface_capture',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'trace', 'tmux-pane.raw.log'), 'captured', context.workingDirectory, {
+        artifact_role: 'raw_surface_log',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'trace', 'tmux-pane.clean.log'), 'captured', context.workingDirectory, {
+        artifact_role: 'clean_surface_log',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'scorecard.json'), 'generated', context.workingDirectory, {
+        artifact_role: 'scorecard',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'report.md'), 'generated', context.workingDirectory, {
+        artifact_role: 'review_report',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'evidence', 'git-status.before.txt'), 'captured', context.workingDirectory, {
+        artifact_role: 'workspace_status',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      artifactFromPath(path.join(runDir, 'evidence', 'git-status.after.txt'), 'captured', context.workingDirectory, {
+        artifact_role: 'workspace_status',
+        tool: 'reviewer_xiaoba_cli_e2e',
+      }),
+      ...readE2EVerifierArtifacts(runDir, context.workingDirectory),
+    ];
+
+    return uniqueArtifacts(artifacts.filter((item): item is ArtifactManifestItem => Boolean(item)));
   }
 }
 
 function defaultScenario(targetRole: string): string {
   return [
     `你现在是被测对象 ${targetRole}。`,
-    '请按真实高级工程师方式响应这个测试需求：先复述目标、指出你需要的边界信息、说明你会如何调用 Codex/Claude/OMC、会跑哪些验证，并给出可交付证据清单。',
+    '请按真实高级工程师方式响应这个测试需求：先复述目标、指出你需要的边界信息、说明你会如何调用 Codex runner、会跑哪些验证，并给出可交付证据清单。',
     '这是一轮只读 E2E 能力探测，除非我明确要求，不要修改文件。'
   ].join('\n');
 }
@@ -659,6 +751,132 @@ function scoreRun(input: {
   return Math.max(0, Math.min(100, score));
 }
 
+function summarizeThreeLayerEvidence(input: {
+  cwd: string;
+  sessionLogPaths: string[];
+  traceEventsPath: string;
+  cleanPanePath: string;
+  finalCapture: string;
+}): Record<string, any> {
+  const entries = readSessionEntries(input.cwd, input.sessionLogPaths);
+  const hasTurn = entries.some(entry => entry?.entry_type === 'trace' || entry?.entry_type === 'turn');
+  const hasRuntime = entries.some(entry => entry?.entry_type === 'runtime');
+  const hasAssistantToolCalls = entries.some(entry => Array.isArray(entry?.assistant?.tool_calls) && entry.assistant.tool_calls.length > 0);
+  const hasToolResult = entries.some(entry => entry?.entry_type === 'tool' || entry?.tool_call_id || entry?.tool_result);
+  const hasTokens = entries.some(entry => entry?.tokens);
+  const hasTraceEvents = fs.existsSync(input.traceEventsPath) && fs.statSync(input.traceEventsPath).size > 0;
+  const hasCleanPane = fs.existsSync(input.cleanPanePath) && fs.statSync(input.cleanPanePath).size > 0;
+
+  const durableSession = {
+    status: input.sessionLogPaths.length > 0 ? 'observed' : 'missing',
+    evidence: input.sessionLogPaths,
+    notes: input.sessionLogPaths.length > 0
+      ? ['session JSONL was discovered after the E2E run']
+      : ['no logs/sessions JSONL was discovered for this run'],
+  };
+  const workingTrace = {
+    status: hasTraceEvents && (hasCleanPane || input.finalCapture.trim()) ? 'observed' : 'missing',
+    evidence: ['trace/normalized-transcript.jsonl', 'trace/tmux-pane.clean.log'].filter(item => {
+      const absolute = path.join(path.dirname(input.traceEventsPath), path.basename(item));
+      return item.includes('normalized') ? hasTraceEvents : fs.existsSync(absolute);
+    }),
+    notes: hasTraceEvents
+      ? ['reviewer captured human messages, terminal captures, and state transitions']
+      : ['reviewer trace events were not captured'],
+  };
+  const providerTranscript = {
+    status: hasTurn ? (hasAssistantToolCalls || hasToolResult || hasTokens || hasRuntime ? 'observed' : 'partial') : 'missing',
+    evidence: input.sessionLogPaths,
+    notes: hasTurn
+      ? ['session log contains turn-level provider/runtime evidence; inspect raw JSONL for exact provider-visible payload when closing a release gate']
+      : ['no turn-level session entry was found'],
+  };
+  const issues: string[] = [];
+  if (durableSession.status === 'missing') issues.push('durable session evidence missing');
+  if (workingTrace.status === 'missing') issues.push('working trace evidence missing');
+  if (providerTranscript.status === 'missing') issues.push('provider transcript evidence missing');
+  if (hasAssistantToolCalls && !hasToolResult) issues.push('assistant tool calls were observed without matching tool-result evidence in discovered logs');
+
+  return { durableSession, workingTrace, providerTranscript, issues };
+}
+
+function buildRoleEffectivenessScore(input: {
+  decision: E2EDecision;
+  targetRole: string;
+  actualSurface: ActualSurface;
+  messages: string[];
+  interactionStarted: boolean;
+  completionMatched: boolean;
+  verifierResults: VerifierResult[];
+  sessionLogPaths: string[];
+  errors: string[];
+  threeLayerEvidence: Record<string, any>;
+}): Record<string, any> {
+  const verifierPassed = input.verifierResults.length > 0 && input.verifierResults.every(result => result.status === 'passed');
+  const threeLayerObserved = ['durableSession', 'workingTrace', 'providerTranscript']
+    .filter(layer => input.threeLayerEvidence[layer]?.status === 'observed').length;
+  const dimensions = [
+    {
+      id: 'contractUnderstanding',
+      maxScore: 15,
+      score: input.completionMatched ? 15 : 6,
+      requirement: 'role response shows it understood its own responsibility boundary and task goal',
+      evidence: input.completionMatched ? ['completion pattern matched'] : ['completion pattern missing'],
+    },
+    {
+      id: 'entrypointReality',
+      maxScore: 15,
+      score: input.interactionStarted ? (input.actualSurface === 'tmux' ? 15 : 12) : 0,
+      requirement: 'role is exercised through a real XiaoBa CLI interaction surface',
+      evidence: [`surface=${input.actualSurface}`, `interactionStarted=${input.interactionStarted}`],
+    },
+    {
+      id: 'humanLikeTaskExecution',
+      maxScore: 15,
+      score: input.messages.length > 0 && input.interactionStarted ? 15 : 0,
+      requirement: 'reviewer sends natural user messages and captures the target role behavior',
+      evidence: [`messages=${input.messages.length}`],
+    },
+    {
+      id: 'toolSkillBoundary',
+      maxScore: 15,
+      score: input.sessionLogPaths.length > 0 ? 15 : 6,
+      requirement: 'role action can be tied to runtime session/tool/skill evidence or a recorded missing-evidence risk',
+      evidence: input.sessionLogPaths,
+    },
+    {
+      id: 'threeLayerEvidence',
+      maxScore: 15,
+      score: threeLayerObserved * 5,
+      requirement: 'durable session, working trace, and provider transcript are observed as separate layers',
+      evidence: input.threeLayerEvidence.issues.length === 0 ? ['all three layers observed'] : input.threeLayerEvidence.issues,
+    },
+    {
+      id: 'independentVerification',
+      maxScore: 15,
+      score: verifierPassed ? 15 : 0,
+      requirement: 'independent verifier checks pass outside the role self-report',
+      evidence: input.verifierResults.map(result => `${result.name}:${result.status}`),
+    },
+    {
+      id: 'decisionAndResidualRisk',
+      maxScore: 10,
+      score: input.errors.length === 0 && input.decision === 'pass' ? 10 : 4,
+      requirement: 'scorecard records decision, errors, and residual risks clearly',
+      evidence: input.errors.length > 0 ? input.errors : [`decision=${input.decision}`],
+    },
+  ];
+  const totalScore = dimensions.reduce((sum, dimension) => sum + dimension.score, 0);
+  return {
+    role: input.targetRole,
+    totalScore,
+    maximumScore: 100,
+    minimumPassingScore: 80,
+    rating: totalScore >= 80 && input.decision === 'pass' ? 'effective' : (totalScore >= 60 ? 'partial' : 'ineffective'),
+    dimensions,
+  };
+}
+
 function residualRisks(
   decision: E2EDecision,
   completionMatched: boolean,
@@ -675,6 +893,23 @@ function residualRisks(
   if (surface === 'process') risks.push('process surface is less human-realistic than tmux because it does not allocate a real terminal pane.');
   if (fallbackReason) risks.push(fallbackReason);
   return risks;
+}
+
+function readSessionEntries(cwd: string, sessionLogPaths: string[]): any[] {
+  const entries: any[] = [];
+  for (const relativePath of sessionLogPaths) {
+    const filePath = path.isAbsolute(relativePath) ? relativePath : path.join(cwd, relativePath);
+    if (!fs.existsSync(filePath)) continue;
+    const lines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
+    for (const line of lines) {
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        // Ignore malformed log lines; the raw file path remains in evidence.
+      }
+    }
+  }
+  return entries;
 }
 
 function renderReport(input: {
@@ -725,6 +960,21 @@ function renderReport(input: {
     'Session logs:',
     ...(input.manifest.sessionLogPaths.length > 0 ? input.manifest.sessionLogPaths.map(item => `- ${item}`) : ['- none discovered']),
     '',
+    '## Three-Layer Evidence',
+    '',
+    ...renderThreeLayerEvidence(input.scorecard.threeLayerEvidence),
+    '',
+    '## Role Effectiveness Score',
+    '',
+    `Rating: ${input.scorecard.roleEffectiveness.rating}`,
+    `Total: ${input.scorecard.roleEffectiveness.totalScore}/${input.scorecard.roleEffectiveness.maximumScore}`,
+    '',
+    ...input.scorecard.roleEffectiveness.dimensions.map((dimension: any) => [
+      `- ${dimension.id}: ${dimension.score}/${dimension.maxScore}`,
+      `  requirement: ${dimension.requirement}`,
+      `  evidence: ${Array.isArray(dimension.evidence) && dimension.evidence.length > 0 ? dimension.evidence.join(' | ') : 'none'}`,
+    ].join('\n')),
+    '',
     '## Errors',
     '',
     ...(input.errors.length > 0 ? input.errors.map(item => `- ${item}`) : ['- none']),
@@ -734,6 +984,24 @@ function renderReport(input: {
     ...(input.scorecard.residualRisks.length > 0 ? input.scorecard.residualRisks.map((item: string) => `- ${item}`) : ['- none']),
   ].filter((line): line is string => typeof line === 'string');
   return lines.join('\n');
+}
+
+function renderThreeLayerEvidence(summary: Record<string, any>): string[] {
+  const layers = [
+    ['Durable Session', summary.durableSession],
+    ['Working Trace', summary.workingTrace],
+    ['Provider Transcript', summary.providerTranscript],
+  ];
+  return [
+    ...layers.map(([label, value]) => [
+      `- ${label}: ${value?.status || 'missing'}`,
+      `  evidence: ${Array.isArray(value?.evidence) && value.evidence.length > 0 ? value.evidence.join(' | ') : 'none'}`,
+      `  notes: ${Array.isArray(value?.notes) && value.notes.length > 0 ? value.notes.join(' | ') : 'none'}`,
+    ].join('\n')),
+    '',
+    'Issues:',
+    ...(Array.isArray(summary.issues) && summary.issues.length > 0 ? summary.issues.map((item: string) => `- ${item}`) : ['- none']),
+  ];
 }
 
 function formatCompactResult(input: {
@@ -751,14 +1019,21 @@ function formatCompactResult(input: {
   verifierResults: VerifierResult[];
   blockedReason?: string;
   fallbackReason?: string;
+  roleEffectiveness: Record<string, any>;
+  threeLayerEvidence: Record<string, any>;
 }, displayRoot: string): string {
   const verifiers = input.verifierResults.map(result => `${result.name}:${result.status}`).join(', ') || 'none';
+  const threeLayerIssues = Array.isArray(input.threeLayerEvidence.issues) && input.threeLayerEvidence.issues.length > 0
+    ? input.threeLayerEvidence.issues.join('; ')
+    : 'none';
   return [
     `reviewer_xiaoba_cli_e2e: status=${input.decision}`,
     `run_id=${input.runId}`,
     `target_role=${input.targetRole}`,
     `surface=${input.surface}`,
     `score=${input.score}`,
+    `role_effectiveness=${input.roleEffectiveness.rating}:${input.roleEffectiveness.totalScore}/100`,
+    `three_layer_issues=${threeLayerIssues}`,
     `interaction_started=${input.interactionStarted ? 'yes' : 'no'}`,
     `completion_signal=${input.completionMatched ? 'matched' : 'missing'}`,
     `verifiers=${verifiers}`,
@@ -854,6 +1129,103 @@ function stripAnsi(value: string): string {
 function writeJson(filePath: string, data: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function inferE2ERunDir(args: any, result: string, workingDirectory: string): string {
+  const artifactRunDir = readOptionalString(args?.__xiaoba_artifact_run_dir);
+  if (artifactRunDir) return artifactRunDir;
+
+  const resultRunDir = keyValue(result, 'run_dir');
+  if (resultRunDir) {
+    return path.isAbsolute(resultRunDir)
+      ? resultRunDir
+      : path.resolve(workingDirectory, resultRunDir);
+  }
+
+  const rawRunId = readOptionalString(args?.__xiaoba_artifact_run_id)
+    || readOptionalString(args?.run_id)
+    || keyValue(result, 'run_id');
+  if (!rawRunId) return '';
+  const runId = safeSegment(rawRunId);
+  const cwd = resolveCwd(workingDirectory, args?.cwd);
+  return path.join(cwd, 'data', 'reviewer-runs', runId);
+}
+
+function readE2EVerifierArtifacts(runDir: string, workingDirectory: string): ArtifactManifestItem[] {
+  const evidenceDir = path.join(runDir, 'evidence');
+  if (!fs.existsSync(evidenceDir)) return [];
+  return fs.readdirSync(evidenceDir)
+    .filter(fileName => /\.(stdout|stderr)\.log$/.test(fileName))
+    .sort((left, right) => verifierLogSortKey(left).localeCompare(verifierLogSortKey(right)))
+    .map(fileName => artifactFromPath(path.join(evidenceDir, fileName), 'captured', workingDirectory, {
+      artifact_role: 'verifier_log',
+      tool: 'reviewer_xiaoba_cli_e2e',
+    }))
+    .filter((item): item is ArtifactManifestItem => Boolean(item));
+}
+
+function verifierLogSortKey(fileName: string): string {
+  return fileName
+    .replace(/\.stdout\.log$/, '.0.log')
+    .replace(/\.stderr\.log$/, '.1.log');
+}
+
+function artifactFromPath(
+  value: unknown,
+  action: ArtifactManifestItem['action'],
+  workingDirectory: string,
+  metadata: Record<string, unknown>,
+): ArtifactManifestItem | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const normalized = workspaceRelativeArtifactPath(value, workingDirectory);
+  return {
+    path: normalized,
+    type: artifactType(normalized),
+    action,
+    metadata: {
+      ...metadata,
+      source: 'tool_owned',
+    },
+  };
+}
+
+function keyValue(text: string, key: string): string {
+  const pattern = new RegExp(`^${key}=([^\\r\\n]+)$`, 'm');
+  return pattern.exec(String(text || ''))?.[1]?.trim() || '';
+}
+
+function readOptionalString(value: unknown): string {
+  const text = String(value || '').trim();
+  return text || '';
+}
+
+function workspaceRelativeArtifactPath(value: string, workingDirectory: string): string {
+  const normalized = value.trim().replace(/\\/g, '/');
+  const absolute = path.isAbsolute(normalized)
+    ? normalized
+    : path.resolve(workingDirectory, normalized);
+  const relative = path.relative(workingDirectory, absolute).replace(/\\/g, '/');
+  if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+    return relative;
+  }
+  return normalized.replace(/^\/+/, '');
+}
+
+function artifactType(filePath: string): string {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  return ext || 'file';
+}
+
+function uniqueArtifacts(items: ArtifactManifestItem[]): ArtifactManifestItem[] {
+  const seen = new Set<string>();
+  const unique: ArtifactManifestItem[] = [];
+  for (const item of items) {
+    const key = `${item.path}\0${item.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
 }
 
 function mapRelativePaths(paths: Record<string, string>, cwd: string): Record<string, string> {

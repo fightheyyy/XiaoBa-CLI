@@ -24,12 +24,14 @@ user_invocable: true
 
 1. 如果日志很大（>5000 行）或明显很长，先用 `analyze_log` 的 `quick` 模式看概览，再决定是否继续 `deep`
 2. 使用 `analyze_log` 工具分析日志（优先 `deep`），获取结构化数据
-3. 基于数据，把问题明确分成 `runtime 问题`、`skill 问题`、`prompt/usage 问题`
-4. 额外判断是否存在值得沉淀的新 Skill 候选
-5. 按下面的 **报告模板** 生成完整 MD 内容
-6. 使用 `write_file` 工具保存报告到日志同目录，文件名格式 `report-YYYY-MM-DD.md`（用日志文件日期）
-7. 向用户发送简短摘要（2-3 句）+ 报告文件路径
-8. 如果有严重问题（severity=high），在摘要中醒目提示
+3. 优先基于 `issueProfiles[]` 做生产路由；再结合 `issues[]` / `toolStats[]` / `turns[]` 补充证据
+4. 把问题明确分成 `runtime 问题`、`tool policy / surface / provider 问题`、`skill 问题`、`role prompt / usage 问题`、`external dependency` 或 `insufficient signal`
+5. 额外判断是否存在值得沉淀的新 Skill、benchmark/replay 或 EngineerCat handoff 候选
+6. 按下面的 **报告模板** 生成完整 MD 内容
+7. 使用 `write_file` 工具保存报告到日志同目录，文件名格式 `report-YYYY-MM-DD.md`（用日志文件日期）
+8. 如需下游处理，额外写 `inspector-handoff.json`
+9. 向用户发送简短摘要（2-3 句）+ 报告文件路径
+10. 如果有严重问题（severity=high），在摘要中醒目提示
 
 ## 硬规则
 
@@ -37,7 +39,8 @@ user_invocable: true
 2. **必须给归因层级**：每个主要问题都要判断更像 runtime、skill、prompt 还是 usage
 3. **不要把所有问题都归 runtime**；如果是 skill 触发条件太宽、步骤缺失、调用顺序不稳，要明确写成 skill 问题
 4. **不要把所有重复都当成新 skill**；只有稳定、可参数化、重复至少 3 次的模式才算候选
-5. **要尊重日志类型差异**：`.log` 更偏 runtime 执行轨迹，`.jsonl` 更偏逐轮交互和行为模式；两者都要结合起来看，不要混淆证据层级
+5. **样本不足必须显式标记**：如果 `summary.signalQuality=insufficient`，不要输出“没问题”，要要求补日志
+6. **要尊重日志类型差异**：`.log` 更偏 runtime 执行轨迹，`.jsonl` 更偏逐轮交互和行为模式；两者都要结合起来看，不要混淆证据层级
 
 ## 报告模板
 
@@ -64,9 +67,23 @@ user_invocable: true
 
 ## 总结结论
 
+- **样本质量**：{summary.signalQuality}；{summary.recommendedIntakeAction}
 - **Runtime 判断**：{存在 / 不存在}；一句话说明主结论
 - **Skill 判断**：{存在 / 不存在}；一句话说明主结论
 - **新 Skill 机会**：{存在 / 不存在}；一句话说明主结论
+
+## Issue Profiles
+
+{遍历 issueProfiles 数组，每个 profile 一个条目}
+
+- **Issue ID**：{issue_id}
+- **类别**：{category}
+- **严重程度 / 置信度**：{severity} / {confidence}
+- **疑似 owner**：{suspected_owner}
+- **路由目标**：{route_to_role}
+- **建议动作**：{recommended_next_action}
+- **证据引用**：{evidence_refs}
+- **交接要求**：{handoff.required_artifacts}
 
 ## 问题列表
 
@@ -143,5 +160,5 @@ user_invocable: true
 - 分析完成后 **必须** 调用 write_file 保存报告，不能只发文本
 - 报告中的改进建议由 AI 分析得出，不是工具直接返回的
 - 如果日志文件很大（>5000 行），先用 analyze_log quick 模式获取概览，再决定是否 deep 分析
-- 优先用 `analyze_log` 的 `issueCounts`、`toolStats`、`issues`、`turns` 做判断，不要脱离证据空谈
+- 优先用 `analyze_log` 的 `signalQuality`、`issueProfiles`、`issueCounts`、`toolStats`、`issues`、`turns` 做判断，不要脱离证据空谈
 - 如果多个问题本质上指向同一个根因，合并归因，不要机械地逐条罗列

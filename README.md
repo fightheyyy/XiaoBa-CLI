@@ -443,8 +443,8 @@ npm run electron:build:linux
 - [Agent Evaluation Strategy](eval/README.md)
 - [BaseRuntime Benchmark](eval/benchmarks/BaseRuntime/README.md)
 - [Roles Guide](roles/README.md)
-- [EngineerCat Spec](roles-skills/engineer-cat/SPEC.md)
-- [ReviewerCat Spec](roles-skills/reviewer-cat/SPEC.md)
+- [EngineerCat Spec](roles/engineer-cat/SPEC.md)
+- [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)
 - [Skill Guide](skills/README.md)
 
 ---

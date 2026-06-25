@@ -2,7 +2,7 @@
 
 ## Current Status
 
-Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. A broadcast task becomes the current Room goal and appears on the wall board. Each agent is backed by its own role-scoped `AgentSession`, agents communicate through a role-neutral private-message primitive, and decorated Room SSE events are now written to `data/chat/dashboard-room/**` as visible history evidence.
+Dashboard Room is now the multi-agent workspace in the local dashboard. A user can pull multiple role agents into the Room, see them seated around a large frontend-drawn meeting table in a white cyber-office meeting room, and send a result target either to one agent or to every agent currently present. A broadcast task becomes the current Room goal and appears on the wall board. Each agent is backed by its own role-scoped `AgentSession`, and agents communicate through a role-neutral private-message primitive.
 
 Dashboard pet Chat now has role-scoped JSONL history for work-trace replay. The history stores decorated SSE events for the Chat page and is intentionally separate from IM-platform records and `AgentSession` provider context. Product-wise, the Chat page presents one local colleague; internally each active role gets one durable work trace. The base role uses the default `pet:<petId>` runtime key so the desktop widget and Dashboard Chat show the same conversation.
 
@@ -21,7 +21,6 @@ flowchart LR
         PM["room_message private DM"]
         Stream["SSE pet events"]
         ChatHistory["role-scoped pet chat JSONL replay"]
-        RoomHistory["room visible JSONL replay"]
         Logs["pet runtime logs in service modal"]
     end
 
@@ -39,9 +38,8 @@ flowchart LR
     Scoped --> PM
     PM --> Stream
     Stream --> ChatHistory
-    Stream --> RoomHistory
     Stream --> Logs
-    RoomHistory --> Durable
+    Stream --> Durable
     Durable --> Eval
     Eval --> A2A
     Eval --> PR
@@ -57,7 +55,7 @@ flowchart LR
 6. Role-neutral private-message primitive: completed.
 7. Frontend-drawn meeting-table Room visual refresh: completed.
 8. Broadcast task rendered as current Room goal on the wall board: completed.
-9. Durable room trace and replay: partial via Room visible JSONL event history; complete room run database/reviewer replay remains follow-up.
+9. Durable room trace and replay: not started.
 10. Feishu room bridge / external A2A: not started.
 11. Dashboard pet Chat visible JSONL replay: completed.
 12. Dashboard pet Chat role-scoped single trace: completed.
@@ -68,7 +66,7 @@ flowchart LR
 
 ## Next Steps
 
-- Extend Room visible JSONL history into complete room run trace files so a run can be replayed and reviewed end-to-end.
+- Add durable room trace files so a run can be replayed and reviewed.
 - Add UI affordances for clearing, searching, or filtering the current role's Dashboard pet Chat work trace if the visible JSONL grows beyond simple replay.
 - Add Room-specific tests with a fake AI service so message streaming can be verified without external model credentials.
 - Add ReviewerCat eval cases for Room-driven EngineerCat tasks.
@@ -82,7 +80,6 @@ flowchart LR
 - Developer observability API: `src/dashboard/routes/api.ts`, `src/dashboard/observability-actions.ts`, `src/observability`.
 - Dashboard pet chat API and visible history: `src/pet/channel.ts`, `src/pet/chat-history-store.ts`, `dashboard/pet-runtime.js`.
 - Room runtime: `src/dashboard/room-channel.ts`.
-- Room visible history: `src/dashboard/room-history-store.ts`, `data/chat/dashboard-room/**`.
 - Role-scoped prompt/skills/tools: `src/utils/prompt-manager.ts`, `src/skills/skill-manager.ts`, `src/bootstrap/tool-manager.ts`, `src/roles/runtime-role-registry.ts`.
 
 ## Acceptance Criteria
@@ -105,7 +102,6 @@ flowchart LR
 - Dashboard pet Chat writes visible replay events to `data/chat/sessions/pet_<petId>.jsonl` for the base role and `data/chat/sessions/pet_<petId>_role-<roleName>.jsonl` for non-base roles.
 - `GET /api/pet/events?sessionKey=...&replay=1` can restore the current role's Dashboard pet Chat work trace after a process restart.
 - Dashboard pet Chat visible history remains separate from IM-platform canonical chat records and `data/sessions` provider context.
-- Dashboard Room writes visible replay events to `data/chat/dashboard-room/pet_room_<agentId>.jsonl`, and live AgentSession `state_boundary.visible_history` points to the same file.
 - Multiple `send_text` / channel reply events in one episode render as multiple visible assistant messages instead of replacing earlier messages.
 - `GET /api/observability/summary` returns local-only SLO and drilldown facts and preserves explicitly recorded local previews as local evidence.
 - Runtime page does not render the local observability summary panel, hash-only trace timeline, queue state, or Generate/Sign/Patch observability controls.
@@ -114,6 +110,7 @@ flowchart LR
 
 ## Verification Log
 
+- 2026-06-25: Main Dashboard pet Chat now passes the active role-scoped `sessionKey` to SSE replay and message sends, and message-mode `send_text` / channel replies append separate assistant bubbles instead of overwriting prior visible replies. Verification: `node --test -r tsx test/dashboard-pet-runtime.test.ts` (4/4); `npm run build`; `npm test` (358/358); `npm run test:contract-smoke` (6/6 items, 23/23 cases); `npm run eval:gate` (1/1 item, 11/11 cases); `git diff --check`.
 - 2026-06-23: Removed Dashboard observability action API from the current product path. `/api/observability/summary` and readonly `/api/observability/review` remain; trace proposal / trace continuity generation is no longer exposed through Dashboard. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (3/3); `npm run build`.
 - 2026-06-09: Removed the user-facing Dashboard observability panel and action controls. `dashboard/index.html` no longer contains observability summary, SLO, trace timeline, review queue, or Generate/Sign/Patch UI code; `/api/observability/*` remains the developer/eval surface, and the aggregate scorecard contract now checks local summary/review/action API wiring instead of Dashboard HTML panel wiring. Verification: `rg -n "observability|Observability" dashboard/index.html` (no matches); `node --test --test-concurrency=1 -r tsx tests/dashboard-observability-api.test.ts tests/eval-schema-validation.test.ts tests/observability-regression-runner.test.ts` (99/99); `npm run build`; `npm run observability:scorecard -- --sample --allow-review` (quarantine, failed=0); `npm run observability:review-packet -- --allow-review` (quarantine, failed=0); `npm run eval:schema` (7310/7311 passed, 0 failed, 1 skipped); `git diff --check`.
 - 2026-06-08: Added Dashboard Sign Privacy observability action evidence. `/api/observability/actions` includes `sign-privacy`, `/api/observability/review` reports `signed_privacy_ready`, and the later user-facing Dashboard cleanup removed the Runtime UI controls while keeping the API path. Verification: `npm run build`; `node --test --test-concurrency=1 -r tsx tests/observability-privacy-governance.test.ts tests/dashboard-observability-api.test.ts tests/eval-schema-validation.test.ts` (74/74); `npm run observability:privacy-approval -- --sign --allow-review` (pass, signedPrivacyReady=true); `npm run eval:schema` (7232/7233 passed, 0 failed, 1 skipped); `git diff --check`.
@@ -126,7 +123,6 @@ flowchart LR
 - 2026-05-25: Frontend was reshaped from card-like agent panels into a Room surface with free agent nodes and a selected-agent detail log.
 - 2026-05-25: `node --import tsx --test tests/dashboard-service-logs.test.ts tests/logger.test.ts` verified the `pet` service logs include in-process `pet:*` runtime lines while excluding Feishu and unscoped Dashboard logs.
 - 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md` passed after the Room white cyber-office refresh.
-- 2026-06-04: Dashboard Room visible history now writes decorated SSE events to `data/chat/dashboard-room/**`, and live dashboard session logs point `state_boundary.visible_history` at the same JSONL file. Verification: `npm run build`, `node --test -r tsx tests/room-channel-history.test.ts tests/agent-session-log.test.ts tests/logger.test.ts` (10/10), `npm run eval:surface-runtime` (3/3), `npm run eval:surface-runtime-file` (3/3), `npm run eval:gate` (28/28 items, 118/118 cases), and `npm run eval:baseline` (154/154) passed.
 - 2026-05-25: Browser verified `/?page=room` at 1470x900 and 390x844: visible Room copy uses the new naming, old workspace selectors are absent, 4 role buttons render, the Room floor/detail panels render, and neither viewport has horizontal overflow.
 - 2026-05-25: Browser rechecked the Room visual language after replacing the dark cyber treatment with white glass panels, light grid lines, blue/warm accents, and dashboard-matching surfaces; desktop 1470x900 and mobile 390x844 still have no horizontal overflow.
 - 2026-05-25: `npm run build` and `git diff --check -- dashboard/index.html dashboard/SPEC.md dashboard/PLAN.md src/dashboard/room-channel.ts` passed after replacing the image background with a frontend-drawn meeting room.
@@ -145,7 +141,6 @@ flowchart LR
 - 2026-05-27: Simplified Dashboard pet Chat back to one visible work trace per active role. Browser smoke on `/?page=pet` verified there is no session selector or New Chat button, `/history` replays for `pet:xiaoba:role-base`, and 390x844 plus 1280x720 viewports have no horizontal overflow.
 - 2026-05-27: Retired CatsCompany from Dashboard managed services and config UI; `npm run build`, `node --import tsx --test tests/dashboard-service-logs.test.ts tests/anthropic-provider-extra-fields-bug.test.ts`, and browser checks on `/?page=services` plus `/?page=config` passed with no CatsCompany entry.
 - 2026-05-29: Split `dashboard/SPEC.md` architecture into Current Architecture and Target Architecture Mermaid diagrams with top-level module names.
-- 2026-05-29: Dashboard Room now passes explicit `surface: 'pet'` into `AgentSession`, aligning Room/Pet visible output with the shared channel delivery policy.
 - 2026-05-29: Canonicalized Dashboard pet Chat base-role history to `pet:<petId>` so desktop widget messages appear in the Dashboard Chat page; `node --import tsx --test tests/pet-channel.test.ts`, `npm run build`, `git diff --check -- src/pet/channel.ts dashboard/index.html dashboard/pet-widget.html dashboard/pet.html tests/pet-channel.test.ts dashboard/SPEC.md dashboard/PLAN.md`, and a local Dashboard HTTP smoke on `/?page=pet` passed.
 - 2026-05-29: Fixed Dashboard Chat text rendering so multiple `send_text` channel replies in one episode render as separate assistant bubbles while `text_stream` chunks still update a draft bubble. Verification: `node --import tsx --test tests/dashboard-pet-runtime.test.ts tests/pet-channel.test.ts`, `npm run build`, `git diff --check -- dashboard/index.html dashboard/pet-runtime.js dashboard/pet.html dashboard/SPEC.md dashboard/PLAN.md tests/dashboard-pet-runtime.test.ts`, and a Playwright DOM smoke on `dashboard/index.html` passed.
 - 2026-05-30: Dashboard role introduction source for EngineerCat was aligned with the Codex runner-only role contract; `node --import tsx --test tests/engineer-cat-codex-runner.test.ts` and `npm run build` passed.

@@ -33,6 +33,22 @@ export interface CriticalUserPath {
   evidence: string[];
 }
 
+export interface ThreeLayerStateModel {
+  durableSession: string[];
+  workingTrace: string[];
+  providerTranscript: string[];
+  closureRules: string[];
+}
+
+export interface RoleEffectivenessRubric {
+  role: string;
+  responsibilities: string[];
+  userLikeScenarios: string[];
+  minimumEvidence: string[];
+  scoreDimensions: string[];
+  failureSignals: string[];
+}
+
 export interface ProjectEvalProfile {
   version: 1;
   source: EvalProfileSource;
@@ -56,6 +72,8 @@ export interface ProjectEvalProfile {
     e2e: string[];
     closed: string[];
   };
+  threeLayerStateModel: ThreeLayerStateModel;
+  roleEffectivenessRubric: RoleEffectivenessRubric[];
   regressionSurface: string[];
   nonAutomatableChecks: Array<{
     check: string;
@@ -172,6 +190,8 @@ interface ProjectSignals {
   hasPythonFiles: boolean;
   hasRobotFiles: boolean;
   hasDataPipelineFiles: boolean;
+  isXiaoBaCli: boolean;
+  roleNames: string[];
   topLevelFiles: string[];
 }
 
@@ -230,6 +250,8 @@ export function prepareReviewEval(options: PrepareReviewEvalOptions): ReviewEval
     optionalChecks: plan.optionalChecks.length,
     blockedChecks: plan.blockedChecks.length,
     testMatrixItems: testMatrix.length,
+    threeLayerClosureRules: profile.threeLayerStateModel.closureRules,
+    roleEffectivenessTargets: profile.roleEffectivenessRubric.map(item => item.role),
     paths: mapRelativePaths(paths, cwd),
   }, null, 2), 'utf-8');
 
@@ -273,6 +295,8 @@ function inferProjectEvalProfile(cwd: string): ProjectEvalProfile {
   const projectType = detectedProjectTypes.length > 1 ? 'mixed' : detectedProjectTypes[0] || 'unknown';
   const entryPoints = inferEntryPoints(cwd, signals, detectedProjectTypes);
   const criticalUserPaths = inferCriticalUserPaths(projectType, detectedProjectTypes, entryPoints);
+  const threeLayerStateModel = inferThreeLayerStateModel(detectedProjectTypes, signals.isXiaoBaCli);
+  const roleEffectivenessRubric = inferRoleEffectivenessRubric(signals, detectedProjectTypes);
 
   return {
     version: 1,
@@ -287,6 +311,8 @@ function inferProjectEvalProfile(cwd: string): ProjectEvalProfile {
     criticalInvariants: inferCriticalInvariants(projectType, detectedProjectTypes),
     environmentPrerequisites: inferEnvironmentPrerequisites(projectType, detectedProjectTypes),
     evidenceThresholds: inferEvidenceThresholds(projectType, detectedProjectTypes),
+    threeLayerStateModel,
+    roleEffectivenessRubric,
     regressionSurface: inferRegressionSurface(signals, detectedProjectTypes),
     nonAutomatableChecks: inferNonAutomatableChecks(detectedProjectTypes),
     projectBoundaries: {
@@ -303,6 +329,7 @@ function inspectProject(cwd: string): ProjectSignals {
     ...(packageJson?.devDependencies || {}),
   };
   const topLevelFiles = listTopLevelFiles(cwd);
+  const roleNames = listRoleNames(path.join(cwd, 'roles'));
   return {
     packageJson,
     packageScripts: packageJson?.scripts && typeof packageJson.scripts === 'object' ? packageJson.scripts : {},
@@ -321,6 +348,9 @@ function inspectProject(cwd: string): ProjectSignals {
       || fs.existsSync(path.join(cwd, 'action')),
     hasDataPipelineFiles: topLevelFiles.some(name => ['dvc.yaml', 'airflow.cfg', 'dagster.yaml'].includes(name))
       || fs.existsSync(path.join(cwd, 'dags')),
+    isXiaoBaCli: packageJson?.name === 'xiaoba-cli'
+      || (fs.existsSync(path.join(cwd, 'docs', 'SPEC.md')) && roleNames.includes('reviewer-cat') && roleNames.includes('engineer-cat')),
+    roleNames,
     topLevelFiles,
   };
 }
@@ -419,9 +449,14 @@ function inferCriticalUserPaths(projectType: ProjectType, types: ProjectType[], 
       id: 'AGENT-RUNTIME-PATH',
       user: 'IM/CLI user',
       preconditions: ['role and skills can load', 'tool permissions are known'],
-      steps: ['activate role', 'trigger relevant skill/tool', 'inspect artifact or state transition'],
-      expectedOutcome: 'agent behavior matches the role contract and produces traceable artifacts',
-      evidence: ['tool transcript', 'artifact paths', 'state transition'],
+      steps: [
+        'activate role',
+        'trigger relevant skill/tool with a user-like message',
+        'inspect durable session, working trace, and provider transcript boundaries',
+        'inspect artifact or state transition',
+      ],
+      expectedOutcome: 'agent behavior matches the role contract, keeps the three state layers coherent, and produces traceable artifacts',
+      evidence: ['durable session/log evidence', 'working trace/tool transcript', 'provider transcript legality', 'artifact paths', 'state transition'],
     });
   }
   if (types.includes('desktop')) {
@@ -473,6 +508,39 @@ function createReviewEvalPlan(input: {
   const optionalChecks = inferOptionalChecks(profile);
   const blockedChecks = inferBlockedChecks(profile);
   const reviewLenses = inferReviewLenses(profile);
+  const acceptanceCriteria: ReviewEvalPlan['acceptanceCriteria'] = [
+    {
+      criterion: 'The original request is covered by observable behavior, not only by code changes.',
+      evidenceRequired: ['human E2E scenario evidence', 'actual output/log/screenshot/artifact'],
+      severityIfFailed: 'high',
+    },
+    {
+      criterion: 'At least one primary entrypoint is exercised through a realistic user path or explicitly blocked.',
+      evidenceRequired: ['entrypoint action evidence', 'blocked reason if unavailable'],
+      severityIfFailed: 'high' as const,
+    },
+    {
+      criterion: 'Low-level tests are treated only as auxiliary evidence and not misrepresented as E2E.',
+      evidenceRequired: ['auxiliary evidence clearly labeled', 'missing human E2E evidence list'],
+      severityIfFailed: 'medium' as const,
+    },
+  ];
+
+  if (profile.detectedProjectTypes.includes('agent-runtime')) {
+    acceptanceCriteria.push({
+      criterion: 'Durable Session, Working Trace, and Provider Transcript are reviewed as separate layers before closure.',
+      evidenceRequired: ['durable session evidence', 'working trace evidence', 'provider transcript/tool-call legality evidence'],
+      severityIfFailed: 'high',
+    });
+  }
+
+  if (profile.roleEffectivenessRubric.length > 0) {
+    acceptanceCriteria.push({
+      criterion: 'Target roles are scored against their role contract with user-like scenarios and independent evidence.',
+      evidenceRequired: ['per-role scorecard or blocked reason', 'role contract evidence', 'runtime transcript/artifacts'],
+      severityIfFailed: 'high',
+    });
+  }
 
   return {
     version: 1,
@@ -490,24 +558,10 @@ function createReviewEvalPlan(input: {
       `projectType=${profile.projectType}`,
       `detected=${profile.detectedProjectTypes.join(',') || 'unknown'}`,
       ...profile.criticalInvariants,
+      ...profile.threeLayerStateModel.closureRules.map(rule => `three-layer: ${rule}`),
+      ...profile.roleEffectivenessRubric.map(rubric => `role-effectiveness:${rubric.role}`),
     ],
-    acceptanceCriteria: [
-      {
-        criterion: 'The original request is covered by observable behavior, not only by code changes.',
-        evidenceRequired: ['test matrix evidence', 'actual output/log/screenshot/artifact'],
-        severityIfFailed: 'high',
-      },
-      {
-        criterion: 'At least one primary entrypoint is smoke-tested or explicitly blocked.',
-        evidenceRequired: ['entrypoint command/action evidence', 'blocked reason if unavailable'],
-        severityIfFailed: 'high',
-      },
-      {
-        criterion: 'Low-level tests are labeled by evidence strength and not misrepresented as E2E.',
-        evidenceRequired: ['evidence level per check', 'missing evidence list'],
-        severityIfFailed: 'medium',
-      },
-    ],
+    acceptanceCriteria,
     reviewLenses,
     requiredChecks,
     optionalChecks,
@@ -515,9 +569,11 @@ function createReviewEvalPlan(input: {
     closureThreshold: profile.evidenceThresholds.closed,
     reopenThreshold: [
       'core user path fails',
+      'three-layer state evidence is missing for an agent-runtime closure',
       'required entrypoint cannot be verified and no explicit closure exception exists',
       'implementation changes unauthorized regression surface',
       'coding agent output cannot be tied to files, tests, or artifacts',
+      'target role cannot satisfy its role-effectiveness minimum evidence',
     ],
     manualReviewThreshold: [
       'requires real account/API key/device/production-like external service',
@@ -534,11 +590,11 @@ function inferReviewLenses(profile: ProjectEvalProfile): ReviewLens[] {
       source: 'test-engineer',
       focus: 'Coverage gaps, behavior boundaries, error paths, and concurrency risks.',
       questions: [
-        'Do tests cover happy path, empty input, boundary values, error paths, and repeated/parallel operations where relevant?',
-        'Are tests checking observable behavior instead of private implementation details?',
-        'For bug fixes, is there a regression/prove-it test or a clear reason it is blocked?',
+        'Does the human E2E scenario cover the real happy path and the riskiest user-visible error path?',
+        'Is Reviewer judging observable behavior instead of private implementation details?',
+        'For bug fixes, is there a replayable user path or a clear blocked reason?',
       ],
-      requiredEvidence: ['test matrix rows by evidence level', 'targeted test output or blocked reason', 'coverage gaps list'],
+      requiredEvidence: ['human E2E scenario matrix rows', 'actual user-path output or blocked reason', 'coverage gaps list'],
       closureImpact: 'blocks_if_failed',
     },
     {
@@ -607,6 +663,18 @@ function inferReviewLenses(profile: ProjectEvalProfile): ReviewLens[] {
       requiredEvidence: ['session/tool transcript', 'artifact paths', 'state transition or blocked reason'],
       closureImpact: 'blocks_if_failed',
     });
+    lenses.push({
+      id: 'LENS-THREE-LAYER-HARNESS',
+      source: 'runtime-e2e',
+      focus: 'Durable Session, Working Trace, and Provider Transcript stay separated, reconciled, and replayable.',
+      questions: [
+        'Does durable session state preserve cross-turn/restart facts without pretending to be the provider transcript?',
+        'Does the working trace capture user input, tool calls, tool results, artifacts, and runtime events as evidence?',
+        'Is the provider transcript legal, with every assistant tool call paired to a tool result before reuse?',
+      ],
+      requiredEvidence: ['durable session/log path', 'working trace/tool transcript', 'provider transcript legality or blocked reason'],
+      closureImpact: 'blocks_if_failed',
+    });
   }
 
   return lenses;
@@ -618,12 +686,12 @@ function inferRequiredChecks(profile: ProjectEvalProfile): ReviewCheck[] {
 
   if (types.includes('web')) {
     checks.push({
-      id: 'WEB-SMOKE',
-      level: 'smoke',
-      description: 'Open the primary web entrypoint and verify visible content.',
-      action: 'Use browser or static file smoke check against primary page.',
-      expected: 'main content renders without fatal console errors',
-      evidence: ['screenshot', 'console summary'],
+      id: 'WEB-HUMAN-ENTRYPOINT',
+      level: 'e2e',
+      description: 'Open the primary web entrypoint as a real user and verify visible content.',
+      action: 'Use browser interaction against the primary page and capture the visible state.',
+      expected: 'main content renders and the user can begin the requested task',
+      evidence: ['screenshot', 'console summary', 'visible text/state'],
       automatable: true,
       riskIfSkipped: 'Page may build but be unusable for real users.',
     });
@@ -640,16 +708,15 @@ function inferRequiredChecks(profile: ProjectEvalProfile): ReviewCheck[] {
   }
 
   if (types.includes('cli')) {
-    const cliEntry = profile.entryPoints.find(entry => entry.type === 'cli');
     checks.push({
-      id: 'CLI-HELP',
-      level: 'smoke',
-      description: 'Run CLI help or equivalent lowest-risk command.',
-      command: cliEntry ? `${cliEntry.id.replace(/^cli-/, '')} --help` : '<cli> --help',
-      expected: 'exit 0 and readable usage output',
-      evidence: ['exit code', 'stdout/stderr'],
-      automatable: true,
-      riskIfSkipped: 'CLI may be installed but unusable from a fresh shell.',
+      id: 'CLI-HUMAN-TASK',
+      level: 'e2e',
+      description: 'Run a realistic CLI user task from a fresh shell or mark missing prerequisites.',
+      action: 'Choose a safe command that matches the review request and captures stdout/stderr/exit code.',
+      expected: 'command completes the user-visible task or explains a blocked prerequisite',
+      evidence: ['command', 'cwd', 'exit code', 'stdout/stderr'],
+      automatable: false,
+      riskIfSkipped: 'CLI may expose help but fail at the task users actually need.',
     });
     checks.push({
       id: 'CLI-BAD-INPUT',
@@ -665,33 +732,37 @@ function inferRequiredChecks(profile: ProjectEvalProfile): ReviewCheck[] {
 
   if (types.includes('api')) {
     checks.push({
-      id: 'API-HEALTH',
-      level: 'smoke',
-      description: 'Start service briefly and call a health or root endpoint.',
-      action: 'Short-lived server + HTTP request on test port.',
-      expected: 'service responds and can be stopped cleanly',
-      evidence: ['server log', 'HTTP status/body'],
-      automatable: true,
-      riskIfSkipped: 'Handlers may typecheck but service may not boot.',
+      id: 'API-HUMAN-FLOW',
+      level: 'e2e',
+      description: 'Exercise the API workflow a real client would use for this review.',
+      action: 'Start a short-lived service when safe, call the relevant endpoint sequence, and capture request/response evidence.',
+      expected: 'API returns the expected user-visible result and can be stopped cleanly',
+      evidence: ['request summary', 'HTTP status/body', 'server log'],
+      automatable: false,
+      riskIfSkipped: 'Handlers may typecheck or pass health checks while the real client workflow fails.',
     });
   }
 
   if (types.includes('agent-runtime')) {
+    const threeLayerCommand = inferThreeLayerTestCommand(profile.projectRoot);
     checks.push({
-      id: 'AGENT-ROLE-SKILL-LOAD',
-      level: 'integration',
-      description: 'Verify roles, skills, and role-specific tools can load.',
-      command: 'npx tsx --test tests/roles.test.ts tests/tool-manager-roles.test.ts',
-      expected: 'role and tool registration tests pass',
-      evidence: ['test output'],
-      automatable: true,
-      riskIfSkipped: 'Prompt/skill changes may be present but unreachable at runtime.',
+      id: 'AGENT-THREE-LAYER-STATE',
+      level: 'e2e',
+      description: 'Verify the reviewed human-like agent path preserves Durable Session, Working Trace, and Provider Transcript boundaries.',
+      command: threeLayerCommand,
+      action: threeLayerCommand
+        ? undefined
+        : 'Run or inspect a real agent user path, then inspect session logs, working trace, and provider-visible transcript/tool result pairing.',
+      expected: 'durable state, trace evidence, and provider transcript are distinguishable and reconciled; no dangling tool calls are reused',
+      evidence: ['session JSONL or durable state path', 'working trace/tool transcript', 'provider transcript legality check'],
+      automatable: Boolean(threeLayerCommand),
+      riskIfSkipped: 'Agent runtime may pass low-level tests while corrupting replay, context compression, or provider protocol state.',
     });
     checks.push({
       id: 'AGENT-USER-PATH',
       level: 'e2e',
       description: 'Exercise the relevant agent user path or mark the missing runtime surface.',
-      action: 'Use chat/session/tool transcript or a focused integration harness.',
+      action: 'Use Dashboard Chat, Pet, CLI, or IM surface with a natural user message and capture trace evidence.',
       expected: 'agent state transition and artifact match the role contract',
       evidence: ['session id', 'tool transcript', 'artifact path'],
       automatable: false,
@@ -699,13 +770,26 @@ function inferRequiredChecks(profile: ProjectEvalProfile): ReviewCheck[] {
     });
   }
 
+  if (profile.roleEffectivenessRubric.length > 0) {
+    checks.push({
+      id: 'XIAOBA-ROLE-EFFECTIVENESS-SCORECARD',
+      level: 'e2e',
+      description: 'Score each XiaoBa role against its contract with a human-like task and independent evidence.',
+      action: 'Run reviewer_xiaoba_cli_e2e for each target role or selected release-gate roles, then merge scorecard.json/report.md evidence.',
+      expected: 'every required role has a pass/partial/fail/blocked scorecard, residual risks, and missing evidence list',
+      evidence: ['per-role scorecard.json', 'per-role report.md', 'terminal trace', 'verifier logs'],
+      automatable: true,
+      riskIfSkipped: 'Reviewer cannot claim XiaoBa World role effectiveness; prompt presence may be mistaken for working role behavior.',
+    });
+  }
+
   if (checks.length === 0) {
     checks.push({
-      id: 'GENERIC-SMOKE',
-      level: 'smoke',
-      description: 'Run the lowest-risk entrypoint smoke check after identifying the project type.',
-      action: 'Inspect repo and execute a non-destructive smoke check.',
-      expected: 'primary entrypoint produces observable output',
+      id: 'GENERIC-HUMAN-E2E',
+      level: 'e2e',
+      description: 'Exercise the lowest-risk realistic user path after identifying the project type.',
+      action: 'Inspect repo, identify a safe real entrypoint, and execute a non-destructive user path or record a blocked reason.',
+      expected: 'primary entrypoint produces the user-visible result or a clear blocked reason',
       evidence: ['command output or artifact'],
       automatable: false,
       riskIfSkipped: 'No evidence that the project can be used from its real entrypoint.',
@@ -717,6 +801,44 @@ function inferRequiredChecks(profile: ProjectEvalProfile): ReviewCheck[] {
 
 function inferOptionalChecks(profile: ProjectEvalProfile): ReviewCheck[] {
   const checks: ReviewCheck[] = [];
+  const types = profile.detectedProjectTypes;
+  if (types.includes('cli')) {
+    const cliEntry = profile.entryPoints.find(entry => entry.type === 'cli');
+    checks.push({
+      id: 'CLI-HELP-AUX',
+      level: 'smoke',
+      description: 'Run CLI help as auxiliary readiness evidence.',
+      command: cliEntry ? `${cliEntry.id.replace(/^cli-/, '')} --help` : '<cli> --help',
+      expected: 'exit 0 and readable usage output',
+      evidence: ['exit code', 'stdout/stderr'],
+      automatable: true,
+      riskIfSkipped: 'CLI may not be installed or discoverable from a fresh shell.',
+    });
+  }
+  if (types.includes('api')) {
+    checks.push({
+      id: 'API-HEALTH-AUX',
+      level: 'smoke',
+      description: 'Call health/root endpoint as auxiliary readiness evidence.',
+      action: 'Short-lived server + HTTP request on test port.',
+      expected: 'service responds and can be stopped cleanly',
+      evidence: ['server log', 'HTTP status/body'],
+      automatable: true,
+      riskIfSkipped: 'Service may not boot at all.',
+    });
+  }
+  if (types.includes('agent-runtime')) {
+    checks.push({
+      id: 'AGENT-ROLE-SKILL-LOAD-AUX',
+      level: 'integration',
+      description: 'Verify roles, skills, and role-specific tools can load as auxiliary readiness evidence.',
+      command: 'npx tsx --test test/roles.test.ts test/tool-manager-roles.test.ts',
+      expected: 'role and tool registration tests pass',
+      evidence: ['test output'],
+      automatable: true,
+      riskIfSkipped: 'Prompt/skill changes may be present but unreachable at runtime.',
+    });
+  }
   if (profile.entryPoints.some(entry => entry.target === 'npm run build')) {
     checks.push({
       id: 'NODE-BUILD',
@@ -759,7 +881,7 @@ function inferBlockedChecks(profile: ProjectEvalProfile): ReviewEvalPlan['blocke
 }
 
 function createTestMatrix(profile: ProjectEvalProfile, plan: ReviewEvalPlan): TestMatrixItem[] {
-  const planned = [...plan.requiredChecks, ...plan.optionalChecks].map(check => ({
+  const planned = plan.requiredChecks.map(check => ({
     id: check.id,
     userPathOrSystemPath: check.description,
     level: check.level,
@@ -812,6 +934,8 @@ function normalizeExistingProfile(raw: any, inferred: ProjectEvalProfile, source
       e2e: normalizeStringArray(raw.evidenceThresholds?.e2e, inferred.evidenceThresholds.e2e),
       closed: normalizeStringArray(raw.evidenceThresholds?.closed, inferred.evidenceThresholds.closed),
     },
+    threeLayerStateModel: normalizeThreeLayerStateModel(raw.threeLayerStateModel, inferred.threeLayerStateModel),
+    roleEffectivenessRubric: normalizeRoleEffectivenessRubric(raw.roleEffectivenessRubric, inferred.roleEffectivenessRubric),
     regressionSurface: normalizeStringArray(raw.regressionSurface, inferred.regressionSurface),
     nonAutomatableChecks: Array.isArray(raw.nonAutomatableChecks) ? raw.nonAutomatableChecks : inferred.nonAutomatableChecks,
     projectBoundaries: {
@@ -891,6 +1015,122 @@ function inferNonAutomatableChecks(types: ProjectType[]): ProjectEvalProfile['no
   return checks;
 }
 
+function inferThreeLayerStateModel(types: ProjectType[], isXiaoBaCli: boolean): ThreeLayerStateModel {
+  if (!types.includes('agent-runtime')) {
+    return {
+      durableSession: ['identify any persistent user/project state before claiming restart or cross-turn behavior'],
+      workingTrace: ['record commands/actions/artifacts used as review evidence'],
+      providerTranscript: ['mark provider transcript as not applicable unless the project calls an LLM provider'],
+      closureRules: ['stateful claims need evidence from the layer where the state actually lives'],
+    };
+  }
+
+  const durableSession = [
+    'session key, active role/skill, long-term memory, and restart/cleanup facts are durable state, not provider messages',
+    'context compression must preserve current objective, constraints, artifact state, and recent unresolved work',
+  ];
+  const workingTrace = [
+    'user input, assistant decisions, tool calls, tool results, artifacts, runtime events, and errors are factual review evidence',
+    'every artifact delivery or outbound side effect must have a traceable path/log entry',
+  ];
+  const providerTranscript = [
+    'provider-visible messages must satisfy provider protocol ordering and token constraints',
+    'every assistant tool call must have a matching tool result before the transcript is sent back to the provider',
+  ];
+  const closureRules = [
+    'closed requires durable session evidence or an explicit reason it is out of scope',
+    'closed requires working trace evidence for the reviewed user path',
+    'closed requires provider transcript legality evidence when model/tool loops are involved',
+  ];
+
+  if (isXiaoBaCli) {
+    closureRules.push('XiaoBa-CLI release gates must state which roles were exercised and which role scorecards remain missing');
+  }
+
+  return { durableSession, workingTrace, providerTranscript, closureRules };
+}
+
+function inferRoleEffectivenessRubric(signals: ProjectSignals, types: ProjectType[]): RoleEffectivenessRubric[] {
+  if (!types.includes('agent-runtime') || !signals.isXiaoBaCli) return [];
+  const roleNames = signals.roleNames.length > 0
+    ? signals.roleNames
+    : ['inspector-cat', 'engineer-cat', 'reviewer-cat', 'researcher-cat', 'secretary-cat'];
+
+  return roleNames.sort().map(role => ({
+    role,
+    responsibilities: roleResponsibilities(role),
+    userLikeScenarios: roleUserLikeScenarios(role),
+    minimumEvidence: [
+      'role can be activated through XiaoBa runtime, not only by reading prompt files',
+      'role performs its contract on a realistic user request or records a blocked reason',
+      'tool/session/artifact evidence is independent from the role self-report',
+      'scorecard records pass/partial/fail/blocked with residual risks',
+    ],
+    scoreDimensions: [
+      'contract understanding',
+      'entrypoint reality',
+      'human-like task execution',
+      'tool/skill boundary correctness',
+      'three-layer state evidence',
+      'independent verification',
+      'clear decision and residual risks',
+    ],
+    failureSignals: [
+      'role only restates its prompt without acting through runtime',
+      'role claims success without traceable evidence',
+      'role crosses another role boundary without explicit handoff',
+      'tool calls, artifacts, or session state cannot be found after the run',
+    ],
+  }));
+}
+
+function roleResponsibilities(role: string): string[] {
+  switch (role) {
+    case 'inspector-cat':
+      return ['discover issues from logs/traces', 'classify and route failures', 'produce evidence for owner/reviewer handoff'];
+    case 'engineer-cat':
+      return ['implement or repair authorized code paths', 'run focused verification', 'return concrete diff/test evidence'];
+    case 'reviewer-cat':
+      return ['build eval standards', 'run independent acceptance and E2E checks', 'decide closed/reopened/blocked with evidence'];
+    case 'researcher-cat':
+      return ['maintain long-running research workflow state', 'collect and audit evidence', 'synchronize research artifacts'];
+    case 'secretary-cat':
+      return ['coordinate personal Feishu workflows through narrow wrapper tools', 'enforce confirmation before external side effects', 'report auth/calendar/message state from tool evidence'];
+    default:
+      return ['satisfy the role.json and prompt contract', 'use only authorized role skills/tools', 'produce verifiable artifacts or blocked reasons'];
+  }
+}
+
+function roleUserLikeScenarios(role: string): string[] {
+  switch (role) {
+    case 'inspector-cat':
+      return ['given a session log or pending case, identify the failure boundary and route it with evidence'];
+    case 'engineer-cat':
+      return ['given a small authorized bug or docs/code task, implement it and report validation evidence'];
+    case 'reviewer-cat':
+      return ['given a candidate implementation, create eval plan, run verification, and issue a supported decision'];
+    case 'researcher-cat':
+      return ['given a research question, plan sources, preserve evidence state, and produce an auditable synthesis'];
+    case 'secretary-cat':
+      return ['given a calendar or message request, use Feishu wrappers, ask for confirmation when required, and deliver a concise user-visible result'];
+    default:
+      return ['given a role-relevant task, complete the smallest safe path and expose traceable evidence'];
+  }
+}
+
+function inferThreeLayerTestCommand(projectRoot: string): string | undefined {
+  const candidates = [
+    'test/agent-session-log.test.ts',
+    'test/conversation-runner-harness.test.ts',
+    'test/context-compressor.test.ts',
+    'test/anthropic-provider-block-order-bug.test.ts',
+    'test/roles.test.ts',
+    'test/tool-manager-roles.test.ts',
+  ].filter(file => fs.existsSync(path.join(projectRoot, file)));
+
+  return candidates.length > 0 ? `npx tsx --test ${candidates.join(' ')}` : undefined;
+}
+
 export function renderProjectEvalProfileMarkdown(profile: ProjectEvalProfile): string {
   return [
     '# Project Eval Profile',
@@ -955,6 +1195,22 @@ export function renderProjectEvalProfileMarkdown(profile: ProjectEvalProfile): s
     'Closed:',
     bullet(profile.evidenceThresholds.closed),
     '',
+    '## Three-Layer State Model',
+    'Durable Session:',
+    bullet(profile.threeLayerStateModel.durableSession),
+    '',
+    'Working Trace:',
+    bullet(profile.threeLayerStateModel.workingTrace),
+    '',
+    'Provider Transcript:',
+    bullet(profile.threeLayerStateModel.providerTranscript),
+    '',
+    'Closure Rules:',
+    bullet(profile.threeLayerStateModel.closureRules),
+    '',
+    '## Role Effectiveness Rubric',
+    renderRoleEffectivenessRubric(profile.roleEffectivenessRubric),
+    '',
     '## Regression Surface',
     bullet(profile.regressionSurface),
     '',
@@ -996,10 +1252,10 @@ export function renderReviewEvalPlanMarkdown(plan: ReviewEvalPlan): string {
     '## Review Lenses',
     renderReviewLenses(plan.reviewLenses),
     '',
-    '## Required Checks',
+    '## Required Human E2E Checks',
     renderChecks(plan.requiredChecks),
     '',
-    '## Optional Checks',
+    '## Optional Auxiliary Evidence Checks',
     renderChecks(plan.optionalChecks),
     '',
     '## Blocked Checks',
@@ -1033,6 +1289,19 @@ export function renderBoundaryMapMarkdown(profile: ProjectEvalProfile): string {
     '## Success Signals',
     bullet(profile.criticalUserPaths.flatMap(pathItem => pathItem.evidence)),
     '',
+    '## State Layers',
+    'Durable Session:',
+    bullet(profile.threeLayerStateModel.durableSession),
+    '',
+    'Working Trace:',
+    bullet(profile.threeLayerStateModel.workingTrace),
+    '',
+    'Provider Transcript:',
+    bullet(profile.threeLayerStateModel.providerTranscript),
+    '',
+    '## Role Effectiveness Targets',
+    bullet(profile.roleEffectivenessRubric.map(rubric => `${rubric.role}: ${rubric.scoreDimensions.join(', ')}`)),
+    '',
     '## Failure Signals',
     bullet(['non-zero exit/status code', 'fatal console/runtime error', 'missing expected artifact', 'timeout/no response', 'blocked prerequisite']),
     '',
@@ -1043,13 +1312,13 @@ export function renderBoundaryMapMarkdown(profile: ProjectEvalProfile): string {
 }
 
 export function renderTestMatrixMarkdown(items: TestMatrixItem[]): string {
-  const lines = ['# Test Matrix', ''];
+  const lines = ['# Human E2E Scenario Matrix', ''];
   for (const item of items) {
     lines.push(`## ${item.id}`);
     lines.push(`Level: ${item.level}`);
     lines.push(`Status: ${item.status}`);
     lines.push(`Automatable: ${item.automatable ? 'yes' : 'no'}`);
-    lines.push(`Path: ${item.userPathOrSystemPath}`);
+    lines.push(`User Path: ${item.userPathOrSystemPath}`);
     lines.push('');
     lines.push('Preconditions:');
     lines.push(bullet(item.preconditions));
@@ -1066,6 +1335,28 @@ export function renderTestMatrixMarkdown(items: TestMatrixItem[]): string {
     lines.push('');
   }
   return lines.join('\n');
+}
+
+function renderRoleEffectivenessRubric(rubrics: RoleEffectivenessRubric[]): string {
+  if (rubrics.length === 0) return '- none';
+  return rubrics.map(rubric => [
+    `### ${rubric.role}`,
+    '',
+    'Responsibilities:',
+    bullet(rubric.responsibilities),
+    '',
+    'User-like scenarios:',
+    bullet(rubric.userLikeScenarios),
+    '',
+    'Minimum evidence:',
+    bullet(rubric.minimumEvidence),
+    '',
+    'Score dimensions:',
+    bullet(rubric.scoreDimensions),
+    '',
+    'Failure signals:',
+    bullet(rubric.failureSignals),
+  ].join('\n')).join('\n\n');
 }
 
 function renderChecks(checks: ReviewCheck[]): string {
@@ -1107,6 +1398,22 @@ function listTopLevelFiles(cwd: string): string[] {
   }
 }
 
+function listRoleNames(rolesDir: string): string[] {
+  if (!fs.existsSync(rolesDir)) return [];
+  try {
+    return fs.readdirSync(rolesDir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => {
+        const roleJson = readJson(path.join(rolesDir, entry.name, 'role.json'));
+        return String(roleJson?.name || entry.name).trim();
+      })
+      .filter(Boolean)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
 function hasFileMatching(cwd: string, predicate: (fileName: string) => boolean): boolean {
   try {
     return fs.readdirSync(cwd).some(name => predicate(name));
@@ -1132,6 +1439,32 @@ function normalizeProjectTypes(value: unknown, fallback: ProjectType[]): Project
 
 function isProjectType(value: string): value is ProjectType {
   return ['web', 'cli', 'api', 'desktop', 'agent-runtime', 'robot', 'library', 'data-pipeline', 'mixed', 'unknown'].includes(value);
+}
+
+function normalizeThreeLayerStateModel(value: unknown, fallback: ThreeLayerStateModel): ThreeLayerStateModel {
+  const raw = value as any;
+  if (!raw || typeof raw !== 'object') return fallback;
+  return {
+    durableSession: normalizeStringArray(raw.durableSession, fallback.durableSession),
+    workingTrace: normalizeStringArray(raw.workingTrace, fallback.workingTrace),
+    providerTranscript: normalizeStringArray(raw.providerTranscript, fallback.providerTranscript),
+    closureRules: normalizeStringArray(raw.closureRules, fallback.closureRules),
+  };
+}
+
+function normalizeRoleEffectivenessRubric(value: unknown, fallback: RoleEffectivenessRubric[]): RoleEffectivenessRubric[] {
+  if (!Array.isArray(value)) return fallback;
+  const normalized = value
+    .map((item: any) => ({
+      role: String(item?.role || '').trim(),
+      responsibilities: normalizeStringArray(item?.responsibilities, []),
+      userLikeScenarios: normalizeStringArray(item?.userLikeScenarios, []),
+      minimumEvidence: normalizeStringArray(item?.minimumEvidence, []),
+      scoreDimensions: normalizeStringArray(item?.scoreDimensions, []),
+      failureSignals: normalizeStringArray(item?.failureSignals, []),
+    }))
+    .filter(item => item.role);
+  return normalized.length > 0 ? normalized : fallback;
 }
 
 function normalizeStringArray(value: unknown, fallback: string[]): string[] {

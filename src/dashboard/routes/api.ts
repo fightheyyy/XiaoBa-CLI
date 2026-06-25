@@ -52,6 +52,80 @@ function normalizeDashboardPage(value: unknown): string | null {
   return DASHBOARD_PAGES.has(page) ? page : null;
 }
 
+const SAFE_OBSERVABILITY_ATTRIBUTE_KEYS = new Set([
+  'xiaoba.blocked_reason',
+  'xiaoba.delivery.status',
+  'xiaoba.error_code',
+  'xiaoba.job.kind',
+  'xiaoba.job.operation',
+  'xiaoba.model.name',
+  'xiaoba.model.status',
+  'xiaoba.provider.name',
+  'xiaoba.role.name',
+  'xiaoba.session.final_response_visible',
+  'xiaoba.session.id_hash',
+  'xiaoba.session.status',
+  'xiaoba.session.visible_to_user',
+  'xiaoba.skill.name',
+  'xiaoba.subagent.role',
+  'xiaoba.surface',
+  'xiaoba.tool.name',
+  'xiaoba.tool.status',
+  'xiaoba.trace.cross_process',
+  'xiaoba.trace.parent_propagated',
+  'xiaoba.trace.parent_source',
+]);
+
+const REDACTED_SECRET = '<redacted-secret>';
+const REDACTED_PATH = '<redacted-path>';
+
+function redactObservabilityString(value: string): string {
+  return value
+    .replace(/\bsk-[A-Za-z0-9_-]{10,}\b/g, REDACTED_SECRET)
+    .replace(/\bsecret-token-[A-Za-z0-9_-]+\b/gi, REDACTED_SECRET)
+    .replace(/\b((?:api[_-]?key|token|secret|password)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;)\\\]}]+)/gi, `$1${REDACTED_SECRET}`)
+    .replace(/\/(?:Users|home)\/[^\s"',;)\\\]}]+/g, REDACTED_PATH)
+    .replace(/\/(?:private\/tmp|tmp|var\/folders)\/[^\s"',;)\\\]}]+/g, REDACTED_PATH)
+    .replace(/[A-Za-z]:\\[^\s"',;)\\\]}]+/g, REDACTED_PATH);
+}
+
+function redactObservabilityAttributes(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (SAFE_OBSERVABILITY_ATTRIBUTE_KEYS.has(key)) {
+      redacted[key] = typeof child === 'string'
+        ? redactObservabilityString(child)
+        : child;
+    }
+  }
+  return redacted;
+}
+
+function redactObservabilitySummary(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return redactObservabilityString(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactObservabilitySummary);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'attributes') {
+      redacted[key] = redactObservabilityAttributes(child);
+    } else {
+      redacted[key] = redactObservabilitySummary(child);
+    }
+  }
+  return redacted;
+}
+
 export interface DashboardApiOptions {
   onNavigate?: (page: string) => void;
   observabilityRootDir?: string;
@@ -105,7 +179,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
   });
 
   router.get('/observability/summary', (_req, res) => {
-    res.json(getObservability().getLocalSummary());
+    res.json(redactObservabilitySummary(getObservability().getLocalSummary()));
   });
 
   router.get('/observability/review', (_req, res) => {

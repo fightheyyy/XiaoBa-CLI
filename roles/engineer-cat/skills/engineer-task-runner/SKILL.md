@@ -1,6 +1,6 @@
 ---
 name: engineer-task-runner
-description: 在 subagent 后台执行日常工程需求，完成上下文扫描、任务规划、Codex/OMC 调度、实现、验证和交付摘要。
+description: 在 subagent 后台执行日常工程需求，完成上下文扫描、任务规划、Codex 调度、实现、验证和交付摘要。
 version: 0.1.0
 author: EngineerCat Team
 user-invocable: false
@@ -35,21 +35,22 @@ max-turns: 80
 2. 扫描仓库上下文，优先读现有文件、配置、脚本、测试和最近变更。
 3. 优先用 `engineer_task_run` 创建可追踪任务，让 runtime 落盘 `data/engineer-tasks/<task-id>/task.json`、`plan.md` 和 `validation.md`。
 4. 如果需要接续已有项目会话，先用 `codex_session_list` 查询，再把明确的 `codex_session_id` 交给 `engineer_task_run`。
-5. 根据任务类型选择自执行、`engineer_task_run`、`omc ask codex`、`omc ask claude`、`omc team` 或 hybrid；涉及代码修改时优先给 `engineer_task_run` 传入最小必要的 `validation_commands`，未传时 runtime 会对 editable Node/TypeScript 项目尝试推断基础 build/test gate。
-6. 调用 Codex / OMC 前，把任务整理成高质量 coding-agent prompt。
-7. 读取 Codex / OMC 输出或 artifacts，做二次判断，不盲从。
-8. 做最小实现或整合外部结果。
-9. 用 `engineer_task_status` 等待 Codex 完成并触发显式或推断出的验证命令；如果 Codex 留下真实 git 改动，runtime 会追加 diff whitespace/conflict-marker gate；失败时读 `validation.md`、修复、重跑。默认最多自动修复 1 次。
-10. 写入 `implementation.md`、`validation.md`、`final-summary.md`。
+5. 如果目标天然能拆成多个可并行或有依赖的 Codex workers，使用 `engineer_codex_supervisor_start`，为每个 worker 写清 `worker_id`、request、validation、`depends_on` 和 `max_parallel`。
+6. 根据任务类型选择自执行、`engineer_task_run`、`engineer_codex_supervisor_*`、直接 `codex_job_*` 或 review handoff；涉及代码修改时优先传入最小必要的 `validation_commands`，未传时 runtime 会对 editable Node/TypeScript 项目尝试推断基础 build/test gate。
+7. 调用 Codex 前，把任务整理成高质量 coding-agent prompt。
+8. 读取 Codex 输出或 artifacts，做二次判断，不盲从。
+9. 做最小实现或整合外部结果。
+10. 用 `engineer_task_status` 或 `engineer_codex_supervisor_status` 等待 Codex 完成并触发显式或推断出的验证命令；如果 Codex 留下真实 git 改动，runtime 会追加 changed-file-aware targeted tests、EngineerCat workflow eval 和 diff whitespace/conflict-marker gate；失败时读 `validation.md` / `aggregate.md`，用 `engineer_task_resume` 或 `engineer_codex_supervisor_resume` 续接同一个 Codex session 修复、重跑。默认最多自动修复 1 次。
+11. 写入 `implementation.md`、`validation.md`、`final-summary.md`，多 worker 任务还要引用 supervisor `aggregate.md`。
 
 ## 调度规则
 
 - 小改动 / 单文件 / 明确 bug：优先自己实现
 - 日常工程实现 / 多轮返工 / 需要长期维护的项目任务：优先 `engineer_task_run`，由 runtime 调用本机 Codex
-- 架构审查 / 风险判断 / 安全 / 测试策略 / diff review：优先 `omc ask codex` 或只读 `engineer_task_run`
-- 长链路实现 / 多文件 feature / 大重构 / Claude Code 生态任务：优先 `engineer_task_run`；确实需要 Claude Code 生态时再用 `omc ask claude` 或 `omc team`
-- 实现后复审：优先 `omc ask codex` review diff
-- OMC team 需要 `tmux`；没有 `tmux` 时改用 `ask` 或标记 blocked
+- 多模块并行 / 多 Codex sessions / 明确依赖链：优先 `engineer_codex_supervisor_*`，由 supervisor 控制 `max_parallel`、依赖、批量状态、worker resume/cancel 和聚合证据
+- 架构审查 / 风险判断 / 安全 / 测试策略 / diff review：优先只读 `engineer_task_run`、直接 `codex_job_*` 或 ReviewerCat handoff
+- 长链路实现 / 多文件 feature / 大重构：优先 `engineer_task_run`
+- 实现后复审：优先 validation gates；需要独立验收时交给 ReviewerCat
 
 ## 进度记录
 
@@ -71,6 +72,15 @@ max-turns: 80
 
 ## 质量门槛
 
+不能把 Codex job 完成当成工程交付完成。生产级交付必须满足下面的硬门槛：
+
+- `engineer_task_status` 已同步到底层 Codex job 的最终状态
+- `validation_status=passed`，或明确写出为什么当前只能 blocked / unverified
+- `final-summary.md` 包含 validation rationale、artifact 路径和 ReviewerCat / 用户复核边界
+- 多 worker 任务的 `aggregate.md` 包含所有 worker 的状态、task/session/job id、validation evidence、final-summary 路径和 ReviewerCat handoff
+- 验证失败时必须至少尝试一次同 session 返工，除非失败原因是缺权限、缺环境、用户需要确认或风险越界
+- EngineerCat 不做最终 release / close 决策，只交付实现证据和建议的下一步
+
 最终结果必须说明：
 
 - 完成了什么
@@ -91,9 +101,13 @@ data/engineer-tasks/<task-id>/
   plan.md
   route.json
   external/
-    codex-review.md
-    claude-result.md
+    codex-output.md
   implementation.md
   validation.md
   final-summary.md
+
+data/engineer-supervisors/<supervisor-id>/
+  supervisor.json
+  plan.md
+  aggregate.md
 ```

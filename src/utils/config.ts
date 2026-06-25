@@ -31,6 +31,10 @@ export class ConfigManager {
         ...(base.weixin || {}),
         ...(override.weixin || {}),
       },
+      ollama: {
+        ...(base.ollama || {}),
+        ...(override.ollama || {}),
+      },
     };
   }
 
@@ -67,13 +71,16 @@ export class ConfigManager {
   static getDefaultConfig(): ChatConfig {
     const apiUrl = process.env.XIAOBA_LLM_API_BASE || 'https://api.openai.com/v1';
     const model = process.env.XIAOBA_LLM_MODEL || 'gpt-3.5-turbo';
+    const maxTokens = this.parsePositiveInt(process.env.XIAOBA_LLM_MAX_TOKENS);
 
     // 自动检测 provider
-    let provider: 'openai' | 'anthropic' = 'openai';
+    let provider: 'openai' | 'anthropic' | 'ollama' = 'openai';
     if (process.env.XIAOBA_LLM_PROVIDER) {
-      provider = process.env.XIAOBA_LLM_PROVIDER as 'openai' | 'anthropic';
+      provider = process.env.XIAOBA_LLM_PROVIDER as 'openai' | 'anthropic' | 'ollama';
     } else if (apiUrl.includes('anthropic') || apiUrl.includes('claude') || model.includes('claude')) {
       provider = 'anthropic';
+    } else if (apiUrl.includes('ollama') || apiUrl.includes(':11434') || apiUrl.endsWith('/api/chat')) {
+      provider = 'ollama';
     }
 
     return {
@@ -81,7 +88,13 @@ export class ConfigManager {
       apiKey: process.env.XIAOBA_LLM_API_KEY,
       model,
       temperature: 0.7,
+      maxTokens,
       provider,
+      ollama: {
+        think: this.parseBoolean(process.env.XIAOBA_OLLAMA_THINK, false),
+        keepAlive: process.env.XIAOBA_OLLAMA_KEEP_ALIVE || '30m',
+        numCtx: this.parsePositiveInt(process.env.XIAOBA_OLLAMA_NUM_CTX) ?? 8192,
+      },
       feishu: {
         appId: process.env.FEISHU_APP_ID,
         appSecret: process.env.FEISHU_APP_SECRET,
@@ -92,5 +105,20 @@ export class ConfigManager {
           .filter(Boolean),
       },
     };
+  }
+
+  private static parsePositiveInt(value?: string): number | undefined {
+    if (!value) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  private static parseBoolean(value: string | undefined, fallback: boolean): boolean {
+    if (value === undefined || value.trim() === '') {
+      return fallback;
+    }
+    return value.trim().toLowerCase() === 'true';
   }
 }

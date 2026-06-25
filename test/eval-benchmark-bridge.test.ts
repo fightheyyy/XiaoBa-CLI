@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
+  assertLiveEvalBenchmark,
   loadEvalBenchmark,
   runEvalBenchmark,
   writeEvalBenchmarkScorecard,
@@ -56,7 +57,7 @@ describe('eval benchmark bridge', () => {
                   event_type: 'pet.message',
                   user_ref: 'pet:alpha-puff:synthetic-bridge',
                   raw: {
-                    sessionKey: 'pet:alpha-puff:synthetic-bridge',
+                    sessionKey: 'pet:alpha-puff:role-base:synthetic-bridge',
                   },
                 },
               },
@@ -94,8 +95,8 @@ describe('eval benchmark bridge', () => {
               expected_surface: 'pet',
               expected_runtime_id: 'pet_channel_router',
               expected_status_code: 200,
-              expected_session_key: 'pet:alpha-puff:synthetic-bridge',
-              expected_channel_id: 'pet:alpha-puff:synthetic-bridge',
+              expected_session_key: 'pet:alpha-puff:role-base:synthetic-bridge',
+              expected_channel_id: 'pet:alpha-puff:role-base:synthetic-bridge',
               required_event_types: ['user_message', 'tool_start', 'tool_end', 'text', 'done'],
               user_message_contains: ['tiny live benchmark report'],
               min_visible_deliveries: 1,
@@ -176,5 +177,78 @@ describe('eval benchmark bridge', () => {
     assert.ok(fs.existsSync(path.join(outDir, 'scorecard.json')));
     assert.ok(fs.existsSync(path.join(outDir, 'report.md')));
     assert.ok(fs.existsSync(path.join(outDir, 'suites', 'synthetic.bridge', 'scorecard.json')));
+  });
+
+  test('rejects live pet benchmark cases with invalid session keys during preflight', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-eval-benchmark-invalid-pet-'));
+    const casesDir = path.join(tempDir, 'cases');
+    const suitesDir = path.join(tempDir, 'suites');
+    fs.mkdirSync(casesDir, { recursive: true });
+    fs.mkdirSync(suitesDir, { recursive: true });
+
+    fs.writeFileSync(path.join(suitesDir, 'invalid-pet.json'), `${JSON.stringify({
+      suite_id: 'invalid-pet-suite',
+      name: 'Invalid Pet Suite',
+      version: '0.1',
+      cases: [
+        {
+          case_id: 'invalid-pet.001',
+          name: 'invalid pet session key',
+          lane: 'contract_sentinel',
+          target_module: 'runtime',
+          risk_level: 'low',
+          replay: {
+            mode: 'surface_runtime',
+            surface: 'pet',
+            user_message: 'hello',
+            surface_event: {
+              event_id: 'pet-invalid-session-key-001',
+              event_type: 'pet.message',
+              raw: {
+                sessionKey: 'pet:alpha-puff:not-role-session',
+              },
+            },
+            model_responses: [
+              { content: 'hello' },
+            ],
+          },
+          hard_verifiers: [
+            { id: 'surface_runtime_e2e' },
+          ],
+          failure_route: 'runtime',
+        },
+      ],
+    }, null, 2)}\n`, 'utf-8');
+
+    fs.writeFileSync(path.join(casesDir, 'invalid-pet.case.json'), `${JSON.stringify({
+      case_id: 'invalid-pet.bridge',
+      name: 'Invalid Pet bridge',
+      lane: 'contract_sentinel',
+      target_module: 'runtime',
+      risk_level: 'low',
+      eval_suite: 'suites/invalid-pet.json',
+      eval_case_ids: ['invalid-pet.001'],
+      expected_decision: 'pass',
+      failure_route: 'runtime',
+      benchmark_case_kind: 'live_pet_runtime_case',
+      raw_user_text_included: false,
+      task_prompt: 'Validate Pet surface payloads before live eval.',
+      verifier_ids: ['surface_runtime_e2e'],
+      replay_modes: ['surface_runtime_pet'],
+    }, null, 2)}\n`, 'utf-8');
+
+    const benchmarkPath = path.join(tempDir, 'benchmark.json');
+    const benchmark = {
+      benchmark_id: 'invalid-pet-bridge',
+      name: 'Invalid Pet Bridge Benchmark',
+      version: '0.1',
+      case_files: ['cases/invalid-pet.case.json'],
+    };
+    fs.writeFileSync(benchmarkPath, `${JSON.stringify(benchmark, null, 2)}\n`, 'utf-8');
+
+    assert.throws(
+      () => assertLiveEvalBenchmark(loadEvalBenchmark(benchmarkPath), benchmarkPath),
+      /invalid pet surface payload: invalid-pet\.001 turn 1 .*invalid pet session key/,
+    );
   });
 });

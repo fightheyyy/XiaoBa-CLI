@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Server } from 'http';
 import * as path from 'path';
 import { Logger } from '../utils/logger';
 import { createApiRouter } from './routes/api';
@@ -15,7 +16,7 @@ export async function startDashboard(
   port: number = DEFAULT_PORT,
   host?: string,
   options: DashboardServerOptions = {},
-): Promise<void> {
+): Promise<Server> {
   const app = express();
   const projectRoot = process.cwd();
   const bodyLimit = process.env.XIAOBA_API_BODY_LIMIT || '50mb';
@@ -39,19 +40,34 @@ export async function startDashboard(
   });
 
   // 优雅退出
+  let server: Server | null = null;
   const shutdown = () => {
     serviceManager.stopAll();
-    process.exit(0);
+    if (!server) {
+      process.exit(0);
+      return;
+    }
+    server.close(() => process.exit(0));
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  app.listen(port, listenHost, () => {
-    Logger.success(`\nXiaoBa Dashboard 已启动`);
-    Logger.info(`访问地址: ${process.env.XIAOBA_DASHBOARD_URL}`);
-    if (listenHost !== advertisedHost) {
-      Logger.info(`监听地址: http://${listenHost}:${port}`);
-    }
-    Logger.info('');
+  server = app.listen(port, listenHost);
+  server.once('close', () => {
+    process.off('SIGINT', shutdown);
+    process.off('SIGTERM', shutdown);
   });
+  await new Promise<void>((resolve, reject) => {
+    server!.once('listening', resolve);
+    server!.once('error', reject);
+  });
+
+  Logger.success(`\nXiaoBa Dashboard 已启动`);
+  Logger.info(`访问地址: ${process.env.XIAOBA_DASHBOARD_URL}`);
+  if (listenHost !== advertisedHost) {
+    Logger.info(`监听地址: http://${listenHost}:${port}`);
+  }
+  Logger.info('');
+
+  return server;
 }

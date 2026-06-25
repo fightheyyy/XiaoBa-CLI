@@ -1,4 +1,5 @@
 import { ParsedFeishuMessage, FeishuFileInfo } from './types';
+import { extractSurfaceTraceparent } from '../types/surface-event';
 
 /**
  * 飞书消息解析器
@@ -71,6 +72,7 @@ export class MessageHandler {
       text: cleanText,
       mentionBot,
       msgType,
+      traceparent: extractSurfaceTraceparent(data),
       file,
       mergeForwardIds,
     };

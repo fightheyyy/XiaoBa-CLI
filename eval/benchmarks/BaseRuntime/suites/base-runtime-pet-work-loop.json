@@ -29,9 +29,9 @@
             "surface_event": {
               "event_id": "pet-base-runtime-im-coding-patch-001",
               "event_type": "pet.message",
-              "user_ref": "pet:alpha-puff:base-runtime-coding",
+              "user_ref": "pet:alpha-puff:role-base:base-runtime-coding",
               "raw": {
-                "sessionKey": "pet:alpha-puff:base-runtime-coding"
+                "sessionKey": "pet:alpha-puff:role-base:base-runtime-coding"
               }
             }
           }
@@ -155,8 +155,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:base-runtime-coding",
-            "expected_channel_id": "pet:alpha-puff:base-runtime-coding",
+            "expected_session_key": "pet:alpha-puff:role-base:base-runtime-coding",
+            "expected_channel_id": "pet:alpha-puff:role-base:base-runtime-coding",
             "required_event_types": [
               "user_message",
               "state",
@@ -315,9 +315,9 @@
             "surface_event": {
               "event_id": "pet-base-runtime-subagent-goal-001",
               "event_type": "pet.message",
-              "user_ref": "pet:alpha-puff:base-runtime-subagent",
+              "user_ref": "pet:alpha-puff:role-base:base-runtime-subagent",
               "raw": {
-                "sessionKey": "pet:alpha-puff:base-runtime-subagent"
+                "sessionKey": "pet:alpha-puff:role-base:base-runtime-subagent"
               }
             }
           }
@@ -473,8 +473,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:base-runtime-subagent",
-            "expected_channel_id": "pet:alpha-puff:base-runtime-subagent",
+            "expected_session_key": "pet:alpha-puff:role-base:base-runtime-subagent",
+            "expected_channel_id": "pet:alpha-puff:role-base:base-runtime-subagent",
             "required_event_types": [
               "user_message",
               "state",
@@ -633,9 +633,9 @@
             "surface_event": {
               "event_id": "pet-base-runtime-work-loop-001",
               "event_type": "pet.message",
-              "user_ref": "pet:alpha-puff:base-runtime-eval",
+              "user_ref": "pet:alpha-puff:role-base:base-runtime-eval",
               "raw": {
-                "sessionKey": "pet:alpha-puff:base-runtime-eval"
+                "sessionKey": "pet:alpha-puff:role-base:base-runtime-eval"
               }
             }
           },
@@ -644,9 +644,9 @@
             "surface_event": {
               "event_id": "pet-base-runtime-work-loop-002",
               "event_type": "pet.message",
-              "user_ref": "pet:alpha-puff:base-runtime-eval",
+              "user_ref": "pet:alpha-puff:role-base:base-runtime-eval",
               "raw": {
-                "sessionKey": "pet:alpha-puff:base-runtime-eval"
+                "sessionKey": "pet:alpha-puff:role-base:base-runtime-eval"
               }
             }
           }
@@ -775,8 +775,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:base-runtime-eval",
-            "expected_channel_id": "pet:alpha-puff:base-runtime-eval",
+            "expected_session_key": "pet:alpha-puff:role-base:base-runtime-eval",
+            "expected_channel_id": "pet:alpha-puff:role-base:base-runtime-eval",
             "required_event_types": [
               "user_message",
               "state",
@@ -911,9 +911,9 @@
         "surface_event": {
           "event_id": "pet-base-runtime-no-fallback-001",
           "event_type": "pet.message",
-          "user_ref": "pet:alpha-puff:no-fallback-eval",
+          "user_ref": "pet:alpha-puff:role-base:no-fallback-eval",
           "raw": {
-            "sessionKey": "pet:alpha-puff:no-fallback-eval"
+            "sessionKey": "pet:alpha-puff:role-base:no-fallback-eval"
           }
         },
         "model_responses": [
@@ -945,8 +945,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:no-fallback-eval",
-            "expected_channel_id": "pet:alpha-puff:no-fallback-eval",
+            "expected_session_key": "pet:alpha-puff:role-base:no-fallback-eval",
+            "expected_channel_id": "pet:alpha-puff:role-base:no-fallback-eval",
             "required_event_types": [
               "user_message",
               "state",
@@ -1000,9 +1000,9 @@
         "surface_event": {
           "event_id": "pet-base-runtime-malformed-tool-001",
           "event_type": "pet.message",
-          "user_ref": "pet:alpha-puff:malformed-tool-eval",
+          "user_ref": "pet:alpha-puff:role-base:malformed-tool-eval",
           "raw": {
-            "sessionKey": "pet:alpha-puff:malformed-tool-eval"
+            "sessionKey": "pet:alpha-puff:role-base:malformed-tool-eval"
           }
         },
         "workspace_files": [
@@ -1089,8 +1089,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:malformed-tool-eval",
-            "expected_channel_id": "pet:alpha-puff:malformed-tool-eval",
+            "expected_session_key": "pet:alpha-puff:role-base:malformed-tool-eval",
+            "expected_channel_id": "pet:alpha-puff:role-base:malformed-tool-eval",
             "required_event_types": [
               "user_message",
               "state",
@@ -1171,9 +1171,9 @@
         "surface_event": {
           "event_id": "pet-base-runtime-dangerous-command-001",
           "event_type": "pet.message",
-          "user_ref": "pet:alpha-puff:dangerous-command-eval",
+          "user_ref": "pet:alpha-puff:role-base:dangerous-command-eval",
           "raw": {
-            "sessionKey": "pet:alpha-puff:dangerous-command-eval"
+            "sessionKey": "pet:alpha-puff:role-base:dangerous-command-eval"
           }
         },
         "model_responses": [
@@ -1254,8 +1254,8 @@
             "expected_surface": "pet",
             "expected_runtime_id": "pet_channel_router",
             "expected_status_code": 200,
-            "expected_session_key": "pet:alpha-puff:dangerous-command-eval",
-            "expected_channel_id": "pet:alpha-puff:dangerous-command-eval",
+            "expected_session_key": "pet:alpha-puff:role-base:dangerous-command-eval",
+            "expected_channel_id": "pet:alpha-puff:role-base:dangerous-command-eval",
             "required_event_types": [
               "user_message",
               "state",

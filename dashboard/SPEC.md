@@ -11,7 +11,7 @@ In scope:
 - Static dashboard pages served by `src/dashboard/server.ts`.
 - API routes under `src/dashboard/routes/api.ts`.
 - Dashboard pet chat in `dashboard/index.html`, backed by `src/pet/channel.ts`, with a visible JSONL event history for Chat work-trace replay.
-- Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace, with visible Room event JSONL history in `data/chat/dashboard-room/**`.
+- Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
 - Developer-only observability API endpoints under `/api/observability/*`, backed by the in-process `src/observability` summary and maintained eval runners. Dashboard HTML intentionally does not render a user-facing observability panel.
 - Multiple room agent seats, each backed by its own `AgentSession`, role prompt, role skills, role-specific tools, pet sprite, and SSE message stream.
 - A role-neutral private-message primitive for Room agent-to-agent communication.
@@ -50,7 +50,6 @@ flowchart LR
 
     subgraph Outputs["Outputs：evidence"]
         SSE["Room SSE streams"]
-        VisibleHistory["Room visible history<br/>data/chat/dashboard-room"]
         Trace["Session trace"]
         Artifacts["Tool artifacts"]
     end
@@ -67,7 +66,6 @@ flowchart LR
     Sessions --> Tools
     Sessions --> Skills
     Sessions --> SSE
-    SSE --> VisibleHistory
     Tools --> Artifacts
     Sessions --> Trace
 ```
@@ -95,7 +93,6 @@ flowchart LR
     subgraph PetRuntime["Pet Runtime：src/pet"]
         PetChannel["src/pet/channel.ts"]
         ChatHistory["src/pet/chat-history-store.ts"]
-        RoomHistory["src/dashboard/room-history-store.ts"]
     end
 
     subgraph Harness["Harness：shared runtime"]
@@ -120,7 +117,6 @@ flowchart LR
     Api --> Services
     Api --> PetChannel
     PetChannel --> ChatHistory
-    Room --> RoomHistory
     Room --> Core
     PetChannel --> Core
     Roles --> Core

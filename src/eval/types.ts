@@ -63,7 +63,7 @@ export interface EvalCase {
 
 export interface EvalReplaySpec {
   mode: 'surface_runtime';
-  surface?: 'cli' | 'feishu' | 'weixin' | 'dashboard' | 'pet' | 'agent' | 'research' | 'unknown';
+  surface?: 'cli' | 'feishu' | 'weixin' | 'pet' | 'agent' | 'research' | 'unknown';
   role_name?: string;
   use_role_tools?: boolean;
   capture_internal_trace?: boolean;

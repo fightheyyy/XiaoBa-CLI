@@ -113,7 +113,7 @@ export async function runTraceReplay(options: TraceReplayRunOptions): Promise<Tr
   }
 
   const petId = normalizePetId(options.petId || inferPetId(inputs) || 'xiaoba');
-  const sessionKey = options.sessionKey || `pet:${petId}:${safePetSessionId(runId)}`;
+  const sessionKey = options.sessionKey || `pet:${petId}:role-base:${safePetSessionId(runId)}`;
   const source = options.source || 'trace-replay';
   fs.mkdirSync(outDir, { recursive: true });
 

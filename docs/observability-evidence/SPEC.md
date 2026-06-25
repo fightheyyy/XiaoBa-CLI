@@ -88,7 +88,7 @@ Current implementation:
 - `src/observability/index.ts` owns local summary storage and local trace/span helpers; no external exporter is configured.
 - `AgentSession` records session lifecycle facts through `SessionTurnLogger`; its `ConversationRunner` is configured `mirror_only` so local summary does not double count runtime metrics.
 - Standalone `ConversationRunner` can still record local metrics directly because it has no owning session log.
-- `GET /api/observability/summary` returns aggregate and local trace facts derived from local logs.
+- `GET /api/observability/summary` returns aggregate and local trace facts derived from local logs, with raw prompt/tool preview attributes removed and sensitive freeform values such as paths/tokens redacted at the Dashboard API boundary.
 - `GET /api/observability/review` returns readonly local observability state; it does not generate candidates, continuity reports, or benchmark source.
 - `check:benchmarks` guards active benchmark manifest references; observability has no eval source acceptance path.
 
@@ -134,7 +134,7 @@ Target rules:
 - A trace-derived benchmark asset must be created explicitly by a benchmark owner; observability does not propose, accept, score, or patch benchmark source.
 - Runtime harness owns runtime/contract regression decisions.
 - Roles own role-specific replay, rubric and benchmark admission.
-- Dashboard stays read-only for observability summary/review state.
+- Dashboard stays read-only for observability summary/review state; network-facing summary responses default to a redacted projection even when the in-process local summary retains explicit local preview facts.
 
 ## Contracts
 
@@ -152,5 +152,5 @@ Stable generated roots:
 Local invariants:
 
 - External observability export is not part of the current implementation.
-- Local summary preserves scalar local attributes, including prompt/tool previews when explicitly recorded.
+- Local summary preserves scalar local attributes, including prompt/tool previews when explicitly recorded, as local in-process evidence. Dashboard API responses redact preview attributes by default.
 - Local `traces.jsonl` keeps runtime facts as local evidence; benchmark curation rewrites raw traces into runnable eval cases.

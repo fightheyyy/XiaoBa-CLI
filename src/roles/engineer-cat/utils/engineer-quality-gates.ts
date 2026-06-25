@@ -16,12 +16,19 @@ export interface EngineerValidationPlanInput {
   allowEdits: boolean;
 }
 
+export interface EngineerChangedFileValidationPlanInput {
+  cwd: string;
+  changedFiles: string[];
+  existingCommands?: string[];
+}
+
 interface PackageJson {
   name?: string;
   scripts?: Record<string, string>;
 }
 
 const DEFAULT_MAX_INFERRED_COMMANDS = 2;
+const XIAOBA_PACKAGE_NAME = 'xiaoba-cli';
 
 export function planEngineerValidation(input: EngineerValidationPlanInput): EngineerValidationPlan {
   const explicit = normalizeValidationCommands(input.explicitCommands);
@@ -99,6 +106,91 @@ export function normalizeValidationCommands(commands: unknown): string[] {
   return result;
 }
 
+export function planChangedFileValidation(input: EngineerChangedFileValidationPlanInput): EngineerValidationPlan {
+  const changedFiles = input.changedFiles.map(normalizePath).filter(Boolean);
+  if (changedFiles.length === 0) {
+    return {
+      source: 'not_configured',
+      commands: [],
+      reasons: ['No changed files were detected for changed-file-aware validation.'],
+    };
+  }
+
+  const packageJson = readPackageJson(input.cwd);
+  if (packageJson?.name !== XIAOBA_PACKAGE_NAME) {
+    return {
+      source: 'not_configured',
+      commands: [],
+      reasons: ['Changed-file-aware XiaoBa gates apply only when package.json name is xiaoba-cli.'],
+    };
+  }
+
+  const existing = new Set(normalizeValidationCommands(input.existingCommands));
+  const commands: string[] = [];
+  const reasons: string[] = [];
+  const addCommand = (command: string, reason: string, requiredFiles: string[]) => {
+    if (existing.has(command) || commands.includes(command)) {
+      return;
+    }
+    if (requiredFiles.some(file => !fs.existsSync(path.join(input.cwd, file)))) {
+      return;
+    }
+    commands.push(command);
+    reasons.push(reason);
+  };
+
+  if (changedFiles.some(file => file.startsWith('roles/engineer-cat/') || file.startsWith('src/roles/engineer-cat/'))) {
+    addCommand(
+      'node --test -r tsx test/engineer-task-runner.test.ts test/engineer-codex-supervisor.test.ts test/engineer-cat-codex-runner.test.ts test/tool-manager-roles.test.ts',
+      'EngineerCat role/runtime files changed, so the role contract, task runner, and role-tool visibility tests are required.',
+      [
+        'test/engineer-task-runner.test.ts',
+        'test/engineer-codex-supervisor.test.ts',
+        'test/engineer-cat-codex-runner.test.ts',
+        'test/tool-manager-roles.test.ts',
+      ],
+    );
+  }
+
+  if (changedFiles.some(file => file.startsWith('eval/') || file.startsWith('eval/benchmarks/'))) {
+    addCommand(
+      'node --test -r tsx test/eval-benchmark-bridge.test.ts test/eval-gate.test.ts && npm run check:benchmarks',
+      'Eval or benchmark files changed, so benchmark bridge, aggregate gate tests, and lightweight benchmark manifest checks are required.',
+      [
+        'test/eval-benchmark-bridge.test.ts',
+        'test/eval-gate.test.ts',
+        'scripts/check-benchmarks.ts',
+      ],
+    );
+  }
+
+  if (changedFiles.some(file => file.startsWith('src/commands/'))) {
+    addCommand(
+      'node --test -r tsx test/cli-chat-command-options.test.ts',
+      'CLI command files changed, so chat command option tests are required.',
+      ['test/cli-chat-command-options.test.ts'],
+    );
+  }
+
+  if (changedFiles.some(file => file.startsWith('src/core/') || file.startsWith('src/tools/'))) {
+    addCommand(
+      'node --test -r tsx test/conversation-runner-harness.test.ts test/agent-session-log.test.ts test/tool-manager-roles.test.ts',
+      'Core runtime or tool files changed, so runner/session/tool contract tests are required.',
+      [
+        'test/conversation-runner-harness.test.ts',
+        'test/agent-session-log.test.ts',
+        'test/tool-manager-roles.test.ts',
+      ],
+    );
+  }
+
+  return {
+    source: commands.length > 0 ? 'inferred' : 'not_configured',
+    commands,
+    reasons: commands.length > 0 ? reasons : ['No changed-file-aware XiaoBa gate matched the changed files.'],
+  };
+}
+
 function readPackageJson(cwd: string): PackageJson | undefined {
   const packagePath = path.join(cwd, 'package.json');
   try {
@@ -106,6 +198,10 @@ function readPackageJson(cwd: string): PackageJson | undefined {
   } catch {
     return undefined;
   }
+}
+
+function normalizePath(file: string): string {
+  return String(file || '').trim().replace(/\\/g, '/').replace(/^\.\//, '');
 }
 
 function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'yarn' {
@@ -128,7 +224,6 @@ function shouldRunTaskFocusedTests(request: string, packageJson: PackageJson): b
     'engineer',
     'feishu',
     'codex',
-    'autodev',
     'reviewer',
     '测试',
     '验证',

@@ -56,7 +56,7 @@ Completed:
 - `traces.jsonl` remains the main machine-readable trace ledger, with one trace row per user request.
 - `runtime.log` is the sibling human-readable runtime timeline and is not projected into local summary.
 - Durable session restore is surface-scoped under `data/sessions/<surface>` with legacy flat read compatibility.
-- Dashboard Room and Pet visible history write local refs under `data/chat/**`.
+- Pet visible history writes local refs under `data/chat/**`.
 - `state_boundary` separates durable session, working trace, provider transcript digest ref and visible history.
 - Runtime ToolResult facts use the canonical helper for terminal `status`, `error_code`, `retryable`, duration and blocked evidence.
 - Provider failures emit local `provider_error` runtime events and degraded provider transcript digest refs.
@@ -77,7 +77,7 @@ Partial:
 
 1. Module SPEC/PLAN baseline: completed.
 2. Session JSONL and surface-scoped durable restore: completed.
-3. Visible history refs for Pet and Dashboard Room: completed.
+3. Visible history refs for Pet: completed.
 4. Canonical ToolResult and provider failure evidence: completed for maintained runtime paths.
 5. Tool-owned artifact manifest coverage: completed for maintained role tools; legacy fallback remains compatibility-only.
 6. Delivery evidence contract: completed for deterministic/runtime replay and opt-in fallback evidence; production-network expansion is future work.

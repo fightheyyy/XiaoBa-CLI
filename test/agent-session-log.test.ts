@@ -120,13 +120,13 @@ describe('AgentSession session log alignment', () => {
   });
 
   test('turn log can keep raw user input when the provider prompt is wrapped', async () => {
-    const session = new AgentSession('pet:room:agent-1', {
+    const session = new AgentSession('pet:agent-1', {
       aiService: new ScriptedAIService({ content: 'done' }) as any,
       toolManager: new ToolManager(),
       skillManager: new EmptySkillManager() as any,
     }, 'pet');
 
-    await session.handleMessage('[dashboard-room-agent]\ninternal prompt\n\nraw task', {
+    await session.handleMessage('[pet-agent]\ninternal prompt\n\nraw task', {
       logInput: 'raw task',
     });
 

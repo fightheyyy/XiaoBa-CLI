@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { Logger } from '../utils/logger';
+import { ExternalDeliveryReceipt } from '../types/tool';
 
 /** 飞书单条消息最大字符数 */
 const MAX_MSG_LENGTH = 4000;
@@ -28,19 +29,22 @@ export class MessageSender {
   /**
    * 回复一条消息，长文本自动分段发送
    */
-  async reply(chatId: string, text: string): Promise<void> {
+  async reply(chatId: string, text: string): Promise<ExternalDeliveryReceipt[]> {
     const segments = this.splitText(text, MAX_MSG_LENGTH);
+    const receipts: ExternalDeliveryReceipt[] = [];
     for (const seg of segments) {
-      await this.sendText(chatId, seg);
+      const receipt = await this.sendText(chatId, seg);
+      if (receipt) receipts.push(receipt);
     }
+    return receipts;
   }
 
   /**
    * 发送单条文本消息
    */
-  private async sendText(chatId: string, text: string): Promise<void> {
+  private async sendText(chatId: string, text: string): Promise<ExternalDeliveryReceipt | undefined> {
     try {
-      await this.client.im.v1.message.create({
+      const response = await this.client.im.v1.message.create({
         params: { receive_id_type: 'chat_id' },
         data: {
           receive_id: chatId,
@@ -48,8 +52,18 @@ export class MessageSender {
           msg_type: 'text',
         },
       });
+      const messageId = readResponseString(response, ['message_id', 'messageId']);
+      return {
+        receipt_id: receiptId('feishu.message', messageId),
+        receipt_type: 'message',
+        surface: 'feishu',
+        status: 'delivered',
+        timestamp: new Date().toISOString(),
+        ...(messageId && { platform_message_id: messageId, delivery_id: messageId }),
+      };
     } catch (err: any) {
       Logger.error(`飞书消息发送失败: ${err.message || err}`);
+      throw err;
     }
   }
 
@@ -104,7 +118,7 @@ export class MessageSender {
         },
       ],
     } as Record<string, unknown>;
- 
+
     await this.sendCard(chatId, card);
   }
 
@@ -145,7 +159,7 @@ export class MessageSender {
   /**
    * 上传并发送文件
    */
-  async sendFile(chatId: string, filePath: string, fileName: string): Promise<void> {
+  async sendFile(chatId: string, filePath: string, fileName: string): Promise<ExternalDeliveryReceipt[]> {
     const fileBuffer = fs.readFileSync(filePath);
     const ext = path.extname(fileName).slice(1).toLowerCase() || 'stream';
     const fileType = SUPPORTED_FILE_TYPES.has(ext) ? ext : 'stream';
@@ -163,7 +177,7 @@ export class MessageSender {
       throw new Error('文件上传成功但未返回 file_key');
     }
 
-    await this.client.im.v1.message.create({
+    const messageRes = await this.client.im.v1.message.create({
       params: { receive_id_type: 'chat_id' },
       data: {
         receive_id: chatId,
@@ -171,6 +185,31 @@ export class MessageSender {
         msg_type: 'file',
       },
     });
+    const messageId = readResponseString(messageRes, ['message_id', 'messageId']);
+    const timestamp = new Date().toISOString();
+    return [
+      {
+        receipt_id: receiptId('feishu.upload', fileKey),
+        receipt_type: 'upload',
+        surface: 'feishu',
+        status: 'accepted',
+        timestamp,
+        platform_file_key: fileKey,
+        file_name: fileName,
+        artifact_path: filePath,
+      },
+      {
+        receipt_id: receiptId('feishu.file', messageId || fileKey),
+        receipt_type: 'file',
+        surface: 'feishu',
+        status: 'delivered',
+        timestamp,
+        ...(messageId && { platform_message_id: messageId, delivery_id: messageId }),
+        platform_file_key: fileKey,
+        file_name: fileName,
+        artifact_path: filePath,
+      },
+    ];
   }
 
   /**
@@ -283,4 +322,28 @@ export class MessageSender {
 
     return segments;
   }
+}
+
+function readResponseString(value: unknown, keys: string[]): string {
+  const queue: unknown[] = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || Array.isArray(current)) continue;
+    const record = current as Record<string, unknown>;
+    for (const key of keys) {
+      const item = record[key];
+      if (typeof item === 'string' && item.trim()) {
+        return item.trim();
+      }
+    }
+    if (record.data && typeof record.data === 'object') queue.push(record.data);
+    if (record.message && typeof record.message === 'object') queue.push(record.message);
+  }
+  return '';
+}
+
+function receiptId(prefix: string, value: string): string {
+  return [prefix, value || Date.now().toString(36)]
+    .join('.')
+    .replace(/[^A-Za-z0-9_.-]+/g, '_');
 }

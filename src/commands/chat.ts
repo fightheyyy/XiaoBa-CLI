@@ -9,7 +9,24 @@ import { styles } from '../theme/colors';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
 
+export function shouldRestoreCliSession(options: Pick<CommandOptions, 'message' | 'resume'>): boolean {
+  return !options.message && options.resume === true;
+}
+
+export function shouldRenderCliRuntimeLogs(options: Pick<CommandOptions, 'verbose'>): boolean {
+  return options.verbose === true;
+}
+
 export async function chatCommand(options: CommandOptions): Promise<void> {
+  const previousSilentMode = Logger.isSilentMode();
+  if (!shouldRenderCliRuntimeLogs(options)) {
+    Logger.setSilentMode(true);
+  }
+
+  const restoreLoggerMode = () => {
+    Logger.setSilentMode(previousSilentMode);
+  };
+
   const aiService = new AIService();
   await startCommandSupport();
 
@@ -37,7 +54,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     skillManager,
   };
   const session = new AgentSession('cli', services, 'cli');
-  if (!options.message) {
+  if (shouldRestoreCliSession(options)) {
     session.restoreFromStore();
   }
 
@@ -47,6 +64,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     if (!activated) {
       Logger.error(`Skill "${options.skill}" 未找到，请通过 xiaoba skill list 查看可用 skills`);
       await stopCommandSupport();
+      restoreLoggerMode();
       return;
     }
     Logger.info(`已绑定 skill: ${options.skill}`);
@@ -59,12 +77,13 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     } finally {
       await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
       await stopCommandSupport();
+      restoreLoggerMode();
     }
     return;
   }
 
   // 交互式对话模式（默认）
-  await interactiveChat(session);
+  await interactiveChat(session, restoreLoggerMode);
 }
 
 /**
@@ -127,10 +146,16 @@ async function sendSingleMessage(
   }
 }
 
-async function interactiveChat(session: AgentSession): Promise<void> {
+async function interactiveChat(session: AgentSession, restoreLoggerMode: () => void): Promise<void> {
   // 保存原始的 process.exit 函数
   const originalExit = process.exit.bind(process);
   let isExiting = false;
+  // A pending Promise does not keep Node alive; this timer is the interactive session handle.
+  const interactiveKeepAliveTimer = setInterval(() => {}, 1000);
+
+  const stopInteractiveKeepAlive = () => {
+    clearInterval(interactiveKeepAliveTimer);
+  };
 
   /** 统一的退出清理逻辑 */
   const gracefulExit = (code: number) => {
@@ -150,6 +175,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {
         clearInterval(keepAliveTimer);
+        stopInteractiveKeepAlive();
+        restoreLoggerMode();
         originalExit(code);
       }
     };
@@ -169,7 +196,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     styles.highlight('/clear') + styles.text(' 清空历史，输入 ') +
     styles.highlight('/clear --all') + styles.text(' 清空历史并删除文件，输入 ') +
     styles.highlight('/skills') + styles.text(' 查看可用技能。\n输入 ') +
-    styles.highlight('/history') + styles.text(' 查看历史信息。\n'),
+    styles.highlight('/history') + styles.text(' 查看历史信息。需要恢复上次 CLI 上下文时用 ') +
+    styles.highlight('--resume') + styles.text(' 启动。\n'),
   );
 
   // 创建 readline 接口
@@ -178,11 +206,17 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     output: process.stdout,
     prompt: styles.highlight('> '),
   });
+  process.stdin.resume();
+
+  const promptForNextInput = () => {
+    rl.resume();
+    rl.prompt();
+  };
 
   // 处理每一行输入
   rl.on('line', async (message: string) => {
     if (!message.trim()) {
-      rl.prompt();
+      promptForNextInput();
       return;
     }
 
@@ -202,6 +236,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         isExiting = true;
         rl.close();
         await stopCommandSupport();
+        stopInteractiveKeepAlive();
+        restoreLoggerMode();
         originalExit(0);
         return;
       }
@@ -212,12 +248,12 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         if (result.handled && result.reply) {
           console.log('\n' + result.reply);
         }
-        rl.prompt();
+        promptForNextInput();
         return;
       }
 
       // 可能涉及 AI 的命令（skill 等）
-      const spinner = ora({ text: styles.text('思考中...'), color: 'yellow' }).start();
+      const spinner = ora({ text: styles.text('思考中...'), color: 'yellow', discardStdin: false }).start();
       const { callbacks, didStream } = createStreamingCallbacks(spinner);
 
       const result = await session.handleCommand(command, args, callbacks);
@@ -229,7 +265,7 @@ async function interactiveChat(session: AgentSession): Promise<void> {
         } else if (result.reply) {
           console.log('\n' + result.reply);
         }
-        rl.prompt();
+        promptForNextInput();
         return;
       }
     }
@@ -242,12 +278,14 @@ async function interactiveChat(session: AgentSession): Promise<void> {
       isExiting = true;
       rl.close();
       Logger.info('再见！期待下次与你对话。');
+      stopInteractiveKeepAlive();
+      restoreLoggerMode();
       originalExit(0);
       return;
     }
 
     // 普通消息
-    const spinner = ora({ text: styles.text('思考中...'), color: 'yellow' }).start();
+    const spinner = ora({ text: styles.text('思考中...'), color: 'yellow', discardStdin: false }).start();
     const { callbacks, didStream } = createStreamingCallbacks(spinner);
 
     const result = await session.handleMessage(message, callbacks);
@@ -259,7 +297,7 @@ async function interactiveChat(session: AgentSession): Promise<void> {
       console.log('\n' + result.text + '\n');
     }
 
-    rl.prompt();
+    promptForNextInput();
   });
 
   // 处理 Ctrl+C
@@ -276,5 +314,6 @@ async function interactiveChat(session: AgentSession): Promise<void> {
   });
 
   // 显示第一个提示符
-  rl.prompt();
+  promptForNextInput();
+  await new Promise<void>(() => undefined);
 }

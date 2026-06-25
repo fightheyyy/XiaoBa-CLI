@@ -16,7 +16,7 @@ Each substantial long-lived module must maintain:
 
 Examples of modules, not an exhaustive list:
 
-- `benchmarks/`
+- `eval/benchmarks/`
 - `roles/`
 - `roles/<role-name>/`
 - future runtime, harness, skill, dashboard, adapter, logging, replay, verifier, or other durable subsystems when they grow large enough.
@@ -126,10 +126,10 @@ After substantial code changes:
 
 ## Benchmark Module Convention
 
-For `benchmarks/`:
+For `eval/benchmarks/`:
 
-- `benchmarks/SPEC.md` defines the generic trace -> episode -> case -> replay -> verifier -> scorecard architecture.
-- `benchmarks/PLAN.md` maintains current progress and next implementation milestones.
+- `eval/benchmarks/SPEC.md` defines the generic trace -> episode -> case -> replay -> verifier -> scorecard architecture.
+- `eval/benchmarks/PLAN.md` maintains current progress and next implementation milestones.
 - Each benchmark folder can add its own `SPEC.md` and `EVALUATION.md`.
 - Do not call a trace catalog a complete replay benchmark until replay cases, verifiers, and scorecards exist.
 

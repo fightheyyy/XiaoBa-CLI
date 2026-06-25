@@ -2,11 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { writeEvalScorecard } from './eval-scorecard';
 import { loadEvalSuite, runEvalSuite } from './eval-runner';
+import { normalizePetMessageSurfaceEvent } from '../pet/channel';
 import type {
   EvalDecision,
   EvalCase,
   EvalFailureRoute,
   EvalLane,
+  EvalReplaySurfaceTurn,
   EvalRiskLevel,
   EvalScorecard,
   EvalTargetModule,
@@ -542,6 +544,7 @@ function validateLiveSuiteCase(suiteCase: EvalCase, caseSpec: EvalBenchmarkCase,
   if (!hasBehaviorVerifier(suiteCase)) {
     throw new Error(`live eval suite case must verify tool use, delivery, artifact, result, or safety behavior: ${suiteCase.case_id}`);
   }
+  validateLiveSurfaceRuntimePayloads(suiteCase, suitePath);
   if (caseSpec.replay_modes && caseSpec.replay_modes.length > 0) {
     const replayModeText = `${replay.mode}${replay.surface ? `_${replay.surface}` : ''}`;
     const matchesDeclaredMode = caseSpec.replay_modes.some(mode => (
@@ -553,6 +556,41 @@ function validateLiveSuiteCase(suiteCase: EvalCase, caseSpec: EvalBenchmarkCase,
       throw new Error(`live eval benchmark case ${caseSpec.case_id} declares replay_modes that do not match ${suiteCase.case_id}: ${caseSpec.replay_modes.join(', ')}`);
     }
   }
+}
+
+function validateLiveSurfaceRuntimePayloads(suiteCase: EvalCase, suitePath: string): void {
+  const replay = suiteCase.replay;
+  if (!replay || replay.mode !== 'surface_runtime') return;
+  if (replay.surface !== 'pet') return;
+
+  const turns = replay.surface_turns?.length
+    ? replay.surface_turns
+    : [{ user_message: replay.user_message, surface_event: replay.surface_event }];
+
+  for (let index = 0; index < turns.length; index += 1) {
+    const body = buildPetSurfaceRuntimePreflightBody(suiteCase, replay.user_message, turns[index], index);
+    try {
+      normalizePetMessageSurfaceEvent(body);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`live eval suite case has invalid pet surface payload: ${suiteCase.case_id} turn ${index + 1} (${suitePath}): ${message}`);
+    }
+  }
+}
+
+function buildPetSurfaceRuntimePreflightBody(
+  suiteCase: EvalCase,
+  fallbackUserMessage: string,
+  turn: EvalReplaySurfaceTurn,
+  index: number,
+): Record<string, unknown> {
+  return {
+    petId: 'alpha-puff',
+    text: turn.user_message || fallbackUserMessage,
+    source: 'eval-runtime',
+    eventId: turn.surface_event?.event_id ?? `${safePathSegment(suiteCase.case_id)}.message.${index + 1}`,
+    ...(turn.surface_event?.raw ?? {}),
+  };
 }
 
 function hasBehaviorVerifier(suiteCase: EvalCase): boolean {

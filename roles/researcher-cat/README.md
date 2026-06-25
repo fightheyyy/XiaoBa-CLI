@@ -26,7 +26,7 @@
 
 ## Research Board
 
-`ResearcherCat` 默认维护七层状态：
+`ResearcherCat` 默认维护七层状态，并在可用时通过 `auto_research_run` / `research_board_update` / `research_board_read` 落到 durable board：
 
 1. `project_goal`：用户真正要完成的研究交付目标
 2. `current_storyline`：论文主线、贡献和最强证据
@@ -36,6 +36,22 @@
 6. `risk_board`：证据、编译、时间和 runtime 风险
 7. `next_actions`：下一轮最重要的 1-3 个动作
 
+生产运行中的 board 证据路径：
+
+- `data/researcher-cat/boards/<project>/board.json`
+- `data/researcher-cat/boards/<project>/events.jsonl`
+- `output/researcher-cat/boards/<project>/research-board.md`
+- `data/researcher-cat/auto-research/<project>/intake-manifest.json`
+- `output/researcher-cat/auto-research/<project>/auto-research-report.md`
+- `data/researcher-cat/auto-research/<project>/phase-plan.json`
+- `output/researcher-cat/auto-research/<project>/phase-plan.md`
+- `data/researcher-cat/auto-research/<project>/phase-execution.json`
+- `output/researcher-cat/auto-research/<project>/phase-execution.md`
+- `data/researcher-cat/auto-research/<project>/reviewer-handoff.json`
+- `output/researcher-cat/auto-research/<project>/reviewer-handoff.md`
+
+`auto_research_run` 会对当前 workspace 做受控 intake，发现 manuscript、result、log、review、script、PDF/PPT/figure 等 candidates，写入 manifest/report/phase-plan/phase-execution/reviewer-handoff 并更新 Research Board。`phase-execution` 是非破坏性 observation-mode 记录：不运行脚本、不改稿、不编译/导出、不交付。`reviewer-handoff` 是给 ReviewerCat 的证据包：包含 evidence bundle、L4/L5 checklist、blocker 和 no-final-acceptance boundary。它不代表 ReviewerCat 已验收，也不把 unsupported claim 升级成 supported；真实交付仍需要文件、编译日志、manifest 或发送回执。
+
 ## 来自日志 case 的设计原则
 
 - 长周期项目先维护状态，不要只追最近一句话
@@ -43,6 +59,11 @@
 - 长实验必须有日志、输出路径和恢复策略
 - 文件交付要保留路径和版本，避免重复发送旧产物
 - 用户焦虑进度时，先报告当前状态和下一步
+- 压缩或历史摘要恢复后，先确认实验归属和 artifact 版本，不要把“用户在等实验”和“自己正在跑实验”混淆
+- 遇到 argmax / OvR、单种子 / 三种子、旧稿 / 新稿等协议差异时，先降级 claim 并审计证据来源
+- 新附件和用户显式纠正优先于旧摘要、本地 glob 和历史文件；文件发送前要有 diff/hash、build log 或 delivery manifest 证据
+- PDF/PPT/LaTeX、投稿包和 earliest predictable time 这类交付/指标任务要进入 Research Board，不要只按最近一句聊天做通用回复
+- 论文解析、子任务、文献对比、审稿意见、TeX patch、架构图、多模态图片、PPT、PDF、历史日志、multi-seed 和 split protocol 都要有对应证据 ledger，不能靠聊天记忆或单次工具输出
 - 出现 context compression、长工具输出、IM 可见消息连续性问题时，移交 `InspectorCat`
 
 ## 适用场景
@@ -147,23 +168,41 @@
 ## 使用方式
 
 ```bash
-xiaoba --role researcher-cat
+xiaoba --role researcher
 ```
 
-旧名字仍作为兼容 alias：
+`researcher` 是面向 CLI 用户的推荐别名，内部 canonical role id 仍是 `researcher-cat`。旧名字仍作为兼容 alias：
 
 ```bash
+xiaoba --role researcher-cat
 xiaoba --role sci-paper-doctor
 ```
 
 也可以在具体命令里指定：
 
 ```bash
-xiaoba chat --role researcher-cat -m "你来主导这个论文的补实验和修订"
-xiaoba chat --role researcher-cat -m "先建立这个项目的 Research Board"
+xiaoba chat --role researcher -m "你来主导这个论文的补实验和修订"
+xiaoba chat --role researcher -m "你来主导这个项目，直接 auto research 当前 workspace"
+xiaoba chat --role researcher -m "先建立这个项目的 Research Board"
 xiaoba chat --role researcher-cat -m "帮我看 manuscript_v27_revised.tex 和最新结果是否一致"
-xiaoba skill list --role researcher-cat
+xiaoba skill list --role researcher
 ```
+
+如果需要查看已落盘的 board，可以继续在 researcher 角色里问：
+
+```bash
+xiaoba chat --role researcher -m "读取当前项目的 Research Board，并告诉我 claim、实验队列和下一步"
+```
+
+## 回归验证
+
+ResearcherCat 当前没有 active `eval:researcher` 命令。旧 deterministic workflow benchmark 已从 `eval/` 删除；当前回归入口先保留 focused runtime tests，未来再按 live agent eval contract 重建 role benchmark。
+
+```bash
+npm run test:researcher-live
+```
+
+`test:researcher-live` 是 focused live AgentSession board smoke：它用真实 `AgentSession`、`PromptManager`、role-aware `ToolManager` 和 ResearcherCat tools，验证 `researcher-cat` prompt / tool visibility / `research_board_update` 执行 / `board.json`、`events.jsonl`、`research-board.md` 证据写入。下一版 ResearcherCat benchmark 应该从真实研究任务输入、workspace setup、live replay、expected tool/result 和 ReviewerCat-style verifier 重新组织，而不是恢复旧静态 trace suite。
 
 ## 说明
 

@@ -6,7 +6,6 @@ import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { AgentServices } from '../core/agent-session';
 import { FeishuBot } from '../feishu';
 import { MessageHandler } from '../feishu/message-handler';
-import { RoomChannel, normalizeDashboardRoomMessageSurfaceEvent } from '../dashboard/room-channel';
 import { PetChannel, normalizePetMessageSurfaceEvent } from '../pet/channel';
 import { parseSkillActivationSignal } from '../skills/skill-activation-protocol';
 import { Logger } from '../utils/logger';
@@ -443,11 +442,9 @@ async function runSurfaceRuntimeReplay(input: {
 
   const runtimeResult = replay.surface === 'feishu'
     ? await runFeishuSurfaceRuntime({ caseSpec: input.caseSpec, replay, caseDir, artifactsDir })
-    : replay.surface === 'dashboard'
-      ? await runDashboardSurfaceRuntime({ caseSpec: input.caseSpec, replay, caseDir, artifactsDir })
-      : replay.surface === 'pet'
-        ? await runPetSurfaceRuntime({ caseSpec: input.caseSpec, replay, caseDir, artifactsDir })
-        : undefined;
+    : replay.surface === 'pet'
+      ? await runPetSurfaceRuntime({ caseSpec: input.caseSpec, replay, caseDir, artifactsDir })
+      : undefined;
 
   if (!runtimeResult) {
     throw new Error(`unsupported surface runtime surface: ${replay.surface ?? 'unknown'}`);
@@ -559,120 +556,6 @@ async function runFeishuSurfaceRuntime(input: {
       files: sender.files,
     },
   };
-}
-
-async function runDashboardSurfaceRuntime(input: {
-  caseSpec: EvalCase;
-  replay: NonNullable<EvalCase['replay']>;
-  caseDir: string;
-  artifactsDir: string;
-}): Promise<SurfaceRuntimeRunResult> {
-  const workspaceDir = path.join(input.caseDir, 'workspace');
-  const evidencePathAliases = [
-    { path: workspaceDir, label: '<replay-workspace>' },
-    { path: input.caseDir, label: '<replay-case>' },
-  ];
-  writeSurfaceRuntimeWorkspace(workspaceDir, { roleName: 'engineer-cat', petId: 'alpha-puff' });
-  const body = {
-    text: input.replay.user_message,
-    userId: input.replay.surface_event?.user_ref ?? 'dashboard-runtime-user',
-    messageId: input.replay.surface_event?.event_id ?? `${safePathSegment(input.caseSpec.case_id)}.message`,
-    ...(input.replay.surface_event?.raw ?? {}),
-  };
-  const requestArtifact = 'surface-runtime-request.json';
-  writeJsonEvidence(path.join(input.artifactsDir, requestArtifact), {
-    create_agent: {
-      roleName: 'engineer-cat',
-      cwd: workspaceDir,
-    },
-    message: body,
-  }, evidencePathAliases);
-
-  const originalCwd = process.cwd();
-  const originalSilent = Logger.isSilentMode();
-  let serviceBundle: ReturnType<typeof createSurfaceRuntimeServices> | undefined;
-  let server: http.Server | null = null;
-  try {
-    process.chdir(workspaceDir);
-    Logger.setSilentMode(true);
-    const channel = new RoomChannel({
-      createAgentServices: context => {
-        serviceBundle = createSurfaceRuntimeServices(input.replay, input.artifactsDir, 'dashboard', `pet:room:${context.id}`);
-        return {
-          ...serviceBundle.services,
-          roleName: context.roleName,
-        };
-      },
-    });
-    const listening = await listenEvalRouter(channel.router);
-    server = listening.server;
-
-    const createResponse = await postJson(`${listening.baseUrl}/api/room/agents`, {
-      roleName: 'engineer-cat',
-      cwd: workspaceDir,
-    });
-    const agent = asRecord(createResponse.json?.agent);
-    const agentId = asString(agent?.id);
-    if (!agentId) {
-      throw new Error('Dashboard Room runtime did not create an agent');
-    }
-
-    const messageResponse = await postJson(`${listening.baseUrl}/api/room/agents/${encodeURIComponent(agentId)}/message`, body);
-    const events = parseSseEvents(messageResponse.text);
-    const fileEvents = collectSurfaceRuntimeFileEvents(events);
-    const fileArtifacts = collectSurfaceRuntimeFileArtifacts(input.artifactsDir, fileEvents);
-    const deliveryEvidence = buildSseSurfaceRuntimeDeliveryEvidence(events, {
-      surface: 'dashboard',
-      channelId: agentId,
-    });
-    const externalDeliveryReceipts = buildSseSurfaceRuntimeExternalReceipts(events, {
-      surface: 'dashboard',
-      channelId: agentId,
-    });
-    const responseArtifact = 'surface-runtime-response.json';
-    const eventsArtifact = 'surface-runtime-events.json';
-    writeJsonEvidence(path.join(input.artifactsDir, responseArtifact), {
-      create_agent: createResponse,
-      message: {
-        status: messageResponse.status,
-        content_type: messageResponse.contentType,
-        body: messageResponse.text,
-      },
-    }, evidencePathAliases);
-    writeJsonEvidence(path.join(input.artifactsDir, eventsArtifact), events, evidencePathAliases);
-
-    return {
-      aiService: serviceBundle?.aiService ?? createSurfaceRuntimeServices(input.replay, input.artifactsDir, 'dashboard', `pet:room:${agentId}`).aiService,
-      runtime: {
-        surface: 'dashboard',
-        runtime_id: 'dashboard_room_router',
-        method: 'POST',
-        path: '/api/room/agents/:agentId/message',
-        status_code: messageResponse.status,
-        content_type: messageResponse.contentType,
-        session_key: `pet:room:${agentId}`,
-        channel_id: agentId,
-        user_id: String(body.userId || 'dashboard-runtime-user'),
-        user_message: String(body.text || ''),
-        visible_delivery_count: countVisibleSurfaceEvents(events),
-        file_delivery_count: fileEvents.length,
-        file_names: fileEvents.map(file => file.fileName).filter(Boolean),
-        file_artifact_paths: fileArtifacts,
-        delivery_evidence: deliveryEvidence,
-        external_delivery_receipts: externalDeliveryReceipts,
-        event_count: events.length,
-        event_types: events.map(event => asString(asRecord(event)?.type)).filter(Boolean),
-        request_artifact_path: requestArtifact,
-        response_artifact_path: responseArtifact,
-        events_artifact_path: eventsArtifact,
-        created_agent_id: agentId,
-      },
-    };
-  } finally {
-    await closeEvalServer(server);
-    Logger.setSilentMode(originalSilent);
-    process.chdir(originalCwd);
-  }
 }
 
 async function runPetSurfaceRuntime(input: {
@@ -4937,7 +4820,7 @@ class CapturingEvalFeishuSender {
 function createSurfaceRuntimeServices(
   replay: NonNullable<EvalCase['replay']>,
   artifactsDir: string,
-  surface: 'feishu' | 'dashboard' | 'pet',
+  surface: 'feishu' | 'pet',
   sessionId: string,
 ): { services: AgentServices; aiService: ScriptedReplayAIService } {
   const aiService = new ScriptedReplayAIService(replay.model_responses);
@@ -5120,7 +5003,7 @@ function buildFeishuSurfaceRuntimeDeliveryEvidence(input: {
 
 function buildSseSurfaceRuntimeDeliveryEvidence(
   events: Record<string, unknown>[],
-  context: { surface: 'dashboard' | 'pet'; channelId: string },
+  context: { surface: 'pet'; channelId: string },
 ): EvalReplayDeliveryEvidence[] {
   const timestamp = new Date().toISOString();
   return events.flatMap((event, index): EvalReplayDeliveryEvidence[] => {
@@ -5170,7 +5053,7 @@ function buildSseSurfaceRuntimeDeliveryEvidence(
 
 function buildSseSurfaceRuntimeExternalReceipts(
   events: Record<string, unknown>[],
-  context: { surface: 'dashboard' | 'pet'; channelId: string },
+  context: { surface: 'pet'; channelId: string },
 ): Record<string, unknown>[] {
   const timestamp = new Date().toISOString();
   return events.flatMap((event, index): Record<string, unknown>[] => {
@@ -5313,13 +5196,6 @@ function normalizeReplaySurfaceAdapterEvent(replay: NonNullable<EvalCase['replay
         messageRef: replay.surface_event?.message_ref,
       },
     };
-  }
-
-  if (replay.surface === 'dashboard') {
-    const agentId = raw.agent_id ?? raw.agentId ?? replay.surface_event?.room_ref;
-    const body = asRecord(raw.body) ?? raw;
-    const sessionKey = asString(raw.session_key ?? raw.sessionKey) || undefined;
-    return normalizeDashboardRoomMessageSurfaceEvent(agentId, body, sessionKey);
   }
 
   if (replay.surface === 'pet') {

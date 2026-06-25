@@ -44,4 +44,6 @@ BaseRuntime benchmark 已收窄为 11 条 live agent eval。
 
 ## Verification Log
 
+- 2026-06-25：BaseRuntime Pet suite session keys now follow the maintained Pet role-session contract (`pet:alpha-puff:role-base:<case>`), and benchmark preflight rejects invalid Pet payloads before release eval. Verification：`npm run check:benchmarks`（1 manifest，11 cases）；`npm run eval:base-runtime`（11/11 benchmark cases，11/11 eval cases）；`npm run eval:gate`（1/1 items，11/11 cases）；`node --test -r tsx test/eval-benchmark-bridge.test.ts`（3/3）。
+
 - 2026-06-23：BaseRuntime 从 111-case mixed benchmark 收窄为 11-case live agent eval；删除 100 条 structural trace regression 和 high-value replay suite。Verification：`npm run eval:base-runtime`（11/11 benchmark cases，11/11 eval cases）；`npm run eval:gate`（1/1 items，11/11 cases）；`npm run check:benchmarks`（1 manifest，11 cases）；`npm test`（364 passed，6 skipped）。

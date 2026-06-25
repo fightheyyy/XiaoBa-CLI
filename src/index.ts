@@ -34,7 +34,9 @@ async function main() {
     .name('xiaoba')
     .description('XiaoBa - 您的智能AI命令行助手')
     .version(APP_VERSION)
-    .option('-s, --skill <name>', '启动时绑定指定 skill');
+    .option('-s, --skill <name>', '启动时绑定指定 skill')
+    .option('--resume', '默认聊天入口恢复上次 CLI 对话上下文')
+    .option('--verbose', '默认聊天入口显示 CLI 运行时日志');
 
   program.hook('preAction', (_thisCommand, actionCommand) => {
     try {
@@ -52,7 +54,9 @@ async function main() {
     .description('开始与XiaoBa对话')
     .option('-i, --interactive', '进入交互式对话模式')
     .option('-m, --message <message>', '发送单条消息')
-    .option('-s, --skill <name>', '启动时绑定指定 skill'))
+    .option('-s, --skill <name>', '启动时绑定指定 skill')
+    .option('--resume', '恢复上次 CLI 对话上下文')
+    .option('--verbose', '显示 CLI 运行时日志'))
     .action(chatCommand);
 
   // 配置命令
@@ -119,9 +123,14 @@ async function main() {
 
   // 默认命令 - 进入交互模式
   program
-    .action(() => {
+    .action(async () => {
       const opts = program.opts();
-      chatCommand({ interactive: true, skill: opts.skill });
+      await chatCommand({
+        interactive: true,
+        skill: opts.skill,
+        resume: opts.resume,
+        verbose: opts.verbose,
+      });
     });
 
   await program.parseAsync();

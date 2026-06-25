@@ -1,0 +1,28 @@
+{
+  "name": "router-cat",
+  "displayName": "RouterCat",
+  "description": "IM control-plane role that classifies user intent, dispatches role-scoped subagents, tracks progress, and summarizes results without doing worker execution itself.",
+  "promptFile": "router-system-prompt.md",
+  "aliases": [
+    "router",
+    "dispatcher",
+    "im-router",
+    "coding-router",
+    "control-plane"
+  ],
+  "inheritBaseSkills": false,
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "spawn_subagent",
+    "check_subagent",
+    "stop_subagent",
+    "resume_subagent",
+    "read_file",
+    "grep",
+    "glob"
+  ],
+  "metadata": {
+    "toolPolicy": "subagent-control-plane-plus-readonly-routing-context",
+    "primaryLoop": "classify intent -> dispatch role-only subagent -> track -> summarize"
+  }
+}

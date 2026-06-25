@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-06-05T00:00:00.000Z",
+  "decision": "pass",
+  "replay_enabled": true,
+  "degradation_verified": true,
+  "checks_total": 6,
+  "checks_blocked": 0,
+  "scorecard_path": "output/eval/provider-network-readiness/scorecard.json",
+  "report_path": "output/eval/provider-network-readiness/report.md"
+}

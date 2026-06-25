@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
 import { prepareReviewEval } from '../utils/review-eval-profile';
 
 const DEFAULT_MAX_CHARS = 3200;
@@ -8,8 +8,8 @@ export class ReviewerEvalPrepareTool implements Tool {
   definition: ToolDefinition = {
     name: 'reviewer_eval_prepare',
     description: [
-      '为 ReviewerCat 生成项目级 Project Eval Profile、单次 Review Eval Plan、Boundary Map 和 Test Matrix。',
-      '此工具不执行测试；它先回答“这个项目怎样才算真的能用”，再给后续 reviewer_module_test / E2E runner / Codex 返工使用。'
+      '为 ReviewerCat 生成项目级 Project Eval Profile、单次 Review Eval Plan、Boundary Map 和真人端测场景矩阵。',
+      '此工具不执行测试；它先回答“这个项目怎样才算真的能用”，再给后续 E2E runner / Codex 返工使用。低层测试只作为辅助证据。'
     ].join('\n'),
     parameters: {
       type: 'object',
@@ -58,7 +58,31 @@ export class ReviewerEvalPrepareTool implements Tool {
       changedFiles: normalizeStringArray(args?.changed_files),
       reviewId: readOptionalString(args?.review_id),
     });
+    if (args && typeof args === 'object') {
+      args.__xiaoba_artifact_run_dir = result.runDir;
+    }
     return truncate(formatResult(result, context.workingDirectory), readPositiveNumber(args?.max_chars, DEFAULT_MAX_CHARS));
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    const runDir = keyValue(result, 'run_dir') || inferRunDir(args, context.workingDirectory);
+    return uniqueArtifacts([
+      ...artifactsFromRunDir(runDir, [
+        'task.json',
+        'evaluation-profile.md',
+        'evaluation-profile.json',
+        'review-eval-plan.md',
+        'boundary-map.md',
+        'test-matrix.md',
+        'summary.json',
+      ], 'generated', context.workingDirectory),
+      ...artifactsFromKeys(result, [
+        'evaluation_profile',
+        'review_eval_plan',
+        'boundary_map',
+        'test_matrix',
+      ], 'generated', context.workingDirectory),
+    ]);
   }
 }
 
@@ -82,9 +106,9 @@ function formatResult(result: ReturnType<typeof prepareReviewEval>, displayRoot:
     `test_matrix=${relativeDisplayPath(result.paths.testMatrix, displayRoot)}`,
     '',
     'next:',
-    '- 读取 review_eval_plan 和 test_matrix。',
-    '- 能自动跑的检查交给 reviewer_module_test / E2E runner。',
-    '- 不能自动跑的检查写 blocked reason，不要伪装成通过。',
+    '- 读取 review_eval_plan 和 test_matrix（真人端测场景矩阵）。',
+    '- 优先用 Dashboard/Pet/CLI/IM 等真实入口跑 E2E runner。',
+    '- 低层测试结果只作为辅助证据；不能自动跑的真人路径写 blocked reason，不要伪装成通过。',
   ].join('\n');
 }
 
@@ -106,6 +130,95 @@ function normalizeStringArray(value: unknown): string[] {
 function readPositiveNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function inferRunDir(args: any, workingDirectory: string): string {
+  const artifactRunDir = readOptionalString(args?.__xiaoba_artifact_run_dir);
+  if (artifactRunDir) {
+    return artifactRunDir;
+  }
+  if (args?.output_dir) {
+    return resolveCwd(workingDirectory, args.output_dir);
+  }
+  const reviewId = readOptionalString(args?.review_id);
+  const cwd = resolveCwd(workingDirectory, args?.cwd);
+  return reviewId ? path.join(cwd, 'data', 'reviewer-runs', safeSegment(reviewId)) : '';
+}
+
+function artifactsFromRunDir(
+  runDir: string,
+  fileNames: string[],
+  action: ArtifactManifestItem['action'],
+  workingDirectory: string,
+): ArtifactManifestItem[] {
+  if (!runDir) return [];
+  return fileNames
+    .map(fileName => artifactFromPath(path.join(runDir, fileName), action, workingDirectory))
+    .filter((item): item is ArtifactManifestItem => Boolean(item));
+}
+
+function artifactsFromKeys(
+  result: string,
+  keys: string[],
+  action: ArtifactManifestItem['action'],
+  workingDirectory: string,
+): ArtifactManifestItem[] {
+  return keys
+    .map(key => artifactFromPath(keyValue(result, key), action, workingDirectory))
+    .filter((item): item is ArtifactManifestItem => Boolean(item));
+}
+
+function artifactFromPath(
+  value: unknown,
+  action: ArtifactManifestItem['action'],
+  workingDirectory: string,
+): ArtifactManifestItem | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const normalized = workspaceRelativeArtifactPath(value, workingDirectory);
+  return {
+    path: normalized,
+    type: artifactType(normalized),
+    action,
+  };
+}
+
+function keyValue(text: string, key: string): string {
+  const pattern = new RegExp(`^${key}=([^\\r\\n]+)$`, 'm');
+  return pattern.exec(String(text || ''))?.[1]?.trim() || '';
+}
+
+function workspaceRelativeArtifactPath(value: string, workingDirectory: string): string {
+  const normalized = value.trim().replace(/\\/g, '/');
+  const cwd = workingDirectory.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (normalized.startsWith(`${cwd}/`)) {
+    return normalized.slice(cwd.length + 1);
+  }
+  return normalized.replace(/^\/+/, '');
+}
+
+function artifactType(filePath: string): string {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  return ext || 'file';
+}
+
+function uniqueArtifacts(items: ArtifactManifestItem[]): ArtifactManifestItem[] {
+  const seen = new Set<string>();
+  const unique: ArtifactManifestItem[] = [];
+  for (const item of items) {
+    const key = `${item.path}\0${item.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
+}
+
+function safeSegment(value: string): string {
+  return value
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 96) || 'review';
 }
 
 function relativeDisplayPath(filePath: string, root: string): string {

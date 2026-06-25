@@ -1,0 +1,37 @@
+{
+  "provider_network_readiness_version": "0.1",
+  "generated_at": "2026-06-05T00:00:00.000Z",
+  "summary": {
+    "decision": "blocked",
+    "checks_total": 1,
+    "checks_passed": 0,
+    "checks_failed": 0,
+    "checks_blocked": 1,
+    "replay_enabled": false,
+    "degradation_verified": false
+  },
+  "environment": {
+    "provider": "openai",
+    "model_configured": false,
+    "api_base_configured": false,
+    "api_key_configured": false,
+    "timeout_ms": 20000,
+    "use_default_config": false,
+    "expected_degradation": true
+  },
+  "checks": [
+    {
+      "id": "provider_network.opt_in",
+      "status": "blocked",
+      "severity": "environment",
+      "message": "set XIAOBA_PROVIDER_NETWORK_REPLAY=true or pass --enable to run provider-network replay"
+    }
+  ],
+  "evidence": {
+    "out_dir": "output/eval/provider-network-readiness",
+    "workspace_dir": "output/eval/provider-network-readiness/workspace",
+    "manifest_path": "output/eval/provider-network-readiness/manifest.json",
+    "scorecard_path": "output/eval/provider-network-readiness/scorecard.json",
+    "report_path": "output/eval/provider-network-readiness/report.md"
+  }
+}

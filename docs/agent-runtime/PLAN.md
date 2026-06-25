@@ -1,14 +1,14 @@
 # Agent Runtime PLAN
 
 状态：Active
-最后更新：2026-06-23
+最后更新：2026-06-25
 Owner：Runtime maintainers
 
 本文维护核心 agent harness runtime 的当前执行状态。架构边界见 `SPEC.md`。历史实现日志由 git 保存；本文只保留当前状态、下一步和近期有效验证。
 
 ## Current Status
 
-Agent Runtime owns the live loop: session lifecycle, provider calls, tool visibility, tool execution, retry/cancel semantics, explicit channel delivery, subagent dispatch and runtime-facing structured facts. It produces evidence for State/Evidence and downstream evals, but it does not own role behavior benchmarks. `ToolExecutionContext.subAgentServiceFactory` gives deterministic replay a narrow way to inject scripted subagent services while production `spawn_subagent` keeps the real-service path.
+Agent Runtime owns the live loop: session lifecycle, provider calls, prompt assembly, tool visibility, tool execution, retry/cancel semantics, explicit channel delivery, subagent dispatch and runtime-facing structured facts. `PromptManager` now expands prompt includes and provides the shared `prompts/surface.md` channel delivery prompt consumed by `AgentSession`. It produces evidence for State/Evidence and downstream evals, but it does not own role behavior benchmarks. `ToolExecutionContext.subAgentServiceFactory` gives deterministic replay a narrow way to inject scripted subagent services while production `spawn_subagent` keeps the real-service path.
 
 ```mermaid
 flowchart LR
@@ -63,6 +63,7 @@ flowchart LR
 Completed:
 
 - `AgentSession` + `ConversationRunner` is the shared runtime path for CLI, surface and role sessions.
+- `PromptManager` expands `{{include:...}}` prompt fragments and exposes the shared `prompts/surface.md` delivery prompt to `AgentSession`.
 - Provider adapters cover OpenAI-compatible, Anthropic Messages and Ollama native chat/tool streaming.
 - Tool visibility is layered as base / role / surface, with role skill-scoped visibility and confirmed-tool execution checks.
 - `spawn_subagent` supports exactly one dispatch target: inherited-role `skill_name` or target-role `role_name`.
@@ -126,7 +127,9 @@ Partial:
 
 ## Verification Log
 
-- 2026-06-23：Channel delivery visibility semantics fixed at the AgentSession boundary. Successful `send_text` / `send_file` delivery evidence now makes `HandleMessageResult.visibleToUser` true even when final assistant text is suppressed; `finalResponseVisible` remains the separate final-text fallback flag. Verification：`node --test -r tsx test/agent-session-log.test.ts test/observability.test.ts test/pet-channel.test.ts test/room-channel-history.test.ts`（35/35）；`npm run build`。
+- 2026-06-25：Feishu/channel skill command result semantics tightened at the AgentSession boundary. `CommandResult` and `HandleMessageResult` now carry `finalResponseVisible`, so channel-backed slash skills can keep normal final assistant text hidden after explicit `send_text` delivery while still direct-sending provider/busy/error text that is explicitly visible to the user. Verification：`node --test -r tsx test/feishu-engineer-runtime.test.ts test/agent-session-skill-integration.test.ts test/pet-channel.test.ts test/dashboard-observability-api.test.ts`（24/24）；`npm test`（353/353）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run build`。
+- 2026-06-24：PromptManager now expands `{{include:...}}` fragments and exposes `prompts/surface.md` as the shared channel delivery prompt used by `AgentSession` and RouterCat. Verification：`node --test -r tsx test/prompt-manager-runtime-info.test.ts test/agent-session-log.test.ts test/router-cat-role.test.ts`（15/15）；`npm run build`；`git diff --check`。
+- 2026-06-23：Channel delivery visibility semantics fixed at the AgentSession boundary. Successful `send_text` / `send_file` delivery evidence now makes `HandleMessageResult.visibleToUser` true even when final assistant text is suppressed; `finalResponseVisible` remains the separate final-text fallback flag. Verification：focused AgentSession / observability / Pet channel tests passed；`npm run build`。
 - 2026-06-23：Structured tool execution status no longer depends on prose prefixes for live `ToolExecutionOutput`. `ToolExecutionOutput` now exposes `status/error_code/blocked_reason/retryable/retry_budget` facts; shared builders cover success/failure/blocked/timeout output; ToolManager and AgentToolExecutor prefer those fields and only classify text for legacy outputs. Core read/write/edit/shell/grep/glob/send_text/send_file and subagent/skill control tools now return structured execution facts. Verification：`node --test -r tsx test/tool-result.test.ts test/tool-manager-rate-limit.test.ts test/grep-tool.test.ts test/agent-tool-executor.test.ts test/conversation-runner-rate-limit.test.ts test/conversation-runner-harness.test.ts test/agent-session-log.test.ts`（60/60）；`node --test -r tsx test/skill-manager-runtime.test.ts test/sub-agent-status.test.ts test/tool-manager-roles.test.ts`（30/30）；`npm run build`; `git diff --check`.
 - 2026-06-18：Added deterministic subagent service injection through `ToolExecutionContext.subAgentServiceFactory` so BaseRuntime Pet replay can verify background subagent completion without production-network model calls. Verification：`npm run build`; `npm run eval:base-runtime`（6/6 benchmark cases，6/6 eval cases）。
 - 2026-06-20：Added `HARNESS-EXTRACTION-SPEC.md` as a documentation-only gap analysis for turning the product runtime into a reusable harness core. Verification：documentation review; no runtime behavior changed.

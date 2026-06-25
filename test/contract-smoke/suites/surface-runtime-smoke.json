@@ -2,7 +2,7 @@
   "suite_id": "surface-runtime-smoke",
   "name": "Surface Runtime Smoke",
   "version": "0.1.0",
-  "description": "Deterministic runtime smoke for production FeishuBot event handling, Dashboard Room router, and Pet router.",
+  "description": "Deterministic runtime smoke for production FeishuBot event handling and Pet router.",
   "source": "eval/PLAN.md#M21-surface-runtime-smoke",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
@@ -128,100 +128,6 @@
         "max_turns": 1,
         "max_tool_calls": 0,
         "max_tokens": 2200
-      },
-      "failure_route": "surface"
-    },
-    {
-      "case_id": "surface.dashboard-runtime.001",
-      "name": "Dashboard Room router streams visible SSE delivery",
-      "lane": "requirement_acceptance",
-      "target_module": "surface",
-      "risk_level": "release_blocking",
-      "task": "Create a Dashboard Room agent through the production router and send a message through the Room SSE endpoint.",
-      "replay": {
-        "mode": "surface_runtime",
-        "surface": "dashboard",
-        "user_message": "surface runtime smoke via Dashboard Room",
-        "surface_event": {
-          "event_id": "room-runtime-message-001",
-          "event_type": "dashboard.room.message",
-          "room_ref": "engineer-cat",
-          "user_ref": "dashboard-runtime-user",
-          "raw": {
-            "text": "surface runtime smoke via Dashboard Room",
-            "userId": "dashboard-runtime-user",
-            "messageId": "room-runtime-message-001"
-          }
-        },
-        "model_responses": [
-          {
-            "tool_calls": [
-              {
-                "id": "call-dashboard-runtime-send-text",
-                "name": "send_text",
-                "arguments": {
-                  "text": "Dashboard Room surface runtime smoke delivered."
-                }
-              }
-            ],
-            "usage": {
-              "prompt_tokens": 920,
-              "completion_tokens": 90
-            }
-          },
-          {
-            "content": "",
-            "usage": {
-              "prompt_tokens": 980,
-              "completion_tokens": 0
-            }
-          }
-        ]
-      },
-      "hard_verifiers": [
-        {
-          "id": "jsonl_parse"
-        },
-        {
-          "id": "runtime_observability"
-        },
-        {
-          "id": "surface_runtime_e2e",
-          "config": {
-            "expected_surface": "dashboard",
-            "expected_runtime_id": "dashboard_room_router",
-            "expected_status_code": 200,
-            "required_event_types": [
-              "user_message",
-              "state",
-              "text",
-              "done"
-            ],
-            "user_message_contains": [
-              "surface runtime smoke"
-            ],
-            "min_visible_deliveries": 1
-          }
-        },
-        {
-          "id": "delivery_evidence_contract",
-          "config": {
-            "min_delivery_evidence": 1,
-            "require_delivery_tools": false
-          }
-        },
-        {
-          "id": "budget_check",
-          "config": {
-            "max_tokens": 2400,
-            "max_turns": 1
-          }
-        }
-      ],
-      "budgets": {
-        "max_turns": 1,
-        "max_tool_calls": 0,
-        "max_tokens": 2400
       },
       "failure_route": "surface"
     },
