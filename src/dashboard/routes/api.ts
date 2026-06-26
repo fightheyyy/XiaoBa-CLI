@@ -24,7 +24,7 @@ import { getDashboardObservabilityReviewState } from '../observability-actions';
 
 const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store']);
 const DISABLED_SKILL_SUFFIX = '.disabled';
-const DASHBOARD_HIDDEN_SKILLS = new Set(['sub-agent']);
+const DASHBOARD_HIDDEN_SKILLS = new Set(['sub-agent', 'background-task-runner']);
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
 let dashboardNavigationRequestId = 0;
 

@@ -68,7 +68,7 @@ export class CheckSubagentTool implements Tool {
       `[${info.id}] ${info.taskDescription}`,
       `状态: ${statusMap[info.status] || info.status}`,
       ...(info.roleName ? [`Role: ${info.roleName}`] : []),
-      `Skill: ${info.skillName || '由子智能体自行选择'}`,
+      `Skill: ${formatSkillInfo(info)}`,
       `耗时: ${elapsed}s`,
     ];
 
@@ -91,4 +91,11 @@ export class CheckSubagentTool implements Tool {
 
     return lines.join('\n');
   }
+}
+
+function formatSkillInfo(info: any): string {
+  if (info.skillName) {
+    return info.skillName;
+  }
+  return info.skillSelectionMode === 'subagent_decides' ? '由子智能体自行选择' : '无预设 skill';
 }

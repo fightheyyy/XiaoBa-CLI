@@ -67,7 +67,7 @@ export class SubAgentManager {
     workingDirectory: string,
     aiService: AIService,
     skillManager: SkillManager,
-    spawnOptions: Pick<SubAgentSpawnOptions, 'roleName' | 'observabilityContext'> = {},
+    spawnOptions: Pick<SubAgentSpawnOptions, 'roleName' | 'allowSkillSelection' | 'observabilityContext'> = {},
   ): SubAgentInfo | { error: string } {
     // 并发限制
     const running = this.listByParent(parentSessionKey).filter(s => s.status === 'running');
@@ -75,7 +75,7 @@ export class SubAgentManager {
       return { error: `最多同时运行 ${SubAgentManager.MAX_CONCURRENT_PER_SESSION} 个子任务，当前已有 ${running.length} 个在运行` };
     }
 
-    // 检查显式 skill 是否存在；role-only 模式允许子智能体自行选择 skill。
+    // 检查显式 skill 是否存在；没有预选 skill 时允许 role-only 或 no-skill 运行。
     const skill = skillName ? skillManager.getSkill(skillName) : undefined;
     if (skillName && !skill) {
       return { error: `Skill "${skillName}" 不存在` };
@@ -95,6 +95,7 @@ export class SubAgentManager {
       userMessage,
       workingDirectory,
       roleName: spawnOptions.roleName,
+      allowSkillSelection: spawnOptions.allowSkillSelection ?? Boolean(spawnOptions.roleName && !skillName),
       observabilityContext: spawnOptions.observabilityContext,
       notifyParent: async (subAgentId, taskDesc, question) => {
         const msg = `[子智能体 ${subAgentId} 反馈]\n任务：${taskDesc}\n需要你的指示：${question}`;
@@ -129,7 +130,7 @@ export class SubAgentManager {
       retentionTimer.unref?.();
     });
 
-    const skillLabel = skillName || 'role-selected skill';
+    const skillLabel = skillName || (options.allowSkillSelection ? 'role-selected skill' : 'no skill');
     Logger.info(`[SubAgentManager] 派遣 ${id} 执行 "${skillLabel}"${options.roleName ? ` as ${options.roleName}` : ''} (父会话: ${parentSessionKey})`);
     return session.getInfo();
   }

@@ -19,10 +19,12 @@ import { buildCanonicalToolResult } from '../tools/tool-result';
 
 export type SubAgentStatus = 'running' | 'completed' | 'failed' | 'stopped' | 'waiting_for_input';
 
+export type SubAgentSkillSelectionMode = 'preselected' | 'subagent_decides' | 'none';
+
 export interface SubAgentInfo {
   id: string;
   skillName?: string;
-  skillSelectionMode?: 'preselected' | 'subagent_decides';
+  skillSelectionMode?: SubAgentSkillSelectionMode;
   roleName?: string;
   taskDescription: string;
   status: SubAgentStatus;
@@ -45,6 +47,8 @@ export interface SubAgentSpawnOptions {
   workingDirectory: string;
   /** 子会话角色，用于给后台子智能体加载 role prompt、role skills 和 role tools */
   roleName?: string;
+  /** 允许子智能体通过 skill 工具自行选择可见 skill；role-only dispatch 默认开启，no-skill dispatch 默认关闭。 */
+  allowSkillSelection?: boolean;
   /** 向主 agent 投递消息（子智能体挂起时触发主 agent 推理） */
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
   /** Parent trace context inherited from spawn_subagent tool execution. */
@@ -231,7 +235,7 @@ export class SubAgentSession {
     const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.options.roleName });
     this.messages.push({ role: 'system', content: systemPrompt });
 
-    // 2. 注入预选 skill；如果没有预选 skill，则让 role 子智能体自行选择。
+    // 2. 注入预选 skill；role-only dispatch 可让目标 role 子智能体自行选择。
     const skill = this.skillName ? this.skillManager.getSkill(this.skillName) : undefined;
     if (this.skillName && !skill) {
       throw new Error(`Skill "${this.skillName}" 未找到`);
@@ -250,7 +254,7 @@ export class SubAgentSession {
     } else {
       this.messages.push({
         role: 'system',
-        content: this.buildSkillSelectionContext(),
+        content: this.buildNoPreselectedSkillContext(this.shouldAllowSkillSelection()),
       });
     }
 
@@ -262,7 +266,7 @@ export class SubAgentSession {
       this.options.workingDirectory,
       this.id,
       this.options.roleName,
-      { allowSkillTool: !this.skillName },
+      { allowSkillTool: this.shouldAllowSkillSelection() },
     );
 
     // 创建独立的 ConversationRunner（不注入 channel，子智能体不直接和用户通信）
@@ -382,7 +386,7 @@ export class SubAgentSession {
     return {
       id: this.id,
       ...(this.selectedSkillName ? { skillName: this.selectedSkillName } : {}),
-      skillSelectionMode: this.skillName ? 'preselected' : 'subagent_decides',
+      skillSelectionMode: this.getSkillSelectionMode(),
       ...(this.options.roleName ? { roleName: this.options.roleName } : {}),
       taskDescription: this.taskDescription,
       status: this.status,
@@ -403,7 +407,26 @@ export class SubAgentSession {
     // 主 agent 通过 check_subagent 查看进度后自行决定是否告知用户
   }
 
-  private buildSkillSelectionContext(): string {
+  private shouldAllowSkillSelection(): boolean {
+    return this.options.allowSkillSelection ?? Boolean(this.options.roleName && !this.skillName);
+  }
+
+  private getSkillSelectionMode(): SubAgentSkillSelectionMode {
+    if (this.skillName) {
+      return 'preselected';
+    }
+    return this.shouldAllowSkillSelection() ? 'subagent_decides' : 'none';
+  }
+
+  private buildNoPreselectedSkillContext(allowSkillSelection: boolean): string {
+    if (!allowSkillSelection) {
+      return [
+        '[subagent-no-skill]',
+        '主会话没有为你预设 skill。请直接按 system prompt、用户消息和当前可见工具执行任务。',
+        '不要尝试切换 skill；如果任务范围、权限或验收不清楚，先用 ask_parent 请求主会话确认。',
+      ].join('\n');
+    }
+
     const skills = this.skillManager.getUserInvocableSkills?.() ?? [];
     const skillLines = skills.length > 0
       ? skills.map(skill => `- ${skill.metadata.name}: ${skill.metadata.description}`).join('\n')

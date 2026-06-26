@@ -335,7 +335,6 @@
                 "id": "call-subagent-spawn",
                 "name": "spawn_subagent",
                 "arguments": {
-                  "skill_name": "background-task-runner",
                   "task_description": "检查 queue.js flaky 队列问题并写修复说明",
                   "user_message": "检查 workspace/project/src/queue.js。目标：定位 failed job 被重新入队后 next() 立刻 shift 导致顺序不稳定的问题，写一份修复说明和补丁草稿到 runtime-evidence/subagent-queue-fix.md。不要给用户发消息，完成后让主 agent 查状态和转发文件。"
                 }

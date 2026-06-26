@@ -173,6 +173,7 @@ export type FeishuChannelCallbacks = ChannelCallbacks;
 export interface SubAgentServiceFactoryInput {
   roleName?: string;
   skillName?: string;
+  allowSkillSelection?: boolean;
   workingDirectory: string;
   parentSessionId?: string;
 }

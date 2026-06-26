@@ -173,7 +173,7 @@ XiaoBa does not try to replace Codex or other coding agents. EngineerCat current
 
 ### Background Work
 
-- `spawn_subagent` starts background skill work.
+- `spawn_subagent` starts background role / skill / no-skill work.
 - `check_subagent`, `stop_subagent`, and `resume_subagent` manage task state.
 - `ask_parent` lets a child agent pause and ask the main session for confirmation.
 - Reviewer role reviews EngineerCat / Codex job evidence and artifacts; it does not directly dispatch external coding agents.

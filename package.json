@@ -113,7 +113,6 @@
       "prompts/**/*",
       "roles/**/*",
       "skills/agent-browser/**/*",
-      "skills/background-task-runner/**/*",
       "skills/WebCLI/**/*",
       "skills/self-evolution/**/*",
       "skills/role-publish/**/*",

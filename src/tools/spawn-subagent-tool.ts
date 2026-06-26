@@ -8,7 +8,7 @@ import { styles } from '../theme/colors';
 import { toolFailure, toolSuccess } from './tool-result';
 
 /**
- * spawn_subagent - 派遣子智能体后台执行 skill 或 role-scoped task
+ * spawn_subagent - 派遣子智能体后台执行 skill、role-scoped task 或 no-skill task
  *
  * 主 agent 像"甩活给小弟"一样使用这个工具：
  * 调用后立即返回，子智能体在后台独立运行，
@@ -17,7 +17,7 @@ import { toolFailure, toolSuccess } from './tool-result';
 export class SpawnSubagentTool implements Tool {
   definition: ToolDefinition = {
     name: 'spawn_subagent',
-    description: `派遣一个子智能体在后台独立执行某个 skill 任务，或指定 role 后让子智能体自行选择 role-local skill。
+    description: `派遣一个子智能体在后台独立执行某个 skill 任务、指定 role 后让子智能体自行选择 role-local skill，或不预设 skill 直接执行后台任务。
 
 调用后立即返回，不会阻塞当前对话。子智能体完成后会通知你（主 agent），并附上产出文件列表。
 由你决定是否将结果和文件转发给用户。
@@ -28,7 +28,8 @@ export class SpawnSubagentTool implements Tool {
 - 用户可能还有其他事情要聊，你不想让他等
 - 当前 role 有明确后台 skill 时，传 skill_name
 - 需要切到另一个 role 时，只传 role_name，让子智能体自己用 skill 工具选择该 role 的 skill
-- role_name 和 skill_name 二选一，不要同时传
+- 没有合适 skill 且不需要切 role 时，不传 role_name / skill_name，子智能体会无预设 skill 直接执行
+- role_name 和 skill_name 互斥，可以都不传，但不要同时传
 
 注意：
 - 每个会话最多同时运行 3 个子任务
@@ -41,11 +42,11 @@ export class SpawnSubagentTool implements Tool {
       properties: {
         skill_name: {
           type: 'string',
-          description: '可选：要执行的当前 role 可见 skill。只填 skill_name 时会继承父会话 role；指定 role_name 时不要同时填 skill_name。',
+          description: '可选：要预激活的当前 role 可见 skill。只填 skill_name 时会继承父会话 role；指定 role_name 时不要同时填 skill_name。',
         },
         role_name: {
           type: 'string',
-          description: '可选：子智能体使用的角色名或别名。只填 role_name 时，子智能体会在该 role 内自行选择 skill；传 base/default/none 表示不使用角色，此时必须填 skill_name。',
+          description: '可选：子智能体使用的角色名或别名。只填 role_name 时，子智能体会在该 role 内自行选择 skill；传 base/default/none 表示明确不使用角色。',
         },
         task_description: {
           type: 'string',
@@ -68,9 +69,6 @@ export class SpawnSubagentTool implements Tool {
     if (!task_description || !user_message) {
       return toolFailure('错误：task_description、user_message 均为必填参数', 'INVALID_TOOL_ARGUMENTS');
     }
-    if (!requestedSkillName && !requestedRoleName) {
-      return toolFailure('错误：role_name 和 skill_name 至少填写一个。指定 role_name 时由子智能体自行选择 skill；只填 skill_name 时使用父会话当前 role。', 'INVALID_TOOL_ARGUMENTS');
-    }
     if (requestedSkillName && requestedRoleName) {
       return toolFailure('错误：role_name 和 skill_name 只能二选一。跨 role 派遣时只传 role_name，让子智能体在目标 role 内自行选择 skill；当前 role 的明确后台任务才只传 skill_name。', 'INVALID_TOOL_ARGUMENTS');
     }
@@ -85,15 +83,14 @@ export class SpawnSubagentTool implements Tool {
       return toolFailure(roleResolution.error, 'ROLE_NOT_FOUND');
     }
     const roleName = roleResolution.roleName;
-    if (!requestedSkillName && !roleName) {
-      return toolFailure('错误：role_name 指向 base/default/none 时不会加载角色上下文；请改为只填 skill_name。', 'INVALID_TOOL_ARGUMENTS');
-    }
+    const allowSkillSelection = Boolean(!requestedSkillName && requestedRoleName && roleName);
 
     // Production uses default services; deterministic eval can inject scripted sub-agent services.
     const injectedServices = context.subAgentServiceFactory
       ? await context.subAgentServiceFactory({
         roleName,
         skillName: requestedSkillName || undefined,
+        allowSkillSelection,
         workingDirectory: context.workingDirectory,
         parentSessionId: sessionKey,
       })
@@ -112,6 +109,7 @@ export class SpawnSubagentTool implements Tool {
       skillManager,
       {
         roleName,
+        allowSkillSelection,
         observabilityContext: context.observabilityContext,
       },
     );
@@ -126,19 +124,26 @@ export class SpawnSubagentTool implements Tool {
       if (roleName) {
         console.log(styles.text(`   Role: ${roleName}`));
       }
-      console.log(styles.text(`   Skill: ${requestedSkillName || '由子智能体自行选择'}\n`));
+      console.log(styles.text(`   Skill: ${formatSubAgentSkillLabel(requestedSkillName, allowSkillSelection)}\n`));
     }
 
     return toolSuccess([
       `子智能体 ${result.id} 已派遣，正在后台执行「${task_description}」。`,
       ...(roleName ? [`Role: ${roleName}`] : []),
-      `Skill: ${requestedSkillName || '由子智能体自行选择'}`,
+      `Skill: ${formatSubAgentSkillLabel(requestedSkillName, allowSkillSelection)}`,
       `状态: running`,
       ``,
       `子智能体完成后会通知你结果和产出文件列表。届时请用 reply 和 send_file 转发给用户。`,
       `你可以用 check_subagent 查看进度，用 stop_subagent 停止任务。`,
     ].join('\n'));
   }
+}
+
+function formatSubAgentSkillLabel(skillName: string, allowSkillSelection: boolean): string {
+  if (skillName) {
+    return skillName;
+  }
+  return allowSkillSelection ? '由子智能体自行选择' : '无预设 skill';
 }
 
 function resolveSubAgentRoleName(requestedRole: unknown, inheritedRole: unknown): { roleName?: string; error?: string } {

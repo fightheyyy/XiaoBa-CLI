@@ -66,7 +66,8 @@ Completed:
 - `PromptManager` expands `{{include:...}}` prompt fragments and exposes the shared `prompts/surface.md` delivery prompt to `AgentSession`.
 - Provider adapters cover OpenAI-compatible, Anthropic Messages and Ollama native chat/tool streaming.
 - Tool visibility is layered as base / role / surface, with role skill-scoped visibility and confirmed-tool execution checks.
-- `spawn_subagent` supports exactly one dispatch target: inherited-role `skill_name` or target-role `role_name`.
+- `spawn_subagent` supports inherited-role `skill_name`, target-role `role_name`, or no-skill dispatch; `role_name` and `skill_name` remain mutually exclusive.
+- `background-task-runner` has been removed as a built-in fallback skill; generic background delegation now uses no-skill dispatch instead.
 - Canonical ToolResult helper normalizes terminal status, error semantics, retryability, duration, blocked reason and compatibility fields.
 - `ToolExecutionOutput` now carries explicit status/error_code/retryability facts, ToolManager / AgentToolExecutor use them before falling back to legacy prose classification, and core file/search/shell/delivery plus subagent/skill control tools now return those facts through shared builders.
 - Repeated non-retryable tool failures and provider failures converge to structured blocked evidence.
@@ -128,6 +129,7 @@ Partial:
 
 ## Verification Log
 
+- 2026-06-27：`spawn_subagent` now supports no-skill dispatch while preserving `role_name` / `skill_name` mutual exclusion; role-only dispatch still exposes `skill` for target-role skill selection, but no-skill dispatch hides `skill` and runs directly. Removed the obsolete `background-task-runner` fallback skill from source, runtime defaults, Dashboard hidden/default handling, Electron packaging files, and BaseRuntime replay fixtures. Verification：`node --test -r tsx test/skill-manager-runtime.test.ts test/sub-agent-status.test.ts test/tool-manager-roles.test.ts`（32/32）；`npm run build`；`npm run eval:base-runtime`（benchmarkCases 11/11，evalCases 11/11）；`npm run electron:build:mac`；`git diff --check`。
 - 2026-06-27：Context compression default budget aligned with Codex-style long-context operation: shared default window is now 258400 tokens and shared default trigger threshold is 0.7 across `ContextCompressor` and `ConversationRunner`, with env overrides preserved. Verification：`node --test -r tsx test/context-compressor.test.ts`（35/35）；`node --test -r tsx test/conversation-runner-harness.test.ts`（11/11）；`npm run build`。
 - 2026-06-25：Feishu/channel skill command result semantics tightened at the AgentSession boundary. `CommandResult` and `HandleMessageResult` now carry `finalResponseVisible`, so channel-backed slash skills can keep normal final assistant text hidden after explicit `send_text` delivery while still direct-sending provider/busy/error text that is explicitly visible to the user. Verification：`node --test -r tsx test/feishu-engineer-runtime.test.ts test/agent-session-skill-integration.test.ts test/pet-channel.test.ts test/dashboard-observability-api.test.ts`（24/24）；`npm test`（353/353）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run build`。
 - 2026-06-24：PromptManager now expands `{{include:...}}` fragments and exposes `prompts/surface.md` as the shared channel delivery prompt used by `AgentSession` and RouterCat. Verification：`node --test -r tsx test/prompt-manager-runtime-info.test.ts test/agent-session-log.test.ts test/router-cat-role.test.ts`（15/15）；`npm run build`；`git diff --check`。

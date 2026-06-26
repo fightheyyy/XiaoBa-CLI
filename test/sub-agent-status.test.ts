@@ -143,6 +143,34 @@ describe('SubAgentSession status lifecycle', () => {
     )));
   });
 
+  test('no-skill run hides skill tool and executes directly', async () => {
+    const ai = new ImmediateAIService();
+    const session = new SubAgentSession(
+      'sub-status-no-skill',
+      ai as any,
+      new FakeSkillManager() as any,
+      {
+        taskDescription: 'no-skill status test task',
+        userMessage: 'run directly without a skill',
+        workingDirectory: process.cwd(),
+        notifyParent: async () => undefined,
+      },
+    );
+
+    await session.run();
+    const info = session.getInfo();
+    const request = ai.requests[0];
+
+    assert.strictEqual(info.status, 'completed');
+    assert.strictEqual(info.skillSelectionMode, 'none');
+    assert.strictEqual(request.tools.some(tool => tool.name === 'skill'), false);
+    assert.ok(request.messages.some(message => (
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[subagent-no-skill]')
+    )));
+  });
+
   test('moves to failed after a non-retryable execution error', async () => {
     const session = createSession(new FailingAIService());
 

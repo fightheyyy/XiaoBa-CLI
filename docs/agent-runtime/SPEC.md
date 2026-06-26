@@ -1,7 +1,7 @@
 # Agent Runtime SPEC
 
 状态：Active
-最后更新：2026-06-24
+最后更新：2026-06-27
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
 本文是五大顶层模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据和评测分别由各自模块 spec 维护。
@@ -165,9 +165,9 @@ flowchart LR
 - Generated eval suite scorecards must retain the source suite hard verifier set. Runtime owns the structured ToolResult/delivery/artifact facts; scorecard regeneration or focused tests must confirm every generated case keeps verifier results for all hard verifiers declared by the source case, preventing stale release scorecards from bypassing newly added runtime contracts.
 - Top-level `error_code` describes tool execution failure only. If a successful tool result contains domain-level blocked/path/validation evidence, that evidence must stay in the result payload or artifacts; `SessionTurnLogger` must not hoist it into a success ToolResult's top-level `error_code`.
 - ToolManager 负责三层工具可见性：base tool 受 role 的 `inheritBaseTools`、allowlist、denylist 控制；role tool 由 role registry 注入；surface tool 只在显式 channel-backed surface 上可见。
-- `spawn_subagent` 是 role-aware sub-agent dispatch boundary：`role_name` 和 `skill_name` 二选一。只传 `skill_name` 时，子智能体继承父会话当前 role 并预激活该 role 可见 skill；只传 `role_name` 时，有效 role 会在启动前 canonicalize，并用于加载 role prompt、role-local skills 和 role-specific tools，子智能体再通过 `skill` 工具自行选择该 role 的 skill。
+- `spawn_subagent` 是 role-aware / no-skill sub-agent dispatch boundary：`role_name` 和 `skill_name` 互斥，但允许二者都不传。只传 `skill_name` 时，子智能体继承父会话当前 role 并预激活该 role 可见 skill；只传 `role_name` 时，有效 role 会在启动前 canonicalize，并用于加载 role prompt、role-local skills 和 role-specific tools，子智能体再通过 `skill` 工具自行选择该 role 的 skill；二者都不传时，子智能体以无预设 skill、无 role dispatch 的后台会话直接按可见工具执行。
 - `ToolExecutionContext.subAgentServiceFactory` 是 deterministic eval / runtime harness 的服务注入点，用于给后台子智能体提供 scripted AIService / skill manager；production `spawn_subagent` 不依赖该字段，仍默认创建真实 runtime services。
-- `role_name=base/default/none` 不构成 role-only dispatch；调用方必须改为只传 `skill_name`。子智能体内部仍隐藏主会话控制面和外发工具，例如 `spawn_subagent`、`check_subagent`、`stop_subagent`、`resume_subagent`、`send_text` 和 `send_file`。`skill` 工具只在 role-only dispatch 中开放，用于让目标 role 自选 skill。
+- `role_name=base/default/none` 表示明确清空 role，并进入 no-skill dispatch；它不再要求调用方提供 `skill_name`。子智能体内部仍隐藏主会话控制面和外发工具，例如 `spawn_subagent`、`check_subagent`、`stop_subagent`、`resume_subagent`、`send_text` 和 `send_file`。`skill` 工具只在有效 role-only dispatch 中开放，用于让目标 role 自选 skill；no-skill dispatch 不暴露 `skill` 工具。
 - `src/tools/tool-result.ts` 是 runtime ToolResult canonicalization boundary。ToolManager、AgentToolExecutor、SubAgent forbidden path 和 ConversationRunner retry/cancel path 必须通过 canonical builder/canonicalizer，保证 `status` 必填、`ok` 与 status 一致、non-success 必有 `error_code`、blocked 必有 `blocked_reason`，并且 success 结果不能携带顶层 execution `error_code`。
 - `ToolExecutionOutput` 是工具实现返回结构化执行事实的 live 协议。新工具必须通过 `toolSuccess` / `toolFailure` / `toolBlocked` / `toolTimeout` 等共享 builder 返回 `status`、non-success `error_code`、可选 `blocked_reason` / `retryable` / retry budget facts；`toolContent` 只承载给模型看的 payload，不能作为执行状态的唯一来源。字符串前缀分类只保留给 legacy string output 和未迁移工具，并在代码中命名为 legacy path。
 - ToolManager 负责把工具执行结果归一为结构化 ToolResult；core file/search/shell/delivery tools 和 subagent/skill control tools 使用显式语义产出 status/error_code，file/delivery tools 还产出 artifact/delivery evidence 和可选 `external_delivery_receipts`；maintained role tools 可通过 `Tool.getArtifactManifest()` 产出 tool-owned `artifact_manifest`，旧 role-layer 输出才从明确的 JSON / `key=value` artifact 字段保守推断 `action=captured` 的 fallback manifest。

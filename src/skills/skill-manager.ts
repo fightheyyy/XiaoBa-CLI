@@ -10,6 +10,7 @@ const DEFAULT_EXCLUDED_BASE_SKILLS = new Set([
   'officecli-pptx',
   'officecli-xlsx',
   'sub-agent',
+  'background-task-runner',
 ]);
 
 /**
