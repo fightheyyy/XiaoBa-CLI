@@ -53,6 +53,33 @@ describe('Dashboard pet runtime event handling', () => {
       { text: 'Hello', mode: 'stream' },
     ]);
   });
+
+  test('done events report when text was already rendered in the same turn', () => {
+    const runtime = loadPetRuntime();
+    const doneEvents: Array<{ text: string; alreadyRenderedText: boolean }> = [];
+    const handler = runtime.createEventHandler({
+      setState: () => {},
+      onText: () => {},
+      onDone: (event: any, meta: any) => doneEvents.push({
+        text: event.text,
+        alreadyRenderedText: meta?.alreadyRenderedText === true,
+      }),
+    });
+
+    handler({ type: 'user_message', text: 'hello' });
+    handler({ type: 'state', state: 'review', reason: 'channel_reply' });
+    handler({ type: 'text', text: '模型服务连续不可用，已停止继续请求。请稍后再试，或者切换模型/provider。' });
+    handler({
+      type: 'done',
+      text: '模型服务连续不可用，已停止继续请求。请稍后再试，或者切换模型/provider。',
+      visibleToUser: true,
+    });
+
+    assert.deepStrictEqual(doneEvents, [{
+      text: '模型服务连续不可用，已停止继续请求。请稍后再试，或者切换模型/provider。',
+      alreadyRenderedText: true,
+    }]);
+  });
 });
 
 describe('Dashboard pet page wiring', () => {
@@ -69,7 +96,14 @@ describe('Dashboard pet page wiring', () => {
     const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
 
     assert.match(index, /onText: \(_event, text, meta\) => \{\s*renderAssistantText\(text, meta\);/);
+    assert.match(index, /onDone: \(event, meta\) => \{\s*if \(event\.visibleToUser !== false && event\.text && !meta\?\.alreadyRenderedText\) \{/);
     assert.match(index, /if \(meta\.mode === 'message'\) \{\s*appendPetBubble\('assistant', value\);\s*currentAssistantBubble = null;\s*return;\s*\}/);
     assert.doesNotMatch(index, /function renderToolStart\(event\) \{\s*discardAssistantDraft\(\);/);
+  });
+
+  test('desktop pet widget does not repeat done text after a text event', () => {
+    const widget = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'pet-widget.html'), 'utf-8');
+
+    assert.match(widget, /onDone: \(event, meta\) => \{\s*if \(event\.text && !meta\?\.alreadyRenderedText\) showNotice\(event\.text, 5200\);/);
   });
 });

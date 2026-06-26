@@ -166,11 +166,13 @@
   function createEventHandler(options) {
     let textBuffer = '';
     let textMode = 'message';
+    let turnHasText = false;
     return event => {
       if (event.type === 'connected') return;
       if (event.type === 'user_message') {
         textBuffer = '';
         textMode = 'message';
+        turnHasText = false;
         options.onUserMessage?.(event);
         return;
       }
@@ -184,6 +186,7 @@
       if (event.type === 'text') {
         const chunk = event.text || '';
         const text = textMode === 'stream' ? (textBuffer += chunk) : chunk;
+        turnHasText = turnHasText || Boolean(text);
         options.setState('review');
         options.onText?.(event, text, { mode: textMode });
         return;
@@ -225,10 +228,12 @@
         return;
       }
       if (event.type === 'done') {
+        const alreadyRenderedText = turnHasText;
         textBuffer = '';
         textMode = 'message';
+        turnHasText = false;
         options.setState('waving');
-        options.onDone?.(event);
+        options.onDone?.(event, { alreadyRenderedText });
       }
     };
   }

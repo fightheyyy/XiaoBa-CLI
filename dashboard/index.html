@@ -4560,8 +4560,8 @@
       onRetry: event => renderToolRetry(event),
       onFile: event => renderToolFile(event),
       onError: event => renderToolError(event),
-      onDone: event => {
-        if (event.visibleToUser !== false && event.text) {
+      onDone: (event, meta) => {
+        if (event.visibleToUser !== false && event.text && !meta?.alreadyRenderedText) {
           renderAssistantText(event.text);
         }
         finishToolTrace();

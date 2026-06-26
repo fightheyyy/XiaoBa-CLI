@@ -161,8 +161,8 @@
       onToolEnd: event => showNotice('工具完成: ' + event.name, 2600),
       onFile: event => showNotice('生成文件: ' + (event.fileName || '文件'), 6500),
       onError: event => showNotice(event.message || '处理失败', 6500),
-      onDone: event => {
-        if (event.text) showNotice(event.text, 5200);
+      onDone: (event, meta) => {
+        if (event.text && !meta?.alreadyRenderedText) showNotice(event.text, 5200);
       },
     });
 
