@@ -86,9 +86,7 @@
   },
   "overrides": {
     "axios": "$axios",
-    "brace-expansion": "2.0.3",
     "lodash": "4.18.1",
-    "minimatch": "9.0.7",
     "path-to-regexp": "8.4.2",
     "protobufjs": "7.5.5"
   },
