@@ -5,6 +5,20 @@ const DASHBOARD_PORT = 3800;
 let mainWindow = null;
 let tray = null;
 let autoUpdater = null;
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  console.log('XiaoBa Dashboard 已在运行，退出重复启动实例。');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (app.isReady()) {
+      openDashboardPage();
+      return;
+    }
+    app.once('ready', () => openDashboardPage());
+  });
+}
 
 // 尝试加载 electron-updater（可选）
 try {
@@ -246,6 +260,8 @@ if (autoUpdater) {
 }
 
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return;
+
   try {
     await startServer();
     createWindow();
@@ -266,6 +282,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (!gotSingleInstanceLock) return;
   if (process.platform !== 'darwin') app.quit();
 });
 
