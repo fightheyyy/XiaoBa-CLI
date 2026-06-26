@@ -184,6 +184,9 @@
     },
     "dmg": {
       "title": "XiaoBa",
+      "backgroundColor": "#ffffff",
+      "iconSize": 128,
+      "iconTextSize": 13,
       "contents": [
         {
           "x": 130,
