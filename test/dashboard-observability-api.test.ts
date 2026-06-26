@@ -246,6 +246,16 @@ describe('Dashboard observability API', () => {
     assert.doesNotMatch(JSON.stringify(state), /\/Users\/guowei/);
   });
 
+  test('navigation accepts maintained pages and rejects retired workspace page', async () => {
+    const petResponse = await fetch(`${baseUrl}/api/navigation/open?page=pet`);
+    assert.strictEqual(petResponse.status, 200);
+
+    const retiredResponse = await fetch(`${baseUrl}/api/navigation/open?page=room`);
+    assert.strictEqual(retiredResponse.status, 400);
+    const body = await retiredResponse.json() as { error?: string };
+    assert.strictEqual(body.error, 'Invalid dashboard page');
+  });
+
   test('does not expose observability action endpoint', async () => {
     const badAction = await fetch(`${baseUrl}/api/observability/actions`, {
       method: 'POST',
