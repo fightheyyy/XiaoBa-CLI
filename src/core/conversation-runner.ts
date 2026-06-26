@@ -15,7 +15,11 @@ import {
 import { StreamCallbacks } from '../providers/provider';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
-import { ContextCompressor } from './context-compressor';
+import {
+  ContextCompressor,
+  DEFAULT_MAX_CONTEXT_TOKENS,
+  resolveCompactionThreshold,
+} from './context-compressor';
 import { estimateMessagesTokens, estimateToolsTokens } from './token-estimator';
 import { buildCanonicalToolResult, canonicalizeToolResult } from '../tools/tool-result';
 import { normalizeExternalDeliveryReceipts } from '../tools/delivery-receipts';
@@ -44,8 +48,6 @@ function normalizeToolName(name: string): string {
   return TOOL_NAME_ALIASES[name] ?? name;
 }
 
-const DEFAULT_PROMPT_BUDGET = 120000;
-const ANTHROPIC_PROMPT_BUDGET = 200000;
 const MIN_MESSAGE_BUDGET = 2000;
 const OVERFLOW_REDUCTION_RATIO = 0.6;
 const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
@@ -191,7 +193,7 @@ export class ConversationRunner {
       : '';
     this.compressor = new ContextCompressor(this.aiService, {
       maxContextTokens: this.maxPromptTokens,
-      compactionThreshold: 0.5,
+      compactionThreshold: resolveCompactionThreshold(),
     });
   }
 
@@ -227,7 +229,7 @@ export class ConversationRunner {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 上下文: ${messageTokens} + ${toolTokens} = ${totalTokens} tokens (${usagePercent}%)`);
 
         // 检查压缩：考虑工具tokens，留足安全边际
-        const threshold = this.maxPromptTokens * 0.5;
+        const threshold = this.maxPromptTokens * resolveCompactionThreshold();
         if (totalTokens > threshold) {
           Logger.info(`上下文使用率 ${usagePercent}%，触发压缩...`);
           const compacted = await this.compressor.compactWithFallback(messages);
@@ -1365,11 +1367,7 @@ export class ConversationRunner {
       return maxContextTokens;
     }
 
-    const provider = (process.env.XIAOBA_LLM_PROVIDER || '').trim().toLowerCase();
-    const model = (process.env.XIAOBA_LLM_MODEL || '').trim().toLowerCase();
-    const isAnthropic = provider === 'anthropic' || model.includes('claude');
-
-    return isAnthropic ? ANTHROPIC_PROMPT_BUDGET : DEFAULT_PROMPT_BUDGET;
+    return DEFAULT_MAX_CONTEXT_TOKENS;
   }
 
   private isPromptTooLongError(error: any): boolean {

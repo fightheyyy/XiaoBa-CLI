@@ -72,6 +72,7 @@ Completed:
 - Repeated non-retryable tool failures and provider failures converge to structured blocked evidence.
 - Channel final text is hidden from users by default; explicit `send_text` / `send_file` is the normal channel delivery path.
 - Channel fallback final replies remain available only through opt-in `deliveryFallbackFinalReply` and then write synthetic `send_text` ToolResults with delivery evidence.
+- Context compression defaults now use a Codex-aligned long-context budget: 258400 tokens with a 0.7 trigger threshold, shared by `AgentSession`'s `ContextCompressor` and the `ConversationRunner` pre-request compression guard.
 - Maintained role tools can expose explicit `Tool.getArtifactManifest()` evidence through the runtime tool boundary.
 - Observability is local-only in the current implementation; the runtime does not start an external exporter.
 
@@ -127,6 +128,7 @@ Partial:
 
 ## Verification Log
 
+- 2026-06-27：Context compression default budget aligned with Codex-style long-context operation: shared default window is now 258400 tokens and shared default trigger threshold is 0.7 across `ContextCompressor` and `ConversationRunner`, with env overrides preserved. Verification：`node --test -r tsx test/context-compressor.test.ts`（35/35）；`node --test -r tsx test/conversation-runner-harness.test.ts`（11/11）；`npm run build`。
 - 2026-06-25：Feishu/channel skill command result semantics tightened at the AgentSession boundary. `CommandResult` and `HandleMessageResult` now carry `finalResponseVisible`, so channel-backed slash skills can keep normal final assistant text hidden after explicit `send_text` delivery while still direct-sending provider/busy/error text that is explicitly visible to the user. Verification：`node --test -r tsx test/feishu-engineer-runtime.test.ts test/agent-session-skill-integration.test.ts test/pet-channel.test.ts test/dashboard-observability-api.test.ts`（24/24）；`npm test`（353/353）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run build`。
 - 2026-06-24：PromptManager now expands `{{include:...}}` fragments and exposes `prompts/surface.md` as the shared channel delivery prompt used by `AgentSession` and RouterCat. Verification：`node --test -r tsx test/prompt-manager-runtime-info.test.ts test/agent-session-log.test.ts test/router-cat-role.test.ts`（15/15）；`npm run build`；`git diff --check`。
 - 2026-06-23：Channel delivery visibility semantics fixed at the AgentSession boundary. Successful `send_text` / `send_file` delivery evidence now makes `HandleMessageResult.visibleToUser` true even when final assistant text is suppressed; `finalResponseVisible` remains the separate final-text fallback flag. Verification：focused AgentSession / observability / Pet channel tests passed；`npm run build`。

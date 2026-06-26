@@ -24,7 +24,8 @@ const LAST_TURN_TAIL_TOKEN_BUDGET = 6000;
 const MAX_VISIBLE_EVENTS = 8;
 const TOOL_RESULT_HEAD_LINES = 6;
 const TOOL_RESULT_TAIL_LINES = 6;
-const DEFAULT_COMPACTION_THRESHOLD = 0.6;
+export const DEFAULT_MAX_CONTEXT_TOKENS = 258400;
+export const DEFAULT_COMPACTION_THRESHOLD = 0.7;
 
 export function resolveCompactionThreshold(): number {
   const envValue = Number(process.env.XIAOBA_CONTEXT_COMPACTION_THRESHOLD);
@@ -383,7 +384,7 @@ export class ContextCompressor {
     compactionThreshold?: number;
   }) {
     this.aiService = aiService;
-    this.maxContextTokens = options?.maxContextTokens ?? 128000;
+    this.maxContextTokens = options?.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
     this.compactionThreshold = options?.compactionThreshold ?? resolveCompactionThreshold();
   }
 

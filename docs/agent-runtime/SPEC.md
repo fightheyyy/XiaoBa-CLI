@@ -180,6 +180,7 @@ flowchart LR
 - `ConversationRunner` 发给 provider 的工具定义必须使用当前 `ToolExecutionContext` 过滤后的 visible tool set；隐藏工具被硬调时必须返回 forbidden tool result，而不是执行。
 - `ConversationRunner` 负责 transcript 合法性，不保存长期 session，也不决定角色配置。
 - `AgentSession` 负责 session lifecycle、role/skill 注入、context compression 和 state cleanup，不直接实现平台 API。
+- Context compression 默认按 Codex 长上下文口径配置：`DEFAULT_MAX_CONTEXT_TOKENS=258400`，`DEFAULT_COMPACTION_THRESHOLD=0.7`，也就是约 180k tokens 触发自动压缩。`XIAOBA_LLM_MAX_PROMPT_TOKENS` 可覆盖 runner prompt budget，`XIAOBA_CONTEXT_COMPACTION_THRESHOLD` 可覆盖压缩比例；runner 和 `ContextCompressor` 必须使用同一比例，避免过早在较小保护层抢先压缩。
 - Provider-visible transcript、trace、durable session 和 visible history 可以内容不同，但必须可关联且不能互相替代；live `AgentSession` trace logs expose `state_boundary` refs for durable session, legacy `working_trace` evidence and provider transcript digest reference, and release-grade state evidence 可用 `state_boundary_contract` + `provider_transcript_normalization` 证明 provider transcript 只是 normalized `sha256` reference，不是 raw messages/tool payloads 或普通路径 ref。Degraded provider transcript evidence must additionally carry structured `degradation_reason` / terminal `status`, `fallback_chain`, `blocked_reason` and explicit false raw-payload storage flags, so provider failures can be audited without raw transcript retention.
 - Provider adapter 负责把各自的消息、tool call、usage 和 streaming 协议归一为 runtime 合同；Ollama native adapter 使用 `/api/chat`、NDJSON streaming、默认 `think:false`、`keep_alive`、`num_ctx` 和可选 API key，以支持本地小模型。
 - Retry 必须有上限；重复失败后应改变策略或报告 blocked reason。显式 `retryable` 的 ToolResult retry exhausted 后必须进入 `blocked` 终态并记录 `retry_count` / `retry_budget` / `retry_budget_exhausted`；同一 run 内重复出现同名、同参、同错误的不可重试 ToolResult，必须在 bounded failure budget 后由 `ConversationRunner` 收束为 `blocked` ToolResult，并记录 prior failure count、budget exhaustion 和 `blocked_reason`；interrupt/cancel 必须进入 `cancelled` 终态且不可重试。
@@ -189,6 +190,7 @@ flowchart LR
 Runtime 需要稳定维护这些结构化事实：
 
 - `surface`、`sessionKey`、role、active skills 和 budget。
+- context compression budget defaults: max context tokens、compaction threshold、effective trigger token count and environment overrides.
 - tool layer、visible tool set、role base-tool inheritance policy 和 surface delivery context。
 - tool visibility mode、active skill、visible tool names、hidden tool count、confirmed tool gate decision。
 - provider request/response 的 token 和 model metadata；debug dump 只能保留结构、长度、sha256 摘要和非敏感元数据，不能持久化 raw prompt/tool arguments/response payload。

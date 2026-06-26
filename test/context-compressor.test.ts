@@ -1,6 +1,14 @@
 import { describe, test, beforeEach } from 'node:test';
 import * as assert from 'node:assert';
-import { ContextCompressor, contentToString, messagesToConversationText, parseCompactSummary, buildCompactSystemPrompt } from '../src/core/context-compressor';
+import {
+  ContextCompressor,
+  DEFAULT_COMPACTION_THRESHOLD,
+  DEFAULT_MAX_CONTEXT_TOKENS,
+  contentToString,
+  messagesToConversationText,
+  parseCompactSummary,
+  buildCompactSystemPrompt,
+} from '../src/core/context-compressor';
 import type { Message } from '../src/types';
 import type { AIService } from '../src/utils/ai-service';
 
@@ -512,6 +520,14 @@ describe('ContextCompressor.compact', () => {
     assert.equal(info.maxTokens, 1000);
     assert.equal(typeof info.usedTokens, 'number');
     assert.equal(typeof info.usagePercent, 'number');
+  });
+
+  test('默认压缩窗口对齐 Codex 实际长上下文口径', async () => {
+    const compressor = new ContextCompressor(aiService);
+    const info = compressor.getUsageInfo([system('a'), user('b')]);
+    assert.equal(info.maxTokens, 258400);
+    assert.equal(DEFAULT_MAX_CONTEXT_TOKENS, 258400);
+    assert.equal(DEFAULT_COMPACTION_THRESHOLD, 0.7);
   });
 });
 
