@@ -3827,6 +3827,7 @@
         roleSkillsSubtitle: 'Role-owned capabilities',
         runtimeSkillsTitle: 'Runtime Skills',
         runtimeSkillsSubtitle: 'Base runtime and shared capabilities',
+        unnamedSkill: 'Unnamed skill',
         noItemsPrefix: 'No ',
         tagRole: 'Role',
         tagDisabled: 'Disabled',
@@ -3978,6 +3979,7 @@
         roleSkillsSubtitle: '当前角色专属能力',
         runtimeSkillsTitle: 'Runtime Skills',
         runtimeSkillsSubtitle: '基础运行时与通用能力',
+        unnamedSkill: '未命名 skill',
         noItemsPrefix: '暂无 ',
         tagRole: '角色',
         tagDisabled: '已禁用',
@@ -4801,6 +4803,27 @@
       return '<div class="activity-item '+kind+'"><span class="activity-dot"></span><div><div class="activity-time">'+escapeHtml(time || t('justNow'))+'</div><div class="activity-title">'+escapeHtml(title)+'</div><div class="activity-meta">'+escapeHtml(meta)+'</div></div></div>';
     }
 
+    function getSkillDisplayName(skill) {
+      const explicitName = typeof skill?.name === 'string' ? skill.name.trim() : '';
+      if (explicitName) return explicitName;
+
+      const skillPath = typeof skill?.path === 'string' ? skill.path.trim() : '';
+      if (skillPath) {
+        const parts = skillPath.split(/[\\/]/).filter(Boolean);
+        const fileName = parts[parts.length - 1] || '';
+        if (/^skill\.md(?:\.disabled)?$/i.test(fileName) && parts.length >= 2) {
+          return parts[parts.length - 2];
+        }
+      }
+
+      return t('unnamedSkill');
+    }
+
+    function getSkillActionName(skill, displayName) {
+      const explicitName = typeof skill?.name === 'string' ? skill.name.trim() : '';
+      return explicitName || displayName;
+    }
+
     function renderSkills(skills) {
       document.getElementById('skill-count').textContent = skills.length;
       const g = document.getElementById('skills-grid');
@@ -4830,10 +4853,12 @@
     function renderSkillCard(sk) {
       const canManage = sk.enabled !== false;
       const action = canManage ? 'disable' : 'enable';
-      const skillNameArg = escapeHtml(escapeJs(sk.name));
+      const displayName = getSkillDisplayName(sk);
+      const actionName = getSkillActionName(sk, displayName);
+      const skillNameArg = escapeHtml(escapeJs(actionName));
       const roleTag = sk.roleOwned ? '<span class="tag warm">'+t('tagRole')+'</span>' : '<span class="tag gray">Runtime</span>';
       return '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'">'+
-        '<div class="skill-name">'+escapeHtml(sk.name)+(sk.enabled===false?' <span class="tag red">'+t('tagDisabled')+'</span>':'')+'</div>'+
+        '<div class="skill-name" title="'+escapeHtml(displayName)+'">'+escapeHtml(displayName)+(sk.enabled===false?' <span class="tag red">'+t('tagDisabled')+'</span>':'')+'</div>'+
         '<div class="skill-desc">'+escapeHtml(sk.description||'')+'</div>'+
         '<div class="skill-tags">'+roleTag+(sk.userInvocable?'<span class="tag green">'+t('tagUserInvocable')+'</span>':'')+(sk.autoInvocable?'<span class="tag purple">'+t('tagAutoInvocable')+'</span>':'')+(sk.maxTurns?'<span class="tag gray">max '+sk.maxTurns+' turns</span>':'')+'</div>'+
         (sk.aliases&&sk.aliases.length?'<div class="skill-files">Aliases: '+sk.aliases.map(escapeHtml).join(', ')+'</div>':'')+
@@ -4935,7 +4960,6 @@
       {titleKey:'configBackupModel', collapsed:true, keys:[{key:'XIAOBA_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'XIAOBA_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'XIAOBA_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'XIAOBA_LLM_BACKUP_MODEL',label:'Model'}]},
       {titleKey:'configFeishu', collapsed:true, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
       {titleKey:'configWeixin', collapsed:true, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
-      {title:'Inspector', collapsed:true, keys:[{key:'INSPECTOR_SERVER_URL',label:'Client Server URL'},{key:'INSPECTOR_SERVER_API_KEY',label:'API Key',sensitive:true},{key:'INSPECTOR_SERVER_HOST',label:'Inbox Host'},{key:'INSPECTOR_SERVER_PORT',label:'Inbox Port'},{key:'XIAOBA_INSPECTOR_MAX_UPLOAD_BYTES',label:'Max Upload Bytes'},{key:'INSPECTOR_AUTO_UPLOAD_ENABLED',label:'Auto Upload Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_AUTO_UPLOAD_TIME',label:'Auto Upload Time'},{key:'INSPECTOR_AUTO_UPLOAD_STABLE_MINUTES',label:'Stable Minutes'},{key:'INSPECTOR_AUTO_UPLOAD_MAX_FILES',label:'Auto Upload Max Files'},{key:'INSPECTOR_WORKER_ENABLED',label:'Hook Scheduler Enabled',type:'select',options:['true','false']},{key:'INSPECTOR_REPORT_FEISHU_CHAT_ID',label:'Inspector Review Chat ID'},{key:'INSPECTOR_REMOTE_REQUIRED',label:'Remote Storage Required',type:'select',options:['false','true']},{key:'MYSQL_HOST',label:'MySQL Host'},{key:'MYSQL_PORT',label:'MySQL Port'},{key:'MYSQL_USER',label:'MySQL User'},{key:'MYSQL_PASSWORD',label:'MySQL Password',sensitive:true},{key:'MYSQL_DATABASE',label:'MySQL Database'}]},
     ];
 
     async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">'+t('loadFailed')+'</div>';}}
@@ -4979,7 +5003,13 @@
       const g=document.getElementById('store-grid');
       g.classList.toggle('is-empty', !items.length);
       if(!items.length){g.innerHTML='<div class="loading empty-state">'+t('noStoreSkills')+'</div>';return;}
-      g.innerHTML=items.map(i=>'<div class="skill-card"><div class="skill-name">'+i.name+(i.recommended?' <span class="tag recommended">'+t('recommended')+'</span>':'')+(i.installed?' <span class="tag installed-tag">'+t('installed')+'</span>':'')+'</div><div class="skill-desc">'+(i.description||'')+'</div><div class="skill-meta"><span class="tag">'+(i.category||t('categoryOther'))+'</span></div><div class="skill-actions">'+(i.installed?'<button class="btn" disabled>'+t('installed')+'</button>':'<button class="btn btn-primary" onclick="installSkill(\''+i.name+'\',\''+i.repo+'\',\''+(i.dir||'')+'\')">'+t('install')+'</button>')+'</div></div>').join('');
+      g.innerHTML=items.map(i=>{
+        const displayName = getSkillDisplayName(i);
+        const actionName = getSkillActionName(i, displayName);
+        const repoArg = escapeHtml(escapeJs(i.repo || ''));
+        const dirArg = escapeHtml(escapeJs(i.dir || ''));
+        return '<div class="skill-card"><div class="skill-name" title="'+escapeHtml(displayName)+'">'+escapeHtml(displayName)+(i.recommended?' <span class="tag recommended">'+t('recommended')+'</span>':'')+(i.installed?' <span class="tag installed-tag">'+t('installed')+'</span>':'')+'</div><div class="skill-desc">'+escapeHtml(i.description||'')+'</div><div class="skill-meta"><span class="tag">'+escapeHtml(i.category||t('categoryOther'))+'</span></div><div class="skill-actions">'+(i.installed?'<button class="btn" disabled>'+t('installed')+'</button>':'<button class="btn btn-primary" onclick="installSkill(\''+escapeHtml(escapeJs(actionName))+'\',\''+repoArg+'\',\''+dirArg+'\')">'+t('install')+'</button>')+'</div></div>';
+      }).join('');
     }
     async function installSkill(n,r,d){
       const btn=event.target;

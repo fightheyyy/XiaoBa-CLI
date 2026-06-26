@@ -12,6 +12,8 @@ Dashboard Pet Chat has role-scoped JSONL history for work-trace replay. The hist
 
 Dashboard managed services cover the maintained Feishu, Weixin, and Pet entries. The retired CatsCompany IM service is not exposed in service control, config editing, or service logs.
 
+Dashboard config no longer exposes the legacy Inspector hook/server/MySQL settings while InspectorCat is being refactored. Inspector-specific runtime configuration must return only after the new Inspector target contract is documented.
+
 Dashboard does not render the local observability summary or action controls in the user-facing Runtime page. `/api/observability/summary` and `/api/observability/review` remain available as developer read APIs.
 
 ```mermaid
@@ -33,6 +35,7 @@ flowchart LR
 
     subgraph Removed["Removed from active path"]
         MultiAgent["speculative multi-agent workspace"]
+        InspectorConfig["legacy Inspector config"]
     end
 
     Runtime --> Logs
@@ -42,6 +45,7 @@ flowchart LR
     Config --> Runtime
     Roles --> Chat
     Skills --> Chat
+    InspectorConfig -.-> Config
 ```
 
 ## Milestones
@@ -56,6 +60,7 @@ flowchart LR
 8. Hash-only local trace timeline on Runtime page: removed from user-facing Dashboard.
 9. Dashboard observability action controls: removed from user-facing Dashboard and backend API.
 10. Speculative multi-agent workspace UI/API/runtime: removed from active Dashboard.
+11. Legacy Inspector hook/server/MySQL config group: removed from active Dashboard.
 
 ## Next Steps
 
@@ -82,6 +87,7 @@ flowchart LR
 - Mobile viewport does not horizontally overflow on maintained pages.
 - The `pet` service log modal shows in-process Dashboard Chat runtime logs for `pet:*` sessions, matching the child-process log behavior of Feishu and Weixin.
 - Dashboard service control and config screens do not expose the retired CatsCompany IM adapter.
+- Dashboard config screen does not expose legacy Inspector hook/server/MySQL settings.
 - Saving model config from the Dashboard config page updates the running Dashboard process environment immediately, so new Pet Chat calls use the saved provider/model without a restart.
 - Dashboard Pet Chat writes visible replay events to `data/chat/sessions/pet_<petId>.jsonl` for the base role and `data/chat/sessions/pet_<petId>_role-<roleName>.jsonl` for non-base roles.
 - `GET /api/pet/events?sessionKey=...&replay=1` can restore the current role's Dashboard Pet Chat work trace after a process restart.
@@ -95,6 +101,7 @@ flowchart LR
 ## Verification Log
 
 - 2026-06-27: Removed the speculative multi-agent workspace from Dashboard: deleted the frontend page/nav/styles/scripts, backend router, and active dashboard docs. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (4/4); `npm run build`; `git diff --cached --check`.
+- 2026-06-27: Removed the legacy Inspector config group from the Dashboard config page while InspectorCat is being refactored. Verification: `node --test -r tsx test/dashboard-skills-api.test.ts`; `node --test -r tsx test/dashboard-pet-runtime.test.ts`; `npm run build`; `git diff --check`.
 - 2026-06-25: Main Dashboard Pet Chat now passes the active role-scoped `sessionKey` to SSE replay and message sends, and message-mode `send_text` / channel replies append separate assistant bubbles instead of overwriting prior visible replies. Verification: `node --test -r tsx test/dashboard-pet-runtime.test.ts` (4/4); `npm run build`; `npm test` (358/358); `npm run test:contract-smoke` (6/6 items, 23/23 cases); `npm run eval:gate` (1/1 item, 11/11 cases); `git diff --check`.
 - 2026-06-23: Removed Dashboard observability action API from the current product path. `/api/observability/summary` and readonly `/api/observability/review` remain; trace proposal / trace continuity generation is no longer exposed through Dashboard. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (3/3); `npm run build`.
 - 2026-05-27: Retired CatsCompany from Dashboard managed services and config UI; `npm run build`, `node --import tsx --test tests/dashboard-service-logs.test.ts tests/anthropic-provider-extra-fields-bug.test.ts`, and browser checks on `/?page=services` plus `/?page=config` passed with no CatsCompany entry.

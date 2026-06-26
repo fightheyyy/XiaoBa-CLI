@@ -15,8 +15,6 @@ import {
   EngineerTaskStatusTool,
 } from './engineer-cat/tools/engineer-task-tools';
 import { AnalyzeLogTool } from './inspector-cat/tools/analyze-log-tool';
-import { createInspectorApiRouter } from './inspector-cat/utils/inspector-api-router';
-import { InspectorHookRuntime, InspectorHookRuntimeOptions } from './inspector-cat/utils/inspector-runtime-support';
 import {
   CodexJobCancelTool,
   CodexJobResumeTool,
@@ -86,6 +84,10 @@ import { UserTraceRunTool } from './user-cat/tools/user-trace-run-tool';
 
 export interface RoleRuntimeSupport {
   stop(): Promise<void>;
+}
+
+export interface RoleRuntimeServiceOptions {
+  workingDirectory?: string;
 }
 
 function normalizeRole(roleName?: string): string {
@@ -238,22 +240,13 @@ export function getRoleSpecificTools(): Tool[] {
   return getRoleSpecificToolsForRole(RoleResolver.getActiveRoleName());
 }
 
-export function registerRoleSpecificApiRoutes(router: Router): void {
-  if (!isInspectorRole()) {
-    return;
-  }
-  router.use(createInspectorApiRouter());
+export function registerRoleSpecificApiRoutes(_router: Router): void {
+  return;
 }
 
 export async function startRoleRuntimeServices(
-  options: InspectorHookRuntimeOptions = {},
+  _options: RoleRuntimeServiceOptions = {},
 ): Promise<RoleRuntimeSupport | null> {
-  if (isInspectorRole()) {
-    const support = new InspectorHookRuntime(options);
-    await support.start();
-    return support;
-  }
-
   if (isEngineerRole()) {
     return null;
   }

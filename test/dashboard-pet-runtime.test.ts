@@ -106,4 +106,23 @@ describe('Dashboard pet page wiring', () => {
 
     assert.match(widget, /onDone: \(event, meta\) => \{\s*if \(event\.text && !meta\?\.alreadyRenderedText\) showNotice\(event\.text, 5200\);/);
   });
+
+  test('skills page renders card names through the dashboard display-name helper', () => {
+    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+
+    assert.match(index, /function getSkillDisplayName\(skill\) \{/);
+    assert.match(index, /const displayName = getSkillDisplayName\(sk\);/);
+    assert.match(index, /const displayName = getSkillDisplayName\(i\);/);
+    const renderedNameFragments = index.match(/<div class="skill-name" title="'\+escapeHtml\(displayName\)\+'">'\+escapeHtml\(displayName\)/g) || [];
+    assert.ok(renderedNameFragments.length >= 2);
+  });
+
+  test('config page does not expose legacy Inspector settings', () => {
+    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+
+    assert.doesNotMatch(index, /title:'Inspector'/);
+    assert.doesNotMatch(index, /INSPECTOR_SERVER_/);
+    assert.doesNotMatch(index, /XIAOBA_INSPECTOR_/);
+    assert.doesNotMatch(index, /MYSQL_DATABASE/);
+  });
 });

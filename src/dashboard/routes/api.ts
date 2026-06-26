@@ -24,6 +24,7 @@ import { getDashboardObservabilityReviewState } from '../observability-actions';
 
 const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store']);
 const DISABLED_SKILL_SUFFIX = '.disabled';
+const DASHBOARD_HIDDEN_SKILLS = new Set(['sub-agent']);
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
 let dashboardNavigationRequestId = 0;
 
@@ -380,6 +381,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       await manager.loadSkills();
       const summaries = new Map<string, DashboardSkillSummary>();
       const addSummary = (summary: DashboardSkillSummary) => {
+        if (isDashboardHiddenSkill(summary)) return;
         summaries.set(normalizeSkillLookupName(summary.name), summary);
       };
       manager.getAllSkills().map(s => toDashboardSkillSummary(s, true)).forEach(addSummary);
@@ -443,6 +445,11 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
           fs.rmSync(path.dirname(disabled), { recursive: true, force: true });
           return res.json({ ok: true });
         }
+        const legacySkill = findDashboardSkillFileForDeletion(req.params.name);
+        if (legacySkill) {
+          fs.rmSync(path.dirname(legacySkill), { recursive: true, force: true });
+          return res.json({ ok: true });
+        }
         return res.status(404).json({ error: 'Skill not found' });
       }
       fs.rmSync(path.dirname(skill.filePath), { recursive: true, force: true });
@@ -496,10 +503,12 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const disabled = findDisabledSkillsForDashboard();
       disabled.forEach(s => installed.add(s.name));
 
-      const available = registry.map(entry => ({
-        ...entry,
-        installed: installed.has(entry.name),
-      }));
+      const available = registry
+        .filter(entry => !isDashboardHiddenSkillName(entry.name))
+        .map(entry => ({
+          ...entry,
+          installed: installed.has(entry.name),
+        }));
       res.json(available);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -1023,6 +1032,18 @@ function toDashboardSkillSummary(skill: Skill, enabled: boolean): DashboardSkill
   };
 }
 
+function isDashboardHiddenSkillName(name: string): boolean {
+  return DASHBOARD_HIDDEN_SKILLS.has(normalizeSkillLookupName(name));
+}
+
+function isDashboardHiddenSkill(summary: DashboardSkillSummary): boolean {
+  if (isDashboardHiddenSkillName(summary.name)) {
+    return true;
+  }
+  const parentDir = path.basename(path.dirname(summary.path || ''));
+  return parentDir ? isDashboardHiddenSkillName(parentDir) : false;
+}
+
 function findDisabledSkillForDashboard(name: string): string | null {
   for (const basePath of getDashboardSkillSearchPaths()) {
     const found = findDisabledSkillByName(basePath, name);
@@ -1053,7 +1074,9 @@ function findEnabledBaseSkillsForDashboard(): DashboardSkillSummary[] {
         return null;
       }
     })
-    .filter((summary): summary is DashboardSkillSummary => Boolean(summary));
+    .filter((summary): summary is DashboardSkillSummary => {
+      return summary !== null && !isDashboardHiddenSkill(summary);
+    });
 }
 
 function getDashboardSkillSearchPaths(): string[] {
@@ -1082,6 +1105,37 @@ function findDisabledSkillByName(basePath: string, name: string): string | null 
   return null;
 }
 
+function findDashboardSkillFileForDeletion(name: string): string | null {
+  for (const basePath of getDashboardSkillSearchPaths()) {
+    const found = findSkillFileByName(basePath, name);
+    if (found) return found;
+  }
+  return null;
+}
+
+function findSkillFileByName(basePath: string, name: string): string | null {
+  if (!fs.existsSync(basePath)) return null;
+  const targetName = normalizeSkillLookupName(name);
+  for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const fullPath = path.join(basePath, entry.name);
+    for (const fileName of ['SKILL.md', 'SKILL.md.disabled']) {
+      const skillFile = path.join(fullPath, fileName);
+      if (!fs.existsSync(skillFile)) continue;
+      const skill = fileName.endsWith(DISABLED_SKILL_SUFFIX)
+        ? parseDisabledSkill(skillFile, entry.name)
+        : parseEnabledSkillSummary(skillFile, entry.name);
+      const aliases = [skill.name, ...skill.aliases, path.basename(path.dirname(skillFile))];
+      if (aliases.some(alias => normalizeSkillLookupName(alias) === targetName)) {
+        return skillFile;
+      }
+    }
+    const found = findSkillFileByName(fullPath, name);
+    if (found) return found;
+  }
+  return null;
+}
+
 function findAllDisabledSkills(basePath: string): DashboardSkillSummary[] {
   const results: DashboardSkillSummary[] = [];
   if (!fs.existsSync(basePath)) return results;
@@ -1097,27 +1151,39 @@ function findAllDisabledSkills(basePath: string): DashboardSkillSummary[] {
   return results;
 }
 
+function parseEnabledSkillSummary(skillFile: string, fallbackName: string): DashboardSkillSummary {
+  try {
+    return toDashboardSkillSummary(SkillParser.parse(skillFile), true);
+  } catch {
+    return parseSkillFrontmatterSummary(skillFile, fallbackName, true);
+  }
+}
+
 function parseDisabledSkill(disabledFile: string, fallbackName: string): DashboardSkillSummary {
   try {
     return toDashboardSkillSummary(SkillParser.parse(disabledFile), false);
   } catch {
-    const content = fs.readFileSync(disabledFile, 'utf-8');
-    const { data } = matter(content);
-    const name = asNonEmptyString(data.name) || fallbackName;
-    return {
-      name,
-      aliases: Array.isArray(data.aliases) ? data.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
-      description: asNonEmptyString(data.description) || '',
-      argumentHint: asNonEmptyString(data['argument-hint'] || data.argumentHint),
-      userInvocable: data['user-invocable'] !== false && data.invocable !== 'agent',
-      autoInvocable: data['auto-invocable'] !== false && data.autoInvocable !== false && data.invocable !== 'user',
-      maxTurns: data['max-turns'] ? Number(data['max-turns']) : null,
-      path: disabledFile,
-      roleOwned: disabledFile.includes(`${path.sep}roles${path.sep}`),
-      files: getSkillFiles(disabledFile),
-      enabled: false,
-    };
+    return parseSkillFrontmatterSummary(disabledFile, fallbackName, false);
   }
+}
+
+function parseSkillFrontmatterSummary(skillFile: string, fallbackName: string, enabled: boolean): DashboardSkillSummary {
+  const content = fs.readFileSync(skillFile, 'utf-8');
+  const { data } = matter(content);
+  const name = asNonEmptyString(data.name) || fallbackName;
+  return {
+    name,
+    aliases: Array.isArray(data.aliases) ? data.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
+    description: asNonEmptyString(data.description) || '',
+    argumentHint: asNonEmptyString(data['argument-hint'] || data.argumentHint),
+    userInvocable: data['user-invocable'] !== false && data.invocable !== 'agent',
+    autoInvocable: data['auto-invocable'] !== false && data.autoInvocable !== false && data.invocable !== 'user',
+    maxTurns: data['max-turns'] ? Number(data['max-turns']) : null,
+    path: skillFile,
+    roleOwned: skillFile.includes(`${path.sep}roles${path.sep}`),
+    files: getSkillFiles(skillFile),
+    enabled,
+  };
 }
 
 function asNonEmptyString(value: unknown): string | null {

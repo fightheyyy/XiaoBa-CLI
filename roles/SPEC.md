@@ -1,7 +1,7 @@
 # Roles And Skills SPEC
 
 状态：Active
-最后更新：2026-06-24
+最后更新：2026-06-27
 适用范围：XiaoBa 的策略层，包括 `roles/`、`src/roles/`、`skills/` 和 `src/skills/`。
 
 `roles/` 和 `skills/` 是 XiaoBa Runtime 的策略层。角色不是独立 runtime，skill 也不拥有 runtime loop；它们是在统一 agent harness 上叠加身份、职责、prompt、workflow、tools、验收边界和可见交付方式。
@@ -10,7 +10,7 @@
 
 XiaoBa 需要用多个长期角色和可复用 skill 承载不同工程职责：
 
-- `InspectorCat` 是生产级 runtime triage / evidence forensics / issue router：从 logs、session trace、tool failure、role 行为异常和 eval/benchmark failure 生成 `issueProfiles[]` 与 `inspector-handoff.json`，再路由给 EngineerCat、ReviewerCat、ResearcherCat、skill extraction 或 benchmark maintainer。
+- `InspectorCat` 是 runtime triage / evidence forensics / issue router：当前保留角色资产和 `analyze_log.issueProfiles[]` 取证合同；旧 hook server、Dashboard Inspector config 和 MySQL archive 路径已暂停，等待 Inspector refactor 重新定义 intake/runtime/config 合同。
 - `EngineerCat` 实现修复、运行验证并交付证据；当前 runtime/tool/test 路径约束它像人工 Codex 操作者一样完成任务整理、Codex runner dispatch、状态同步、验证失败返工、会话续接、多 Codex supervisor 和 ReviewerCat handoff。旧 deterministic role eval 已从 `eval/` 移除，未来必须重写成 live agent eval 才能回到 benchmark。
 - `ReviewerCat` 负责 replay、verification、scorecard 和 closed/reopened/blocked 判断。
 - `ResearcherCat` 维护长周期科研工作流状态和交付证据；CLI 用户可用 `--role researcher` 激活，canonical role id 是 `researcher-cat`。当前已有 durable Research Board runtime tools 与 `auto_research_run` orchestration v0，把研究状态落到 `data/researcher-cat/boards/**` / `output/researcher-cat/boards/**`，把 workspace intake evidence 和 PDF/PPT/figure delivery artifact readiness 落到 `data/researcher-cat/auto-research/**` / `output/researcher-cat/auto-research/**`；旧 deterministic workflow benchmark 已从 `eval/` 移除，未来 role benchmark 需要按 live replay 重新建设。
@@ -46,7 +46,7 @@ Out of scope:
 
 ## Current Architecture
 
-当前策略层由 repo 内的角色资源、共享 skill packs 和 runtime 扩展共同组成。`EngineerCat`、`ReviewerCat`、`InspectorCat`、`ResearcherCat`、`SecretaryCat`、`RouterCat`、`UserCat` 和 `Guide` 都有角色级 SPEC/PLAN。`EngineerCat` 现在有 `engineer_task_*`、`engineer_codex_supervisor_*`、`EngineerTaskRunner` 和 `EngineerCodexSupervisor`；changed-file-aware quality gates 只追加 test/build/diff 类工程验证，不再追加已删除的 role eval 命令。`ResearcherCat` 已有 `auto_research_run` / `research_board_update` / `research_board_read` runtime tools、durable Research Board store v0 和 fake-workspace focused tests；role benchmark 暂时退出 `eval/`，等待 live replay 化。`SecretaryCat` 已有 Feishu wrapper runtime 扩展，并通过 `inheritBaseTools:false` + `baseToolAllowlist:["skill"]` 收窄 base tool 暴露面；现在进一步声明 `toolVisibility.mode:"skill_scoped"`、domain toolsets、skill aliases 和 confirmed tool gate，让默认 provider-visible tools 收窄到 `skill + auth`，再由 role-local skills 激活 calendar/message/task/mail/minutes/docs/drive/sheets/base 等 scoped tools。`RouterCat` 当前是 prompt + 窄 base tool policy 驱动的 IM control-plane 角色：它没有 role-local skills 或 role-specific tools，`inheritBaseTools:false` 只 allowlist `spawn_subagent` / `check_subagent` / `stop_subagent` / `resume_subagent` 和只读 `read_file` / `grep` / `glob`，跨 role 工作只传 `role_name` 让目标 subagent 自行选择 role-local skill。
+当前策略层由 repo 内的角色资源、共享 skill packs 和 runtime 扩展共同组成。`EngineerCat`、`ReviewerCat`、`InspectorCat`、`ResearcherCat`、`SecretaryCat`、`RouterCat`、`UserCat` 和 `Guide` 都有角色级 SPEC/PLAN。`EngineerCat` 现在有 `engineer_task_*`、`engineer_codex_supervisor_*`、`EngineerTaskRunner` 和 `EngineerCodexSupervisor`；changed-file-aware quality gates 只追加 test/build/diff 类工程验证，不再追加已删除的 role eval 命令。`InspectorCat` 当前保留 `analyze_log` role-specific tool；旧 Inspector hook API、hook runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已从 active path 移除，等待 refactor。`ResearcherCat` 已有 `auto_research_run` / `research_board_update` / `research_board_read` runtime tools、durable Research Board store v0 和 fake-workspace focused tests；role benchmark 暂时退出 `eval/`，等待 live replay 化。`SecretaryCat` 已有 Feishu wrapper runtime 扩展，并通过 `inheritBaseTools:false` + `baseToolAllowlist:["skill"]` 收窄 base tool 暴露面；现在进一步声明 `toolVisibility.mode:"skill_scoped"`、domain toolsets、skill aliases 和 confirmed tool gate，让默认 provider-visible tools 收窄到 `skill + auth`，再由 role-local skills 激活 calendar/message/task/mail/minutes/docs/drive/sheets/base 等 scoped tools。`RouterCat` 当前是 prompt + 窄 base tool policy 驱动的 IM control-plane 角色：它没有 role-local skills 或 role-specific tools，`inheritBaseTools:false` 只 allowlist `spawn_subagent` / `check_subagent` / `stop_subagent` / `resume_subagent` 和只读 `read_file` / `grep` / `glob`，跨 role 工作只传 `role_name` 让目标 subagent 自行选择 role-local skill。
 
 `UserCat` 当前是 prompt + role-local skill + runtime tool 驱动的候选 trace 生产角色：已有 `role.json`、README、system prompt、`trace-simulation` skill、`xiaoba-cli-product-test` product-use preset skill 和 `user_trace_run`；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`xiaoba-cli-product-test` 会把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转成 seed、role intent map、persona、scenario plan 和多轮 user messages；`user_trace_run` 默认通过 Dashboard Chat/Pet `/api/pet/message` 入口发送用户消息，native evidence 落在 `logs/sessions/pet/**` 和 `data/chat/sessions/**`，candidate package 只是后续 curation input，不是 accepted benchmark。`Guide` 当前是 prompt + role-local `data-profiling` / `eval-analysis` / `tpc-baseline` skills + `guide_tpc_baseline` / `guide_tpc_eval_analysis` / `guide_tpc_env_baseline` runtime tools 驱动的 ChinaTravel/TPC 比赛角色；它已能读取本地 1000 条 Phase 1 EN tasks，生成 schema-only baseline、environment-bound baseline 和 verifier-filtered repair predictions。当前最高官方 scorecard 来自 `output/guide/tpc-env-baseline/phase1-v12-quoteparse-full/`：overall 90.3290 / FPR 93.8，submission zip 为 `XiaoBaGuide_venv12.zip`。`guide_tpc_eval_analysis` 已拆出当前 blocker 是 residual chronology、other.unclassified time-window/duration、budget 和 residual entity constraints。ReviewerCat curation integration 和 full existing-role pilot 仍未完成。
 
@@ -227,7 +227,7 @@ Runtime extensions under `src/roles/<role-name>/` should define:
 - tool names and argument schemas,
 - role-scoped runner or worker state,
 - evidence artifacts written under `data/**`,
-- integration points with shared tools, AgentSession, Dashboard, inspector hooks, or benchmark gates.
+- integration points with shared tools, AgentSession, Dashboard, inspector hooks when active, or benchmark gates.
 
 Role tool policy fields:
 

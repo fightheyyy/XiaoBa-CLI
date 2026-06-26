@@ -79,6 +79,18 @@ max-turns: 3
 Disabled content.
 `);
 
+    writeFile(path.join(testRoot, 'skills', 'sub-agent', 'SKILL.md'), `---
+name: "sub-agent"
+description: "Legacy sub-agent skill wrapper"
+aliases:
+  - subagent
+user-invocable: false
+auto-invocable: false
+---
+
+Legacy sub-agent wrapper.
+`);
+
     const app = express();
     app.use(express.json({ limit: '1mb' }));
     app.use('/api', createApiRouter(new ServiceManager(testRoot)));
@@ -134,5 +146,18 @@ Disabled content.
     const restored = restoredSkills.find(skill => skill.name === 'officecli-docx');
     assert.ok(restored);
     assert.strictEqual(restored.enabled, true);
+  });
+
+  test('hides migrated sub-agent skill wrappers but allows direct cleanup', async () => {
+    const legacyPath = path.join(testRoot, 'skills', 'sub-agent', 'SKILL.md');
+
+    const listResponse = await fetch(`${baseUrl}/api/skills-all`);
+    assert.strictEqual(listResponse.status, 200);
+    const skills = await listResponse.json() as Array<{ name: string }>;
+    assert.strictEqual(skills.some(skill => skill.name === 'sub-agent'), false);
+
+    const deleteResponse = await fetch(`${baseUrl}/api/skills/sub-agent`, { method: 'DELETE' });
+    assert.strictEqual(deleteResponse.status, 200);
+    assert.strictEqual(fs.existsSync(legacyPath), false);
   });
 });

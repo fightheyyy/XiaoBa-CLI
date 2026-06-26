@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { createRoleAwareToolManager } from '../src/bootstrap/tool-manager';
 import { CodexJobCancelTool, CodexJobResumeTool, CodexJobStartTool, CodexJobStatusTool } from '../src/roles/reviewer-cat/tools/codex-job-tools';
+import { startRoleRuntimeServices } from '../src/roles/runtime-role-registry';
 import { ToolManager } from '../src/tools/tool-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
 
@@ -110,6 +111,11 @@ describe('ToolManager role-specific tools', () => {
     RoleResolver.activateRole('inspector-cat');
     const manager = createRoleAwareToolManager();
     assert.ok(manager.getTool('analyze_log'));
+  });
+
+  test('inspector-cat 不再自动启动独立 hook runtime', async () => {
+    RoleResolver.activateRole('inspector-cat');
+    assert.strictEqual(await startRoleRuntimeServices({ workingDirectory: testRoot }), null);
   });
 
   test('inspector-cat analyze_log 显式声明 source log 证据', async () => {

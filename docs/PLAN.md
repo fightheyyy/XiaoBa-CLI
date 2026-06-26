@@ -1,7 +1,7 @@
 # XiaoBa-CLI PLAN
 
 状态：Active
-最后更新：2026-06-25
+最后更新：2026-06-27
 Owner：XiaoBa maintainers
 
 本文维护 XiaoBa-CLI 仓库级执行计划。`docs/SPEC.md` 定义项目级架构和 contract，本文维护当前状态、下一步、验收条件和验证证据。五个顶层架构模块是 Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation；Evaluation 当前只承认两条产品主线：Trace Replay 和 Live Agent Eval。`test/` 是独立工程验证边界，不是 Evaluation gate。更细的 durable 子模块可以继续维护自己的 `SPEC.md` / `PLAN.md`。
@@ -51,6 +51,7 @@ flowchart LR
 - `eval/benchmarks/eval-smoke` 已删除；`eval/benchmarks/BaseRuntime` 是当前唯一 eval benchmark root，通过单一 `runtime-benchmark.jsonl` 覆盖 11 条 live Pet/runtime cases；旧 100 条 structural trace regression、RoleArena、UserCat、ResearcherCat、EngineerCat、contracts、rubrics 和 schemas 已从 `eval/` 删除。
 - 顶层 `tests/` 已迁到 `test/`；`test/contract-smoke/suites` 和 `test/contract-smoke/fixtures` 已收窄为 runtime harness 输入；旧 role behavior suites / fixtures 已从 active `eval/` 边界删除，未来只有重写成 live agent replay 的 role benchmark 才能回到 `eval/benchmarks/<Role>/`。
 - Dashboard observability action API 已退出当前产品路径；观测层只保留本地 summary/review 读接口，Trace Replay 和 Live Agent Eval 是唯一评测体系入口。
+- Dashboard legacy Inspector hook/server/MySQL 配置面已退出当前产品路径；InspectorCat 保留 `analyze_log` 取证工具，旧 hook runtime/API auto-start 等待 Inspector refactor 重新定义合同。
 - 旧中心化 eval/governance/source-acceptance 文件级资产已物理删除。
 - Heavy eval schema governance has been removed from the active path; benchmark assets now use `check:benchmarks` for live-only manifest/case/suite preflight.
 - `Guide` 保留为 ChinaTravel / TPC competition role，并拥有 role-local spec/plan、data/eval skills、`guide_tpc_baseline` / `guide_tpc_env_baseline` / `guide_tpc_eval_analysis` runtime tools、1000 Phase 1 v12 repaired predictions、official scorecard 和 stage-level eval analysis evidence；旧 role-wide gate 已退出 active eval 命令面，未来 Guide/role eval 必须按 live agent eval 形态重建后才能进入 `eval/benchmarks/<Role>/`。
