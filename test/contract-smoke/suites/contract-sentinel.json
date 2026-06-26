@@ -1,0 +1,674 @@
+{
+  "suite_id": "contract-sentinel",
+  "name": "Contract Sentinel",
+  "version": "0.1",
+  "description": "Deterministic hard-gate cases for XiaoBa runtime evidence contracts.",
+  "source": "eval/CASE_PORTFOLIO.md#contract-sentinel",
+  "decision_policy": {
+    "fail_on_any_hard_failure": true,
+    "fail_on_required_artifact_failure": true,
+    "block_on_missing_evidence": true,
+    "min_pass_rate": 1
+  },
+  "cases": [
+    {
+      "case_id": "contract.runtime-evidence.001",
+      "name": "Runtime tool evidence stays observable",
+      "lane": "contract_sentinel",
+      "target_module": "runtime",
+      "risk_level": "release_blocking",
+      "task": "Verify a synthetic XiaoBa turn has parseable JSONL, complete tool result evidence, observable failures, bounded retry, and required artifact evidence.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/runtime-evidence.jsonl",
+        "jsonl_schema": "session-log-v2",
+        "artifacts_dir": "../fixtures/contract-sentinel/artifacts"
+      },
+      "required_artifacts": [
+        {
+          "path": "report.md",
+          "type": "md",
+          "action": "created",
+          "evidence": "manifest_or_file"
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract",
+          "config": {
+            "require_retryable": true,
+            "require_duration_ms": true
+          }
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "bounded_retry",
+          "config": {
+            "max_repeated_failures": 2
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 2,
+        "max_tool_calls": 6,
+        "max_tokens": 4000
+      },
+      "failure_route": "runtime"
+    },
+    {
+      "case_id": "contract.jsonl-compatibility.001",
+      "name": "Session JSONL stays line-parseable",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "high",
+      "task": "Verify baseline session JSONL compatibility for a minimal no-tool turn.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/jsonl-compatibility.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 1000
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.state-boundary.001",
+      "name": "Durable state and provider transcript stay separated",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify durable session restore, working trace, provider transcript reference and visible history are declared as separate state evidence boundaries.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/state-boundary.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "state_boundary_contract",
+          "config": {
+            "require_visible_history": true
+          }
+        },
+        {
+          "id": "provider_transcript_normalization",
+          "config": {
+            "require_digest_ref": true
+          }
+        },
+        {
+          "id": "state_continuity",
+          "config": {
+            "required_texts": [
+              "durable session",
+              "working trace",
+              "provider transcript reference",
+              "visible history"
+            ],
+            "min_turns": 1
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 1200
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.provider-transcript-degradation.001",
+      "name": "Provider transcript degradation stays structured",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify degraded provider transcript evidence keeps digest refs, explicit degradation reasons, fallback chains, blocked reasons, and raw payload storage flags.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/provider-transcript-degradation.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "provider_transcript_normalization",
+          "config": {
+            "require_digest_ref": true
+          }
+        },
+        {
+          "id": "provider_transcript_degradation",
+          "config": {
+            "min_degraded_refs": 2,
+            "expected_reasons": [
+              "MODEL_RATE_LIMIT",
+              "PROVIDER_TIMEOUT"
+            ],
+            "expected_statuses": [
+              "degraded",
+              "blocked"
+            ],
+            "require_digest_ref": true,
+            "require_explicit_raw_payload_storage_flags": true,
+            "require_fallback_chain": true,
+            "require_blocked_reason": true
+          }
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "Provider transcript degraded",
+              "digest references",
+              "raw provider transcript content stayed outside the transcript ref"
+            ]
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 0,
+        "max_tokens": 1000
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.provider-network-readiness-blocked.001",
+      "name": "Provider-network readiness blocked default stays structured",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify provider-network readiness defaults to blocked opt-in evidence with a self-consistent scorecard, safe evidence refs, and no user authorization burden.",
+      "inputs": {
+        "artifacts_dir": "../fixtures/contract-sentinel/provider-network-readiness-blocked"
+      },
+      "required_artifacts": [
+        {
+          "path": "manifest.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "file"
+        },
+        {
+          "path": "scorecard.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "file"
+        },
+        {
+          "path": "report.md",
+          "type": "md",
+          "action": "created",
+          "evidence": "file"
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "provider_network_readiness_contract",
+          "config": {
+            "scorecard_path": "scorecard.json",
+            "allowed_decisions": [
+              "pass",
+              "fail",
+              "blocked"
+            ],
+            "required_check_ids": [
+              "provider_network.opt_in"
+            ],
+            "require_blocked_default": true
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 0,
+        "max_tool_calls": 0,
+        "max_tokens": 0
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.provider-network-readiness-pass.001",
+      "name": "Provider-network readiness degradation sample stays structured",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify explicitly enabled provider-network readiness can persist a pass scorecard with provider_error runtime_event evidence and degraded provider transcript boundary evidence.",
+      "inputs": {
+        "artifacts_dir": "../fixtures/contract-sentinel/provider-network-readiness-pass"
+      },
+      "required_artifacts": [
+        {
+          "path": "manifest.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "file"
+        },
+        {
+          "path": "scorecard.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "file"
+        },
+        {
+          "path": "report.md",
+          "type": "md",
+          "action": "created",
+          "evidence": "file"
+        },
+        {
+          "path": "logs/sessions/provider-network-readiness/session.jsonl",
+          "type": "jsonl",
+          "action": "created",
+          "evidence": "file"
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "provider_network_readiness_contract",
+          "config": {
+            "scorecard_path": "scorecard.json",
+            "allowed_decisions": [
+              "pass",
+              "fail",
+              "blocked"
+            ],
+            "required_check_ids": [
+              "provider_network.opt_in",
+              "provider_network.config",
+              "provider_network.runtime",
+              "provider_network.session_log",
+              "provider_network.provider_error",
+              "provider_network.degraded_provider_transcript"
+            ],
+            "require_degradation_verified": true,
+            "require_session_log_evidence": true
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 0,
+        "max_tool_calls": 0,
+        "max_tokens": 0
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.role-artifact-evidence.001",
+      "name": "Role-local tool artifacts stay structured",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify that role-local tool outputs can carry durable artifact_manifest evidence for background task artifacts.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/role-artifact-evidence.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "required_artifacts": [
+        {
+          "path": "data/engineer-tasks/demo/validation.md",
+          "type": "md",
+          "action": "captured",
+          "evidence": "manifest"
+        },
+        {
+          "path": "data/engineer-tasks/demo/final-summary.md",
+          "type": "md",
+          "action": "captured",
+          "evidence": "manifest"
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 1,
+        "max_tokens": 1000
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.tool-owned-artifact-evidence.001",
+      "name": "Role tools can own artifact manifests",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify that maintained role tools can emit explicit tool-owned artifact_manifest evidence instead of relying on runtime output inference.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/tool-owned-artifact-evidence.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "required_artifacts": [
+        {
+          "path": "data/researcher-cat/auto-research/manifest-auto/intake-manifest.json",
+          "type": "json",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/researcher-cat/auto-research/manifest-auto/reviewer-handoff.json",
+          "type": "json",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/researcher-cat/boards/manifest-auto/board.json",
+          "type": "json",
+          "action": "updated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "artifact_evidence",
+          "config": {
+            "require_manifest_evidence": true,
+            "required_metadata_keys": [
+              "source"
+            ],
+            "min_required_artifacts": 3
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 1,
+        "max_tokens": 1000
+      },
+      "failure_route": "state_evidence"
+    },
+    {
+      "case_id": "contract.role-tool-owned-artifact-evidence.001",
+      "name": "Inspector, Engineer, Reviewer, UserCat, SecretaryCat and Codex job tools own artifact manifests",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify that InspectorCat, EngineerCat, ReviewerCat, UserCat, SecretaryCat and shared Codex job maintained role tools emit explicit tool-owned artifact evidence for source logs, task state, eval preparation, module-test logs, E2E trace evidence, Feishu local file evidence, Codex job state/events, and candidate trace packages.",
+      "inputs": {
+        "jsonl": "../fixtures/contract-sentinel/role-tool-owned-artifact-evidence.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "required_artifacts": [
+        {
+          "path": "logs/sessions/manifest-inspector.jsonl",
+          "type": "jsonl",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/user-cat/traces/manifest-user-trace/trace.jsonl",
+          "type": "jsonl",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "output/user-cat/candidates/manifest-user-trace/candidate-case.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "output/user-cat/candidates/manifest-user-trace/manifest.json",
+          "type": "json",
+          "action": "created",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/engineer-tasks/manifest-task/plan.md",
+          "type": "md",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-runs/runtime-channel/summary.json",
+          "type": "json",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-module-test/manifest-module/report.json",
+          "type": "json",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-module-test/manifest-module/01-ok.stdout.log",
+          "type": "log",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-runs/manifest-e2e/trace/normalized-transcript.jsonl",
+          "type": "jsonl",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-runs/manifest-e2e/scorecard.json",
+          "type": "json",
+          "action": "generated",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/reviewer-runs/manifest-e2e/evidence/01-verifier-ok.stdout.log",
+          "type": "log",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/codex-jobs/manifest-codex-job/job.json",
+          "type": "json",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "data/codex-jobs/manifest-codex-job/events.jsonl",
+          "type": "jsonl",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned"
+          }
+        },
+        {
+          "path": "fixtures/secretary/manifest-report.pdf",
+          "type": "pdf",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned",
+            "tool": "feishu_drive_upload_confirmed",
+            "artifact_role": "upload_source"
+          }
+        },
+        {
+          "path": "output/secretary/downloads/manifest-report.pdf",
+          "type": "pdf",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned",
+            "tool": "feishu_drive_download",
+            "artifact_role": "downloaded_file"
+          }
+        },
+        {
+          "path": "output/secretary/minutes/manifest-minutes-summary.md",
+          "type": "md",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned",
+            "tool": "feishu_minutes_notes",
+            "artifact_role": "minutes_notes"
+          }
+        },
+        {
+          "path": "output/secretary/minutes/manifest-minutes.mp4",
+          "type": "mp4",
+          "action": "captured",
+          "evidence": "manifest",
+          "metadata": {
+            "source": "tool_owned",
+            "tool": "feishu_minutes_download",
+            "artifact_role": "minutes_media"
+          }
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "artifact_evidence",
+          "config": {
+            "require_manifest_evidence": true,
+            "required_metadata_keys": [
+              "source"
+            ],
+            "min_required_artifacts": 17
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 3,
+        "max_tool_calls": 11,
+        "max_tokens": 3200
+      },
+      "failure_route": "state_evidence"
+    }
+  ]
+}

@@ -141,6 +141,7 @@
     const client = new XiaoBaPetRuntime.PetClient();
     const player = new XiaoBaPetRuntime.SpritePlayer(sprite);
     let selectedPetId = '';
+    let selectedSessionKey = '';
     let activeRole = '';
     let events = null;
     let noticeTimer = 0;
@@ -253,7 +254,7 @@
       setPetState('waiting');
       showNotice('已交给小八');
       try {
-        await client.sendMessage(selectedPetId, text.trim(), undefined, { source: 'widget' });
+        await client.sendMessage(selectedPetId, text.trim(), undefined, { source: 'widget', sessionKey: selectedSessionKey });
       } catch (err) {
         setPetState('failed');
         showNotice(err.message || '发送失败', 5200);
@@ -262,7 +263,23 @@
 
     function connectEvents() {
       if (events) events.close();
-      events = client.connect(selectedPetId, handlePetEvent);
+      events = client.connect(selectedPetId, handlePetEvent, { sessionKey: selectedSessionKey });
+    }
+
+    function normalizeRoleKey(roleKey) {
+      const normalized = String(roleKey || 'base')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return normalized || 'base';
+    }
+
+    function roleScopedSessionKey(petId, roleKey) {
+      if (!petId) return '';
+      const base = 'pet:' + petId;
+      const role = normalizeRoleKey(roleKey);
+      return role === 'base' ? base : base + ':role-' + role;
     }
 
     async function syncDefaultPet(force = false) {
@@ -273,6 +290,7 @@
       if (!pet) return;
       activeRole = roleKey;
       selectedPetId = pet.id;
+      selectedSessionKey = roleScopedSessionKey(selectedPetId, activeRole);
       player.load(pet.spriteUrl);
       connectEvents();
     }

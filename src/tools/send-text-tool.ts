@@ -1,4 +1,6 @@
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
+import { normalizeExternalDeliveryReceipts } from './delivery-receipts';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * send_text 工具
@@ -7,7 +9,8 @@ import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
 export class SendTextTool implements Tool {
   definition: ToolDefinition = {
     name: 'send_text',
-    description: '发送一条文本消息给用户。如果内容较长（超过 150 字），应该分成多段，多次调用此工具发送，每段 50-150 字。',
+    description: '发送一条用户可见文本消息。消息会话中，所有要让用户看到的文本都必须通过此工具发送；短消息也用它。内容超过 150 字时分多段多次调用，每段 50-150 字。',
+    transcriptMode: 'outbound_message',
     parameters: {
       type: 'object',
       properties: {
@@ -20,20 +23,44 @@ export class SendTextTool implements Tool {
     },
   };
 
-  async execute(args: { text: string }, context: ToolExecutionContext): Promise<string> {
+  async execute(args: { text: string }, context: ToolExecutionContext): Promise<string | ToolExecutionOutput> {
     const { text } = args;
 
     if (!context.channel) {
-      throw new Error('send_text 需要 channel 上下文');
+      return toolBlocked(
+        'send_text 需要 channel 上下文',
+        'TOOL_FORBIDDEN_FOR_SURFACE',
+        'send_text requires a channel-backed surface context.',
+      );
     }
 
     if (!text || !text.trim()) {
-      throw new Error('text 不能为空');
+      return toolFailure('text 不能为空', 'INVALID_TOOL_ARGUMENTS');
     }
 
     const chatId = context.channel.chatId;
-    await context.channel.reply(chatId, text.trim());
+    const trimmedText = text.trim();
+    try {
+      const receipts = await context.channel.reply(chatId, trimmedText);
+      const externalDeliveryReceipts = normalizeExternalDeliveryReceipts(receipts, {
+        receiptType: 'message',
+        surface: context.surface,
+        deliveryId: `${context.surface || 'surface'}.send_text`,
+      });
 
-    return `已发送`;
+      return toolSuccess('已发送', {
+        ...(externalDeliveryReceipts.length ? { externalDeliveryReceipts } : {}),
+      });
+    } catch (error: any) {
+      const message = String(error?.message || error || '');
+      const rateLimited = isRateLimitLikeMessage(message);
+      return toolFailure(`工具执行错误: ${message}`, rateLimited ? 'RATE_LIMIT' : 'DELIVERY_FAILED', {
+        retryable: rateLimited,
+      });
+    }
   }
+}
+
+function isRateLimitLikeMessage(message: string): boolean {
+  return /\b429\b|rate limit|too many requests|频率受限|限流/i.test(message);
 }

@@ -1,6 +1,7 @@
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { Logger } from '../utils/logger';
+import { toolFailure, toolSuccess } from './tool-result';
 
 /**
  * stop_subagent - 停止后台子智能体
@@ -26,12 +27,12 @@ export class StopSubagentTool implements Tool {
     },
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { subagent_id } = args;
     const sessionKey = context.sessionId || 'unknown';
 
     if (!subagent_id) {
-      return '错误：请提供要停止的子智能体 ID';
+      return toolFailure('错误：请提供要停止的子智能体 ID', 'INVALID_TOOL_ARGUMENTS');
     }
 
     const manager = SubAgentManager.getInstance();
@@ -39,16 +40,16 @@ export class StopSubagentTool implements Tool {
 
     if (result === 'stopped') {
       Logger.info(`[StopSubagent] 已停止 ${subagent_id}`);
-      return `子智能体 ${subagent_id} 已停止。`;
+      return toolSuccess(`子智能体 ${subagent_id} 已停止。`);
     }
     if (result === 'not_running') {
       const info = manager.getInfoForParent(sessionKey, subagent_id);
-      return `子智能体 ${subagent_id} 当前状态为 ${info?.status || 'unknown'}，无法停止。`;
+      return toolFailure(`子智能体 ${subagent_id} 当前状态为 ${info?.status || 'unknown'}，无法停止。`, 'SUBAGENT_NOT_RUNNING');
     }
     if (result === 'forbidden') {
-      return `未找到子智能体 ${subagent_id}。`;
+      return toolFailure(`未找到子智能体 ${subagent_id}。`, 'SUBAGENT_NOT_FOUND');
     }
 
-    return `未找到子智能体 ${subagent_id}。`;
+    return toolFailure(`未找到子智能体 ${subagent_id}。`, 'SUBAGENT_NOT_FOUND');
   }
 }

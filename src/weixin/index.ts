@@ -6,7 +6,7 @@ import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { MessageSessionManager } from '../core/message-session-manager';
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
-import { AgentServices, BUSY_MESSAGE } from '../core/agent-session';
+import { AgentServices, BUSY_MESSAGE, HandleMessageResult } from '../core/agent-session';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { Logger } from '../utils/logger';
 import { ChannelCallbacks } from '../types/tool';
@@ -100,6 +100,15 @@ export class WeixinBot {
         await this.sender.sendFile(userId, filePath, fileName, contextToken);
       },
     };
+  }
+
+  private async sendFinalResponseIfVisible(
+    channel: ChannelCallbacks,
+    result: HandleMessageResult,
+  ): Promise<void> {
+    if (result.finalResponseVisible && result.text) {
+      await channel.reply(channel.chatId, result.text);
+    }
   }
 
   async start(): Promise<void> {
@@ -206,7 +215,8 @@ export class WeixinBot {
       userText = userText ? `${userText}\n${attachmentContext}` : `[用户仅上传了附件，暂未给出明确任务]\n${attachmentContext}`;
     }
 
-    await session.handleMessage(userText, { channel, surface: 'weixin' });
+    const result = await session.handleMessage(userText, { channel, surface: 'weixin' });
+    await this.sendFinalResponseIfVisible(channel, result);
   }
 
   private async handleSubAgentFeedback(sessionKey: string, chatId: string, text: string): Promise<void> {
@@ -224,14 +234,16 @@ export class WeixinBot {
         continue;
       }
 
+      const channel = this.buildChannel(chatId, sessionKey);
       const result = await session.handleMessage(text, {
-        channel: this.buildChannel(chatId, sessionKey),
+        channel,
         surface: 'weixin',
       });
       if (result.text === BUSY_MESSAGE) {
         session.runWithLogContext(() => Logger.info(`[${sessionKey}] 主会话竞态忙碌，将重试`));
         continue;
       }
+      await this.sendFinalResponseIfVisible(channel, result);
       return;
     }
 

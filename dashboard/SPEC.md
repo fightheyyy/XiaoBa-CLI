@@ -12,6 +12,7 @@ In scope:
 - API routes under `src/dashboard/routes/api.ts`.
 - Dashboard pet chat in `dashboard/index.html`, backed by `src/pet/channel.ts`, with a visible JSONL event history for Chat work-trace replay.
 - Room backend runtime in `src/dashboard/room-channel.ts` using `/api/room/*` as the current internal route namespace.
+- Developer-only observability API endpoints under `/api/observability/*`, backed by the in-process `src/observability` summary and maintained eval runners. Dashboard HTML intentionally does not render a user-facing observability panel.
 - Multiple room agent seats, each backed by its own `AgentSession`, role prompt, role skills, role-specific tools, pet sprite, and SSE message stream.
 - A role-neutral private-message primitive for Room agent-to-agent communication.
 - A visual multi-agent Room in `dashboard/index.html`: a frontend-drawn meeting room first, a wall goal board showing the latest dispatched Room task, a fixed set of supported seats around a large meeting table, role pets occupying seats as agents are added, and detailed logs only after selecting an agent terminal.
@@ -19,11 +20,11 @@ In scope:
 Out of scope for the current Room:
 
 - Durable room database across process restarts.
-- Full AutoDev case lifecycle from the room.
+- Full case lifecycle creation from the room.
 - A networked cross-machine A2A protocol.
 - Automatic PR handoff without explicit role/tool support.
 
-## Architecture
+## Current Architecture
 
 ```mermaid
 flowchart LR
@@ -48,7 +49,7 @@ flowchart LR
     end
 
     subgraph Outputs["Outputs：evidence"]
-        SSE["Pet event streams"]
+        SSE["Room SSE streams"]
         Trace["Session trace"]
         Artifacts["Tool artifacts"]
     end
@@ -69,6 +70,64 @@ flowchart LR
     Sessions --> Trace
 ```
 
+## Target Architecture
+
+Dashboard 的目标架构仍保持本地 operator surface，但把 Chat、Room、service control、config control 和 future replay/eval 明确分层。最外层图只放模块名；Pet Chat、Room agent、history store 等细节由本文件的数据契约继续展开。
+
+```mermaid
+flowchart LR
+    subgraph Surface["Surface：dashboard"]
+        Static["dashboard"]
+        RuntimeJs["dashboard/pet-runtime.js"]
+    end
+
+    subgraph Backend["Backend：src/dashboard"]
+        Server["src/dashboard/server.ts"]
+        Api["src/dashboard/routes/api.ts"]
+        ObsActions["src/dashboard/observability-actions.ts"]
+        Room["src/dashboard/room-channel.ts"]
+        Obs["src/observability"]
+        Services["src/dashboard/service-manager.ts"]
+    end
+
+    subgraph PetRuntime["Pet Runtime：src/pet"]
+        PetChannel["src/pet/channel.ts"]
+        ChatHistory["src/pet/chat-history-store.ts"]
+    end
+
+    subgraph Harness["Harness：shared runtime"]
+        Core["src/core"]
+        Roles["roles + src/roles"]
+        Skills["skills + src/skills"]
+    end
+
+    subgraph Evidence["Evidence：future durable review"]
+        Data["data/chat + data/sessions"]
+        Logs["logs/sessions"]
+        Benchmarks["benchmarks"]
+        ObservabilityOutput["output/observability<br/>output/eval/observability-privacy"]
+    end
+
+    Static --> RuntimeJs
+    RuntimeJs --> Api
+    Server --> Api
+    Api --> ObsActions
+    Api --> Room
+    Api --> Obs
+    Api --> Services
+    Api --> PetChannel
+    PetChannel --> ChatHistory
+    Room --> Core
+    PetChannel --> Core
+    Roles --> Core
+    Skills --> Core
+    Core --> Data
+    Core --> Logs
+    Data --> Benchmarks
+    Logs --> Benchmarks
+    ObsActions --> ObservabilityOutput
+```
+
 ## Concepts
 
 - **Room**: A local frontend-drawn white cyber-office meeting room for multi-agent coordination, presented as role pets seated around a large meeting table rather than terminal panes.
@@ -79,8 +138,11 @@ flowchart LR
 - **Private message**: The only Room agent-to-agent communication primitive. It mirrors a human social app DM: sender, recipient, text, delivery event, and target wake-up.
 - **Outcome dispatch**: A user can message one pet or fan out the same outcome request to multiple pets. The fan-out is still just repeated messages, not a special workflow protocol.
 - **Pet stream**: Room messages use SSE events compatible with the existing pet state model: user message, state, text, tool start/end, file, error, and done.
-- **Dashboard chat visible history**: Pet Chat stores the decorated SSE events seen by the Dashboard page as append-only JSONL. This is a UI replay/work-trace record, not the canonical IM transcript and not the `AgentSession` provider context.
+- **Pet text rendering**: A `text` event after `state.reason === 'text_stream'` is a streaming draft chunk and may update the current draft bubble; a `text` event after channel delivery reasons such as `channel_reply` is a complete outbound message and must render as its own visible assistant message.
+- **Dashboard role trace**: Dashboard Chat maintains one work-trace timeline per active role. The base role uses the canonical runtime key `pet:<petId>` so the desktop widget and Dashboard Chat share history; non-base roles use `pet:<petId>:role-<roleName>`. The legacy `pet:<petId>:role-base` key is accepted and canonicalized to `pet:<petId>`.
+- **Dashboard chat visible history**: Pet Chat stores the decorated SSE events seen by the Dashboard page as append-only JSONL per `sessionKey`. This is a UI replay/work-trace record, not the canonical IM transcript and not the `AgentSession` provider context.
 - **Service logs**: Dashboard service log buttons expose child-process stdout/stderr for managed services. The `pet` log also includes in-process `pet:*` runtime logs emitted by Dashboard chat, because that chat runs inside the Dashboard process instead of a spawned child service.
+- **Observability API**: Developer-only read APIs for local summary and review state. The user-facing Dashboard HTML does not render observability controls, and the API does not generate candidates, continuity reports, or benchmark source.
 
 Room deliberately does not define role-specific protocol verbs such as claim, delegate, review, reopen, or complete. Those are ordinary natural-language intents inside private messages or role prompts. The runtime layer only handles delivery, traceable events, and waking the recipient.
 
@@ -88,8 +150,13 @@ Room deliberately does not define role-specific protocol verbs such as claim, de
 
 Dashboard pet chat visible history:
 
+`GET /api/observability/summary` returns the local-only observability summary from `src/observability`. It is process-local and aggregate-oriented, and it preserves explicitly recorded local previews because this layer is local evidence, not a privacy/export boundary. The response includes global SLO plus per-role/per-skill/per-tool/per-surface SLO arrays, local drilldown facts for recent failures and blocked reasons, and a local trace timeline.
+
+`GET /api/observability/review` returns readonly local observability state. It reports that no candidate generation, trace-continuity, patch, or benchmark source actions are available. Returned paths are repository/output-relative when possible and must not expose a raw home path.
+
 ```ts
-// data/chat/sessions/pet_<petId>.jsonl
+// data/chat/sessions/pet_<petId>.jsonl for the base role/default callers.
+// data/chat/sessions/pet_<petId>_role-<roleName>.jsonl for non-base Dashboard roles.
 interface PetVisibleHistoryEvent {
   type:
     | 'user_message'
@@ -105,16 +172,19 @@ interface PetVisibleHistoryEvent {
     | 'done';
   id: number;
   petId: string;
+  sessionKey: string; // pet:<petId>, or non-base role trace pet:<petId>:role-<roleName>
   timestamp: string;
   [key: string]: unknown;
 }
 ```
 
-`GET /api/pet/events?petId=<petId>&replay=1` streams a `connected` event, then replays the persisted visible history plus in-memory live events with duplicate ids removed.
+Dashboard Chat derives its `sessionKey` from the current `petId` and active role. It does not expose arbitrary session creation in the UI; the product model is one local colleague with one work trace per role. The base role intentionally reuses the default pet runtime key so messages sent from the desktop widget are visible when the user opens the Dashboard Chat page.
 
-`GET /api/pet/history?petId=<petId>&limit=500` returns the latest visible history events as JSON for Dashboard inspection and future UI tooling.
+`GET /api/pet/events?petId=<petId>&sessionKey=<sessionKey>&replay=1` streams a `connected` event, then replays the persisted visible history plus in-memory live events for that role trace with duplicate ids removed.
 
-`DELETE /api/pet/history?petId=<petId>` deletes the Dashboard-visible replay file and clears the in-memory replay buffer for that pet. `/clear --all` in pet chat also clears this visible history before writing the clear confirmation turn.
+`GET /api/pet/history?petId=<petId>&sessionKey=<sessionKey>&limit=500` returns the latest visible history events as JSON for Dashboard inspection and future UI tooling.
+
+`DELETE /api/pet/history?petId=<petId>&sessionKey=<sessionKey>` deletes the Dashboard-visible replay file and clears the in-memory replay buffer for that session. `/clear --all` in pet chat also clears the current session's visible history before writing the clear confirmation turn.
 
 `GET /api/room/roles`:
 

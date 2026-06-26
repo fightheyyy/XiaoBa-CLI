@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
 
 interface ToolCallRecord {
   name: string;
@@ -36,6 +36,28 @@ interface IssueData {
   context?: string;
 }
 
+type InspectorRouteRole = 'engineer-cat' | 'reviewer-cat' | 'researcher-cat' | 'inspector-cat' | 'benchmark-maintainer';
+type InspectorConfidence = 'low' | 'medium' | 'high';
+type InspectorSignalQuality = 'insufficient' | 'runtime_only' | 'actionable';
+
+interface IssueProfile {
+  issue_id: string;
+  issue_type: string;
+  category: 'runtime_bug' | 'tool_policy_boundary' | 'external_dependency' | 'skill_fix' | 'role_prompt_issue' | 'insufficient_signal' | 'benchmark_candidate';
+  severity: IssueData['severity'];
+  confidence: InspectorConfidence;
+  suspected_owner: string;
+  route_to_role: InspectorRouteRole;
+  recommended_next_action: 'runtime_fix' | 'repair_skill' | 'collect_more_signal' | 'create_replay_case' | 'review_boundary' | 'benchmark_case';
+  rationale: string;
+  evidence_refs: string[];
+  handoff: {
+    target_role: InspectorRouteRole;
+    reason: string;
+    required_artifacts: string[];
+  };
+}
+
 interface AnalysisResult {
   summary: {
     totalTurns: number;
@@ -52,9 +74,12 @@ interface AnalysisResult {
     issueCounts?: Record<string, number>;
     returnedTurns?: number;
     truncatedTurns?: boolean;
+    signalQuality?: InspectorSignalQuality;
+    recommendedIntakeAction?: string;
   };
   toolStats: { name: string; count: number; successes: number; failures: number; avgDuration: number }[];
   issues: IssueData[];
+  issueProfiles?: IssueProfile[];
   turns?: TurnData[];
 }
 
@@ -123,6 +148,41 @@ export class AnalyzeLogTool implements Tool {
     }
   }
 
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    if (!this.isSuccessfulAnalysis(result)) {
+      return [];
+    }
+
+    const logSource = typeof args?.log_source === 'string' ? args.log_source.trim() : '';
+    if (!logSource) {
+      return [];
+    }
+
+    const artifactPath = workspaceRelativeOrExternalLogPath(logSource, context.workingDirectory);
+    return [{
+      path: artifactPath,
+      type: artifactType(artifactPath),
+      action: 'captured',
+      metadata: {
+        artifact_role: 'source_log',
+        external_source: artifactPath.startsWith('external-log/'),
+      },
+    }];
+  }
+
+  private isSuccessfulAnalysis(result: string): boolean {
+    const text = String(result || '').trim();
+    if (!text || /^错误：|^分析日志失败:/.test(text)) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      return !!parsed && typeof parsed === 'object' && 'summary' in parsed;
+    } catch {
+      return false;
+    }
+  }
+
   private looksLikeJSONL(content: string): boolean {
     const firstLine = content.split('\n')[0]?.trim();
     if (!firstLine) return false;
@@ -147,25 +207,28 @@ export class AnalyzeLogTool implements Tool {
       .filter((entry): entry is ParsedJsonlEntry => !!entry && typeof entry === 'object');
 
     if (parsedEntries.length === 0) {
+      const summary = this.enrichSummary({
+        totalTurns: 0,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        toolCalls: 0,
+        totalDuration: 0,
+        startTime: '',
+        endTime: '',
+        sessionCount: 0,
+        interactionCount: 0,
+        issueCount: 0,
+        issueCounts: {},
+        returnedTurns: depth === 'deep' ? 0 : undefined,
+        truncatedTurns: false,
+      }, [], []);
+
       return {
-        summary: {
-          totalTurns: 0,
-          totalTokens: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          toolCalls: 0,
-          totalDuration: 0,
-          startTime: '',
-          endTime: '',
-          sessionCount: 0,
-          interactionCount: 0,
-          issueCount: 0,
-          issueCounts: {},
-          returnedTurns: depth === 'deep' ? 0 : undefined,
-          truncatedTurns: false,
-        },
+        summary,
         toolStats: [],
         issues: [],
+        issueProfiles: this.buildIssueProfiles([], summary, []),
         ...(depth === 'deep' ? { turns: [] } : {}),
       };
     }
@@ -465,23 +528,6 @@ export class AnalyzeLogTool implements Tool {
     const issueCountsObject = Object.fromEntries([...issueCounts.entries()].sort((a, b) => b[1] - a[1]));
     const interactionCount = [...sessionStates.values()].reduce((sum, state) => sum + state.interactionId, 0);
 
-    const summary = {
-      totalTurns: turns.length,
-      totalTokens: totalInput + totalOutput,
-      inputTokens: totalInput,
-      outputTokens: totalOutput,
-      toolCalls: toolStats.reduce((s, t) => s + t.count, 0),
-      totalDuration: 0,
-      startTime,
-      endTime,
-      sessionCount: sessionStates.size,
-      interactionCount,
-      issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
-      issueCounts: issueCountsObject,
-      returnedTurns: depth === 'deep' ? deepTurns.length : undefined,
-      truncatedTurns: depth === 'deep' ? deepTurns.length < turnsArray.length : undefined
-    };
-
     const sortedIssues = issues.sort((a, b) => {
       const severityRank = { high: 3, medium: 2, low: 1 };
       if (severityRank[b.severity] !== severityRank[a.severity]) {
@@ -496,16 +542,34 @@ export class AnalyzeLogTool implements Tool {
       return a.turn - b.turn;
     });
 
+    const summary = this.enrichSummary({
+      totalTurns: turns.length,
+      totalTokens: totalInput + totalOutput,
+      inputTokens: totalInput,
+      outputTokens: totalOutput,
+      toolCalls: toolStats.reduce((s, t) => s + t.count, 0),
+      totalDuration: 0,
+      startTime,
+      endTime,
+      sessionCount: sessionStates.size,
+      interactionCount,
+      issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
+      issueCounts: issueCountsObject,
+      returnedTurns: depth === 'deep' ? deepTurns.length : undefined,
+      truncatedTurns: depth === 'deep' ? deepTurns.length < turnsArray.length : undefined
+    }, sortedIssues, toolStats);
+
     return {
       summary,
       toolStats,
       issues: sortedIssues,
+      issueProfiles: this.buildIssueProfiles(sortedIssues, summary, toolStats),
       ...(depth === 'deep' ? { turns: deepTurns } : {})
     };
   }
 
   private isTurnEntry(entry: ParsedJsonlEntry): boolean {
-    if (entry.entry_type === 'turn') {
+    if (entry.entry_type === 'trace' || entry.entry_type === 'turn') {
       return true;
     }
 
@@ -640,27 +704,234 @@ export class AnalyzeLogTool implements Tool {
       return severityRank[b.severity] - severityRank[a.severity];
     });
 
+    const summary = this.enrichSummary({
+      totalTurns: 0,
+      totalTokens: inputTokens + outputTokens,
+      inputTokens,
+      outputTokens,
+      toolCalls: toolStats.reduce((sum, item) => sum + item.count, 0),
+      totalDuration: 0,
+      startTime,
+      endTime,
+      sessionCount: sessionIds.size,
+      interactionCount: 0,
+      issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
+      issueCounts: issueCountsObject,
+      returnedTurns: depth === 'deep' ? 0 : undefined,
+      truncatedTurns: false,
+    }, sortedIssues, toolStats);
+
     return {
-      summary: {
-        totalTurns: 0,
-        totalTokens: inputTokens + outputTokens,
-        inputTokens,
-        outputTokens,
-        toolCalls: toolStats.reduce((sum, item) => sum + item.count, 0),
-        totalDuration: 0,
-        startTime,
-        endTime,
-        sessionCount: sessionIds.size,
-        interactionCount: 0,
-        issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
-        issueCounts: issueCountsObject,
-        returnedTurns: depth === 'deep' ? 0 : undefined,
-        truncatedTurns: false,
-      },
+      summary,
       toolStats,
       issues: sortedIssues,
+      issueProfiles: this.buildIssueProfiles(sortedIssues, summary, toolStats),
       ...(depth === 'deep' ? { turns: [] } : {}),
     };
+  }
+
+  private enrichSummary(
+    summary: AnalysisResult['summary'],
+    issues: IssueData[],
+    toolStats: AnalysisResult['toolStats'],
+  ): AnalysisResult['summary'] {
+    const issueCount = summary.issueCount ?? issues.length;
+    let signalQuality: InspectorSignalQuality = 'actionable';
+    let recommendedIntakeAction = 'build issue profile and route to the owning role';
+
+    if (summary.totalTurns === 0 && summary.toolCalls === 0 && issueCount === 0) {
+      signalQuality = 'insufficient';
+      recommendedIntakeAction = 'collect session JSONL or runtime logs with user turns and tool results';
+    } else if (summary.totalTurns === 0) {
+      signalQuality = 'runtime_only';
+      recommendedIntakeAction = 'route runtime-level findings, but collect session JSONL before judging user behavior';
+    } else if (summary.toolCalls === 0 && issueCount === 0) {
+      signalQuality = 'insufficient';
+      recommendedIntakeAction = 'collect a longer sample with tool calls, failures, retries, or user-visible outcomes';
+    } else if (toolStats.some(item => item.failures > 0) || issueCount > 0) {
+      signalQuality = 'actionable';
+      recommendedIntakeAction = 'create inspector issue profile and route high-confidence findings';
+    }
+
+    return {
+      ...summary,
+      signalQuality,
+      recommendedIntakeAction,
+    };
+  }
+
+  private buildIssueProfiles(
+    issues: IssueData[],
+    summary: AnalysisResult['summary'],
+    toolStats: AnalysisResult['toolStats'],
+  ): IssueProfile[] {
+    if (issues.length === 0) {
+      if (summary.signalQuality === 'insufficient') {
+        return [{
+          issue_id: 'inspector-insufficient-signal-001',
+          issue_type: 'insufficient_signal',
+          category: 'insufficient_signal',
+          severity: 'low',
+          confidence: 'high',
+          suspected_owner: 'inspector-cat',
+          route_to_role: 'inspector-cat',
+          recommended_next_action: 'collect_more_signal',
+          rationale: 'The sample lacks enough user turns, tool results, or runtime failures for production routing.',
+          evidence_refs: ['summary.signalQuality=insufficient'],
+          handoff: {
+            target_role: 'inspector-cat',
+            reason: 'collect a longer runtime/session sample before routing',
+            required_artifacts: ['session.jsonl or runtime.log with user turns and tool results'],
+          },
+        }];
+      }
+      return [];
+    }
+
+    return issues.map((issue, index) => {
+      const classification = this.classifyIssue(issue, toolStats);
+      return {
+        issue_id: `inspector-${issue.type}-${String(index + 1).padStart(3, '0')}`,
+        issue_type: issue.type,
+        category: classification.category,
+        severity: issue.severity,
+        confidence: classification.confidence,
+        suspected_owner: classification.suspectedOwner,
+        route_to_role: classification.routeToRole,
+        recommended_next_action: classification.nextAction,
+        rationale: classification.rationale,
+        evidence_refs: this.evidenceRefs(issue),
+        handoff: {
+          target_role: classification.routeToRole,
+          reason: classification.rationale,
+          required_artifacts: classification.requiredArtifacts,
+        },
+      };
+    });
+  }
+
+  private classifyIssue(
+    issue: IssueData,
+    toolStats: AnalysisResult['toolStats'],
+  ): {
+    category: IssueProfile['category'];
+    confidence: InspectorConfidence;
+    suspectedOwner: string;
+    routeToRole: InspectorRouteRole;
+    nextAction: IssueProfile['recommended_next_action'];
+    rationale: string;
+    requiredArtifacts: string[];
+  } {
+    const repeatedFailure = issue.type === 'repeated_tool_failures'
+      || toolStats.some(item => item.failures >= 3);
+
+    if (issue.type === 'outside_read_blocked') {
+      return {
+        category: 'tool_policy_boundary',
+        confidence: 'medium',
+        suspectedOwner: 'tool-policy',
+        routeToRole: 'reviewer-cat',
+        nextAction: 'review_boundary',
+        rationale: 'A workspace boundary blocked access; ReviewerCat should decide whether the user path requires a policy exception before EngineerCat changes code.',
+        requiredArtifacts: ['blocked path evidence', 'user intent', 'workspace boundary policy'],
+      };
+    }
+
+    if (issue.type === 'api_or_network_failure') {
+      return {
+        category: 'external_dependency',
+        confidence: issue.severity === 'high' ? 'high' : 'medium',
+        suspectedOwner: 'external-system',
+        routeToRole: 'inspector-cat',
+        nextAction: 'collect_more_signal',
+        rationale: 'The evidence points at provider/network/API availability; collect retry, provider, and delivery context before assigning an implementation fix.',
+        requiredArtifacts: ['provider error text', 'retry timeline', 'delivery status'],
+      };
+    }
+
+    if (issue.type === 'platform_command_mismatch') {
+      return {
+        category: 'runtime_bug',
+        confidence: 'high',
+        suspectedOwner: 'runtime-tooling',
+        routeToRole: 'engineer-cat',
+        nextAction: 'runtime_fix',
+        rationale: 'The runtime used a platform-specific shell command that failed; EngineerCat should patch the command strategy or tool abstraction.',
+        requiredArtifacts: ['trace snippet', 'tool arguments', 'tool result', 'target platform'],
+      };
+    }
+
+    if (issue.type === 'ghost_tool_registration') {
+      return {
+        category: 'runtime_bug',
+        confidence: 'high',
+        suspectedOwner: 'tool-registry',
+        routeToRole: 'engineer-cat',
+        nextAction: 'runtime_fix',
+        rationale: 'The model attempted to call a tool that was not registered; EngineerCat should fix prompt/tool visibility drift.',
+        requiredArtifacts: ['provider transcript', 'tool registry snapshot', 'tool failure result'],
+      };
+    }
+
+    if (issue.type === 'empty_reply' || issue.type === 'user_kill') {
+      return {
+        category: 'runtime_bug',
+        confidence: issue.severity === 'high' ? 'high' : 'medium',
+        suspectedOwner: 'agent-loop',
+        routeToRole: 'engineer-cat',
+        nextAction: 'runtime_fix',
+        rationale: 'The user-visible conversation flow failed or ignored interruption; EngineerCat should inspect agent loop and delivery fallback behavior.',
+        requiredArtifacts: ['session turn', 'assistant text', 'runtime events'],
+      };
+    }
+
+    if (issue.type === 'timeout' || issue.type === 'slow_tool' || issue.type === 'slow_tool_pattern' || issue.type === 'rate_limited_retry') {
+      return {
+        category: repeatedFailure ? 'benchmark_candidate' : 'runtime_bug',
+        confidence: repeatedFailure ? 'high' : 'medium',
+        suspectedOwner: 'runtime-resilience',
+        routeToRole: repeatedFailure ? 'benchmark-maintainer' : 'engineer-cat',
+        nextAction: repeatedFailure ? 'benchmark_case' : 'runtime_fix',
+        rationale: repeatedFailure
+          ? 'Repeated latency/retry evidence should become a replay or resilience benchmark before broad changes.'
+          : 'Latency or retry behavior needs a bounded runtime fix or clearer retry budget.',
+        requiredArtifacts: ['tool timing evidence', 'retry budget', 'session trace'],
+      };
+    }
+
+    if (issue.type === 'tool_failure' || issue.type === 'runtime_error' || issue.type === 'runtime_warning' || issue.type === 'error' || issue.type === 'repeated_tool_failures') {
+      return {
+        category: repeatedFailure ? 'benchmark_candidate' : 'runtime_bug',
+        confidence: repeatedFailure || issue.severity === 'high' ? 'high' : 'medium',
+        suspectedOwner: 'runtime-or-tool',
+        routeToRole: repeatedFailure ? 'benchmark-maintainer' : 'engineer-cat',
+        nextAction: repeatedFailure ? 'create_replay_case' : 'runtime_fix',
+        rationale: repeatedFailure
+          ? 'Repeated failures indicate a durable regression candidate; capture a replay fixture before implementation changes.'
+          : 'The failure is concrete enough for EngineerCat to inspect with the cited trace evidence.',
+        requiredArtifacts: ['issue profile JSON', 'trace snippet', 'tool result'],
+      };
+    }
+
+    return {
+      category: 'role_prompt_issue',
+      confidence: issue.severity === 'high' ? 'medium' : 'low',
+      suspectedOwner: 'role-or-usage',
+      routeToRole: 'inspector-cat',
+      nextAction: 'collect_more_signal',
+      rationale: 'The issue needs more evidence before it can be assigned to a role, skill, or runtime owner.',
+      requiredArtifacts: ['longer session trace', 'user-visible outcome', 'tool transcript'],
+    };
+  }
+
+  private evidenceRefs(issue: IssueData): string[] {
+    return [
+      issue.sessionId ? `session:${issue.sessionId}` : '',
+      issue.interactionId !== undefined ? `interaction:${issue.interactionId}` : '',
+      issue.turn ? `turn:${issue.turn}` : '',
+      issue.turnKey ? `turn_key:${issue.turnKey}` : '',
+      issue.context ? 'context:included' : '',
+    ].filter(Boolean);
   }
 
   private selectTurnsForDeep(allTurns: TurnData[]): TurnData[] {
@@ -1145,23 +1416,6 @@ export class AnalyzeLogTool implements Tool {
 
     const deepTurns = this.selectTurnsForDeep(turnsArray);
 
-    const summary = {
-      totalTurns: turns.size,
-      totalTokens: metricsInput + metricsOutput,
-      inputTokens: metricsInput,
-      outputTokens: metricsOutput,
-      toolCalls: metricsToolCalls || toolStats.reduce((s, t) => s + t.count, 0),
-      totalDuration: Math.round(totalAiDuration / 1000 * 100) / 100,
-      startTime,
-      endTime,
-      sessionCount: sessionStates.size,
-      interactionCount,
-      issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
-      issueCounts: issueCountsObject,
-      returnedTurns: depth === 'deep' ? deepTurns.length : undefined,
-      truncatedTurns: depth === 'deep' ? deepTurns.length < turnsArray.length : undefined
-    };
-
     const sortedIssues = issues.sort((a, b) => {
       const severityRank = { high: 3, medium: 2, low: 1 };
       if (severityRank[b.severity] !== severityRank[a.severity]) {
@@ -1176,10 +1430,28 @@ export class AnalyzeLogTool implements Tool {
       return a.turn - b.turn;
     });
 
+    const summary = this.enrichSummary({
+      totalTurns: turns.size,
+      totalTokens: metricsInput + metricsOutput,
+      inputTokens: metricsInput,
+      outputTokens: metricsOutput,
+      toolCalls: metricsToolCalls || toolStats.reduce((s, t) => s + t.count, 0),
+      totalDuration: Math.round(totalAiDuration / 1000 * 100) / 100,
+      startTime,
+      endTime,
+      sessionCount: sessionStates.size,
+      interactionCount,
+      issueCount: [...issueCounts.values()].reduce((sum, count) => sum + count, 0),
+      issueCounts: issueCountsObject,
+      returnedTurns: depth === 'deep' ? deepTurns.length : undefined,
+      truncatedTurns: depth === 'deep' ? deepTurns.length < turnsArray.length : undefined
+    }, sortedIssues, toolStats);
+
     return {
       summary,
       toolStats,
       issues: sortedIssues,
+      issueProfiles: this.buildIssueProfiles(sortedIssues, summary, toolStats),
       ...(depth === 'deep' ? { turns: deepTurns } : {})
     };
   }
@@ -1188,4 +1460,23 @@ export class AnalyzeLogTool implements Tool {
     const match = line.match(/Turn\s+(\d+)/);
     return match ? parseInt(match[1], 10) : 0;
   }
+}
+
+function workspaceRelativeOrExternalLogPath(value: string, workingDirectory: string): string {
+  const resolved = path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value)
+    ? value
+    : path.resolve(workingDirectory, value);
+  const normalized = resolved.replace(/\\/g, '/');
+  const cwd = workingDirectory.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (normalized.startsWith(`${cwd}/`)) {
+    return normalized.slice(cwd.length + 1);
+  }
+
+  const basename = path.posix.basename(normalized) || 'source.log';
+  return `external-log/${basename}`;
+}
+
+function artifactType(filePath: string): string {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  return ext || 'log';
 }

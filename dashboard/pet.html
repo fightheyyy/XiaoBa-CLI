@@ -211,9 +211,12 @@
     const petRoleStorageKey = 'xiaoba.pet.role';
     let selectedPetId = localStorage.getItem('xiaoba.pet.id') || '';
     let selectedPetRole = localStorage.getItem(petRoleStorageKey) || '';
+    let selectedSessionKey = '';
     let activePetRole = selectedPetRole || 'base';
     let busy = false;
     let assistantBubble = null;
+    let assistantRenderedText = false;
+    let lastTextReason = '';
     let idleTimer = null;
     let currentState = 'idle';
     let currentFrame = 0;
@@ -318,7 +321,24 @@
         selectedPetRole = roleKey;
         localStorage.setItem(petRoleStorageKey, selectedPetRole);
       }
+      selectedSessionKey = roleScopedSessionKey(selectedPetId, selectedPetRole);
       renderPet();
+    }
+
+    function normalizeRoleKey(roleKey) {
+      const normalized = String(roleKey || 'base')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return normalized || 'base';
+    }
+
+    function roleScopedSessionKey(petId, roleKey) {
+      if (!petId) return '';
+      const base = 'pet:' + petId;
+      const role = normalizeRoleKey(roleKey);
+      return role === 'base' ? base : base + ':role-' + role;
     }
 
     function renderPet() {
@@ -332,7 +352,8 @@
       document.getElementById('pet-select').innerHTML = pets.map(p => '<option value="' + p.id + '"' + (p.id === selectedPetId ? ' selected' : '') + '>' + (p.displayName || p.id) + '</option>').join('');
       document.getElementById('pet-name').textContent = pet.displayName || pet.id;
       document.getElementById('pet-desc').textContent = pet.description || 'Pet 本地交互平台';
-      document.getElementById('pet-session').textContent = 'pet:' + pet.id;
+      selectedSessionKey = roleScopedSessionKey(selectedPetId, selectedPetRole);
+      document.getElementById('pet-session').textContent = selectedSessionKey || ('pet:' + pet.id);
       loadSprite(pet.spriteUrl);
       if (!document.getElementById('messages').children.length) appendEvent('pet:' + pet.id);
       setState('idle', true);
@@ -353,7 +374,7 @@
       await fetch('/api/pet/wake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ petId: selectedPetId })
+        body: JSON.stringify({ petId: selectedPetId, sessionKey: selectedSessionKey })
       }).catch(() => setState('failed'));
       document.getElementById('input').focus();
     }
@@ -371,7 +392,7 @@
         const response = await fetch('/api/pet/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ petId: selectedPetId, text, source: 'pet-page' })
+          body: JSON.stringify({ petId: selectedPetId, text, source: 'pet-page', sessionKey: selectedSessionKey })
         });
         if (!response.ok || !response.body) throw new Error('请求失败');
         await readEvents(response.body);
@@ -411,13 +432,26 @@
     function handleEvent(event) {
       if (event.type === 'user_message') {
         assistantBubble = null;
+        assistantRenderedText = false;
+        lastTextReason = '';
         appendBubble('user', event.text || '');
         return;
       }
-      if (event.type === 'state') return setState(event.state);
+      if (event.type === 'state') {
+        lastTextReason = event.reason || '';
+        return setState(event.state);
+      }
       if (event.type === 'text') {
-        if (!assistantBubble) assistantBubble = appendBubble('assistant', '');
-        assistantBubble.textContent += event.text || '';
+        const text = event.text || '';
+        if (!text) return;
+        assistantRenderedText = true;
+        if (lastTextReason === 'text_stream') {
+          if (!assistantBubble) assistantBubble = appendBubble('assistant', '');
+          assistantBubble.textContent += text;
+        } else {
+          assistantBubble = null;
+          appendBubble('assistant', text);
+        }
         return scrollMessages();
       }
       if (event.type === 'tool_start') return appendEvent('tool: ' + event.name);
@@ -425,7 +459,14 @@
       if (event.type === 'retry') return appendEvent('retry ' + event.attempt + '/' + event.maxRetries);
       if (event.type === 'file') return appendEvent('file: ' + event.fileName);
       if (event.type === 'error') return appendEvent('error: ' + event.message);
-      if (event.type === 'done') assistantBubble = null;
+      if (event.type === 'done') {
+        if (event.visibleToUser !== false && event.text && !assistantRenderedText) {
+          appendBubble('assistant', event.text);
+        }
+        assistantBubble = null;
+        assistantRenderedText = false;
+        lastTextReason = '';
+      }
     }
 
     document.getElementById('input').addEventListener('keydown', event => {

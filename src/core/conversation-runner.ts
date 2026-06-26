@@ -1,16 +1,29 @@
+import * as crypto from 'crypto';
 import { Message, ContentBlock } from '../types';
 import { AIService } from '../utils/ai-service';
 import { SkillActivationSignal } from '../types/skill';
-import { ToolCall, ToolDefinition, ToolExecutionContext, ToolExecutor, ToolResult, ToolTranscriptMode } from '../types/tool';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryEvidence,
+  ToolCall,
+  ToolDefinition,
+  ToolExecutionContext,
+  ToolExecutor,
+  ToolResult,
+  ToolTranscriptMode,
+} from '../types/tool';
 import { StreamCallbacks } from '../providers/provider';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
 import { ContextCompressor } from './context-compressor';
 import { estimateMessagesTokens, estimateToolsTokens } from './token-estimator';
+import { buildCanonicalToolResult, canonicalizeToolResult } from '../tools/tool-result';
+import { normalizeExternalDeliveryReceipts } from '../tools/delivery-receipts';
 import {
   parseSkillActivationSignal,
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
+import { getObservability, Observability, ObservabilityAttributes, ObservabilitySpanContext } from '../observability';
 
 function contentToString(content: string | ContentBlock[] | null): string {
   if (!content) return '';
@@ -69,6 +82,25 @@ export interface RunResult {
   messages: Message[];
   /** 本次 run() 期间新增的消息（不含最终纯文本回复） */
   newMessages: Message[];
+  /** 本次 run() 期间真实执行过的工具结果，包含 outbound/suppress 工具。 */
+  toolResults: RunToolResult[];
+  /** 本次 run() 期间每次 provider request 的工具可见性快照。 */
+  toolVisibility: ToolVisibilitySnapshot[];
+}
+
+export interface RunToolResult {
+  toolCall: ToolCall;
+  toolName: string;
+  result: ToolResult;
+}
+
+export interface ToolVisibilitySnapshot {
+  roleName?: string;
+  activeSkillName?: string;
+  mode?: string;
+  visibleTools: string[];
+  hiddenToolCount: number;
+  gatedToolCount?: number;
 }
 
 interface ToolExecutionRecord {
@@ -78,6 +110,8 @@ interface ToolExecutionRecord {
   result: ToolResult;
   newMessages?: Message[];
 }
+
+export type ObservabilityMetricMode = 'local_and_mirror' | 'mirror_only';
 
 /** ConversationRunner 构造选项 */
 export interface RunnerOptions {
@@ -93,6 +127,14 @@ export interface RunnerOptions {
   toolExecutionContext?: Partial<ToolExecutionContext>;
   /** 会话已激活 skill 名称（可选） */
   initialSkillName?: string;
+  /** 会话已激活 skill 请求的 toolsets（可选） */
+  initialSkillToolsets?: string[];
+  /** 外部观测父 span context；默认不启用时为 no-op。 */
+  observabilityContext?: ObservabilitySpanContext;
+  /** AgentSession 已把 session log 当作 local summary 来源时，Runner 只做外部镜像。 */
+  observabilityMetricMode?: ObservabilityMetricMode;
+  /** Channel surface 是否把未显式 send_text/send_file 的 final text 兜底外发；默认 false。 */
+  deliveryFallbackFinalReply?: boolean;
 }
 
 /**
@@ -109,8 +151,12 @@ export class ConversationRunner {
   private enableCompression: boolean;
   private toolExecutionContext?: Partial<ToolExecutionContext>;
   private activeSkillName?: string;
+  private activeSkillToolsets?: string[];
   private maxPromptTokens: number;
   private sessionLabel: string;
+  private observabilityContext?: ObservabilitySpanContext;
+  private observabilityMetricMode: ObservabilityMetricMode;
+  private deliveryFallbackFinalReply: boolean;
 
   /** 截断字符串用于日志输出，避免日志过大 */
   private static truncateForLog(text: any, maxLen = 200): string {
@@ -134,6 +180,10 @@ export class ConversationRunner {
     this.enableCompression = options?.enableCompression ?? true;
     this.toolExecutionContext = options?.toolExecutionContext;
     this.activeSkillName = options?.initialSkillName;
+    this.activeSkillToolsets = options?.initialSkillToolsets;
+    this.observabilityContext = options?.observabilityContext;
+    this.observabilityMetricMode = options?.observabilityMetricMode || 'local_and_mirror';
+    this.deliveryFallbackFinalReply = options?.deliveryFallbackFinalReply === true;
 
     this.maxPromptTokens = this.resolvePromptBudget(options?.maxContextTokens);
     this.sessionLabel = this.toolExecutionContext?.sessionId
@@ -152,9 +202,10 @@ export class ConversationRunner {
    * @returns 最终文本回复和完整消息列表
    */
   async run(messages: Message[], callbacks?: RunnerCallbacks): Promise<RunResult> {
-    const allTools = this.toolExecutor.getToolDefinitions();
-    const toolDefinitions = new Map(allTools.map(tool => [tool.name, tool]));
     const newMessages: Message[] = [];
+    const toolResults: RunToolResult[] = [];
+    const toolVisibility: ToolVisibilitySnapshot[] = [];
+    const nonRetryableFailureCounts = new Map<string, number>();
     let nextTurnTransientHints: Message[] = [];
     let hasDeliveredMessageOutThisRun = false;
     let turns = 0;
@@ -166,14 +217,15 @@ export class ConversationRunner {
       }
 
       this.replaceMessages(messages, this.sanitizeToolTranscript(messages));
+      let activeTools = this.resolveActiveTools(messages);
 
       if (this.enableCompression) {
-        const toolTokens = estimateToolsTokens(allTools);
+        const toolTokens = estimateToolsTokens(activeTools);
         const messageTokens = estimateMessagesTokens(messages);
         const totalTokens = messageTokens + toolTokens;
         const usagePercent = Math.round((totalTokens / this.maxPromptTokens) * 100);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 上下文: ${messageTokens} + ${toolTokens} = ${totalTokens} tokens (${usagePercent}%)`);
-        
+
         // 检查压缩：考虑工具tokens，留足安全边际
         const threshold = this.maxPromptTokens * 0.5;
         if (totalTokens > threshold) {
@@ -184,26 +236,80 @@ export class ConversationRunner {
         }
       }
 
-      const activeTools = allTools;
+      activeTools = this.resolveActiveTools(messages);
+      const toolDefinitions = new Map(activeTools.map(tool => [tool.name, tool]));
+      const visibilitySnapshot = this.resolveToolVisibilitySnapshot(activeTools, messages);
+      toolVisibility.push(visibilitySnapshot);
       const requestMessages = this.buildProviderInputMessages(messages, nextTurnTransientHints);
       nextTurnTransientHints = [];
       this.ensurePromptBudget(requestMessages, activeTools);
       const aiStartTime = Date.now();
-      Logger.info(`[${this.sessionLabel}Turn ${turns}] 调用AI推理 (可用工具: ${activeTools.length}个)`);
+      const observability = getObservability();
+      const modelSpan = observability.startSpan('xiaoba.model.call', {
+        ...this.baseObservabilityAttributes(),
+        'xiaoba.turn': turns,
+        'xiaoba.model.stream': this.stream,
+        'xiaoba.model.visible_tool_count': activeTools.length,
+        'xiaoba.model.hidden_tool_count': visibilitySnapshot.hiddenToolCount,
+        ...(visibilitySnapshot.activeSkillName && { 'xiaoba.skill.name': visibilitySnapshot.activeSkillName }),
+      }, this.observabilityContext);
+      Logger.info(`[${this.sessionLabel}Turn ${turns}] 调用AI推理 (可用工具: ${activeTools.length}个, hidden=${visibilitySnapshot.hiddenToolCount}, activeSkill=${visibilitySnapshot.activeSkillName || 'none'})`);
 
       let response;
       try {
         response = await this.requestModelResponse(requestMessages, activeTools, callbacks);
         const aiDuration = Date.now() - aiStartTime;
+        const modelAttrs = {
+          ...this.baseObservabilityAttributes(),
+          'xiaoba.turn': turns,
+          'xiaoba.model.status': 'success',
+          'xiaoba.model.duration_ms': aiDuration,
+          'xiaoba.model.stream': this.stream,
+          'xiaoba.model.visible_tool_count': activeTools.length,
+          'xiaoba.model.response_tool_call_count': response.toolCalls?.length ?? 0,
+          ...(response.usage && {
+            'xiaoba.tokens.prompt': response.usage.promptTokens,
+            'xiaoba.tokens.completion': response.usage.completionTokens,
+            'xiaoba.tokens.total': response.usage.totalTokens,
+          }),
+        };
+        this.recordObservabilityMetric(observability, 'xiaoba.model.call', 1, modelAttrs);
+        this.recordObservabilityMetric(observability, 'xiaoba.model.duration_ms', aiDuration, modelAttrs, 'ms');
+        if (response.usage) {
+          this.recordObservabilityMetric(observability, 'xiaoba.tokens.prompt', response.usage.promptTokens, this.baseObservabilityAttributes(), 'token');
+          this.recordObservabilityMetric(observability, 'xiaoba.tokens.completion', response.usage.completionTokens, this.baseObservabilityAttributes(), 'token');
+          this.recordObservabilityMetric(observability, 'xiaoba.tokens.total', response.usage.totalTokens, this.baseObservabilityAttributes(), 'token');
+        }
+        observability.recordLog('xiaoba.model.call', modelAttrs, 'INFO', modelSpan.context);
+        observability.endSpan(modelSpan, { status: 'ok', attributes: modelAttrs });
         Logger.info(`[${this.sessionLabel}Turn ${turns}] AI推理完成，耗时: ${aiDuration}ms`);
       } catch (error: any) {
-        if (hasDeliveredMessageOutThisRun && this.isMessageSurface()) {
+        const errorAttrs = {
+          ...this.baseObservabilityAttributes(),
+          'xiaoba.turn': turns,
+          'xiaoba.model.status': 'error',
+          'xiaoba.model.duration_ms': Date.now() - aiStartTime,
+          'xiaoba.error_code': this.errorCode(error),
+          'xiaoba.error.message': this.errorMessage(error),
+        };
+        this.recordObservabilityMetric(observability, 'xiaoba.model.call', 1, errorAttrs);
+        this.recordObservabilityMetric(observability, 'xiaoba.model.duration_ms', errorAttrs['xiaoba.model.duration_ms'], errorAttrs, 'ms');
+        this.recordObservabilityMetric(observability, 'xiaoba.provider.error', 1, errorAttrs);
+        observability.recordLog('xiaoba.provider.error', errorAttrs, 'ERROR', modelSpan.context);
+        observability.endSpan(modelSpan, {
+          status: 'error',
+          message: this.errorMessage(error),
+          attributes: errorAttrs,
+        });
+        if (hasDeliveredMessageOutThisRun && this.usesChannelDelivery()) {
           Logger.warning(`[${this.sessionLabel}Turn ${turns}] 已有外发消息送达，后续推理失败后直接收束: ${error.message}`);
           return {
             response: '',
             finalResponseVisible: false,
             messages,
             newMessages,
+            toolResults,
+            toolVisibility,
           };
         }
         throw error;
@@ -217,33 +323,48 @@ export class ConversationRunner {
       if (!response.toolCalls || response.toolCalls.length === 0) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] AI最终回复: ${ConversationRunner.truncateForLog(response.content || '', 300)}`);
 
-        // 统一处理：所有最终回复都添加到历史
-        messages.push({ role: 'assistant', content: response.content || null });
-        newMessages.push({ role: 'assistant', content: response.content || null });
-
-        if (this.isMessageSurface()) {
+        if (this.usesChannelDelivery()) {
           let finalText = response.content || '';
           finalText = finalText.replace(/^\[已发送信息\]\s*/, '');
           finalText = finalText.replace(/^\[已发送文件\]\s*/, '');
 
-          if (finalText && this.toolExecutionContext?.channel) {
-            try {
-              await this.toolExecutionContext.channel.reply(
-                this.toolExecutionContext.channel.chatId,
-                finalText
+          if (hasDeliveredMessageOutThisRun) {
+            if (finalText.trim()) {
+              Logger.warning(
+                `[${this.sessionLabel}Turn ${turns}] delivery_contract_violation: 已通过外发工具发送用户可见消息，抑制后续最终文本 "${ConversationRunner.truncateForLog(finalText, 160)}"`
               );
-              const preview = finalText.length > 100 ? finalText.slice(0, 100) + '...' : finalText;
-              Logger.info(`[${this.sessionLabel}Turn ${turns}] Message模式：已自动转发 "${preview}"`);
-            } catch (err: any) {
-              Logger.error(`[${this.sessionLabel}Turn ${turns}] Message模式发送失败: ${err.message}`);
             }
+            return {
+              response: '',
+              finalResponseVisible: false,
+              messages,
+              newMessages,
+              toolResults,
+              toolVisibility,
+            };
           }
+
+          if (finalText && this.deliveryFallbackFinalReply) {
+            const fallbackDelivery = await this.deliverFallbackFinalText(finalText, turns);
+            if (fallbackDelivery) {
+              toolResults.push(fallbackDelivery);
+            }
+          } else if (finalText) {
+            Logger.info(
+              `[${this.sessionLabel}Turn ${turns}] channel_final_text_hidden: 模型未调用 send_text/send_file，最终文本不会外发给用户`
+            );
+          }
+
+          messages.push({ role: 'assistant', content: finalText || null });
+          newMessages.push({ role: 'assistant', content: finalText || null });
 
           return {
             response: finalText,
-            finalResponseVisible: true,
+            finalResponseVisible: Boolean(finalText && this.deliveryFallbackFinalReply),
             messages,
             newMessages,
+            toolResults,
+            toolVisibility,
           };
         }
 
@@ -251,11 +372,17 @@ export class ConversationRunner {
         cleanedResponse = cleanedResponse.replace(/^\[已发送信息\]\s*/, '');
         cleanedResponse = cleanedResponse.replace(/^\[已发送文件\]\s*/, '');
 
+        // CLI 等非 channel surface 的最终文本就是正常用户可见输出。
+        messages.push({ role: 'assistant', content: cleanedResponse || null });
+        newMessages.push({ role: 'assistant', content: cleanedResponse || null });
+
         return {
           response: cleanedResponse,
           finalResponseVisible: true,
           messages,
           newMessages,
+          toolResults,
+          toolVisibility,
         };
       }
 
@@ -276,9 +403,23 @@ export class ConversationRunner {
       };
       const executionRecords: ToolExecutionRecord[] = [];
       let shouldPauseTurn = false;
+      let shouldCancelRun = false;
 
-      for (const toolCall of response.toolCalls) {
+      for (let toolIndex = 0; toolIndex < response.toolCalls.length; toolIndex++) {
+        const toolCall = response.toolCalls[toolIndex];
         if (this.shouldContinue && !this.shouldContinue()) {
+          const reason = 'Runner interrupted before executing pending tool calls.';
+          const cancelledToolCalls = response.toolCalls.slice(toolIndex);
+          for (const cancelledToolCall of cancelledToolCalls) {
+            const cancelledResult = this.buildCancelledToolResult(cancelledToolCall, reason);
+            toolResults.push({
+              toolCall: cancelledToolCall,
+              toolName: cancelledToolCall.function.name,
+              result: cancelledResult,
+            });
+          }
+          Logger.warning(`[${this.sessionLabel}Turn ${turns}] 运行已中断，取消 ${cancelledToolCalls.length} 个未执行工具调用`);
+          shouldCancelRun = true;
           break;
         }
 
@@ -287,22 +428,114 @@ export class ConversationRunner {
         const toolInput = this.parseToolInputForCallback(toolCall.function.arguments);
         callbacks?.onToolStart?.(toolName, toolUseId, toolInput);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 执行工具: ${toolName} | 参数: ${ConversationRunner.truncateForLog(toolCall.function.arguments, 500)}`);
-        const activeToolNames = allTools.map(tool => tool.name);
         const toolStart = Date.now();
-        let result = await this.executeToolWithRetry(
+        const toolSpan = observability.startSpan('xiaoba.tool.call', {
+          ...this.baseObservabilityAttributes(),
+          'xiaoba.turn': turns,
+          'xiaoba.tool.name': toolName,
+          'xiaoba.tool.call_id': toolUseId,
+          ...observability.toolArgumentAttributes(toolCall.function.arguments),
+        }, this.observabilityContext);
+        observability.recordLog('xiaoba.tool.call', {
+          ...this.baseObservabilityAttributes(),
+          'xiaoba.turn': turns,
+          'xiaoba.tool.name': toolName,
+          'xiaoba.tool.call_id': toolUseId,
+          ...observability.toolArgumentAttributes(toolCall.function.arguments),
+        }, 'INFO', toolSpan.context);
+        let result;
+        try {
+          result = await this.executeToolWithRetry(
+            toolCall,
+            messages,
+            {
+              ...this.toolExecutionContext,
+              activeSkillName: this.activeSkillName,
+              activeToolsets: this.activeSkillToolsets,
+              observabilityContext: toolSpan.context,
+            },
+            turns,
+          );
+        } catch (error: any) {
+          const errorAttrs = {
+            ...this.baseObservabilityAttributes(),
+            'xiaoba.turn': turns,
+            'xiaoba.tool.name': toolName,
+            'xiaoba.tool.call_id': toolUseId,
+            'xiaoba.tool.status': 'failure',
+            'xiaoba.tool.duration_ms': Date.now() - toolStart,
+            'xiaoba.error_code': this.errorCode(error),
+            'xiaoba.error.message': this.errorMessage(error),
+          };
+          this.recordObservabilityMetric(observability, 'xiaoba.tool.call', 1, errorAttrs);
+          this.recordObservabilityMetric(observability, 'xiaoba.tool.result', 1, errorAttrs);
+          this.recordObservabilityMetric(observability, 'xiaoba.tool.duration_ms', errorAttrs['xiaoba.tool.duration_ms'], errorAttrs, 'ms');
+          observability.recordLog('xiaoba.tool.result', errorAttrs, 'ERROR', toolSpan.context);
+          observability.endSpan(toolSpan, {
+            status: 'error',
+            message: this.errorMessage(error),
+            attributes: errorAttrs,
+          });
+          throw error;
+        }
+        result = this.boundRepeatedNonRetryableFailure(
           toolCall,
-          messages,
-          {
-            ...this.toolExecutionContext,
-            activeSkillName: this.activeSkillName,
-          },
-          turns,
+          result,
+          nonRetryableFailureCounts,
         );
         if (toolName === 'thinking') {
           thinkingCount++;
         }
+        toolResults.push({
+          toolCall,
+          toolName,
+          result,
+        });
         const toolDuration = Date.now() - toolStart;
         Metrics.recordToolCall(toolName, toolDuration);
+        const toolResultAttrs = {
+          ...this.baseObservabilityAttributes(),
+          'xiaoba.turn': turns,
+          'xiaoba.tool.name': toolName,
+          'xiaoba.tool.call_id': toolUseId,
+          'xiaoba.tool.status': result.status || (result.ok === false ? 'failure' : 'success'),
+          'xiaoba.tool.duration_ms': result.duration_ms ?? toolDuration,
+          'xiaoba.tool.retryable': result.retryable === true,
+          'xiaoba.tool.artifact_count': result.artifact_manifest?.length ?? 0,
+          'xiaoba.tool.delivery_count': result.delivery_evidence?.length ?? 0,
+          ...(result.error_code && { 'xiaoba.error_code': result.error_code }),
+          ...(result.blocked_reason && { 'xiaoba.blocked_reason': result.blocked_reason }),
+        };
+        this.recordObservabilityMetric(observability, 'xiaoba.tool.call', 1, toolResultAttrs);
+        this.recordObservabilityMetric(observability, 'xiaoba.tool.result', 1, toolResultAttrs);
+        this.recordObservabilityMetric(observability, 'xiaoba.tool.duration_ms', result.duration_ms ?? toolDuration, toolResultAttrs, 'ms');
+        observability.recordLog(
+          'xiaoba.tool.result',
+          toolResultAttrs,
+          result.ok === false || this.hasStructuredFailure(result) ? 'ERROR' : 'INFO',
+          toolSpan.context,
+        );
+        if (result.delivery_evidence?.length) {
+          for (const delivery of result.delivery_evidence) {
+            this.recordObservabilityMetric(observability, 'xiaoba.delivery.evidence', 1, {
+              ...this.baseObservabilityAttributes(),
+              'xiaoba.delivery.type': delivery.delivery_type,
+              'xiaoba.delivery.status': delivery.status,
+              ...(delivery.surface && { 'xiaoba.surface': delivery.surface }),
+            });
+            observability.recordLog('xiaoba.delivery.evidence', {
+              ...this.baseObservabilityAttributes(),
+              'xiaoba.delivery.type': delivery.delivery_type,
+              'xiaoba.delivery.status': delivery.status,
+              ...(delivery.file_name && { 'xiaoba.delivery.file_name': delivery.file_name }),
+            }, delivery.status === 'delivered' ? 'INFO' : 'WARN', toolSpan.context);
+          }
+        }
+        observability.endSpan(toolSpan, {
+          status: result.ok === false || this.hasStructuredFailure(result) ? 'error' : 'ok',
+          message: result.error_code,
+          attributes: toolResultAttrs,
+        });
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 工具完成: ${toolName} | 耗时: ${toolDuration}ms | 结果: ${ConversationRunner.truncateForLog(result.content, 300)}`);
         callbacks?.onToolEnd?.(toolName, toolUseId, contentToString(result.content));
 
@@ -310,7 +543,7 @@ export class ConversationRunner {
         if (
           (transcriptMode === 'outbound_message' || transcriptMode === 'outbound_file')
           && result.ok
-          && !result.errorCode
+          && !this.hasStructuredFailure(result)
         ) {
           hasDeliveredMessageOutThisRun = true;
         }
@@ -320,6 +553,7 @@ export class ConversationRunner {
         const activation = this.tryParseSkillActivation(toolCall, contentToString(result.content));
         if (activation) {
           this.activeSkillName = activation.skillName;
+          this.activeSkillToolsets = activation.toolsets;
 
           if (activation.maxTurns && activation.maxTurns > 0) {
             this.maxTurns = Math.max(this.maxTurns, turns + activation.maxTurns);
@@ -343,7 +577,7 @@ export class ConversationRunner {
           newMessages: (result as any).newMessages, // 保存图片等额外消息
         });
 
-        if (result.controlSignal === 'pause_turn' && !result.errorCode) {
+        if (result.controlSignal === 'pause_turn' && !this.hasStructuredFailure(result)) {
           shouldPauseTurn = true;
           break;
         }
@@ -357,6 +591,18 @@ export class ConversationRunner {
       messages.push(...turnMessages);
       newMessages.push(...turnMessages);
 
+      if (shouldCancelRun) {
+        Logger.info(`[${this.sessionLabel}Turn ${turns}] interrupt 已触发，本轮取消收束`);
+        return {
+          response: '',
+          finalResponseVisible: false,
+          messages,
+          newMessages,
+          toolResults,
+          toolVisibility,
+        };
+      }
+
       if (shouldPauseTurn) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] pause_turn 已触发，本轮收束`);
         return {
@@ -364,16 +610,84 @@ export class ConversationRunner {
           finalResponseVisible: false,
           messages,
           newMessages,
+          toolResults,
+          toolVisibility,
         };
       }
     }
 
     Logger.warning(`达到最大工具调用轮次 (${this.maxTurns})`);
     return {
-      response: this.isMessageSurface() ? '' : '[达到最大工具调用轮次，请继续对话]',
-      finalResponseVisible: !this.isMessageSurface(),
+      response: this.usesChannelDelivery() ? '' : '[达到最大工具调用轮次，请继续对话]',
+      finalResponseVisible: !this.usesChannelDelivery(),
       messages,
       newMessages,
+      toolResults,
+      toolVisibility,
+    };
+  }
+
+  private resolveActiveTools(messages: Message[]): ToolDefinition[] {
+    return this.toolExecutor.getToolDefinitions({
+      ...this.toolExecutionContext,
+      activeSkillName: this.activeSkillName,
+      activeToolsets: this.activeSkillToolsets,
+      conversationHistory: messages,
+    });
+  }
+
+  private baseObservabilityAttributes() {
+    const observability = getObservability();
+    return {
+      ...(this.toolExecutionContext?.sessionId && { 'xiaoba.session.id_hash': observability.sessionIdHash(this.toolExecutionContext.sessionId) }),
+      ...(this.toolExecutionContext?.surface && { 'xiaoba.surface': this.toolExecutionContext.surface }),
+      ...(this.toolExecutionContext?.roleName && { 'xiaoba.role.name': this.toolExecutionContext.roleName }),
+      ...(this.activeSkillName && { 'xiaoba.skill.name': this.activeSkillName }),
+    };
+  }
+
+  private recordObservabilityMetric(
+    observability: Observability,
+    name: string,
+    value: number,
+    attributes: ObservabilityAttributes,
+    unit = '1',
+  ): void {
+    if (this.observabilityMetricMode === 'mirror_only') {
+      observability.mirrorMetric(name, value, attributes, unit);
+      return;
+    }
+    observability.recordMetric(name, value, attributes, unit);
+  }
+
+  private errorMessage(error: any): string {
+    return error?.message ? String(error.message).slice(0, 500) : String(error).slice(0, 500);
+  }
+
+  private errorCode(error: any): string {
+    return String(error?.error_code || error?.errorCode || error?.code || 'RUNTIME_ERROR');
+  }
+
+  private resolveToolVisibilitySnapshot(
+    activeTools: ToolDefinition[],
+    messages: Message[],
+  ): ToolVisibilitySnapshot {
+    const executor = this.toolExecutor as ToolExecutor & {
+      getToolVisibilityInfo?: (contextOverrides?: Partial<ToolExecutionContext>) => ToolVisibilitySnapshot;
+    };
+    if (typeof executor.getToolVisibilityInfo === 'function') {
+      return executor.getToolVisibilityInfo({
+        ...this.toolExecutionContext,
+        activeSkillName: this.activeSkillName,
+        activeToolsets: this.activeSkillToolsets,
+        conversationHistory: messages,
+      });
+    }
+    return {
+      ...(this.toolExecutionContext?.roleName && { roleName: this.toolExecutionContext.roleName }),
+      ...(this.activeSkillName && { activeSkillName: this.activeSkillName }),
+      visibleTools: activeTools.map(tool => tool.name),
+      hiddenToolCount: 0,
     };
   }
 
@@ -515,9 +829,106 @@ export class ConversationRunner {
     return [...collapsed, ...transientHints];
   }
 
-  private isMessageSurface(): boolean {
+  private usesChannelDelivery(): boolean {
     const surface = this.toolExecutionContext?.surface;
-    return surface === 'feishu';
+    return surface === 'feishu' || surface === 'weixin' || surface === 'pet';
+  }
+
+  private async deliverFallbackFinalText(finalText: string, turn: number): Promise<RunToolResult | null> {
+    const text = finalText.trim();
+    if (!text) {
+      return null;
+    }
+
+    const toolCallId = `delivery-fallback-turn-${turn}`;
+    const deliveryId = `${this.toolExecutionContext?.surface || 'surface'}.fallback_final_reply.${turn}`;
+    const toolCall: ToolCall = {
+      id: toolCallId,
+      type: 'function',
+      function: {
+        name: 'send_text',
+        arguments: JSON.stringify({
+          text,
+          _delivery_fallback: true,
+        }),
+      },
+    };
+
+    const channel = this.toolExecutionContext?.channel;
+    if (!channel) {
+      const errorCode = 'DELIVERY_CHANNEL_MISSING';
+      Logger.error(`[${this.sessionLabel}Turn ${turn}] delivery_fallback_failed: channel context missing`);
+      return {
+        toolCall,
+        toolName: 'send_text',
+        result: this.buildFallbackDeliveryResult(toolCallId, text, deliveryId, 'failure', errorCode, []),
+      };
+    }
+
+    try {
+      const receipts = await channel.reply(channel.chatId, text) as ChannelDeliveryReceipt | void;
+      const preview = text.length > 100 ? text.slice(0, 100) + '...' : text;
+      Logger.info(`[${this.sessionLabel}Turn ${turn}] delivery_fallback_final_reply: fallback 已显式开启，发送最终文本 "${preview}"`);
+      const externalReceipts = normalizeExternalDeliveryReceipts(receipts, {
+        receiptType: 'message',
+        surface: this.toolExecutionContext?.surface,
+        deliveryId,
+      });
+      return {
+        toolCall,
+        toolName: 'send_text',
+        result: this.buildFallbackDeliveryResult(toolCallId, text, deliveryId, 'success', undefined, externalReceipts),
+      };
+    } catch (err: any) {
+      const errorCode = 'DELIVERY_FAILED';
+      Logger.error(`[${this.sessionLabel}Turn ${turn}] delivery_fallback_failed: ${err.message}`);
+      return {
+        toolCall,
+        toolName: 'send_text',
+        result: this.buildFallbackDeliveryResult(toolCallId, text, deliveryId, 'failure', errorCode, []),
+      };
+    }
+  }
+
+  private buildFallbackDeliveryResult(
+    toolCallId: string,
+    text: string,
+    deliveryId: string,
+    status: 'success' | 'failure',
+    errorCode: string | undefined,
+    externalReceipts: ReturnType<typeof normalizeExternalDeliveryReceipts>,
+  ): ToolResult {
+    const deliveryStatus: DeliveryEvidence['status'] = status === 'success' ? 'delivered' : 'failed';
+    return buildCanonicalToolResult({
+      tool_call_id: toolCallId,
+      name: 'send_text',
+      content: status === 'success' ? '已通过 fallback 发送' : 'fallback 发送失败',
+      status,
+      errorCode,
+      retryable: false,
+      durationMs: 0,
+      deliveryEvidence: [{
+        delivery_id: deliveryId,
+        surface: this.toolExecutionContext?.surface,
+        channel_id: this.toolExecutionContext?.channel?.chatId
+          ? this.hashIdentifier(this.toolExecutionContext.channel.chatId)
+          : undefined,
+        delivery_type: 'text',
+        status: deliveryStatus,
+        timestamp: new Date().toISOString(),
+        text_preview: this.truncateDeliveryPreview(text),
+        ...(errorCode && { error_code: errorCode }),
+      }],
+      externalDeliveryReceipts: status === 'success' ? externalReceipts : [],
+    });
+  }
+
+  private hashIdentifier(value: string): string {
+    return `sha256:${crypto.createHash('sha256').update(value).digest('hex').slice(0, 16)}`;
+  }
+
+  private truncateDeliveryPreview(text: string): string {
+    return text.length <= 200 ? text : `${text.slice(0, 200)}...`;
   }
 
   private getToolTranscriptMode(
@@ -527,19 +938,25 @@ export class ConversationRunner {
     return toolDefinitions.get(toolName)?.transcriptMode ?? 'default';
   }
 
+  private hasStructuredFailure(result: ToolResult): boolean {
+    return result.ok === false
+      || Boolean(result.error_code || result.errorCode)
+      || (Boolean(result.status) && result.status !== 'success');
+  }
+
   private shouldIncludeToolResult(
     record: ToolExecutionRecord,
     toolDefinitions: Map<string, ToolDefinition>,
   ): boolean {
     const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
-    return transcriptMode !== 'suppress' || Boolean(record.result.errorCode);
+    return transcriptMode !== 'suppress' || this.hasStructuredFailure(record.result);
   }
 
   private shouldNormalizeOutboundRecord(
     record: ToolExecutionRecord,
     transcriptMode: ToolTranscriptMode,
   ): boolean {
-    if (record.result.errorCode || record.result.ok === false) {
+    if (this.hasStructuredFailure(record.result)) {
       return false;
     }
 
@@ -618,7 +1035,7 @@ export class ConversationRunner {
     try {
       if (this.stream) {
         const streamCallbacks: StreamCallbacks = {
-          onText: (text) => callbacks?.onText?.(text),
+          onText: this.usesChannelDelivery() ? undefined : (text) => callbacks?.onText?.(text),
           onRetry: (attempt, maxRetries) => callbacks?.onRetry?.(attempt, maxRetries),
         };
         return await this.aiService.chatStream(messages, activeTools, streamCallbacks);
@@ -635,7 +1052,8 @@ export class ConversationRunner {
 
       if (this.stream) {
         const streamCallbacks: StreamCallbacks = {
-          onText: (text) => callbacks?.onText?.(text),
+          onText: this.usesChannelDelivery() ? undefined : (text) => callbacks?.onText?.(text),
+          onRetry: (attempt, maxRetries) => callbacks?.onRetry?.(attempt, maxRetries),
         };
         return await this.aiService.chatStream(messages, activeTools, streamCallbacks);
       }
@@ -968,6 +1386,7 @@ export class ConversationRunner {
   // ─── 429 重试逻辑 ──────────────────────────────────
 
   private static readonly MAX_RETRIES = 2;
+  private static readonly MAX_NON_RETRYABLE_FAILURES = 2;
   private static readonly RETRY_BASE_DELAY_MS = 5000;
   private static readonly RATE_LIMIT_ERROR_CODES = new Set([
     'RATE_LIMIT',
@@ -998,12 +1417,14 @@ export class ConversationRunner {
   /** 检测工具结果是否为 429 限流错误（避免把正文里的数字 429 误判为限流） */
   private static isRateLimitError(result: ToolResult): boolean {
     const content = String(result.content || '');
-    if (result.errorCode && ConversationRunner.RATE_LIMIT_ERROR_CODES.has(result.errorCode)) {
+    const errorCode = result.error_code || result.errorCode;
+    if (errorCode && ConversationRunner.RATE_LIMIT_ERROR_CODES.has(errorCode)) {
       return true;
     }
 
     const isFailure = result.ok === false
-      || Boolean(result.errorCode)
+      || Boolean(errorCode)
+      || (Boolean(result.status) && result.status !== 'success')
       || result.retryable === true;
 
     if (!isFailure) {
@@ -1013,7 +1434,85 @@ export class ConversationRunner {
     return ConversationRunner.hasRateLimitMarkers(content);
   }
 
-  /** 带 429 重试的工具执行 */
+  private static shouldRetryToolResult(result: ToolResult): boolean {
+    if (result.retryable === true) {
+      return result.ok === false
+        || Boolean(result.error_code || result.errorCode)
+        || (Boolean(result.status) && result.status !== 'success');
+    }
+
+    return ConversationRunner.isRateLimitError(result);
+  }
+
+  private boundRepeatedNonRetryableFailure(
+    toolCall: ToolCall,
+    result: ToolResult,
+    failureCounts: Map<string, number>,
+  ): ToolResult {
+    if (!ConversationRunner.shouldTrackNonRetryableFailure(result)) {
+      return result;
+    }
+
+    const fingerprint = this.repeatedNonRetryableFailureFingerprint(toolCall, result);
+    const previousCount = failureCounts.get(fingerprint) ?? 0;
+
+    if (previousCount >= ConversationRunner.MAX_NON_RETRYABLE_FAILURES) {
+      return this.buildRepeatedNonRetryableBlockedResult(toolCall, result, previousCount);
+    }
+
+    failureCounts.set(fingerprint, previousCount + 1);
+    return result;
+  }
+
+  private static shouldTrackNonRetryableFailure(result: ToolResult): boolean {
+    if (result.status === 'success' || result.ok === true) {
+      return false;
+    }
+    if (result.status === 'blocked' || result.status === 'cancelled') {
+      return false;
+    }
+    if (result.retryable === true || ConversationRunner.shouldRetryToolResult(result)) {
+      return false;
+    }
+
+    return result.ok === false
+      || Boolean(result.error_code || result.errorCode)
+      || Boolean(result.status);
+  }
+
+  private repeatedNonRetryableFailureFingerprint(toolCall: ToolCall, result: ToolResult): string {
+    const toolName = normalizeToolName(toolCall.function.name);
+    const args = this.normalizeToolArgumentsForFailureFingerprint(toolCall.function.arguments);
+    const errorKey = result.error_code
+      || result.errorCode
+      || result.status
+      || ConversationRunner.truncateForLog(contentToString(result.content), 120);
+
+    return `${toolName}\n${args}\n${errorKey}`;
+  }
+
+  private normalizeToolArgumentsForFailureFingerprint(argsJson: string): string {
+    try {
+      return this.stableStringify(JSON.parse(argsJson || '{}')).slice(0, 2000);
+    } catch {
+      return String(argsJson || '').trim().slice(0, 2000);
+    }
+  }
+
+  private stableStringify(value: unknown): string {
+    if (Array.isArray(value)) {
+      return `[${value.map(item => this.stableStringify(item)).join(',')}]`;
+    }
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => `${JSON.stringify(key)}:${this.stableStringify(item)}`);
+      return `{${entries.join(',')}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  /** 带预算的可重试工具执行 */
   private async executeToolWithRetry(
     toolCall: ToolCall,
     messages: Message[],
@@ -1021,17 +1520,136 @@ export class ConversationRunner {
     turn: number,
   ): Promise<ToolResult> {
     let lastResult = await this.toolExecutor.executeTool(toolCall, messages, context);
+    let retryCount = 0;
 
     for (let attempt = 1; attempt <= ConversationRunner.MAX_RETRIES; attempt++) {
-      if (!ConversationRunner.isRateLimitError(lastResult)) {
-        return lastResult;
+      if (!ConversationRunner.shouldRetryToolResult(lastResult)) {
+        return this.withRetryEvidence(lastResult, retryCount);
       }
       const delay = ConversationRunner.RETRY_BASE_DELAY_MS * attempt;
-      Logger.warning(`[${this.sessionLabel}Turn ${turn}] ${toolCall.function.name} 触发限流 (429)，${delay}ms 后重试 (${attempt}/${ConversationRunner.MAX_RETRIES})`);
+      const retryReason = this.describeRetryReason(lastResult);
+      Logger.warning(`[${this.sessionLabel}Turn ${turn}] ${toolCall.function.name} 触发可重试工具失败 (${retryReason})，${delay}ms 后重试 (${attempt}/${ConversationRunner.MAX_RETRIES})`);
       await new Promise(resolve => setTimeout(resolve, delay));
+      retryCount = attempt;
       lastResult = await this.toolExecutor.executeTool(toolCall, messages, context);
     }
 
-    return lastResult;
+    if (ConversationRunner.shouldRetryToolResult(lastResult)) {
+      return this.buildRetryBudgetBlockedResult(toolCall, lastResult, retryCount);
+    }
+
+    return this.withRetryEvidence(lastResult, retryCount);
+  }
+
+  private buildRepeatedNonRetryableBlockedResult(
+    toolCall: ToolCall,
+    result: ToolResult,
+    previousFailureCount: number,
+  ): ToolResult {
+    const errorCode = result.error_code || result.errorCode || 'REPEATED_NON_RETRYABLE_FAILURE';
+    const lastError = contentToString(result.content);
+    const blockedReason = [
+      `Repeated identical non-retryable failure reached bounded failure budget after ${previousFailureCount} prior failures for ${toolCall.function.name}.`,
+      `error_code=${errorCode}.`,
+      lastError ? `Last error: ${ConversationRunner.truncateForLog(lastError, 300)}` : '',
+    ].filter(Boolean).join(' ');
+
+    return canonicalizeToolResult({
+      ...result,
+      status: 'blocked',
+      error_code: errorCode,
+      errorCode,
+      retryable: false,
+      blocked_reason: blockedReason,
+      retry_count: previousFailureCount,
+      retry_budget: ConversationRunner.MAX_NON_RETRYABLE_FAILURES,
+      retry_budget_exhausted: true,
+      content: `重复不可重试工具失败已收束: ${lastError || errorCode}`,
+      delivery_evidence: result.delivery_evidence?.map(item => ({
+        ...item,
+        status: 'blocked',
+        error_code: item.error_code || errorCode,
+      })),
+    }, {
+      fallbackToolCallId: toolCall.id,
+      fallbackName: toolCall.function.name,
+      fallbackStatus: 'blocked',
+      fallbackErrorCode: errorCode,
+      fallbackBlockedReason: blockedReason,
+    });
+  }
+
+  private describeRetryReason(result: ToolResult): string {
+    const errorCode = result.error_code || result.errorCode;
+    if (errorCode) {
+      return errorCode;
+    }
+    if (result.status && result.status !== 'success') {
+      return result.status;
+    }
+    return 'retryable';
+  }
+
+  private withRetryEvidence(result: ToolResult, retryCount: number): ToolResult {
+    if (retryCount <= 0) {
+      return result;
+    }
+
+    return {
+      ...result,
+      retry_count: retryCount,
+      retry_budget: ConversationRunner.MAX_RETRIES,
+      retry_budget_exhausted: false,
+    };
+  }
+
+  private buildRetryBudgetBlockedResult(
+    toolCall: ToolCall,
+    result: ToolResult,
+    retryCount: number,
+  ): ToolResult {
+    const errorCode = result.error_code || result.errorCode || 'RATE_LIMIT';
+    const lastError = contentToString(result.content);
+    const blockedReason = [
+      `Retry budget exhausted after ${retryCount} retr${retryCount === 1 ? 'y' : 'ies'} for ${toolCall.function.name}.`,
+      lastError ? `Last error: ${ConversationRunner.truncateForLog(lastError, 300)}` : '',
+    ].filter(Boolean).join(' ');
+
+    return canonicalizeToolResult({
+      ...result,
+      status: 'blocked',
+      error_code: errorCode,
+      errorCode,
+      retryable: false,
+      blocked_reason: blockedReason,
+      retry_count: retryCount,
+      retry_budget: ConversationRunner.MAX_RETRIES,
+      retry_budget_exhausted: true,
+      content: `重试预算已耗尽: ${lastError || errorCode}`,
+      delivery_evidence: result.delivery_evidence?.map(item => ({
+        ...item,
+        status: 'blocked',
+        error_code: item.error_code || errorCode,
+      })),
+    }, {
+      fallbackToolCallId: toolCall.id,
+      fallbackName: toolCall.function.name,
+      fallbackStatus: 'blocked',
+      fallbackErrorCode: errorCode,
+      fallbackBlockedReason: blockedReason,
+    });
+  }
+
+  private buildCancelledToolResult(toolCall: ToolCall, reason: string): ToolResult {
+    return buildCanonicalToolResult({
+      tool_call_id: toolCall.id,
+      name: toolCall.function.name,
+      content: `工具调用已取消: ${reason}`,
+      status: 'cancelled',
+      errorCode: 'TOOL_CANCELLED',
+      retryable: false,
+      blockedReason: reason,
+      durationMs: 0,
+    });
   }
 }

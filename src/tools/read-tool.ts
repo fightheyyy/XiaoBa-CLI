@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
 import { isReadPathAllowed } from '../utils/safety';
 import { createImageBlock } from '../utils/image-utils';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * Read 工具 - 读取文件内容
@@ -46,30 +47,36 @@ export class ReadTool implements Tool {
 
       const pathPermission = isReadPathAllowed(absolutePath, context.workingDirectory);
       if (!pathPermission.allowed) {
-        return `执行被阻止: ${pathPermission.reason}`;
+        return toolBlocked(
+          `执行被阻止: ${pathPermission.reason}`,
+          'PATH_DENIED',
+          pathPermission.reason || 'Read path is outside the allowed workspace.',
+        );
       }
 
       // 检查文件是否存在
       if (!fs.existsSync(absolutePath)) {
-        return `错误：文件不存在: ${absolutePath}`;
+        return toolFailure(`错误：文件不存在: ${absolutePath}`, 'FILE_NOT_FOUND');
       }
 
       // 获取文件扩展名
       const ext = path.extname(absolutePath).toLowerCase();
+      let result: any;
 
       // 根据文件类型选择处理方式
       if (ext === '.pdf') {
-        return await this.readPDF(absolutePath, file_path, pages);
+        result = await this.readPDF(absolutePath, file_path, pages);
       } else if (['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)) {
-        return await this.readImage(absolutePath, file_path);
+        result = await this.readImage(absolutePath, file_path);
       } else if (ext === '.ipynb') {
-        return await this.readNotebook(absolutePath, file_path);
+        result = await this.readNotebook(absolutePath, file_path);
       } else {
         // 默认作为文本文件处理
-        return await this.readTextFile(absolutePath, file_path, offset, limit);
+        result = await this.readTextFile(absolutePath, file_path, offset, limit);
       }
+      return toolSuccess(result);
     } catch (error: any) {
-      return `读取文件失败: ${error.message}`;
+      return toolFailure(`读取文件失败: ${error.message}`, 'READ_FILE_FAILED');
     }
   }
 

@@ -1,0 +1,179 @@
+{
+  "suite_id": "resilience-smoke",
+  "name": "Resilience Smoke",
+  "version": "0.1",
+  "description": "Deterministic timeout/cancel and context restore contract smoke for runtime observability and state continuity.",
+  "source": "eval/CASE_PORTFOLIO.md#contract-sentinel",
+  "decision_policy": {
+    "fail_on_any_hard_failure": true,
+    "fail_on_required_artifact_failure": true,
+    "block_on_missing_evidence": true,
+    "min_pass_rate": 1
+  },
+  "cases": [
+    {
+      "case_id": "resilience.timeout-cancel.001",
+      "name": "Timeout and blocked retry path remains observable",
+      "lane": "contract_sentinel",
+      "target_module": "runtime",
+      "risk_level": "release_blocking",
+      "task": "Verify that repeated timeout failures end in an observable blocked state with bounded retry evidence.",
+      "inputs": {
+        "jsonl": "../fixtures/resilience/timeout-cancel.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "bounded_retry",
+          "config": {
+            "max_repeated_failures": 2
+          }
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "timed out repeatedly",
+              "blocked"
+            ]
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 3,
+        "max_tokens": 1200
+      },
+      "failure_route": "runtime"
+    },
+    {
+      "case_id": "resilience.cancelled-pending.001",
+      "name": "Pending tool calls become cancelled evidence after interrupt",
+      "lane": "contract_sentinel",
+      "target_module": "runtime",
+      "risk_level": "release_blocking",
+      "task": "Verify that an interrupted multi-tool turn records pending tool calls as cancelled structured evidence.",
+      "inputs": {
+        "jsonl": "../fixtures/resilience/cancelled-pending-tool.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "interrupted",
+              "cancelled evidence"
+            ]
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 1,
+        "max_tool_calls": 3,
+        "max_tokens": 1200
+      },
+      "failure_route": "runtime"
+    },
+    {
+      "case_id": "resilience.context-restore.001",
+      "name": "Context compaction and restore preserve task state",
+      "lane": "contract_sentinel",
+      "target_module": "state_evidence",
+      "risk_level": "release_blocking",
+      "task": "Verify that compaction/restore evidence preserves the task goal, hard constraint, and artifact state.",
+      "inputs": {
+        "jsonl": "../fixtures/resilience/context-restore.jsonl",
+        "jsonl_schema": "session-log-v2"
+      },
+      "required_artifacts": [
+        {
+          "path": "analysis.md",
+          "type": "md",
+          "action": "created",
+          "evidence": "manifest"
+        }
+      ],
+      "hard_verifiers": [
+        {
+          "id": "jsonl_parse"
+        },
+        {
+          "id": "tool_transcript_completeness"
+        },
+        {
+          "id": "tool_result_contract"
+        },
+        {
+          "id": "runtime_observability"
+        },
+        {
+          "id": "artifact_evidence"
+        },
+        {
+          "id": "state_continuity",
+          "config": {
+            "required_events": [
+              "context_compaction",
+              "session_restore"
+            ],
+            "required_texts": [
+              "compare baseline and candidate",
+              "must cite sources",
+              "analysis.md"
+            ],
+            "min_turns": 2
+          }
+        },
+        {
+          "id": "assistant_text_contains",
+          "config": {
+            "texts": [
+              "Restored task",
+              "must cite sources"
+            ]
+          }
+        },
+        {
+          "id": "budget_check"
+        }
+      ],
+      "budgets": {
+        "max_turns": 2,
+        "max_tool_calls": 1,
+        "max_tokens": 1400
+      },
+      "failure_route": "state_evidence"
+    }
+  ]
+}

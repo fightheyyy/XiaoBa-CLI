@@ -1,0 +1,1 @@
+{"schema_version":2,"entry_type":"turn","turn":1,"turn_id":"contract.jsonl-compatibility.001.turn.1","timestamp":"2026-05-31T00:01:00.000Z","session_id":"eval_contract_jsonl","session_type":"eval","user":{"text":"Say hello from the eval fixture."},"assistant":{"text":"Hello from the eval fixture.","tool_calls":[]},"tokens":{"prompt":120,"completion":12}}

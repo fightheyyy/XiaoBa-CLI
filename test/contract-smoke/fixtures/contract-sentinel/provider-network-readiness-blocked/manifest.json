@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-06-05T00:00:00.000Z",
+  "decision": "blocked",
+  "replay_enabled": false,
+  "degradation_verified": false,
+  "checks_total": 1,
+  "checks_blocked": 1,
+  "scorecard_path": "output/eval/provider-network-readiness/scorecard.json",
+  "report_path": "output/eval/provider-network-readiness/report.md"
+}

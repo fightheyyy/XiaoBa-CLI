@@ -1,6 +1,7 @@
 import { Logger } from '../../utils/logger';
 import { InspectorCaseRecord, InspectorCaseStore } from './utils/inspector-case-store';
 import {
+  buildInspectorReviewArtifactManifest,
   createInspectorReviewExecutorFromEnv,
   InspectorAgentReviewResult,
   InspectorReviewExecutor,
@@ -76,7 +77,9 @@ export class InspectorCaseWorker {
     try {
       await this.store.updateCaseStatus(caseId, 'processing', 'Inspector hook received the logs and queued a review job');
       const result = await this.reviewExecutor.reviewCase(record, this.store);
-      await this.store.saveResult(caseId, 'analyzed', result, result.summary.overview);
+      const caseDir = this.store.getCaseDir(caseId);
+      const enrichedResult = this.withArtifactManifest(result, caseDir);
+      await this.store.saveResult(caseId, 'analyzed', enrichedResult, enrichedResult.summary.overview);
       Logger.info(`[InspectorReviewJob] completed ${caseId}`);
     } catch (error: any) {
       const failure = {
@@ -87,6 +90,32 @@ export class InspectorCaseWorker {
       await this.store.saveResult(caseId, 'failed', failure, `Inspector review failed: ${failure.error}`);
       Logger.error(`[InspectorReviewJob] failed ${caseId}: ${failure.error}`);
     }
+  }
+
+  private withArtifactManifest(result: InspectorAgentReviewResult, caseDir: string): InspectorAgentReviewResult {
+    const generatedManifest = buildInspectorReviewArtifactManifest({
+      caseDir,
+      reportFilePath: result.reportFilePath,
+      handoffFilePath: result.handoffFilePath,
+      deliveries: result.deliveries,
+    });
+    const existingManifest = Array.isArray(result.artifact_manifest) ? result.artifact_manifest : [];
+    if (existingManifest.length === 0 && generatedManifest.length === 0) {
+      return result;
+    }
+
+    const seen = new Set<string>();
+    const artifact_manifest = [...existingManifest, ...generatedManifest].filter(item => {
+      const key = `${item.path}\0${item.action}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    return {
+      ...result,
+      artifact_manifest,
+    };
   }
 }
 

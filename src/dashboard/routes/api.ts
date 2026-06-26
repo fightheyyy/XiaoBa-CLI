@@ -18,6 +18,8 @@ import type { Skill } from '../../types/skill';
 import matter from 'gray-matter';
 import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
+import { getObservability } from '../../observability';
+import { getDashboardObservabilityReviewState } from '../observability-actions';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
@@ -50,8 +52,84 @@ function normalizeDashboardPage(value: unknown): string | null {
   return DASHBOARD_PAGES.has(page) ? page : null;
 }
 
+const SAFE_OBSERVABILITY_ATTRIBUTE_KEYS = new Set([
+  'xiaoba.blocked_reason',
+  'xiaoba.delivery.status',
+  'xiaoba.error_code',
+  'xiaoba.job.kind',
+  'xiaoba.job.operation',
+  'xiaoba.model.name',
+  'xiaoba.model.status',
+  'xiaoba.provider.name',
+  'xiaoba.role.name',
+  'xiaoba.session.final_response_visible',
+  'xiaoba.session.id_hash',
+  'xiaoba.session.status',
+  'xiaoba.session.visible_to_user',
+  'xiaoba.skill.name',
+  'xiaoba.subagent.role',
+  'xiaoba.surface',
+  'xiaoba.tool.name',
+  'xiaoba.tool.status',
+  'xiaoba.trace.cross_process',
+  'xiaoba.trace.parent_propagated',
+  'xiaoba.trace.parent_source',
+]);
+
+const REDACTED_SECRET = '<redacted-secret>';
+const REDACTED_PATH = '<redacted-path>';
+
+function redactObservabilityString(value: string): string {
+  return value
+    .replace(/\bsk-[A-Za-z0-9_-]{10,}\b/g, REDACTED_SECRET)
+    .replace(/\bsecret-token-[A-Za-z0-9_-]+\b/gi, REDACTED_SECRET)
+    .replace(/\b((?:api[_-]?key|token|secret|password)\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;)\\\]}]+)/gi, `$1${REDACTED_SECRET}`)
+    .replace(/\/(?:Users|home)\/[^\s"',;)\\\]}]+/g, REDACTED_PATH)
+    .replace(/\/(?:private\/tmp|tmp|var\/folders)\/[^\s"',;)\\\]}]+/g, REDACTED_PATH)
+    .replace(/[A-Za-z]:\\[^\s"',;)\\\]}]+/g, REDACTED_PATH);
+}
+
+function redactObservabilityAttributes(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (SAFE_OBSERVABILITY_ATTRIBUTE_KEYS.has(key)) {
+      redacted[key] = typeof child === 'string'
+        ? redactObservabilityString(child)
+        : child;
+    }
+  }
+  return redacted;
+}
+
+function redactObservabilitySummary(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return redactObservabilityString(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(redactObservabilitySummary);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'attributes') {
+      redacted[key] = redactObservabilityAttributes(child);
+    } else {
+      redacted[key] = redactObservabilitySummary(child);
+    }
+  }
+  return redacted;
+}
+
 export interface DashboardApiOptions {
   onNavigate?: (page: string) => void;
+  observabilityRootDir?: string;
+  observabilityOutputRoot?: string;
 }
 
 /**
@@ -98,6 +176,21 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       skillsPath: PathResolver.getSkillsPath(),
       services,
     });
+  });
+
+  router.get('/observability/summary', (_req, res) => {
+    res.json(redactObservabilitySummary(getObservability().getLocalSummary()));
+  });
+
+  router.get('/observability/review', (_req, res) => {
+    try {
+      res.json(getDashboardObservabilityReviewState({
+        rootDir: options.observabilityRootDir,
+        outputRoot: options.observabilityOutputRoot,
+      }));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   router.get('/navigation/pending', (req, res) => {
@@ -287,9 +380,14 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      const active = manager.getAllSkills().map(s => toDashboardSkillSummary(s, true));
-      const disabled = findDisabledSkillsForDashboard();
-      res.json([...active, ...disabled]);
+      const summaries = new Map<string, DashboardSkillSummary>();
+      const addSummary = (summary: DashboardSkillSummary) => {
+        summaries.set(normalizeSkillLookupName(summary.name), summary);
+      };
+      manager.getAllSkills().map(s => toDashboardSkillSummary(s, true)).forEach(addSummary);
+      findEnabledBaseSkillsForDashboard().forEach(addSummary);
+      findDisabledSkillsForDashboard().forEach(addSummary);
+      res.json([...summaries.values()]);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -946,6 +1044,18 @@ function findDisabledSkillsForDashboard(): DashboardSkillSummary[] {
     }
   }
   return results;
+}
+
+function findEnabledBaseSkillsForDashboard(): DashboardSkillSummary[] {
+  return PathResolver.findSkillFiles(PathResolver.getBaseSkillsPath())
+    .map(skillFile => {
+      try {
+        return toDashboardSkillSummary(SkillParser.parse(skillFile), true);
+      } catch {
+        return null;
+      }
+    })
+    .filter((summary): summary is DashboardSkillSummary => Boolean(summary));
 }
 
 function getDashboardSkillSearchPaths(): string[] {

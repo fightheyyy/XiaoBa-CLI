@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-06-04T00:15:00.000Z",
+  "caseId": "case-inspector-hook-manifest",
+  "mode": "agent_review",
+  "summary": {
+    "overview": "Inspector hook completed review and produced structured handoff evidence.",
+    "deliveryCount": 2,
+    "reportGenerated": true,
+    "handoffGenerated": true
+  },
+  "reportFilePath": "agent-review.md",
+  "handoffFilePath": "inspector-handoff.json",
+  "artifact_manifest": [
+    {
+      "path": "agent-review.md",
+      "type": "md",
+      "action": "generated",
+      "metadata": {
+        "source": "inspector_hook",
+        "artifact_role": "review_report",
+        "external_source": false
+      }
+    },
+    {
+      "path": "inspector-handoff.json",
+      "type": "json",
+      "action": "generated",
+      "metadata": {
+        "source": "inspector_hook",
+        "artifact_role": "handoff_packet",
+        "external_source": false
+      }
+    },
+    {
+      "path": "agent-review.md",
+      "type": "md",
+      "action": "sent",
+      "metadata": {
+        "source": "inspector_hook",
+        "artifact_role": "delivered_file",
+        "file_name": "agent-review.md",
+        "external_source": false
+      }
+    }
+  ],
+  "finalText": "Inspector hook evidence is ready for downstream review.",
+  "deliveries": [
+    {
+      "type": "text",
+      "text": "Inspector review summary delivered."
+    },
+    {
+      "type": "file",
+      "filePath": "agent-review.md",
+      "fileName": "agent-review.md"
+    }
+  ],
+  "newMessages": []
+}

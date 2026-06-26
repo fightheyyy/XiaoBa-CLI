@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { isToolAllowed, isPathAllowed } from '../utils/safety';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * Edit 工具 - 精确字符串替换
@@ -35,13 +36,17 @@ export class EditTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { file_path, old_string, new_string, replace_all = false } = args;
 
     try {
       const toolPermission = isToolAllowed(this.definition.name);
       if (!toolPermission.allowed) {
-        return `执行被阻止: ${toolPermission.reason}`;
+        return toolBlocked(
+          `执行被阻止: ${toolPermission.reason}`,
+          'TOOL_BLOCKED',
+          toolPermission.reason || 'Tool execution is blocked by policy.',
+        );
       }
 
       // 解析文件路径
@@ -51,12 +56,16 @@ export class EditTool implements Tool {
 
       const pathPermission = isPathAllowed(absolutePath, context.workingDirectory);
       if (!pathPermission.allowed) {
-        return `执行被阻止: ${pathPermission.reason}`;
+        return toolBlocked(
+          `执行被阻止: ${pathPermission.reason}`,
+          'PATH_DENIED',
+          pathPermission.reason || 'Edit path is outside the allowed workspace.',
+        );
       }
 
       // 检查文件是否存在
       if (!fs.existsSync(absolutePath)) {
-        return `错误：文件不存在: ${absolutePath}`;
+        return toolFailure(`错误：文件不存在: ${absolutePath}`, 'FILE_NOT_FOUND');
       }
 
       // 读取文件内容
@@ -64,14 +73,20 @@ export class EditTool implements Tool {
 
       // 检查 old_string 是否存在
       if (!content.includes(old_string)) {
-        return `错误：在文件中未找到要替换的字符串。\n文件: ${file_path}\n查找: ${old_string.substring(0, 100)}${old_string.length > 100 ? '...' : ''}`;
+        return toolFailure(
+          `错误：在文件中未找到要替换的字符串。\n文件: ${file_path}\n查找: ${old_string.substring(0, 100)}${old_string.length > 100 ? '...' : ''}`,
+          'EDIT_TARGET_NOT_FOUND',
+        );
       }
 
       // 检查唯一性（如果不是 replace_all）
       if (!replace_all) {
         const occurrences = content.split(old_string).length - 1;
         if (occurrences > 1) {
-          return `错误：找到 ${occurrences} 个匹配项，但 replace_all=false。\n请提供更具体的字符串以确保唯一性，或设置 replace_all=true 替换所有匹配项。\n文件: ${file_path}`;
+          return toolFailure(
+            `错误：找到 ${occurrences} 个匹配项，但 replace_all=false。\n请提供更具体的字符串以确保唯一性，或设置 replace_all=true 替换所有匹配项。\n文件: ${file_path}`,
+            'EDIT_TARGET_NOT_FOUND',
+          );
         }
       }
 
@@ -98,9 +113,9 @@ export class EditTool implements Tool {
       const newLines = newContent.split('\n').length;
       const lineDiff = newLines - oldLines;
 
-      return `成功编辑文件: ${file_path}\n替换次数: ${replacedCount}\n原始行数: ${oldLines}\n新行数: ${newLines}${lineDiff !== 0 ? `\n行数变化: ${lineDiff > 0 ? '+' : ''}${lineDiff}` : ''}`;
+      return toolSuccess(`成功编辑文件: ${file_path}\n替换次数: ${replacedCount}\n原始行数: ${oldLines}\n新行数: ${newLines}${lineDiff !== 0 ? `\n行数变化: ${lineDiff > 0 ? '+' : ''}${lineDiff}` : ''}`);
     } catch (error: any) {
-      return `编辑文件失败: ${error.message}`;
+      return toolFailure(`编辑文件失败: ${error.message}`, 'EDIT_FILE_FAILED');
     }
   }
 }

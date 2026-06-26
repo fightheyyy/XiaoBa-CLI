@@ -1,7 +1,7 @@
 {
   "name": "inspector-cat",
   "displayName": "Mouri Kohachiro",
-  "description": "Review Agent，优先审查 XiaoBa Runtime，并从日志中识别可沉淀为 Skill 的重复模式。",
+  "description": "生产级故障分诊、证据取证和路由角色，把 XiaoBa logs/session trace/tool failure 转成 issue profile、handoff 和 skill/benchmark 机会。",
   "promptFile": "inspector-system-prompt.md",
   "inheritBaseSkills": true,
   "excludeBaseSkills": [

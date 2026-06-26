@@ -12,6 +12,7 @@ import {
 import {
   EngineerValidationSource,
   normalizeValidationCommands,
+  planChangedFileValidation,
   planEngineerValidation,
 } from './engineer-quality-gates';
 
@@ -544,6 +545,15 @@ function applyChangeAwareValidationGates(task: EngineerTaskFile): void {
   if (!validation) {
     return;
   }
+  const targetedPlan = planChangedFileValidation({
+    cwd: task.cwd,
+    changedFiles,
+    existingCommands: validation.commands,
+  });
+  for (let index = 0; index < targetedPlan.commands.length; index++) {
+    validation.commands.push(targetedPlan.commands[index]);
+    validation.reasons.push(targetedPlan.reasons[index] || 'Changed-file-aware validation gate inferred by EngineerTaskRunner.');
+  }
   const command = 'git diff --check && git diff --cached --check';
   if (validation.commands.includes(command)) {
     return;
@@ -726,6 +736,16 @@ function writeFinalSummary(task: EngineerTaskFile): void {
       ? `See: ${task.artifacts.validation}`
       : task.validation?.summary || '',
     '',
+    '## Validation Rationale',
+    '',
+    task.validation?.reasons?.length
+      ? task.validation.reasons.map(reason => `- ${reason}`).join('\n')
+      : '- No validation rationale recorded.',
+    '',
+    '## Review Handoff',
+    '',
+    reviewHandoffSummary(task),
+    '',
     task.error ? `## Error\n\n${task.error}\n` : '',
   ];
   fs.writeFileSync(task.artifacts.finalSummary, lines.join('\n'), 'utf-8');
@@ -817,6 +837,22 @@ function formatTaskStatus(task: EngineerTaskFile, codexOutput: string): string {
     lines.push(codexOutput);
   }
   return lines.join('\n');
+}
+
+function reviewHandoffSummary(task: EngineerTaskFile): string {
+  if (task.status === 'failed') {
+    return 'Do not deliver as done. Resume the same Codex session with the validation failure or hand off the blocker with validation.md evidence.';
+  }
+  if (task.status === 'blocked') {
+    return 'Blocked tasks require a clear blocked reason and cannot be closed by EngineerCat.';
+  }
+  if (task.validation?.status === 'passed') {
+    return 'EngineerCat implementation evidence is ready for ReviewerCat or human review; EngineerCat must not self-close the case.';
+  }
+  if (task.validation?.status === 'not_configured') {
+    return 'Validation is not configured. Treat this as residual risk before claiming production-ready delivery.';
+  }
+  return 'Check validation.md and final-summary.md before ReviewerCat or human review.';
 }
 
 function parseCodexStartResult(raw: string): CodexTaskStartResult {

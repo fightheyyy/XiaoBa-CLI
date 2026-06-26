@@ -1,4 +1,16 @@
-import { Tool, ToolDefinition, ToolCall, ToolResult, ToolExecutionContext, ToolExecutor } from '../types/tool';
+import {
+  ArtifactManifestItem,
+  DeliveryEvidence,
+  ExternalDeliveryReceipt,
+  Tool,
+  ToolDefinition,
+  ToolCall,
+  ToolExecutionOutput,
+  ToolResult,
+  ToolExecutionContext,
+  ToolExecutor,
+} from '../types/tool';
+import { buildCanonicalToolResult, normalizeToolExecutionOutputFacts } from '../tools/tool-result';
 
 const TOOL_NAME_ALIASES: Record<string, string> = {
   Bash: 'execute_shell',
@@ -23,7 +35,7 @@ export class AgentToolExecutor implements ToolExecutor {
     private contextDefaults: Partial<ToolExecutionContext> = {},
   ) {}
 
-  getToolDefinitions(): ToolDefinition[] {
+  getToolDefinitions(_contextOverrides?: Partial<ToolExecutionContext>): ToolDefinition[] {
     return this.tools.map(t => t.definition);
   }
 
@@ -32,20 +44,21 @@ export class AgentToolExecutor implements ToolExecutor {
     conversationHistory?: any[],
     contextOverrides?: Partial<ToolExecutionContext>,
   ): Promise<ToolResult> {
+    const startedAt = Date.now();
     const requestedName = toolCall.function.name;
     const name = normalizeToolName(requestedName);
     const tool = this.tools.find(t => t.definition.name === name);
 
     if (!tool) {
-      return {
+      return buildCanonicalToolResult({
         tool_call_id: toolCall.id,
-        role: 'tool',
         name: requestedName,
         content: `错误：未找到工具 "${requestedName}"`,
-        ok: false,
+        status: 'failure',
         errorCode: 'TOOL_NOT_FOUND',
         retryable: false,
-      };
+        durationMs: Date.now() - startedAt,
+      });
     }
 
     try {
@@ -60,37 +73,121 @@ export class AgentToolExecutor implements ToolExecutor {
       try {
         args = JSON.parse(toolCall.function.arguments);
       } catch (error: any) {
-        return {
+        return buildCanonicalToolResult({
           tool_call_id: toolCall.id,
-          role: 'tool',
           name: requestedName,
           content: `工具参数解析错误: ${error.message}`,
-          ok: false,
+          status: 'failure',
           errorCode: 'INVALID_TOOL_ARGUMENTS',
           retryable: false,
-        };
+          durationMs: Date.now() - startedAt,
+        });
       }
 
       const output = await tool.execute(args, context);
+      const structuredOutput = isToolExecutionOutput(output) ? output : undefined;
+      const content: string | import('../types').ContentBlock[] = structuredOutput
+        ? structuredOutput.toolContent
+        : output as string | import('../types').ContentBlock[];
+      const structuredFacts = normalizeToolExecutionOutputFacts(structuredOutput);
+      const status = structuredFacts.status || 'success';
 
-      return {
+      return buildCanonicalToolResult({
         tool_call_id: toolCall.id,
-        role: 'tool',
         name: requestedName,
-        content: output,
-        ok: true,
+        content,
+        status,
+        errorCode: structuredFacts.errorCode,
+        blockedReason: structuredFacts.blockedReason,
+        retryable: structuredFacts.retryable ?? false,
+        retryCount: structuredFacts.retryCount,
+        retryBudget: structuredFacts.retryBudget,
+        retryBudgetExhausted: structuredFacts.retryBudgetExhausted,
+        durationMs: Date.now() - startedAt,
+        artifactManifest: status === 'success'
+          ? buildToolOwnedArtifactManifest(tool, args, output, context)
+          : [],
+        ...(normalizeDeliveryEvidence(structuredOutput?.delivery_evidence).length
+          ? { deliveryEvidence: normalizeDeliveryEvidence(structuredOutput?.delivery_evidence) }
+          : {}),
+        ...(normalizeExternalDeliveryReceipts(structuredOutput?.external_delivery_receipts).length
+          ? { externalDeliveryReceipts: normalizeExternalDeliveryReceipts(structuredOutput?.external_delivery_receipts) }
+          : {}),
         controlSignal: tool.definition.controlMode,
-      };
+        ...(structuredOutput?.newMessages && { newMessages: structuredOutput.newMessages }),
+      });
     } catch (error: any) {
-      return {
+      return buildCanonicalToolResult({
         tool_call_id: toolCall.id,
-        role: 'tool',
         name: requestedName,
         content: `工具执行错误: ${error.message}`,
-        ok: false,
+        status: 'failure',
         errorCode: 'TOOL_EXECUTION_ERROR',
         retryable: false,
-      };
+        durationMs: Date.now() - startedAt,
+      });
     }
   }
+}
+
+function isToolExecutionOutput(value: unknown): value is ToolExecutionOutput {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'toolContent' in value);
+}
+
+function normalizeDeliveryEvidence(value: unknown): DeliveryEvidence[] {
+  return Array.isArray(value) ? value.filter(isRecord) as unknown as DeliveryEvidence[] : [];
+}
+
+function normalizeExternalDeliveryReceipts(value: unknown): ExternalDeliveryReceipt[] {
+  return Array.isArray(value) ? value.filter(isRecord) as unknown as ExternalDeliveryReceipt[] : [];
+}
+
+function buildToolOwnedArtifactManifest(
+  tool: Tool,
+  args: unknown,
+  output: string | import('../types').ContentBlock[] | ToolExecutionOutput,
+  context: ToolExecutionContext,
+): ArtifactManifestItem[] {
+  if (typeof tool.getArtifactManifest !== 'function') {
+    return [];
+  }
+  try {
+    return normalizeArtifactManifest(tool.getArtifactManifest(args, output, context));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeArtifactManifest(value: unknown): ArtifactManifestItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const filePath = typeof item.path === 'string' ? item.path.trim() : '';
+    const type = typeof item.type === 'string' && item.type.trim() ? item.type.trim() : 'file';
+    const action = isArtifactAction(item.action) ? item.action : 'captured';
+    if (!filePath) return [];
+    return [{
+      path: filePath,
+      type,
+      action,
+      metadata: {
+        ...(isRecord(item.metadata) ? item.metadata : {}),
+        source: 'tool_owned',
+      },
+    }];
+  });
+}
+
+function isArtifactAction(value: unknown): value is ArtifactManifestItem['action'] {
+  return value === 'created'
+    || value === 'updated'
+    || value === 'sent'
+    || value === 'generated'
+    || value === 'captured';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }

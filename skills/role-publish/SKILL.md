@@ -19,7 +19,7 @@ max-turns: 20
 https://github.com/fightheyyy/XiaoBa-RoleHub
 ```
 
-RoleHub 只维护轻量索引，不托管 role 源码。Role 源码必须放在独立公开 GitHub 仓库。仓库名不要求固定格式，例如：
+RoleHub 只维护轻量索引，不托管 role 源码，也不托管桌宠 spritesheet。Role 源码必须放在独立公开 GitHub 仓库。仓库名不要求固定格式，例如：
 
 ```text
 https://github.com/<user>/xiaoba-role-<name>
@@ -31,10 +31,12 @@ RoleHub 发布规则：
 - 只修改 `registry.json`。
 - 只新增一个 role registry 条目，除非用户明确要求修正已存在条目。
 - 不复制 `roles/<name>` 到 RoleHub 仓库。
+- 不复制 `pets/<pet-id>` 或 spritesheet 到 RoleHub 仓库；自定义桌宠资源应该放在独立 role 仓库中。
 - 需要 fork `fightheyyy/XiaoBa-RoleHub`，但 fork 中也只改 `registry.json`。
 - 不重排、删除、批量格式化已有 registry 条目。
 - 提交前必须检查 `git diff -- registry.json`，确认 diff 只包含目标 role 的索引增量。
 - 通过 fork 分支向官方仓提交 PR；`fightheyyy` 维护者如明确要求，也可以按仓库 ruleset bypass 直接推 `main`。
+- 如果 role 没有上传桌宠资源，registry 不写 `pet` 字段，XiaoBa runtime 使用默认 `xiaoba` runtimepet。
 
 ## 执行流程
 
@@ -43,12 +45,14 @@ RoleHub 发布规则：
 用户提供 role 名称（即 `$ARGUMENTS`），你需要：
 
 1. 检查 `roles/$ARGUMENTS/role.json` 是否存在；如果不存在，按 alias/normalized name 查找 `roles/<role-name>/role.json`
-2. 读取 `role.json`，提取 `name`、`displayName`、`description`、`promptFile`、`aliases` 等信息
+2. 读取 `role.json`，提取 `name`、`displayName`、`description`、`promptFile`、`aliases`、`metadata.petId` 等信息
 3. 检查 `promptFile` 指向的 prompt 是否存在，优先检查 `roles/<role-name>/prompts/<promptFile>`，再检查 `roles/<role-name>/<promptFile>`
 4. 如果缺少 category，询问用户选择：核心、工具、效率、科研、运维、其他
-5. 确认 role 是否已经有独立公开 GitHub 仓库
-6. 获取或确认独立 role 仓库 URL
-7. 向用户确认发布信息
+5. 如果 `metadata.petId` 存在，检查本地是否有匹配桌宠资源，例如 `dashboard/pets/<petId>/pet.json`、`$XIAOBA_PETS_DIR/<petId>/pet.json` 或用户提供的 pet 目录
+6. 确认用户是否要把自定义 pet 一起放进独立 role 仓库；如果不上传，registry 省略 `pet` 字段并说明会回退到默认 `xiaoba` runtimepet
+7. 确认 role 是否已经有独立公开 GitHub 仓库
+8. 获取或确认独立 role 仓库 URL
+9. 向用户确认发布信息
 
 发布信息至少包含：
 
@@ -59,7 +63,19 @@ RoleHub 发布规则：
   "description": "<desc>",
   "category": "<cat>",
   "recommended": false,
-  "repo": "<confirmed-role-repo-url>"
+  "repo": "<confirmed-role-repo-url>",
+  "rolePath": "."
+}
+```
+
+如果用户确认上传桌宠资源，还应包含：
+
+```json
+{
+  "pet": {
+    "id": "<petId>",
+    "repoPath": "pets/<petId>"
+  }
 }
 ```
 
@@ -80,6 +96,17 @@ xiaoba-role-<name>
 - `role.json`
 - `prompts/<promptFile>` 或 `role.json` 中实际引用的 prompt 文件
 - role 专属 `skills/`、`README.md`、`SPEC.md`、`PLAN.md` 等可选上下文
+
+如果用户要发布自定义桌宠资源，独立 role 仓库还应该包含：
+
+- `pets/<petId>/pet.json`
+- `pets/<petId>/<spritesheet>`，通常是 `spritesheet.webp`
+
+桌宠发布约束：
+
+- `role.json.metadata.petId`、registry 的 `pet.id`、`pets/<petId>/pet.json` 的 `id` 应一致。
+- `pet.json.spritesheetPath` 必须指向同一 pet 目录内的文件。
+- 如果用户不上传 pet，不要为了默认资源复制 `xiaoba` pet；省略 registry 的 `pet` 字段即可。
 
 ### Step 3：Fork 当前官方 RoleHub
 
@@ -119,11 +146,11 @@ xiaoba-role-<name>
 
 ### Step 5：增量更新 registry.json
 
-只允许编辑 `registry.json`。不要复制 role 文件到 RoleHub。
+只允许编辑 `registry.json`。不要复制 role 文件或 pet 文件到 RoleHub。
 
 用脚本安全追加 JSON 条目：
 ```json
-{"command":"cd /tmp/xiaoba-role-publish/XiaoBa-RoleHub && python3 -c \"\nimport json\nfrom pathlib import Path\npath=Path('registry.json')\ndata=json.loads(path.read_text(encoding='utf-8'))\nname='<name>'\nrepo='<confirmed-role-repo-url>'\nif any(item.get('name') == name for item in data):\n    raise SystemExit(f'role already exists in registry: {name}')\ndata.append({'name':name,'displayName':'<displayName>','description':'<desc>','category':'<cat>','recommended':False,'repo':repo})\npath.write_text(json.dumps(data,indent=2,ensure_ascii=False)+'\\n',encoding='utf-8')\nprint('registry.json updated')\n\"","description":"增量更新 registry.json"}
+{"command":"cd /tmp/xiaoba-role-publish/XiaoBa-RoleHub && python3 -c \"\nimport json\nfrom pathlib import Path\npath=Path('registry.json')\ndata=json.loads(path.read_text(encoding='utf-8'))\nname='<name>'\nrepo='<confirmed-role-repo-url>'\nif any(item.get('name') == name for item in data):\n    raise SystemExit(f'role already exists in registry: {name}')\nentry={'name':name,'displayName':'<displayName>','description':'<desc>','category':'<cat>','recommended':False,'repo':repo,'rolePath':'.'}\n# 如果用户确认上传自定义 pet，再启用下一行并替换 petId：\n# entry['pet']={'id':'<petId>','repoPath':'pets/<petId>'}\ndata.append(entry)\npath.write_text(json.dumps(data,indent=2,ensure_ascii=False)+'\\n',encoding='utf-8')\nprint('registry.json updated')\n\"","description":"增量更新 registry.json"}
 ```
 
 如果 `git diff -- registry.json` 显示已有条目被重排、删除或批量格式化，必须恢复后重新做最小增量编辑。
@@ -183,6 +210,8 @@ xiaoba-role-<name>
 - `repo` 指向独立公开 GitHub 仓库
 - 独立 role 仓库包含 `role.json`
 - 独立 role 仓库包含 `role.json` 引用的 prompt 文件
+- 如果 registry 包含 `pet`，独立 role 仓库包含 `pet.repoPath/pet.json` 和对应 spritesheet
+- 如果 registry 不包含 `pet`，明确接受默认 `xiaoba` runtimepet 回退
 - RoleHub fork 里没有 role 源码，只包含 `registry.json` 增量
 - 没有删除、重排、批量格式化已有 registry 条目
 
@@ -192,6 +221,7 @@ xiaoba-role-<name>
 - **Windows**：临时目录改用 `%TEMP%`
 - **如果推送失败**：先检查 `gh auth status`、fork 地址和 `origin` 是否指向自己的 fork
 - **Role 依赖**：提醒用户在独立 role 仓库的 README 或 SPEC.md 里说明依赖、适用场景和启用方式
+- **Pet 资源**：自定义 pet 是可选增强，不是发布阻断项；不上传时不要复制默认 `xiaoba` runtimepet
 - **Registry-only**：RoleHub 改动不应该包含 role 源码、README 大改或无关格式化
 
 ## 简化流程总结

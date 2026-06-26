@@ -1,8 +1,9 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { Logger } from '../utils/logger';
 import { isToolAllowed, isBashCommandAllowed } from '../utils/safety';
+import { toolBlocked, toolFailure, toolSuccess, toolTimeout } from './tool-result';
 
 const execAsync = promisify(exec);
 
@@ -33,17 +34,25 @@ export class ShellTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { command, description, timeout = 30000 } = args;
 
     const toolPermission = isToolAllowed(this.definition.name);
     if (!toolPermission.allowed) {
-      return `执行被阻止: ${toolPermission.reason}`;
+      return toolBlocked(
+        `执行被阻止: ${toolPermission.reason}`,
+        'TOOL_BLOCKED',
+        toolPermission.reason || 'Tool execution is blocked by policy.',
+      );
     }
 
     const commandPermission = isBashCommandAllowed(command);
     if (!commandPermission.allowed) {
-      return `执行被阻止: ${commandPermission.reason}`;
+      return toolBlocked(
+        `执行被阻止: ${commandPermission.reason}`,
+        'COMMAND_BLOCKED',
+        commandPermission.reason || 'Command is blocked by policy.',
+      );
     }
 
     // 显示命令信息
@@ -86,15 +95,21 @@ export class ShellTool implements Tool {
         Logger.info(`    ... (还有 ${outputLines - 10} 行)`);
       }
 
-      return `命令执行成功:\n$ ${command}\n\n执行时间: ${executionTime}ms\n输出行数: ${outputLines}\n\n${output}`;
+      return toolSuccess(`命令执行成功:\n$ ${command}\n\n执行时间: ${executionTime}ms\n输出行数: ${outputLines}\n\n${output}`);
     } catch (error: any) {
       const executionTime = Date.now() - startTime;
       const errorOutput = error.stderr || error.stdout || error.message;
+      const content = `命令执行失败:\n$ ${command}\n\n执行时间: ${executionTime}ms\n错误信息:\n${errorOutput}`;
 
       Logger.error(`✗ 命令执行失败 (耗时: ${executionTime}ms)`);
       Logger.error(`  错误: ${error.message}`);
 
-      return `命令执行失败:\n$ ${command}\n\n执行时间: ${executionTime}ms\n错误信息:\n${errorOutput}`;
+      const timedOut = Boolean(error.killed)
+        || error.signal === 'SIGTERM'
+        || /timeout|timed out|ETIMEDOUT|超时/i.test(String(error.message || errorOutput || ''));
+      return timedOut
+        ? toolTimeout(content)
+        : toolFailure(content, 'COMMAND_FAILED');
     }
   }
 }

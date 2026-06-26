@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const testRoot = path.resolve('tests');
+const testRoot = path.resolve('test');
 
 function collectTestFiles(dir) {
   if (!existsSync(dir)) return [];
@@ -26,7 +26,7 @@ const testFiles = collectTestFiles(testRoot);
 const runnerArgs = process.argv.slice(2);
 
 if (testFiles.length === 0) {
-  console.error('No test files found under tests/**/*.test.ts');
+  console.error('No test files found under test/**/*.test.ts');
   process.exit(1);
 }
 

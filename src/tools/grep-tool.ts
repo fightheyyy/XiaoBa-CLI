@@ -1,8 +1,9 @@
 import { execFileSync, spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { isReadPathAllowed } from '../utils/safety';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 const VCS_DIRECTORIES_TO_EXCLUDE = ['.git', '.svn', '.hg', '.bzr'] as const;
 const DEFAULT_LIMIT = 250;
@@ -92,25 +93,31 @@ export class GrepTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { pattern, path: searchPath, glob: globPattern, type: fileType, case_insensitive = false, context: contextLines, output_mode = 'files', limit = DEFAULT_LIMIT, offset = 0 } = args;
 
     try {
       const resolvedSearchPath = searchPath ? (path.isAbsolute(searchPath) ? searchPath : path.join(context.workingDirectory, searchPath)) : context.workingDirectory;
       const pathPermission = isReadPathAllowed(resolvedSearchPath, context.workingDirectory);
       if (!pathPermission.allowed) {
-        return JSON.stringify({ error: `执行被阻止: ${pathPermission.reason}` });
+        return toolBlocked(
+          JSON.stringify({ error: `执行被阻止: ${pathPermission.reason}` }),
+          'PATH_DENIED',
+          pathPermission.reason || 'Grep search path is outside the allowed workspace.',
+        );
       }
 
+      let result: string;
       if (isCommandAvailable('rg')) {
-        return await this.executeWithRipgrep(args, resolvedSearchPath, context);
+        result = await this.executeWithRipgrep(args, resolvedSearchPath, context);
       } else if (isCommandAvailable('grep')) {
-        return await this.executeWithSystemGrep(args, resolvedSearchPath, context);
+        result = await this.executeWithSystemGrep(args, resolvedSearchPath, context);
       } else {
-        return await this.executeWithNodeJS(args, resolvedSearchPath, context);
+        result = await this.executeWithNodeJS(args, resolvedSearchPath, context);
       }
+      return toolSuccess(result);
     } catch (error: any) {
-      return JSON.stringify({ error: `Grep 搜索失败: ${error.message}` });
+      return toolFailure(JSON.stringify({ error: `Grep 搜索失败: ${error.message}` }), 'GREP_SEARCH_FAILED');
     }
   }
 

@@ -9,6 +9,7 @@ export interface SkillMetadata {
   userInvocable?: boolean;         // 是否允许用户调用（默认 true）
   autoInvocable?: boolean;         // 是否允许自动调用（默认 true）
   maxTurns?: number;               // 最大工具调用轮次（覆盖默认值）
+  toolsets?: string[];             // 激活 skill 后请求暴露的 scoped toolsets
 }
 
 /**
@@ -47,4 +48,5 @@ export interface SkillActivationSignal {
   skillName: string;
   prompt: string;
   maxTurns?: number;
+  toolsets?: string[];
 }

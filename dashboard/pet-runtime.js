@@ -95,11 +95,11 @@
       return response.json();
     }
 
-    async wake(petId) {
+    async wake(petId, options = {}) {
       const response = await fetch(this.api + '/api/pet/wake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ petId }),
+        body: JSON.stringify({ petId, sessionKey: options.sessionKey }),
       });
       if (!response.ok) throw new Error('唤醒失败');
       return response.json();
@@ -109,7 +109,7 @@
       const response = await fetch(this.api + '/api/pet/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ petId, text, source: options.source || 'unknown' }),
+        body: JSON.stringify({ petId, text, source: options.source || 'unknown', sessionKey: options.sessionKey }),
       });
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
@@ -125,7 +125,8 @@
     connect(petId, onEvent, options = {}) {
       if (!petId || !window.EventSource) return null;
       const replay = options.replay ? '&replay=1' : '';
-      const source = new EventSource(this.api + '/api/pet/events?petId=' + encodeURIComponent(petId) + replay);
+      const session = options.sessionKey ? '&sessionKey=' + encodeURIComponent(options.sessionKey) : '';
+      const source = new EventSource(this.api + '/api/pet/events?petId=' + encodeURIComponent(petId) + session + replay);
       source.onmessage = event => onEvent(JSON.parse(event.data));
       source.onerror = () => {
         source.close();
@@ -164,23 +165,27 @@
 
   function createEventHandler(options) {
     let textBuffer = '';
+    let textMode = 'message';
     return event => {
       if (event.type === 'connected') return;
       if (event.type === 'user_message') {
         textBuffer = '';
+        textMode = 'message';
         options.onUserMessage?.(event);
         return;
       }
       if (event.type === 'state') {
         options.setState(event.state);
+        textMode = event.reason === 'text_stream' ? 'stream' : 'message';
         if (event.reason === 'processing' || event.state === 'jumping') textBuffer = '';
         options.onState?.(event);
         return;
       }
       if (event.type === 'text') {
-        textBuffer += event.text || '';
+        const chunk = event.text || '';
+        const text = textMode === 'stream' ? (textBuffer += chunk) : chunk;
         options.setState('review');
-        options.onText?.(event, textBuffer);
+        options.onText?.(event, text, { mode: textMode });
         return;
       }
       if (event.type === 'thinking') {
@@ -190,6 +195,7 @@
       }
       if (event.type === 'tool_start') {
         textBuffer = '';
+        textMode = 'message';
         options.setState('running');
         options.onToolStart?.(event);
         return;
@@ -220,6 +226,7 @@
       }
       if (event.type === 'done') {
         textBuffer = '';
+        textMode = 'message';
         options.setState('waving');
         options.onDone?.(event);
       }

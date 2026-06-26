@@ -4,6 +4,7 @@ import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { SkillInvocationContext } from '../types/skill';
 import { ToolCall, ToolDefinition, ToolExecutionContext, ToolExecutor, ToolResult } from '../types/tool';
+import type { ObservabilitySpanContext } from '../observability';
 import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
@@ -12,6 +13,7 @@ import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
 import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
+import { buildCanonicalToolResult } from '../tools/tool-result';
 
 // ─── 类型定义 ───────────────────────────────────────────
 
@@ -19,7 +21,9 @@ export type SubAgentStatus = 'running' | 'completed' | 'failed' | 'stopped' | 'w
 
 export interface SubAgentInfo {
   id: string;
-  skillName: string;
+  skillName?: string;
+  skillSelectionMode?: 'preselected' | 'subagent_decides';
+  roleName?: string;
   taskDescription: string;
   status: SubAgentStatus;
   createdAt: number;
@@ -35,33 +39,37 @@ export interface SubAgentInfo {
 }
 
 export interface SubAgentSpawnOptions {
-  skillName: string;
+  skillName?: string;
   taskDescription: string;
   userMessage: string;
   workingDirectory: string;
-  /** 父会话角色，用于给后台子智能体加载 role prompt、role skills 和 role tools */
+  /** 子会话角色，用于给后台子智能体加载 role prompt、role skills 和 role tools */
   roleName?: string;
   /** 向主 agent 投递消息（子智能体挂起时触发主 agent 推理） */
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
+  /** Parent trace context inherited from spawn_subagent tool execution. */
+  observabilityContext?: ObservabilitySpanContext;
 }
 
-const SUB_AGENT_HIDDEN_TOOLS = new Set([
+const SUB_AGENT_ALWAYS_HIDDEN_TOOLS = new Set([
   'spawn_subagent',
   'check_subagent',
   'stop_subagent',
   'resume_subagent',
-  'skill',
   'send_text',
   'send_file',
 ]);
 
 export class SubAgentToolExecutor implements ToolExecutor {
-  constructor(private readonly inner: ToolManager) {}
+  constructor(
+    private readonly inner: ToolManager,
+    private readonly options: { allowSkillTool?: boolean } = {},
+  ) {}
 
-  getToolDefinitions(): ToolDefinition[] {
+  getToolDefinitions(contextOverrides?: Partial<ToolExecutionContext>): ToolDefinition[] {
     return this.inner
-      .getToolDefinitions()
-      .filter(tool => !SUB_AGENT_HIDDEN_TOOLS.has(tool.name));
+      .getToolDefinitions(contextOverrides)
+      .filter(tool => !this.isHiddenTool(tool.name));
   }
 
   async executeTool(
@@ -69,19 +77,26 @@ export class SubAgentToolExecutor implements ToolExecutor {
     conversationHistory?: any[],
     contextOverrides?: Partial<ToolExecutionContext>,
   ): Promise<ToolResult> {
-    if (SUB_AGENT_HIDDEN_TOOLS.has(toolCall.function.name)) {
-      return {
+    if (this.isHiddenTool(toolCall.function.name)) {
+      return buildCanonicalToolResult({
         tool_call_id: toolCall.id,
-        role: 'tool',
         name: toolCall.function.name,
         content: `错误：${toolCall.function.name} 是主会话控制面或外发工具，子智能体内部不可调用。`,
-        ok: false,
+        status: 'blocked',
         errorCode: 'TOOL_FORBIDDEN_IN_SUBAGENT',
+        blockedReason: `${toolCall.function.name} 是主会话控制面或外发工具，子智能体内部不可调用。`,
         retryable: false,
-      };
+      });
     }
 
     return this.inner.executeTool(toolCall, conversationHistory, contextOverrides);
+  }
+
+  private isHiddenTool(toolName: string): boolean {
+    if (SUB_AGENT_ALWAYS_HIDDEN_TOOLS.has(toolName)) {
+      return true;
+    }
+    return toolName === 'skill' && !this.options.allowSkillTool;
   }
 }
 
@@ -106,8 +121,12 @@ export function createSubAgentToolExecutor(
   workingDirectory: string,
   subAgentId: string,
   roleName?: string,
+  options: { allowSkillTool?: boolean } = {},
 ): SubAgentToolExecutor {
-  return new SubAgentToolExecutor(createSubAgentToolManager(workingDirectory, subAgentId, roleName));
+  return new SubAgentToolExecutor(
+    createSubAgentToolManager(workingDirectory, subAgentId, roleName),
+    options,
+  );
 }
 
 // ─── SubAgentSession ────────────────────────────────────
@@ -121,7 +140,7 @@ export function createSubAgentToolExecutor(
  */
 export class SubAgentSession {
   readonly id: string;
-  readonly skillName: string;
+  readonly skillName?: string;
   readonly taskDescription: string;
   status: SubAgentStatus = 'running';
   progressLog: string[] = [];
@@ -133,6 +152,7 @@ export class SubAgentSession {
   private stopped = false;
   /** 子智能体执行期间创建的文件路径（用于自动发送产出） */
   private outputFiles: string[] = [];
+  private selectedSkillName?: string;
   /** 挂起等待主 agent 回答的问题 */
   private pendingQuestion: string | null = null;
   private pendingResolve: ((answer: string) => void) | null = null;
@@ -211,20 +231,28 @@ export class SubAgentSession {
     const systemPrompt = await PromptManager.buildSystemPrompt({ roleName: this.options.roleName });
     this.messages.push({ role: 'system', content: systemPrompt });
 
-    // 2. 注入 skill
-    const skill = this.skillManager.getSkill(this.skillName);
-    if (!skill) {
+    // 2. 注入预选 skill；如果没有预选 skill，则让 role 子智能体自行选择。
+    const skill = this.skillName ? this.skillManager.getSkill(this.skillName) : undefined;
+    if (this.skillName && !skill) {
       throw new Error(`Skill "${this.skillName}" 未找到`);
     }
 
-    const invocationContext: SkillInvocationContext = {
-      skillName: this.skillName,
-      arguments: [],
-      rawArguments: '',
-      userMessage: this.options.userMessage,
-    };
-    const activation = buildSkillActivationSignal(skill, invocationContext);
-    upsertSkillSystemMessage(this.messages, activation);
+    if (skill) {
+      const invocationContext: SkillInvocationContext = {
+        skillName: this.skillName!,
+        arguments: [],
+        rawArguments: '',
+        userMessage: this.options.userMessage,
+      };
+      const activation = buildSkillActivationSignal(skill, invocationContext);
+      upsertSkillSystemMessage(this.messages, activation);
+      this.selectedSkillName = activation.skillName;
+    } else {
+      this.messages.push({
+        role: 'system',
+        content: this.buildSkillSelectionContext(),
+      });
+    }
 
     // 3. 注入用户消息
     this.messages.push({ role: 'user', content: this.options.userMessage });
@@ -234,20 +262,24 @@ export class SubAgentSession {
       this.options.workingDirectory,
       this.id,
       this.options.roleName,
+      { allowSkillTool: !this.skillName },
     );
 
     // 创建独立的 ConversationRunner（不注入 channel，子智能体不直接和用户通信）
     const runner = new ConversationRunner(this.aiService, toolExecutor, {
-      maxTurns: skill.metadata.maxTurns ?? 100,
+      maxTurns: skill?.metadata.maxTurns ?? 100,
       initialSkillName: this.skillName,
+      initialSkillToolsets: skill?.metadata.toolsets,
       enableCompression: true,
       shouldContinue: () => !this.stopped,
       toolExecutionContext: {
         sessionId: `subagent:${this.id}`,
         surface: 'agent',
         permissionProfile: 'strict',
+        observabilityContext: this.options.observabilityContext,
         ...(this.options.roleName ? { roleName: this.options.roleName } : {}),
       },
+      observabilityContext: this.options.observabilityContext,
     });
 
     // 7. 用 callbacks 捕获进度
@@ -259,6 +291,7 @@ export class SubAgentSession {
 
     this.reportProgress(`开始执行：${this.taskDescription}`);
     const runResult = await runner.run(this.messages, callbacks);
+    this.captureSelectedSkill(runResult.newMessages);
 
     if (this.stopped) {
       this.status = 'stopped';
@@ -348,7 +381,9 @@ export class SubAgentSession {
   getInfo(): SubAgentInfo {
     return {
       id: this.id,
-      skillName: this.skillName,
+      ...(this.selectedSkillName ? { skillName: this.selectedSkillName } : {}),
+      skillSelectionMode: this.skillName ? 'preselected' : 'subagent_decides',
+      ...(this.options.roleName ? { roleName: this.options.roleName } : {}),
       taskDescription: this.taskDescription,
       status: this.status,
       createdAt: this.createdAt,
@@ -366,6 +401,34 @@ export class SubAgentSession {
     this.progressLog.push(message);
     // 仅记录到 progressLog，不推飞书
     // 主 agent 通过 check_subagent 查看进度后自行决定是否告知用户
+  }
+
+  private buildSkillSelectionContext(): string {
+    const skills = this.skillManager.getUserInvocableSkills?.() ?? [];
+    const skillLines = skills.length > 0
+      ? skills.map(skill => `- ${skill.metadata.name}: ${skill.metadata.description}`).join('\n')
+      : '- （当前 role 没有可通过 skill 工具调用的 skills）';
+
+    return [
+      '[subagent-skill-selection]',
+      '主会话只指定了子智能体 role，没有指定 skill。原因是主会话可能看不到目标 role 的 role-local skills。',
+      '你需要先判断当前任务是否应该调用某个 skill。若合适，请用 skill 工具从当前 role 可调用 skills 中选择；若没有合适 skill，可以直接按 role prompt 和可见工具执行。',
+      '',
+      '当前 role 可调用 skills:',
+      skillLines,
+    ].join('\n');
+  }
+
+  private captureSelectedSkill(messages: Message[]): void {
+    for (const msg of messages) {
+      if (msg.role !== 'system' || typeof msg.content !== 'string') {
+        continue;
+      }
+      const match = msg.content.match(/^\[skill:([^\]]+)\]/);
+      if (match) {
+        this.selectedSkillName = match[1];
+      }
+    }
   }
 
   private detectAndReportProgress(toolName: string, result: string): void {

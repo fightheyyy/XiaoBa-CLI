@@ -3,10 +3,12 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { getObservability } from '../../../observability';
 
 type CodexJobStatus = 'running' | 'completed' | 'failed' | 'timeout' | 'cancelled' | 'spawn_error' | 'orphaned';
 type CodexJobKind = 'start' | 'resume';
+type CodexJobTraceparentSource = 'current_context' | 'parent_job';
 
 interface CodexJobFile {
   version: 1;
@@ -29,6 +31,8 @@ interface CodexJobFile {
   codexSessionId?: string;
   resumeFromSessionId?: string;
   parentJobId?: string;
+  traceparent?: string;
+  traceparentSource?: CodexJobTraceparentSource;
   eventCount: number;
   lastEventType?: string;
   lastMessage?: string;
@@ -57,6 +61,8 @@ interface StartCodexJobOptions {
   sandbox?: string;
   model?: string;
   skipGitRepoCheck: boolean;
+  traceparent?: string;
+  traceparentSource?: CodexJobTraceparentSource;
 }
 
 interface ResumeCodexJobOptions extends StartCodexJobOptions {
@@ -199,6 +205,7 @@ export class CodexJobStartTool implements Tool {
     }
 
     let result: CodexJobFile;
+    const traceparent = getObservability().traceparent(context.observabilityContext);
     try {
       result = CodexJobManager.start({
         message,
@@ -209,6 +216,8 @@ export class CodexJobStartTool implements Tool {
         sandbox: normalizeSandbox(args.sandbox, args.allow_edits !== false),
         model: readOptionalString(args.model),
         skipGitRepoCheck: args.skip_git_repo_check === true,
+        traceparent,
+        traceparentSource: traceparent ? 'current_context' : undefined,
       });
     } catch (error: any) {
       return `codex_job_start 启动失败: ${String(error?.message || error)}`;
@@ -218,6 +227,17 @@ export class CodexJobStartTool implements Tool {
       `codex: running=${result.status === 'running' ? 'true' : 'false'} status=${result.status}`,
       `job_id=${result.jobId}`,
     ].join('\n');
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    return codexJobArtifactManifest({
+      args,
+      result,
+      context,
+      toolName: this.definition.name,
+      jobAction: 'created',
+      includeLastMessage: false,
+    });
   }
 }
 
@@ -282,6 +302,17 @@ export class CodexJobStatusTool implements Tool {
         verbose ? MAX_STATUS_CHARS : MAX_COMPACT_STATUS_CHARS,
       ),
       verbose,
+    });
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    return codexJobArtifactManifest({
+      args,
+      result,
+      context,
+      toolName: this.definition.name,
+      jobAction: 'captured',
+      includeLastMessage: true,
     });
   }
 }
@@ -356,6 +387,10 @@ export class CodexJobResumeTool implements Tool {
     }
 
     let result: CodexJobFile;
+    const resumeTraceparent = selectResumeTraceparent({
+      currentTraceparent: getObservability().traceparent(context.observabilityContext),
+      parentJob,
+    });
     try {
       result = CodexJobManager.resume({
         message,
@@ -370,6 +405,8 @@ export class CodexJobResumeTool implements Tool {
           || normalizeSandbox(undefined, args.allow_edits !== false),
         model: readOptionalString(args.model),
         skipGitRepoCheck: args.skip_git_repo_check === true,
+        traceparent: resumeTraceparent.traceparent,
+        traceparentSource: resumeTraceparent.source,
       });
     } catch (error: any) {
       return `codex_job_resume 启动失败: ${String(error?.message || error)}`;
@@ -380,6 +417,17 @@ export class CodexJobResumeTool implements Tool {
       `job_id=${result.jobId}`,
       `session=${codexSessionId}`,
     ].join('\n');
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    return codexJobArtifactManifest({
+      args,
+      result,
+      context,
+      toolName: this.definition.name,
+      jobAction: 'created',
+      includeLastMessage: false,
+    });
   }
 }
 
@@ -407,6 +455,17 @@ export class CodexJobCancelTool implements Tool {
 
     return CodexJobManager.cancel(jobId);
   }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    return codexJobArtifactManifest({
+      args,
+      result,
+      context,
+      toolName: this.definition.name,
+      jobAction: 'updated',
+      includeLastMessage: true,
+    });
+  }
 }
 
 class CodexJobManager {
@@ -428,6 +487,8 @@ class CodexJobManager {
       sandbox: options.sandbox,
       timeoutMs: options.timeoutMs,
       paths,
+      traceparent: options.traceparent,
+      traceparentSource: options.traceparentSource,
     });
 
     this.launch(job, options.message);
@@ -451,6 +512,8 @@ class CodexJobManager {
       timeoutMs: options.timeoutMs,
       paths,
       parentJobId: options.parentJobId,
+      traceparent: options.traceparent,
+      traceparentSource: options.traceparentSource,
       resumeFromSessionId: options.codexSessionId,
       codexSessionId: options.codexSessionId,
     });
@@ -501,6 +564,12 @@ class CodexJobManager {
       cwd: job.cwd,
       codex_session_id: job.codexSessionId || null,
       parent_job_id: job.parentJobId || null,
+      trace_context: {
+        propagated: Boolean(job.traceparent),
+        source: job.traceparent ? job.traceparentSource || 'unknown' : 'none',
+        parent_job_linked: Boolean(job.parentJobId && job.traceparent),
+        raw_traceparent_exported: false,
+      },
       created_at: job.createdAt,
       updated_at: job.updatedAt,
       completed_at: job.completedAt || null,
@@ -574,7 +643,10 @@ class CodexJobManager {
         cwd: job.cwd,
         shell: process.platform === 'win32',
         windowsHide: true,
-        env: process.env,
+        env: {
+          ...process.env,
+          ...(job.traceparent ? { TRACEPARENT: job.traceparent } : {}),
+        },
       });
     } catch (error: any) {
       job.status = 'spawn_error';
@@ -666,6 +738,141 @@ class CodexJobManager {
   }
 }
 
+function codexJobArtifactManifest(input: {
+  args: any;
+  result: string;
+  context: ToolExecutionContext;
+  toolName: string;
+  jobAction: ArtifactManifestItem['action'];
+  includeLastMessage: boolean;
+}): ArtifactManifestItem[] {
+  const resultText = String(input.result || '');
+  if (isCodexJobErrorResult(resultText)) {
+    return [];
+  }
+
+  const jobId = codexJobIdFrom(input.args, resultText);
+  if (!jobId) {
+    return [];
+  }
+
+  const paths = codexJobRelativePaths(jobId);
+  const artifacts = [
+    codexJobArtifact(paths.job, input.jobAction, input.toolName, 'job_state'),
+    codexJobArtifact(paths.events, 'captured', input.toolName, 'codex_events'),
+    codexJobArtifact(paths.stderr, 'captured', input.toolName, 'stderr_log'),
+  ];
+
+  if (input.includeLastMessage && codexJobLastMessageExists(jobId, input.context.workingDirectory)) {
+    artifacts.push(codexJobArtifact(paths.lastMessage, 'captured', input.toolName, 'last_message'));
+  }
+
+  return uniqueArtifacts(artifacts);
+}
+
+function codexJobIdFrom(args: any, result: string): string {
+  const raw = readOptionalString(args?.job_id)
+    || keyValue(result, 'job_id')
+    || keyValue(result, 'job')
+    || jsonStringValue(result, 'job_id')
+    || jsonStringValue(result, 'job');
+  return raw ? safeSegment(raw) : '';
+}
+
+function isCodexJobErrorResult(result: string): boolean {
+  const text = String(result || '').trim();
+  return /^错误[:：]/.test(text) || /启动失败/.test(text);
+}
+
+function codexJobRelativePaths(jobId: string): Pick<CodexJobFile['paths'], 'job' | 'events' | 'stderr' | 'lastMessage'> {
+  const base = path.posix.join('data', 'codex-jobs', safeSegment(jobId));
+  return {
+    job: path.posix.join(base, 'job.json'),
+    events: path.posix.join(base, 'events.jsonl'),
+    stderr: path.posix.join(base, 'stderr.log'),
+    lastMessage: path.posix.join(base, 'last-message.txt'),
+  };
+}
+
+function codexJobLastMessageExists(jobId: string, workingDirectory: string): boolean {
+  const relativePath = codexJobRelativePaths(jobId).lastMessage;
+  const candidatePaths = [
+    path.resolve(workingDirectory, relativePath),
+    path.resolve(process.cwd(), relativePath),
+    buildJobPaths(jobId).lastMessage,
+  ];
+  return candidatePaths.some(filePath => fs.existsSync(filePath));
+}
+
+function codexJobArtifact(
+  filePath: string,
+  action: ArtifactManifestItem['action'],
+  toolName: string,
+  artifactRole: string,
+): ArtifactManifestItem {
+  return {
+    path: filePath,
+    type: artifactType(filePath),
+    action,
+    metadata: {
+      source: 'tool_owned',
+      tool: toolName,
+      artifact_role: artifactRole,
+    },
+  };
+}
+
+function keyValue(text: string, key: string): string {
+  const pattern = new RegExp(`^${key}=([^\\r\\n]+)$`, 'm');
+  return pattern.exec(String(text || ''))?.[1]?.trim() || '';
+}
+
+function jsonStringValue(text: string, key: string): string {
+  try {
+    const parsed = JSON.parse(text);
+    const value = parsed?.[key];
+    return typeof value === 'string' ? value.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function artifactType(filePath: string): string {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  return ext || 'file';
+}
+
+function uniqueArtifacts(items: ArtifactManifestItem[]): ArtifactManifestItem[] {
+  const seen = new Set<string>();
+  const unique: ArtifactManifestItem[] = [];
+  for (const item of items) {
+    const key = `${item.path.replace(/\\/g, '/')}\0${item.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
+}
+
+function selectResumeTraceparent(input: {
+  currentTraceparent?: string;
+  parentJob?: CodexJobFile;
+}): { traceparent?: string; source?: CodexJobTraceparentSource } {
+  if (input.parentJob?.traceparent) {
+    return {
+      traceparent: input.parentJob.traceparent,
+      source: 'parent_job',
+    };
+  }
+  if (input.currentTraceparent) {
+    return {
+      traceparent: input.currentTraceparent,
+      source: 'current_context',
+    };
+  }
+  return {};
+}
+
 function buildStartArgs(options: StartCodexJobOptions, lastMessagePath: string): string[] {
   const args = [
     'exec',
@@ -720,6 +927,8 @@ function createJobFile(input: {
   timeoutMs: number;
   paths: CodexJobFile['paths'];
   parentJobId?: string;
+  traceparent?: string;
+  traceparentSource?: CodexJobTraceparentSource;
   resumeFromSessionId?: string;
   codexSessionId?: string;
 }): CodexJobFile {
@@ -739,6 +948,8 @@ function createJobFile(input: {
     updatedAt: now,
     startedAt: now,
     parentJobId: input.parentJobId,
+    traceparent: input.traceparent,
+    traceparentSource: input.traceparentSource,
     resumeFromSessionId: input.resumeFromSessionId,
     codexSessionId: input.codexSessionId,
     eventCount: 0,
@@ -1063,6 +1274,12 @@ function formatCompactStatus(
 
   if (job.codexSessionId) {
     lines.push(`session=${job.codexSessionId}`);
+  }
+  if (job.traceparent) {
+    lines.push('trace_context=propagated');
+    if (job.traceparentSource) {
+      lines.push(`trace_context_source=${job.traceparentSource}`);
+    }
   }
 
   const message = singleLine(lastMessage || job.lastMessage || '');

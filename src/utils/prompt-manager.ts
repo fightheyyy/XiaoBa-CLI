@@ -57,6 +57,38 @@ export class PromptManager {
     }
   }
 
+  private static expandPromptIncludes(content: string, sourceDir?: string, includeStack: Set<string> = new Set()): string {
+    return content.replace(/^\s*\{\{\s*include:([^}]+)\s*\}\}\s*$/gm, (_match, rawName: string) => {
+      const includeName = rawName.trim();
+      if (!includeName || path.isAbsolute(includeName) || includeName.split(/[\\/]+/).includes('..')) {
+        return '';
+      }
+
+      const candidates = [
+        sourceDir ? path.join(sourceDir, includeName) : undefined,
+        this.getBasePromptPath(includeName),
+      ].filter((item): item is string => Boolean(item));
+
+      const includePath = candidates.find(candidate => fs.existsSync(candidate));
+      if (!includePath) {
+        return '';
+      }
+
+      const resolvedPath = path.resolve(includePath);
+      if (includeStack.has(resolvedPath)) {
+        return '';
+      }
+
+      includeStack.add(resolvedPath);
+      try {
+        const included = this.readPromptFile(resolvedPath) || '';
+        return this.expandPromptIncludes(included, path.dirname(resolvedPath), includeStack).trim();
+      } finally {
+        includeStack.delete(resolvedPath);
+      }
+    });
+  }
+
   private static resolvePromptFile(fileName: string, roleName?: string): string | undefined {
     const rolePromptPath = roleName
       ? PathResolver.getRoleSubPathForRole(roleName, path.join('prompts', fileName))
@@ -98,18 +130,40 @@ export class PromptManager {
       const promptFile = roleConfig?.promptFile || 'system-prompt.md';
       const resolvedPath = this.resolvePromptFile(promptFile, resolvedRoleName);
       if (resolvedPath) {
-        return fs.readFileSync(resolvedPath, 'utf-8');
+        return this.expandPromptIncludes(fs.readFileSync(resolvedPath, 'utf-8'), path.dirname(resolvedPath));
       }
       if (promptFile !== 'system-prompt.md') {
         const fallbackPath = this.resolvePromptFile('system-prompt.md', resolvedRoleName);
         if (fallbackPath) {
-          return fs.readFileSync(fallbackPath, 'utf-8');
+          return this.expandPromptIncludes(fs.readFileSync(fallbackPath, 'utf-8'), path.dirname(fallbackPath));
         }
       }
       return this.getDefaultSystemPrompt();
     } catch (error) {
       return this.getDefaultSystemPrompt();
     }
+  }
+
+  /**
+   * 获取 channel surface 交付规则 prompt。
+   */
+  static getSurfacePrompt(): string {
+    try {
+      const surfacePromptPath = this.getBasePromptPath('surface.md');
+      if (surfacePromptPath) {
+        const content = this.expandPromptIncludes(
+          fs.readFileSync(surfacePromptPath, 'utf-8'),
+          path.dirname(surfacePromptPath),
+        ).trim();
+        if (content) {
+          return content;
+        }
+      }
+    } catch {
+      // Fall through to the embedded fallback so channel delivery stays explicit.
+    }
+
+    return this.getDefaultSurfacePrompt();
   }
 
   /**
@@ -194,5 +248,9 @@ export class PromptManager {
 2. 不编造自己拥有的工具、技能、历史记忆或已完成的工作。
 3. 先理解问题，再决定是否需要行动或回复。
 4. 当前这一轮没有新信息时，不要为了显得热情而额外寒暄。`;
+  }
+
+  private static getDefaultSurfacePrompt(): string {
+    return '【消息交付规则（强制）】当前是 channel-delivered 消息会话。只有 send_text 和 send_file 会产生用户可见输出；最终直接文本回复默认不会发送给用户。';
   }
 }

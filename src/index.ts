@@ -24,7 +24,7 @@ function addRoleOption(command: Command): Command {
   return command.option('-r, --role <name>', '使用指定角色（roles/<name>）');
 }
 
-function main() {
+async function main() {
   const program = new Command();
 
   // 显示品牌标识
@@ -34,7 +34,9 @@ function main() {
     .name('xiaoba')
     .description('XiaoBa - 您的智能AI命令行助手')
     .version(APP_VERSION)
-    .option('-s, --skill <name>', '启动时绑定指定 skill');
+    .option('-s, --skill <name>', '启动时绑定指定 skill')
+    .option('--resume', '默认聊天入口恢复上次 CLI 对话上下文')
+    .option('--verbose', '默认聊天入口显示 CLI 运行时日志');
 
   program.hook('preAction', (_thisCommand, actionCommand) => {
     try {
@@ -52,7 +54,9 @@ function main() {
     .description('开始与XiaoBa对话')
     .option('-i, --interactive', '进入交互式对话模式')
     .option('-m, --message <message>', '发送单条消息')
-    .option('-s, --skill <name>', '启动时绑定指定 skill'))
+    .option('-s, --skill <name>', '启动时绑定指定 skill')
+    .option('--resume', '恢复上次 CLI 对话上下文')
+    .option('--verbose', '显示 CLI 运行时日志'))
     .action(chatCommand);
 
   // 配置命令
@@ -99,17 +103,40 @@ function main() {
       await dashboardCommand(options);
     });
 
+  addRoleOption(program
+    .command('replay')
+    .description('从历史 trace 复跑同款用户输入')
+    .requiredOption('--trace <file>', '历史 logs/sessions/**/traces.jsonl')
+    .option('--out <dir>', '输出目录')
+    .option('--cwd <dir>', '工作目录，默认当前目录')
+    .option('--pet-id <id>', 'Pet id，默认从 trace session_id 推断')
+    .option('--session-key <key>', '新的 replay session key')
+    .option('--max-turns <n>', '只复跑前 n 个用户输入')
+    .option('--timeout-ms <n>', '单轮超时时间，默认 180000'))
+    .action(async (options) => {
+      const { replayCommand } = await import('./commands/replay');
+      await replayCommand(options);
+    });
+
   // Skill 管理命令
   registerSkillCommand(program);
 
   // 默认命令 - 进入交互模式
   program
-    .action(() => {
+    .action(async () => {
       const opts = program.opts();
-      chatCommand({ interactive: true, skill: opts.skill });
+      await chatCommand({
+        interactive: true,
+        skill: opts.skill,
+        resume: opts.resume,
+        verbose: opts.verbose,
+      });
     });
 
-  program.parse();
+  await program.parseAsync();
 }
 
-main();
+main().catch((error: any) => {
+  Logger.error(error?.message || String(error));
+  process.exit(1);
+});

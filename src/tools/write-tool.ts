@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
+import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionOutput } from '../types/tool';
 import { Logger } from '../utils/logger';
 import { isToolAllowed, isPathAllowed } from '../utils/safety';
+import { toolBlocked, toolFailure, toolSuccess } from './tool-result';
 
 /**
  * Write 工具 - 写入文件内容
@@ -27,13 +28,17 @@ export class WriteTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<ToolExecutionOutput> {
     const { file_path, content } = args;
 
     try {
       const toolPermission = isToolAllowed(this.definition.name);
       if (!toolPermission.allowed) {
-        return `执行被阻止: ${toolPermission.reason}`;
+        return toolBlocked(
+          `执行被阻止: ${toolPermission.reason}`,
+          'TOOL_BLOCKED',
+          toolPermission.reason || 'Tool execution is blocked by policy.',
+        );
       }
 
       // 解析文件路径
@@ -43,7 +48,11 @@ export class WriteTool implements Tool {
 
       const pathPermission = isPathAllowed(absolutePath, context.workingDirectory);
       if (!pathPermission.allowed) {
-        return `执行被阻止: ${pathPermission.reason}`;
+        return toolBlocked(
+          `执行被阻止: ${pathPermission.reason}`,
+          'PATH_DENIED',
+          pathPermission.reason || 'Write path is outside the allowed workspace.',
+        );
       }
 
       // 获取相对路径用于显示
@@ -90,10 +99,10 @@ export class WriteTool implements Tool {
         }
       }
 
-      return `成功${operation}文件: ${file_path}\n行数: ${lines}\n大小: ${sizeKB} KB (${bytes} bytes)`;
+      return toolSuccess(`成功${operation}文件: ${file_path}\n行数: ${lines}\n大小: ${sizeKB} KB (${bytes} bytes)`);
     } catch (error: any) {
       Logger.error(`写入文件失败: ${file_path} - ${error.message}`);
-      return `写入文件失败: ${error.message}`;
+      return toolFailure(`写入文件失败: ${error.message}`, 'WRITE_FILE_FAILED');
     }
   }
 }

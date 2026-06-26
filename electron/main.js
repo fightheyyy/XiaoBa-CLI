@@ -142,7 +142,7 @@ async function startServer() {
 }
 
 function getDashboardUrl(page) {
-  const url = new URL(`http://localhost:${DASHBOARD_PORT}`);
+  const url = new URL(process.env.XIAOBA_DASHBOARD_URL || `http://127.0.0.1:${DASHBOARD_PORT}`);
   if (page) url.searchParams.set('page', page);
   return url.toString();
 }

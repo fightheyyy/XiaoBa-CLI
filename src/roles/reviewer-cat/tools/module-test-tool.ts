@@ -3,11 +3,11 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
 
 const execAsync = promisify(exec);
 
-const TEST_ROOT = path.resolve('data', 'reviewer-module-tests');
+const TEST_ROOT = path.join('data', 'reviewer-module-tests');
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_MAX_CHARS = 2800;
 const MAX_BUFFER = 10 * 1024 * 1024;
@@ -39,9 +39,9 @@ export class ReviewerModuleTestTool implements Tool {
   definition: ToolDefinition = {
     name: 'reviewer_module_test',
     description: [
-      '按模块运行 ReviewerCat 的独立验收测试。',
-      '默认只返回低 token 的通过/失败摘要；完整 stdout/stderr 会写入 data/reviewer-module-tests/<run_id>/。',
-      '测试失败后，把返回的 codex_feedback 原样或精简后交给 codex_job_resume。'
+      '历史/辅助入口：运行低层模块检查并生成可供 ReviewerCat 读取的辅助证据。',
+      '默认只返回低 token 的通过/失败摘要；完整 stdout/stderr 会写入 data/reviewer-module-test/<run_id>/。',
+      '它不是 ReviewerCat 默认端测步骤；失败时把摘要作为前置风险交给 EngineerCat / Codex。'
     ].join('\n'),
     parameters: {
       type: 'object',
@@ -61,7 +61,7 @@ export class ReviewerModuleTestTool implements Tool {
         },
         tests: {
           type: 'array',
-          description: '自定义测试矩阵。传了 tests 时 module 推断不会生效。',
+          description: '自定义低层检查列表。传了 tests 时 module 推断不会生效。',
           items: {
             type: 'object',
             properties: {
@@ -96,7 +96,7 @@ export class ReviewerModuleTestTool implements Tool {
   async execute(args: any, context: ToolExecutionContext): Promise<string> {
     const baseCwd = resolveTestCwd(context.workingDirectory, args.cwd);
     const runId = safeSegment(String(args.run_id || createRunId()));
-    const runDir = path.join(TEST_ROOT, runId);
+    const runDir = path.resolve(context.workingDirectory, TEST_ROOT, runId);
     const maxChars = readPositiveNumber(args.max_chars, DEFAULT_MAX_CHARS);
     const moduleKind = normalizeModuleKind(args.module);
     const tests = normalizeTests(args.tests, baseCwd) || inferTests(baseCwd, moduleKind);
@@ -135,8 +135,20 @@ export class ReviewerModuleTestTool implements Tool {
     };
     const reportPath = path.join(runDir, 'report.json');
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
+    if (args && typeof args === 'object') {
+      args.__xiaoba_artifact_report_path = reportPath;
+    }
 
     return truncate(formatCompactReport(runId, reportPath, results), maxChars);
+  }
+
+  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+    const reportRef = keyValue(result, 'report') || String(args?.__xiaoba_artifact_report_path || '').trim();
+    const artifacts = [
+      artifactFromPath(reportRef, 'generated', context.workingDirectory),
+      ...readReportLogArtifacts(reportRef, context.workingDirectory),
+    ];
+    return uniqueArtifacts(artifacts.filter((item): item is ArtifactManifestItem => Boolean(item)));
   }
 }
 
@@ -499,6 +511,75 @@ function truncate(value: string, maxChars: number): string {
 
 function singleLine(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function readReportLogArtifacts(reportRef: string, workingDirectory: string): ArtifactManifestItem[] {
+  const reportPath = resolveArtifactPath(reportRef, workingDirectory);
+  if (!reportPath) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(reportPath, 'utf-8'));
+    const results = Array.isArray(parsed?.results) ? parsed.results : [];
+    return results.flatMap((item: any) => [
+      artifactFromPath(item?.stdoutFile, 'generated', workingDirectory),
+      artifactFromPath(item?.stderrFile, 'generated', workingDirectory),
+    ]).filter((item: ArtifactManifestItem | undefined): item is ArtifactManifestItem => Boolean(item));
+  } catch {
+    return [];
+  }
+}
+
+function artifactFromPath(
+  value: unknown,
+  action: ArtifactManifestItem['action'],
+  workingDirectory: string,
+): ArtifactManifestItem | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const normalized = workspaceRelativeArtifactPath(value, workingDirectory);
+  return {
+    path: normalized,
+    type: artifactType(normalized),
+    action,
+  };
+}
+
+function keyValue(text: string, key: string): string {
+  const pattern = new RegExp(`^${key}=([^\\r\\n]+)$`, 'm');
+  return pattern.exec(String(text || ''))?.[1]?.trim() || '';
+}
+
+function resolveArtifactPath(value: string, workingDirectory: string): string {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (path.isAbsolute(text)) return text;
+  const contextPath = path.resolve(workingDirectory, text);
+  if (fs.existsSync(contextPath)) return contextPath;
+  return path.resolve(process.cwd(), text);
+}
+
+function workspaceRelativeArtifactPath(value: string, workingDirectory: string): string {
+  const normalized = value.trim().replace(/\\/g, '/');
+  const cwd = workingDirectory.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (normalized.startsWith(`${cwd}/`)) {
+    return normalized.slice(cwd.length + 1);
+  }
+  return normalized.replace(/^\/+/, '');
+}
+
+function artifactType(filePath: string): string {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase();
+  return ext || 'file';
+}
+
+function uniqueArtifacts(items: ArtifactManifestItem[]): ArtifactManifestItem[] {
+  const seen = new Set<string>();
+  const unique: ArtifactManifestItem[] = [];
+  for (const item of items) {
+    const key = `${item.path}\0${item.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique;
 }
 
 function relativeDisplayPath(filePath: string): string {

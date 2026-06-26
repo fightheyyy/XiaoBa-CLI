@@ -1,5 +1,4 @@
 import { RoleRuntimeSupport, startRoleRuntimeServices } from '../roles/runtime-role-registry';
-import { startRuntimeCommandSupport, stopRuntimeCommandSupport } from '../utils/runtime-command-support';
 
 interface ActiveCommandSupport {
   roleSupport: RoleRuntimeSupport | null;
@@ -20,12 +19,9 @@ export async function startCommandSupport(): Promise<ActiveCommandSupport> {
       const roleSupport = await startRoleRuntimeServices({ workingDirectory: process.cwd() });
       activeRoleSupport = roleSupport;
       try {
-        await startRuntimeCommandSupport();
-
         const support: ActiveCommandSupport = {
           roleSupport,
           async stop() {
-            await stopRuntimeCommandSupport();
             if (roleSupport) {
               await roleSupport.stop();
             }
@@ -59,7 +55,6 @@ export async function stopCommandSupport(): Promise<void> {
     return;
   }
 
-  await stopRuntimeCommandSupport();
   if (activeRoleSupport) {
     await activeRoleSupport.stop().catch(() => undefined);
     activeRoleSupport = null;

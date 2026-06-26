@@ -7,7 +7,13 @@ import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
 import { MessageSessionManager } from '../core/message-session-manager';
+import { SubAgentManager } from '../core/sub-agent-manager';
 import { ChannelCallbacks } from '../types/tool';
+import {
+  extractSurfaceTraceparent,
+  normalizeSurfaceTraceparent,
+  NormalizedSurfaceEvent,
+} from '../types/surface-event';
 import { Logger } from '../utils/logger';
 import { RoleResolver } from '../utils/role-resolver';
 import { PetChatHistoryStore } from './chat-history-store';
@@ -34,15 +40,98 @@ interface PetEvent {
   type: string;
   id?: number;
   petId?: string;
+  sessionKey?: string;
   timestamp?: string;
   [key: string]: unknown;
 }
 
 const DEFAULT_SESSION_TTL = 60 * 60 * 1000;
 const PET_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/i;
+const PET_SESSION_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/i;
+const PET_ROLE_SESSION_SEGMENT_PATTERN = /^role-[a-z0-9][a-z0-9_-]{0,80}$/i;
 
-export function createPetRouter(): Router {
-  const channel = new PetChannel();
+export function normalizePetIdInput(value: unknown, defaultPetId?: string | null): string {
+  const petId = typeof value === 'string' && value.trim()
+    ? value.trim()
+    : defaultPetId;
+
+  if (!petId || !PET_ID_PATTERN.test(petId)) {
+    throw new Error('invalid pet id');
+  }
+  return petId;
+}
+
+export function normalizePetSessionKey(petId: string, value: unknown): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const sessionKey = typeof raw === 'string' && raw.trim()
+    ? raw.trim()
+    : `pet:${petId}`;
+
+  const baseSessionKey = `pet:${petId}`;
+  if (sessionKey === baseSessionKey) return sessionKey;
+  if (sessionKey === `${baseSessionKey}:role-base`) return baseSessionKey;
+  if (!sessionKey.startsWith(baseSessionKey + ':')) {
+    throw new Error('invalid pet session key');
+  }
+
+  const sessionSegments = sessionKey.slice(baseSessionKey.length + 1).split(':');
+  if (sessionSegments.some(segment => !PET_SESSION_ID_PATTERN.test(segment))) {
+    throw new Error('invalid pet session key');
+  }
+  if (!PET_ROLE_SESSION_SEGMENT_PATTERN.test(sessionSegments[0])) {
+    throw new Error('invalid pet session key');
+  }
+  return sessionKey;
+}
+
+export function normalizePetMessageSurfaceEvent(
+  body: unknown,
+  options: { defaultPetId?: string | null } = {},
+): NormalizedSurfaceEvent {
+  const input = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+  const petId = normalizePetIdInput(input.petId, options.defaultPetId);
+  const text = typeof input.text === 'string' ? input.text.trim() : '';
+  if (!text) {
+    throw new Error('text required');
+  }
+
+  const sessionKey = normalizePetSessionKey(petId, input.sessionKey);
+  const source = typeof input.source === 'string' && input.source.trim()
+    ? input.source.trim().slice(0, 40)
+    : 'unknown';
+  const eventId = typeof input.eventId === 'string' && input.eventId.trim()
+    ? input.eventId.trim()
+    : undefined;
+  const traceparent = extractSurfaceTraceparent(input);
+
+  return {
+    surface: 'pet',
+    adapterId: 'pet_channel_message',
+    eventType: 'pet.message',
+    eventId,
+    traceparent,
+    sessionKey,
+    channelId: sessionKey,
+    userId: sessionKey,
+    userMessage: text,
+    payloadType: text.startsWith('/') ? 'command' : 'text',
+    source,
+    metadata: { petId },
+  };
+}
+
+export interface PetChannelOptions {
+  services?: AgentServices;
+  sessionTtlMs?: number;
+}
+
+interface PetScopedServices {
+  services: AgentServices;
+  ready: Promise<void>;
+}
+
+export function createPetRouter(options: PetChannelOptions = {}): Router {
+  const channel = new PetChannel(options);
   return channel.router;
 }
 
@@ -51,13 +140,16 @@ export class PetChannel {
   private readonly services: AgentServices;
   private readonly sessionManager: MessageSessionManager;
   private readonly skillsReady: Promise<void>;
+  private readonly scopedServices = new Map<string, PetScopedServices>();
+  private readonly useFixedServices: boolean;
   private readonly chatHistory = new PetChatHistoryStore();
   private readonly events = new PetEventHub(this.chatHistory);
   private readonly messageQueues = new Map<string, Promise<void>>();
 
-  constructor() {
-    const skillManager = new SkillManager();
-    this.services = {
+  constructor(options: PetChannelOptions = {}) {
+    this.useFixedServices = Boolean(options.services);
+    const skillManager = options.services?.skillManager || new SkillManager();
+    this.services = options.services || {
       aiService: new AIService(),
       toolManager: createRoleAwareToolManager(),
       skillManager,
@@ -68,7 +160,8 @@ export class PetChannel {
     this.sessionManager = new MessageSessionManager(
       this.services,
       'pet',
-      DEFAULT_SESSION_TTL,
+      options.sessionTtlMs ?? DEFAULT_SESSION_TTL,
+      key => this.resolveServicesForSessionKey(key),
     );
 
     this.sessionManager.setWakeupSendFn(async (channelId, text) => {
@@ -81,6 +174,64 @@ export class PetChannel {
   async destroy(): Promise<void> {
     this.events.close();
     await this.sessionManager.destroy();
+  }
+
+  private resolveServicesForSessionKey(sessionKey: string): AgentServices {
+    if (this.useFixedServices) {
+      return this.services;
+    }
+
+    const roleName = this.resolveRoleNameFromSessionKey(sessionKey);
+    if (!roleName) {
+      return this.services;
+    }
+
+    return this.getScopedServices(roleName).services;
+  }
+
+  private async ensureSkillsReadyForSessionKey(sessionKey: string): Promise<void> {
+    if (this.useFixedServices) {
+      await this.skillsReady;
+      return;
+    }
+
+    const roleName = this.resolveRoleNameFromSessionKey(sessionKey);
+    if (!roleName) {
+      await this.skillsReady;
+      return;
+    }
+
+    await this.getScopedServices(roleName).ready;
+  }
+
+  private getScopedServices(roleName: string): PetScopedServices {
+    const cached = this.scopedServices.get(roleName);
+    if (cached) {
+      return cached;
+    }
+
+    const skillManager = new SkillManager(roleName);
+    const scoped: PetScopedServices = {
+      services: {
+        aiService: new AIService(),
+        toolManager: createRoleAwareToolManager(process.cwd(), {}, roleName),
+        skillManager,
+        roleName,
+      },
+      ready: skillManager.loadSkills()
+        .catch((err: any) => Logger.warning(`[pet:${roleName}] Skills 加载失败: ${err.message}`)),
+    };
+    this.scopedServices.set(roleName, scoped);
+    return scoped;
+  }
+
+  private resolveRoleNameFromSessionKey(sessionKey: string): string | undefined {
+    const match = sessionKey.match(/^pet:[^:]+:role-([^:]+)(?::|$)/);
+    const roleKey = match?.[1]?.trim();
+    if (!roleKey || RoleResolver.normalizeRoleName(roleKey) === 'base') {
+      return undefined;
+    }
+    return RoleResolver.resolveRoleDirectoryName(roleKey);
   }
 
   private mountRoutes(): void {
@@ -111,9 +262,10 @@ export class PetChannel {
     this.router.post('/pet/wake', async (req, res) => {
       try {
         const petId = this.normalizePetId(req.body?.petId);
-        const sessionKey = this.sessionKey(petId);
+        const sessionKey = this.normalizeSessionKey(petId, req.body?.sessionKey);
+        await this.ensureSkillsReadyForSessionKey(sessionKey);
         this.sessionManager.getOrCreate(sessionKey, sessionKey);
-        this.events.publish(petId, { type: 'state', state: 'waving', reason: 'wake' });
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'waving', reason: 'wake' });
         res.json({
           ok: true,
           sessionKey,
@@ -126,7 +278,7 @@ export class PetChannel {
     });
 
     this.router.post('/pet/message', async (req, res) => {
-      await this.handleMessage(req.body, res);
+      await this.handleMessage(this.withRequestTraceparent(req.body, req), res);
     });
 
     this.router.get('/pet/events', (req, res) => {
@@ -136,10 +288,12 @@ export class PetChannel {
     this.router.get('/pet/history', (req, res) => {
       try {
         const petId = this.normalizePetId(req.query.petId);
+        const sessionKey = this.normalizeSessionKey(petId, req.query.sessionKey);
         const limit = this.normalizeHistoryLimit(req.query.limit);
         res.json({
           petId,
-          events: this.chatHistory.read(petId, limit),
+          sessionKey,
+          events: this.chatHistory.read(sessionKey, limit),
         });
       } catch (err: any) {
         res.status(400).json({ error: err.message });
@@ -149,9 +303,10 @@ export class PetChannel {
     this.router.delete('/pet/history', (req, res) => {
       try {
         const petId = this.normalizePetId(req.query.petId || req.body?.petId);
-        this.chatHistory.delete(petId);
-        this.events.clear(petId);
-        res.json({ ok: true, petId });
+        const sessionKey = this.normalizeSessionKey(petId, req.query.sessionKey || req.body?.sessionKey);
+        this.chatHistory.delete(sessionKey);
+        this.events.clear(sessionKey);
+        res.json({ ok: true, petId, sessionKey });
       } catch (err: any) {
         res.status(400).json({ error: err.message });
       }
@@ -163,22 +318,17 @@ export class PetChannel {
     let session: AgentSession | undefined;
 
     try {
-      await this.skillsReady;
-
-      const petId = this.normalizePetId(body?.petId);
-      const text = typeof body?.text === 'string' ? body.text.trim() : '';
-      if (!text) {
-        res.status(400).json({ error: 'text required' });
-        return;
-      }
-      const source = typeof body?.source === 'string' && body.source.trim()
-        ? body.source.trim().slice(0, 40)
-        : 'unknown';
-
-      const sessionKey = this.sessionKey(petId);
+      const normalized = normalizePetMessageSurfaceEvent(body, { defaultPetId: this.resolveDefaultPetId() });
+      const petId = String(normalized.metadata?.petId || '');
+      const text = normalized.userMessage;
+      const source = normalized.source || 'unknown';
+      const sessionKey = normalized.sessionKey;
+      const traceparent = normalized.traceparent;
+      await this.ensureSkillsReadyForSessionKey(sessionKey);
       const activeSession = this.sessionManager.getOrCreate(sessionKey, sessionKey);
       session = activeSession;
-      stream.setFanout(event => this.events.publish(petId, event));
+      this.registerSubAgentCallbacks(sessionKey, petId);
+      stream.setFanout(event => this.events.publish(petId, sessionKey, event));
       const channel = this.buildChannel(sessionKey, stream);
       const callbacks = this.buildCallbacks(stream);
 
@@ -195,10 +345,15 @@ export class PetChannel {
           const parts = text.slice(1).split(/\s+/).filter(Boolean);
           const command = parts[0] || '';
           const args = parts.slice(1);
-          const commandResult = await activeSession.handleCommand(command, args, callbacks);
+          const commandResult = await activeSession.handleCommand(command, args, {
+            callbacks,
+            channel,
+            surface: 'pet',
+            traceparent,
+          });
           if (command.toLowerCase() === 'clear' && args.includes('--all')) {
-            this.chatHistory.delete(petId);
-            this.events.clear(petId);
+            this.chatHistory.delete(sessionKey);
+            this.events.clear(sessionKey);
           }
           resultText = commandResult.reply || '';
           visibleToUser = commandResult.handled;
@@ -206,7 +361,7 @@ export class PetChannel {
             resultText = `未识别命令：/${command}`;
           }
         } else {
-          const messageResult = await activeSession.handleMessage(text, { callbacks, channel });
+          const messageResult = await activeSession.handleMessage(text, { callbacks, channel, surface: 'pet', traceparent });
           resultText = messageResult.text;
           visibleToUser = messageResult.visibleToUser;
         }
@@ -227,7 +382,8 @@ export class PetChannel {
         logError();
       }
       if (!stream.isOpen) {
-        res.status(500).json({ error: err.message });
+        const clientErrors = new Set(['text required', 'invalid pet id', 'invalid pet session key']);
+        res.status(clientErrors.has(err.message) ? 400 : 500).json({ error: err.message });
         return;
       }
       stream.state('failed', 'error');
@@ -250,11 +406,30 @@ export class PetChannel {
     return queued;
   }
 
+  private registerSubAgentCallbacks(sessionKey: string, petId: string): void {
+    SubAgentManager.getInstance().registerPlatformCallbacks(sessionKey, {
+      injectMessage: async (text: string) => {
+        await this.handleSubAgentFeedback(sessionKey, petId, text);
+      },
+    });
+  }
+
+  private async handleSubAgentFeedback(sessionKey: string, petId: string, text: string): Promise<void> {
+    await this.enqueueMessage(sessionKey, async () => {
+      const session = this.sessionManager.getOrCreate(sessionKey, sessionKey);
+      const callbacks = this.buildBackgroundCallbacks(sessionKey, petId);
+      const channel = this.buildBackgroundChannel(sessionKey, petId);
+      session.runWithLogContext(() => Logger.info(`[${sessionKey}] 收到子智能体反馈: ${text.slice(0, 120)}`));
+      await session.handleMessage(text, { callbacks, channel, surface: 'pet' });
+    });
+  }
+
   private handleEvents(req: Request, res: Response): void {
     try {
       const petId = this.normalizePetId(req.query.petId);
+      const sessionKey = this.normalizeSessionKey(petId, req.query.sessionKey);
       const replay = req.query.replay === '1';
-      this.events.subscribe(petId, res, { replay });
+      this.events.subscribe(petId, sessionKey, res, { replay });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -288,6 +463,34 @@ export class PetChannel {
     };
   }
 
+  private buildBackgroundCallbacks(sessionKey: string, petId: string): SessionCallbacks {
+    return {
+      onText: (text: string) => {
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'review', reason: 'subagent_text_stream' });
+        this.events.publish(petId, sessionKey, { type: 'text', text });
+      },
+      onThinking: (thinking: string) => {
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'review', reason: 'subagent_thinking' });
+        this.events.publish(petId, sessionKey, { type: 'thinking', text: thinking });
+      },
+      onToolStart: (name: string, toolUseId: string, input: any) => {
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'running', reason: 'subagent_tool_start' });
+        this.events.publish(petId, sessionKey, { type: 'tool_start', name, toolUseId, input });
+      },
+      onToolEnd: (name: string, toolUseId: string, result: string) => {
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'waiting', reason: 'subagent_tool_end' });
+        this.events.publish(petId, sessionKey, { type: 'tool_end', name, toolUseId, result: result.slice(0, 4000) });
+      },
+      onToolDisplay: (name: string, content: string) => {
+        this.events.publish(petId, sessionKey, { type: 'tool_display', name, content });
+      },
+      onRetry: (attempt: number, maxRetries: number) => {
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'waiting', reason: 'subagent_retry' });
+        this.events.publish(petId, sessionKey, { type: 'retry', attempt, maxRetries });
+      },
+    };
+  }
+
   private buildChannel(sessionKey: string, stream: PetEventStream): ChannelCallbacks {
     return {
       chatId: sessionKey,
@@ -297,6 +500,55 @@ export class PetChannel {
       },
       sendFile: async (_chatId: string, filePath: string, fileName: string) => {
         stream.event({ type: 'file', filePath, fileName });
+      },
+    };
+  }
+
+  private buildBackgroundChannel(sessionKey: string, petId: string): ChannelCallbacks {
+    return {
+      chatId: sessionKey,
+      reply: async (_chatId: string, text: string) => {
+        const timestamp = new Date().toISOString();
+        this.events.publish(petId, sessionKey, { type: 'state', state: 'review', reason: 'subagent_channel_reply' });
+        this.events.publish(petId, sessionKey, { type: 'text', text });
+        return {
+          receipt_id: `pet.subagent.message.${Date.now()}`,
+          receipt_type: 'message' as const,
+          surface: 'pet' as const,
+          status: 'delivered' as const,
+          platform_message_id: `pet_subagent_message_${Date.now()}`,
+          delivery_id: 'pet.subagent.reply',
+          timestamp,
+        };
+      },
+      sendFile: async (_chatId: string, filePath: string, fileName: string) => {
+        const timestamp = new Date().toISOString();
+        const deliveryId = 'pet.subagent.file';
+        this.events.publish(petId, sessionKey, { type: 'file', filePath, fileName });
+        return [
+          {
+            receipt_id: `pet.subagent.upload.${Date.now()}`,
+            receipt_type: 'upload' as const,
+            surface: 'pet' as const,
+            status: 'accepted' as const,
+            platform_file_key: `pet_subagent_file_${Date.now()}`,
+            file_name: fileName,
+            artifact_path: filePath,
+            timestamp,
+          },
+          {
+            receipt_id: `pet.subagent.file.${Date.now()}`,
+            receipt_type: 'file' as const,
+            surface: 'pet' as const,
+            status: 'delivered' as const,
+            platform_message_id: `pet_subagent_file_message_${Date.now()}`,
+            platform_file_key: `pet_subagent_file_${Date.now()}`,
+            delivery_id: deliveryId,
+            file_name: fileName,
+            artifact_path: filePath,
+            timestamp,
+          },
+        ];
       },
     };
   }
@@ -368,7 +620,7 @@ export class PetChannel {
     }
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as PetManifest;
-    const petId = this.normalizePetId(manifest.id || path.basename(petDir));
+    const petId = normalizePetIdInput(manifest.id || path.basename(petDir), path.basename(petDir));
     const spritesheetName = manifest.spritesheetPath || 'spritesheet.webp';
     const spritesheetPath = path.resolve(petDir, spritesheetName);
     if (!spritesheetPath.startsWith(path.resolve(petDir) + path.sep) || !fs.existsSync(spritesheetPath)) {
@@ -386,14 +638,11 @@ export class PetChannel {
   }
 
   private normalizePetId(value: unknown): string {
-    const petId = typeof value === 'string' && value.trim()
-      ? value.trim()
-      : this.resolveDefaultPetId();
+    return normalizePetIdInput(value, this.resolveDefaultPetId());
+  }
 
-    if (!petId || !PET_ID_PATTERN.test(petId)) {
-      throw new Error('invalid pet id');
-    }
-    return petId;
+  private normalizeSessionKey(petId: string, value: unknown): string {
+    return normalizePetSessionKey(petId, value);
   }
 
   private normalizeHistoryLimit(value: unknown): number {
@@ -401,6 +650,18 @@ export class PetChannel {
     const parsed = typeof raw === 'string' ? Number.parseInt(raw, 10) : Number(raw);
     if (!Number.isFinite(parsed)) return 500;
     return Math.max(1, Math.min(2000, Math.trunc(parsed)));
+  }
+
+  private withRequestTraceparent(body: unknown, req: Request): unknown {
+    const headerTraceparent = normalizeSurfaceTraceparent(req.get('traceparent'))
+      || normalizeSurfaceTraceparent(req.get('x-traceparent'));
+    if (!headerTraceparent || extractSurfaceTraceparent(body)) {
+      return body;
+    }
+    return {
+      ...(body && typeof body === 'object' ? body as Record<string, unknown> : {}),
+      traceparent: headerTraceparent,
+    };
   }
 
   private sessionKey(petId: string): string {
@@ -431,11 +692,11 @@ export class PetChannel {
 class PetEventStream {
   isOpen = false;
   hasText = false;
-  private fanout?: (event: PetEvent) => void;
+  private fanout?: (event: PetEvent) => PetEvent | void;
 
   constructor(private res: Response) {}
 
-  setFanout(fanout: (event: PetEvent) => void): void {
+  setFanout(fanout: (event: PetEvent) => PetEvent | void): void {
     this.fanout = fanout;
   }
 
@@ -463,9 +724,9 @@ class PetEventStream {
   }
 
   event(event: PetEvent): void {
-    this.fanout?.(event);
+    const outbound = this.fanout?.(event) || event;
     if (!this.isOpen) return;
-    this.res.write(`data: ${JSON.stringify(event)}\n\n`);
+    this.res.write(`data: ${JSON.stringify(outbound)}\n\n`);
   }
 }
 
@@ -479,7 +740,7 @@ class PetEventHub {
     this.nextId = Math.max(1, (this.historyStore?.getMaxEventId() || 0) + 1);
   }
 
-  subscribe(petId: string, res: Response, options: { replay?: boolean } = {}): void {
+  subscribe(petId: string, sessionKey: string, res: Response, options: { replay?: boolean } = {}): void {
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -488,46 +749,50 @@ class PetEventHub {
     this.write(res, {
       type: 'connected',
       petId,
+      sessionKey,
       timestamp: new Date().toISOString(),
     });
 
     if (options.replay) {
-      for (const event of this.replayEvents(petId)) {
+      for (const event of this.replayEvents(sessionKey)) {
         this.write(res, event);
       }
     }
 
-    const set = this.subscribers.get(petId) || new Set<Response>();
+    const set = this.subscribers.get(sessionKey) || new Set<Response>();
     set.add(res);
-    this.subscribers.set(petId, set);
+    this.subscribers.set(sessionKey, set);
 
     res.on('close', () => {
       set.delete(res);
       if (set.size === 0) {
-        this.subscribers.delete(petId);
+        this.subscribers.delete(sessionKey);
       }
     });
   }
 
-  publish(petId: string, event: PetEvent): void {
+  publish(petId: string, sessionKey: string, event: PetEvent): PetEvent {
     const decorated = {
       ...event,
       id: this.nextId++,
       petId,
+      sessionKey,
       timestamp: new Date().toISOString(),
     };
 
-    this.historyStore?.append(petId, decorated);
-    const events = this.history.get(petId) || [];
+    this.historyStore?.append(sessionKey, decorated);
+    const events = this.history.get(sessionKey) || [];
     events.push(decorated);
     if (events.length > this.historyLimit) {
       events.splice(0, events.length - this.historyLimit);
     }
-    this.history.set(petId, events);
+    this.history.set(sessionKey, events);
 
-    for (const res of this.subscribers.get(petId) || []) {
+    for (const res of this.subscribers.get(sessionKey) || []) {
       this.write(res, decorated);
     }
+
+    return decorated;
   }
 
   close(): void {
@@ -539,16 +804,16 @@ class PetEventHub {
     this.subscribers.clear();
   }
 
-  clear(petId: string): void {
-    this.history.delete(petId);
+  clear(sessionKey: string): void {
+    this.history.delete(sessionKey);
   }
 
-  private replayEvents(petId: string): PetEvent[] {
+  private replayEvents(sessionKey: string): PetEvent[] {
     const byId = new Map<string, PetEvent>();
-    for (const event of this.historyStore?.read(petId) || []) {
+    for (const event of this.historyStore?.read(sessionKey) || []) {
       byId.set(this.eventKey(event), event);
     }
-    for (const event of this.history.get(petId) || []) {
+    for (const event of this.history.get(sessionKey) || []) {
       byId.set(this.eventKey(event), event);
     }
 

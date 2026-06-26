@@ -1,22 +1,22 @@
 ---
 name: case-implementation
-description: 根据 Inspector/AutoDev 的 assessment 与 handoff，完成 runtime 修复、skill 修复或 skill 新建，并产出结构化交接文件。
+description: 根据 Inspector handoff 或 case artifact 的 assessment 与 handoff，完成 runtime 修复、skill 修复或 skill 新建，并产出结构化交接文件。
 version: 1.0.0
 author: EngineerCat Team
 user_invocable: true
 invocable: both
-argument-hint: "<AutoDev case 路径或 assessment 路径>"
+argument-hint: "<case 路径或 assessment 路径>"
 max-turns: 40
 ---
 
 # Case Implementation
 
-这个 skill 用来处理 `EngineerCat` 接到的 AutoDev / Inspector 案件。
+这个 skill 用来处理 `EngineerCat` 接到的 Inspector 案件或 case artifact。
 
 ## 触发条件
 
 - “根据 inspector 报告实现修复”
-- “处理这个 AutoDev case”
+- “处理这个 case artifact”
 - “把这个问题做成 skill”
 - “修这个已有 skill”
 
@@ -72,4 +72,3 @@ max-turns: 40
 - 检查 `implementation.md` 是否能让 Reviewer 读懂
 - 检查 `engineer-output.json` 是否是合法 JSON
 - 有变更时尽量产出 `implementation.patch`
-

@@ -1,0 +1,72 @@
+{
+  "provider_network_readiness_version": "0.1",
+  "generated_at": "2026-06-05T00:00:00.000Z",
+  "summary": {
+    "decision": "pass",
+    "checks_total": 6,
+    "checks_passed": 6,
+    "checks_failed": 0,
+    "checks_blocked": 0,
+    "replay_enabled": true,
+    "degradation_verified": true
+  },
+  "environment": {
+    "provider": "openai",
+    "model_configured": true,
+    "api_base_configured": true,
+    "api_key_configured": true,
+    "timeout_ms": 20000,
+    "use_default_config": false,
+    "expected_degradation": true
+  },
+  "checks": [
+    {
+      "id": "provider_network.opt_in",
+      "status": "pass",
+      "severity": "environment",
+      "message": "provider network replay is explicitly enabled"
+    },
+    {
+      "id": "provider_network.config",
+      "status": "pass",
+      "severity": "configuration",
+      "message": "provider-network replay uses injected AI service for verification"
+    },
+    {
+      "id": "provider_network.runtime",
+      "status": "pass",
+      "severity": "execution",
+      "message": "Provider-network runtime path completed",
+      "duration_ms": 42
+    },
+    {
+      "id": "provider_network.session_log",
+      "status": "pass",
+      "severity": "evidence",
+      "message": "provider-network replay wrote session JSONL evidence",
+      "evidence_ref": "logs/sessions/provider-network-readiness/session.jsonl"
+    },
+    {
+      "id": "provider_network.provider_error",
+      "status": "pass",
+      "severity": "evidence",
+      "message": "provider_error runtime event evidence is present",
+      "evidence_ref": "logs/sessions/provider-network-readiness/session.jsonl"
+    },
+    {
+      "id": "provider_network.degraded_provider_transcript",
+      "status": "pass",
+      "severity": "evidence",
+      "message": "degraded provider transcript boundary evidence is structured",
+      "evidence_ref": "logs/sessions/provider-network-readiness/session.jsonl"
+    }
+  ],
+  "evidence": {
+    "out_dir": "output/eval/provider-network-readiness",
+    "workspace_dir": "output/eval/provider-network-readiness/workspace",
+    "session_log_path": "logs/sessions/provider-network-readiness/session.jsonl",
+    "manifest_path": "output/eval/provider-network-readiness/manifest.json",
+    "scorecard_path": "output/eval/provider-network-readiness/scorecard.json",
+    "report_path": "output/eval/provider-network-readiness/report.md"
+  }
+}
