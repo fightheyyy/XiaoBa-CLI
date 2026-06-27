@@ -3,64 +3,44 @@
 
   # XiaoBa
 
-  **XiaoBa: an IM-native AI colleague.**
+  **A local-first AI colleague runtime for chats, tools, and long-running context.**
 
-  **It lives where work starts: chats, files, tasks, tools, and long-running context.**
-
-  **Under the hood, XiaoBa is a local-first AI role runtime for colleagues that grow with you.**
+  XiaoBa puts agents where work actually starts: IM, Dashboard, files, tools, and local state.
 
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
-  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
+  [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [简体中文](README.md)
-
-  [Quickstart](#quickstart) · [Why XiaoBa](#why-xiaoba) · [Roles](#roles) · [IM Surfaces](#im-surfaces) · [Architecture](#architecture) · [Docs](#docs)
+  [简体中文](README.md) · [Quickstart](#quickstart) · [Default Package](#default-package) · [Docs](#docs)
 </div>
 
 ---
 
 ## What Is XiaoBa?
 
-XiaoBa is not another terminal chat wrapper, and it is not just a bot that replies in a group.
+XiaoBa is not another terminal chat wrapper, and it is not just a bot that replies in a group chat.
 
-XiaoBa is an **IM-native AI colleague**: a long-lived role that can stay in your chats, understand group/private context, receive files and tasks, and call tools. Under the `engineer-cat` role, it can dispatch the local Codex CLI in the background and report progress back where the work started.
+It is closer to a local-first **agent OS / AI colleague runtime**:
 
-The product face is a colleague in chat. The technical base is a **local-first AI role runtime**: roles, skills, tools, subagents, logs, memory, and feedback loops shaped around your real environment.
+- One shared agent loop across CLI, Dashboard, Feishu, Weixin, desktop pet, and future surfaces.
+- Agents can read files, run commands, call tools, and deliver messages or files.
+- Roles, skills, subagents, long-running context, logs, and replayable evidence are first-class.
+- Long tasks can keep running in the background while the main conversation stays responsive.
 
-```text
-IM message / CLI prompt
-  -> XiaoBa colleague
-  -> Role runtime
-  -> Skills + tools + subagents
-  -> Computer / files / projects / shell
-  -> EngineerCat can dispatch local Codex CLI
-  -> Natural reply, file delivery, progress update, or case handoff
-```
+In short: **XiaoBa gives AI agents a colleague-shaped body that can work, deliver, and adapt to you.**
 
-The core idea:
+## Why?
 
-> XiaoBa gives AI agents an IM-native body and a colleague-shaped role inside your real environment.
+Real work often starts in a message, not in an IDE:
 
----
+- "Can you look at this bug?"
+- "Please organize this file."
+- "Run this in the background and tell me when it finishes."
+- "Make this agent behave more like my own style over time."
 
-## Colleague Runtime Vision
-
-AI character products prove that roles can live in chat. XiaoBa's bet is that useful AI colleagues should also live in your real environment: your computer, files, projects, tools, chats, logs, and long-term memory.
-
-A colleague can be an engineer, reviewer, inspector, researcher, teacher, student, creative partner, family-like companion, or something entirely personal. The visible identity can change; the runtime's understanding of your environment and habits keeps growing.
-
-The goal can be simple: build an agent with your own taste, then let it live across the social platforms where you already are.
-
-![Personal agents living across social platforms](assets/xiaoba-personal-agent-social.png)
-
-The first slice is practical: **an IM-native work colleague** that can take tasks from chats and use tools. EngineerCat can dispatch the local Codex CLI, then report back with progress, files, and evidence.
-
----
+XiaoBa is the middle layer that connects chats, files, local tools, role identity, and runtime evidence, so an agent can do more than answer.
 
 ## Quickstart
-
-XiaoBa is currently best run from source. Desktop packages are produced with local Electron packaging scripts; this repository no longer ships a remote release workflow.
 
 ```bash
 git clone https://github.com/fightheyyy/XiaoBa-CLI.git
@@ -69,366 +49,91 @@ npm install
 cp .env.example .env
 ```
 
-Add your model config to `.env`, or run `npm run dev -- config` later for the interactive config wizard.
+Add your model config to `.env`:
 
-```bash
-# OpenAI-compatible endpoint
+```env
 XIAOBA_LLM_PROVIDER=openai
 XIAOBA_LLM_API_BASE=https://api.openai.com/v1
 XIAOBA_LLM_API_KEY=your_api_key
 XIAOBA_LLM_MODEL=your_model
-
-# Or Anthropic
-# XIAOBA_LLM_PROVIDER=anthropic
-# XIAOBA_LLM_API_BASE=https://api.anthropic.com
-# XIAOBA_LLM_API_KEY=your_api_key
-# XIAOBA_LLM_MODEL=claude-sonnet-4-20250514
-
-# Or local Ollama (no API key required)
-# XIAOBA_LLM_PROVIDER=ollama
-# XIAOBA_LLM_API_BASE=http://localhost:11434
-# XIAOBA_LLM_API_KEY=
-# XIAOBA_LLM_MODEL=qwen3:8b
-# XIAOBA_LLM_MAX_TOKENS=1024
-# XIAOBA_OLLAMA_THINK=false
-# XIAOBA_OLLAMA_KEEP_ALIVE=30m
-# XIAOBA_OLLAMA_NUM_CTX=8192
 ```
 
-Start a local chat:
+Start local chat:
 
 ```bash
 npm run dev -- chat -i
 ```
 
-Send one message:
-
-```bash
-npm run dev -- chat -m "Summarize this project's structure"
-```
-
-Use a role:
-
-```bash
-npm run dev -- chat -r engineer-cat -i
-npm run dev -- chat -r reviewer-cat -i
-```
-
-Launch the desktop Dashboard:
+Start the desktop Dashboard:
 
 ```bash
 npm run electron:dev
 ```
 
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-npm run dev -- chat -i
-```
-
----
-
-## Why XiaoBa
-
-Most AI coding tools live in a terminal or editor. Real work often starts somewhere else: a Feishu thread, a private chat, a team group, a bug report, a file someone dropped into a conversation.
-
-XiaoBa is built for that messy middle layer. It gives terminal-native agents a colleague who can live in the message surface where requests, files, follow-ups, and decisions already happen.
-
-| Ordinary coding agent | XiaoBa |
-| --- | --- |
-| Starts when you open a terminal | Can live in IM surfaces and react to messages |
-| Optimized for one local repo | Optimized for conversations, files, roles, tasks, and follow-up |
-| Returns text to the terminal | Can send messages, deliver files, and report progress back to chats |
-| Usually one persona | Has colleague identities with different duties and tool boundaries |
-| Memory is often a note store | Harness behavior, logs, tools, roles, and delivery style all become user-shaped |
-
-XiaoBa does not try to replace Codex or other coding agents. EngineerCat currently commits to the verified local Codex CLI background-task path, then uses runtime evidence, ReviewerCat, and user feedback to judge, integrate, and accept the work.
-
----
-
-## Core Capabilities
-
-### IM-native Runtime
-
-- CLI, Feishu, Weixin, Dashboard, and Pet entry points share one runtime.
-- Group chat, private chat, and local sessions keep their own surface context.
-- User-visible output is handled through message/file tools instead of plain model text.
-- Long-running work can continue while the main conversation stays responsive.
-
-### Role System
-
-- Roles are colleague identities, not just prompt styles.
-- Each role can define its own prompt, skills, tools, and operating boundaries.
-- Current built-in roles cover engineering, review, inspection, and research workflows.
-- Role-specific tools only load when the matching role is active.
-- The same runtime can grow beyond work colleagues into personal roles, while keeping each role's boundaries explicit.
-
-### Skills + Tools
-
-- Built-in file, shell, grep, edit, send text, send file, and subagent tools.
-- Skills are local instruction packs stored under `skills/` or `roles/<role>/skills/`.
-- GitHub skill installation is supported through `xiaoba skill install-github owner/repo`.
-- Claude Code style skill frontmatter is supported by the parser.
-
-### Background Work
-
-- `spawn_subagent` starts background role / skill / no-skill work.
-- `check_subagent`, `stop_subagent`, and `resume_subagent` manage task state.
-- `ask_parent` lets a child agent pause and ask the main session for confirmation.
-- Reviewer role reviews EngineerCat / Codex job evidence and artifacts; it does not directly dispatch external coding agents.
-
-### User-shaped Harness
-
-- Session JSONL, runtime logs, tool traces, token usage, and artifacts are kept for replay.
-- Memory finalization can extract facts, preferences, and working habits from sessions.
-- Context compression keeps recent high-value turns while reducing stale history.
-- Inspector, EngineerCat, and ReviewerCat can turn logs and handoffs into inspect -> engineer -> review feedback loops.
-
----
-
-## Roles
-
-| Role | Colleague identity | Typical Work |
-| --- | --- | --- |
-| <img src="dashboard/role-icons/engineer-cat.png" alt="EngineerCat" width="36"> `engineer-cat` | Engineering colleague | Read code, split tasks, call the local Codex runner, implement, verify, report |
-| <img src="dashboard/role-icons/reviewer-cat.png" alt="ReviewerCat" width="36"> `reviewer-cat` | Review and acceptance colleague | Ask for evidence, run checks, inspect artifacts, request rework |
-| <img src="dashboard/role-icons/inspector-cat.png" alt="InspectorCat" width="36"> `inspector-cat` | Runtime inspection colleague | Read logs, detect failures, create or route fix cases |
-| <img src="dashboard/role-icons/researcher-cat.png" alt="ResearcherCat" width="36"> `researcher-cat` | Long-running research colleague | Read papers, track experiments, maintain evidence and deliverables |
-
-Run with a role:
-
-```bash
-npm run dev -- chat -r inspector-cat -i
-```
-
-Role definitions live in [`roles/`](roles/README.md).
-
----
-
-## IM Surfaces
-
-XiaoBa ships adapters for local CLI and multiple message surfaces.
-
-| Surface | Command | Notes |
-| --- | --- | --- |
-| CLI chat | `npm run dev -- chat -i` | Fast local development loop |
-| Feishu | `npm run dev -- feishu` | Requires `FEISHU_APP_ID` and `FEISHU_APP_SECRET` |
-| Weixin | `npm run dev -- weixin` | Requires `WEIXIN_TOKEN` |
-| Dashboard | `npm run dev -- dashboard` | Local service/status/log management |
-| Desktop Pet | `npm run dev -- pet` | Local desktop companion entry |
-
----
-
-## Architecture
-
-Canonical architecture source: [`docs/SPEC.md`](docs/SPEC.md), with execution status in [`docs/PLAN.md`](docs/PLAN.md).
-
-```mermaid
-flowchart LR
-    Surfaces["Surfaces<br/>CLI / Feishu / Weixin / Pet / Dashboard"]
-    Harness["Harness Runtime<br/>AgentSession / Runner / Providers / Tools"]
-    Policy["Roles & Skills<br/>roles / skills / prompts / tool policy"]
-    Evidence["State & Evidence<br/>data / logs / memory / output"]
-    Quality["Quality<br/>test / eval / eval/benchmarks"]
-
-    Surfaces --> Harness
-    Policy --> Harness
-    Harness --> Evidence
-    Evidence --> Quality
-    Quality --> Harness
-    Quality --> Policy
-```
-
-![XiaoBa Agent Runtime Architecture](assets/xiaoba-agent-runtime.png)
-
-Top-level module specs: [`surfaces`](docs/surfaces/SPEC.md), [`harness`](docs/harness/SPEC.md), [`roles`](docs/roles/SPEC.md), and [`state-evidence`](docs/state-evidence/SPEC.md). Test boundary: [`test`](test/SPEC.md). Agent evaluation and benchmark control plane: [`eval`](eval/README.md).
-
-```text
-src/index.ts
-  -> commands/*
-  -> AgentSession
-  -> AIService provider chain
-  -> Role-aware ToolManager
-  -> Skills + tools + subagents
-  -> Session store / logs / memory finalizer
-```
-
-Important modules:
-
-- [`src/core/agent-session.ts`](src/core/agent-session.ts) coordinates messages, commands, skills, memory, and cleanup.
-- [`src/tools/tool-manager.ts`](src/tools/tool-manager.ts) registers file, shell, messaging, skill, and subagent tools.
-- [`src/bootstrap/tool-manager.ts`](src/bootstrap/tool-manager.ts) injects role-aware tool sets.
-- [`src/utils/ai-service.ts`](src/utils/ai-service.ts) handles provider selection, retries, and model failover.
-- [`src/commands/feishu.ts`](src/commands/feishu.ts) and [`src/commands/weixin.ts`](src/commands/weixin.ts) expose IM adapters.
-
----
-
-## Configuration
-
-Base model config:
-
-```env
-XIAOBA_LLM_PROVIDER=openai # openai / anthropic / ollama
-XIAOBA_LLM_API_BASE=https://api.openai.com/v1
-XIAOBA_LLM_API_KEY=your_api_key
-XIAOBA_LLM_MODEL=your_model
-```
-
-For local Ollama, use the native provider:
-
-```env
-XIAOBA_LLM_PROVIDER=ollama
-XIAOBA_LLM_API_BASE=http://localhost:11434
-XIAOBA_LLM_API_KEY=
-XIAOBA_LLM_MODEL=qwen3:8b
-XIAOBA_LLM_MAX_TOKENS=1024
-XIAOBA_OLLAMA_THINK=false
-XIAOBA_OLLAMA_KEEP_ALIVE=30m
-XIAOBA_OLLAMA_NUM_CTX=8192
-```
-
-Optional backup models:
-
-```env
-XIAOBA_LLM_BACKUP_1_PROVIDER=openai
-XIAOBA_LLM_BACKUP_1_API_BASE=https://backup.example/v1
-XIAOBA_LLM_BACKUP_1_API_KEY=backup_key
-XIAOBA_LLM_BACKUP_1_MODEL=backup_model
-```
-
-Optional OpenTelemetry export, disabled by default:
-
-```env
-XIAOBA_OTEL_ENABLED=false
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-OTEL_TRACES_EXPORTER=otlp
-OTEL_METRICS_EXPORTER=otlp
-OTEL_LOGS_EXPORTER=otlp
-```
-
-When enabled, XiaoBa exports redacted metrics / logs / traces. Prompt text, tool args, file content, and raw provider payloads are not exported by default. For a developer-only local Collector smoke route, see [docs/observability/COLLECTOR.md](docs/observability/COLLECTOR.md); it still requires `XIAOBA_OTEL_ENABLED=true` and does not change the default local-user behavior.
-
-IM adapters:
-
-```env
-FEISHU_APP_ID=your_app_id
-FEISHU_APP_SECRET=your_app_secret
-FEISHU_BOT_OPEN_ID=
-FEISHU_BOT_ALIASES=小八,xiaoba
-
-WEIXIN_TOKEN=your_token
-```
-
-Full sample: [`.env.example`](.env.example).
-
----
-
-## Skills
-
-List skills:
-
-```bash
-npm run dev -- skill list
-```
-
-Install a skill from GitHub:
-
-```bash
-npm run dev -- skill install-github owner/repo
-```
-
-Create a local skill:
-
-```text
-skills/my-skill/
-  SKILL.md
-```
-
-```markdown
----
-name: my-skill
-description: Use this when XiaoBa should follow my workflow.
-invocable: user
----
-
-# My Skill
-
-Instructions go here.
-```
-
-See [`skills/README.md`](skills/README.md).
-
----
-
-## Development
-
-```bash
-npm install
-npm run build
-npm test
-```
-
-Desktop development:
-
-```bash
-npm run electron:dev
-```
-
-Build desktop packages:
+Build a macOS installer:
 
 ```bash
 npm run electron:build:mac
-npm run electron:build:win
-npm run electron:build:linux
 ```
 
----
+The generated installer is written to `release/XiaoBa-<version>-mac.dmg`.
 
-## Project Status
+## Default Package
 
-| Area | Status |
+The default Electron package is intentionally clean:
+
+- No roles are preinstalled.
+- Only 5 base skills are bundled: `remember`, `role-publish`, `self-evolution`, `skill-publish`, and `agent-browser`.
+- `spawn_subagent`, file tools, shell, grep, message/file delivery, and related capabilities are runtime tools, not bundled skills.
+
+The development repository can still contain roles and experimental capabilities; the default user package does not force them into the install.
+
+## Common Commands
+
+| Goal | Command |
 | --- | --- |
-| Local CLI chat | Available |
-| Role runtime | Available |
-| Skill loading and GitHub skill install | Available |
-| Feishu / Weixin adapters | Available, credentials required |
-| Dashboard and desktop shell | Available in development mode |
-| Packaged desktop release | Local Electron packaging scripts remain; GitHub workflows removed |
-| npm global package | Not published yet |
+| Interactive chat | `npm run dev -- chat -i` |
+| One-shot message | `npm run dev -- chat -m "Summarize this project"` |
+| Dashboard | `npm run electron:dev` |
+| Build | `npm run build` |
+| Test | `npm test` |
+| macOS package | `npm run electron:build:mac` |
 
----
+## Core Concepts
+
+```mermaid
+flowchart LR
+    Surface["Surfaces<br/>CLI / IM / Dashboard / Pet"]
+    Runtime["Agent Runtime<br/>session / tools / subagents"]
+    Policy["Policy<br/>roles / skills / prompts"]
+    Evidence["Evidence<br/>logs / artifacts / replay"]
+
+    Surface --> Runtime
+    Policy --> Runtime
+    Runtime --> Evidence
+    Evidence --> Runtime
+```
+
+- **Surface**: user entry points such as CLI, Feishu, Weixin, Dashboard, and desktop pet.
+- **Runtime**: the shared agent loop for providers, tools, context, subagents, and delivery.
+- **Roles / Skills**: colleague identities and reusable workflows kept separate from runtime mechanics.
+- **Evidence**: logs, artifacts, traces, and evals that make behavior reviewable and improvable.
 
 ## Docs
 
-- [Docs Index](docs/README.md)
-- [Project SPEC](docs/SPEC.md)
-- [Project PLAN](docs/PLAN.md)
-- [Surfaces SPEC](docs/surfaces/SPEC.md)
-- [Harness Runtime SPEC](docs/harness/SPEC.md)
-- [Roles & Skills SPEC](docs/roles/SPEC.md)
-- [State & Evidence SPEC](docs/state-evidence/SPEC.md)
-- [Test Harness SPEC](test/SPEC.md)
-- [Agent Evaluation Strategy](eval/README.md)
+- [Project Architecture](docs/SPEC.md)
+- [Project Plan](docs/PLAN.md)
+- [Agent Runtime](docs/agent-runtime/SPEC.md)
+- [Surface](docs/surface/SPEC.md)
+- [Roles & Skills](docs/roles-skills/SPEC.md)
+- [Observability & Evidence](docs/observability-evidence/SPEC.md)
+- [Skills Guide](skills/README.md)
 - [Roles Guide](roles/README.md)
-- [EngineerCat Spec](roles/engineer-cat/SPEC.md)
-- [ReviewerCat Spec](roles/reviewer-cat/SPEC.md)
-- [Skill Guide](skills/README.md)
 
----
+## Status
 
-## Project History
-
-XiaoBa-CLI started from [`buildsense-ai/XiaoBa-CLI`](https://github.com/buildsense-ai/XiaoBa-CLI). This repository continues the runtime independently under [`fightheyyy/XiaoBa-CLI`](https://github.com/fightheyyy/XiaoBa-CLI), with new experiments around IM-native agents, role-based work, data flywheels, and desktop distribution.
-
-Changes in this fork do not affect the original `buildsense-ai` version.
-
----
+XiaoBa is still moving quickly. Current focus areas are desktop distribution, IM-native runtime, role/skill ecosystem, and verifiable background task loops.
 
 ## License
 
-Apache-2.0 © CatCompany
-
-<div align="center">
-  Built by CatCompany for agents that do not just answer, but show up where work happens.
-</div>
+Apache-2.0
