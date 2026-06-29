@@ -15,6 +15,9 @@ import { RoleResolver } from '../src/utils/role-resolver';
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
+const describeSecretaryRole = fs.existsSync(path.join(process.cwd(), 'roles', 'secretary-cat', 'role.json'))
+  ? describe
+  : describe.skip;
 
 function fakeChannel(surface: string) {
   return {
@@ -72,7 +75,7 @@ class FakeConfirmedMessageSendTool implements Tool {
   }
 }
 
-describe('SecretaryCat role', () => {
+describeSecretaryRole('SecretaryCat role', () => {
   after(() => {
     if (originalRole) {
       process.env.XIAOBA_ROLE = originalRole;

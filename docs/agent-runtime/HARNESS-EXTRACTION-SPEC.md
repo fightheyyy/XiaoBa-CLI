@@ -4,7 +4,7 @@
 最后更新：2026-06-20
 适用范围：XiaoBa 从产品型 IM-native agent runtime 向可复用 agent harness core 提取的差距、目标接口和验收边界。
 
-本文是 `docs/agent-runtime/SPEC.md` 的支撑文档，不新增第六个顶层架构模块。它回答一个具体问题：XiaoBa 已经有 harness core 的哪些能力，以及离“别人可以直接调用的通用框架型 harness”还差什么。
+本文是 `docs/agent-runtime/SPEC.md` 的支撑文档，不新增独立顶层架构模块。它回答一个具体问题：XiaoBa 已经有 harness core 的哪些能力，以及离“别人可以直接调用的通用框架型 harness”还差什么。
 
 ## Problem
 

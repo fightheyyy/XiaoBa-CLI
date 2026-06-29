@@ -1,6 +1,6 @@
 ---
 name: trace-simulation
-description: Produce low-information multi-turn user pressure scenarios and candidate trace packages for target role evaluation.
+description: Produce low-quality, low-information end-user pressure scenarios and candidate trace packages for target role evaluation.
 user-invocable: true
 auto-invocable: true
 ---
@@ -11,7 +11,7 @@ Use this skill when the user asks UserCat to create, shape, simulate, or run rea
 
 ## Purpose
 
-Generate candidate trace data, not benchmark decisions. The output is useful only when it preserves the separation:
+Generate candidate trace data from a low-quality end-user perspective, not benchmark decisions. The output is useful only when it preserves the separation:
 
 ```text
 UserCat creates candidate trace data.
@@ -36,7 +36,7 @@ Benchmark harness owns fixture, verifier, replay, baseline, and release gates.
    - `roles/<target-role>/prompts/*`
    - relevant eval or benchmark evidence when available
 3. Write the role intent map before scenario design.
-4. Design a low-information persona.
+4. Design a low-quality, low-information end-user persona.
 5. Design a 3-6 turn scenario:
    - vague opening;
    - one evidence challenge;
@@ -68,6 +68,7 @@ A good candidate trace:
 - tests the target role's reason to exist;
 - uses natural short user turns;
 - is under-specified at the start;
+- avoids developer-grade reproduction steps, architecture diagnosis, test plans, or fixes unless the seed explicitly requires a developer persona;
 - includes at least one evidence demand;
 - includes at least one misunderstanding, missing detail, or mid-course constraint;
 - creates observable behavior, artifact, blocked reason, or failure;

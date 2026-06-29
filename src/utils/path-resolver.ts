@@ -50,7 +50,9 @@ export class PathResolver {
   }
 
   static getBaseSkillsPath(): string {
-    return path.join(this.getProjectRoot(), 'skills');
+    return process.env.XIAOBA_SKILLS_ROOT
+      ? path.resolve(process.env.XIAOBA_SKILLS_ROOT)
+      : path.join(this.getProjectRoot(), 'skills');
   }
 
   /**
@@ -89,16 +91,16 @@ export class PathResolver {
       return results;
     }
 
+    const rootSkillFile = path.join(baseDir, 'SKILL.md');
+    if (fs.existsSync(rootSkillFile)) {
+      results.push(rootSkillFile);
+    }
+
     const entries = fs.readdirSync(baseDir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(baseDir, entry.name);
 
       if (entry.isDirectory()) {
-        // 检查是否有 SKILL.md
-        const skillFile = path.join(fullPath, 'SKILL.md');
-        if (fs.existsSync(skillFile)) {
-          results.push(skillFile);
-        }
         // 递归查找子目录
         results.push(...this.findSkillFiles(fullPath));
       }

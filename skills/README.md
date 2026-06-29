@@ -2,7 +2,7 @@
 
 ## 统一的 Skill 管理
 
-默认情况下，所有 Skills 存放在项目根目录的 `skills/` 文件夹中。
+默认情况下，基础 Skills 存放在项目根目录的 `skills/` 文件夹中。GitHub 默认跟踪和 Electron 默认打包只保留 5 个 base skills：`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`。
 
 如果使用角色模式（例如 `xiaoba --role inspector-cat`），角色专属 Skills 会放在 `roles/<role>/skills/`，运行时会优先加载角色目录，再按角色配置决定是否继承基础 Skills。
 
@@ -10,13 +10,15 @@
 
 ```
 skills/
-├── paper-analysis/
+├── remember/
 │   └── SKILL.md
-├── sci-paper-writing/
+├── role-publish/
 │   └── SKILL.md
-├── xhs-vibe-write/
+├── self-evolution/
 │   └── SKILL.md
-└── your-custom-skill/
+├── skill-publish/
+│   └── SKILL.md
+└── agent-browser/
     └── SKILL.md
 ```
 
@@ -39,7 +41,7 @@ xiaoba skill install-github owner/repo
 xiaoba skill install-github obra/superpowers
 ```
 
-Skill 会被克隆到 `skills/` 目录。
+Skill 会被克隆到 `skills/` 目录。非默认 skill 默认不进入 Git 跟踪；需要发布成默认 skill 时必须显式调整白名单和打包测试。
 
 ### 查看 Skill 详情
 

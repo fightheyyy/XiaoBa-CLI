@@ -1,0 +1,181 @@
+import { afterEach, beforeEach, describe, test } from 'node:test';
+import * as assert from 'node:assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { Command } from 'commander';
+import { registerArenaCommand } from '../src/commands/arena';
+
+const originalCwd = process.cwd();
+
+describe('registerArenaCommand', () => {
+  let testRoot = '';
+  let logs: string[] = [];
+  let originalLog: typeof console.log;
+
+  beforeEach(() => {
+    testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-arena-command-'));
+    process.chdir(testRoot);
+    writeSkill(path.join(testRoot, 'skills', 'demo-skill'), 'demo-skill');
+    writeEvidenceRefs(testRoot);
+    originalLog = console.log;
+    logs = [];
+    console.log = (...args: unknown[]) => {
+      logs.push(args.map(String).join(' '));
+    };
+  });
+
+  afterEach(() => {
+    console.log = originalLog;
+    process.chdir(originalCwd);
+    if (testRoot && fs.existsSync(testRoot)) {
+      fs.rmSync(testRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('registers arena import skill command', async () => {
+    const program = createProgram();
+    registerArenaCommand(program);
+
+    await program.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'skills/demo-skill']);
+
+    const output = JSON.parse(logs.join('\n'));
+    assert.strictEqual(output.subject.type, 'skill');
+    assert.strictEqual(output.subject.name, 'demo-skill');
+    assert.ok(fs.existsSync(path.join(
+      testRoot,
+      'arena',
+      'subjects',
+      output.subject_id,
+      'arena-manifest.json',
+    )));
+  });
+
+  test('registers arena run create command with real evidence refs', async () => {
+    const importProgram = createProgram();
+    registerArenaCommand(importProgram);
+    await importProgram.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'skills/demo-skill']);
+    const manifest = JSON.parse(logs.join('\n'));
+    logs = [];
+
+    const runProgram = createProgram();
+    registerArenaCommand(runProgram);
+    await runProgram.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'run',
+      'create',
+      '--mode',
+      'base_skill',
+      '--subject',
+      manifest.subject_id,
+      '--run-id',
+      'cli-pass',
+      '--usercat-run',
+      'usercat-cli',
+      '--usercat-package',
+      'output/user-cat/candidates/usercat-cli/manifest.json',
+      '--trace',
+      'logs/sessions/pet/2026-06-29/session/traces.jsonl',
+      '--inspector',
+      'output/inspector/cli-case.json',
+      '--reviewer-run',
+      'reviewer-cli',
+      '--scorecard',
+      'data/reviewer-runs/reviewer-cli/scorecard.json',
+      '--report',
+      'data/reviewer-runs/reviewer-cli/report.md',
+      '--decision',
+      'pass',
+      '--attempts-planned',
+      '3',
+      '--attempts-completed',
+      '3',
+      '--attempts-pass',
+      '3',
+      '--replay-trace',
+      'output/replay/cli-pass/replay-results.json',
+    ]);
+
+    const run = JSON.parse(logs.join('\n'));
+    assert.strictEqual(run.run_id, 'cli-pass');
+    assert.strictEqual(run.review_mode, 'base_skill');
+    assert.strictEqual(run.decision, 'pass');
+    assert.strictEqual(run.replay_attempts.pass_count, 3);
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-pass', 'arena-run.json')));
+  });
+
+  test('registers arena runtime prepare command', async () => {
+    const importProgram = createProgram();
+    registerArenaCommand(importProgram);
+    await importProgram.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'skills/demo-skill']);
+    const manifest = JSON.parse(logs.join('\n'));
+    logs = [];
+
+    const runtimeProgram = createProgram();
+    registerArenaCommand(runtimeProgram);
+    await runtimeProgram.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'runtime',
+      'prepare',
+      '--mode',
+      'base_skill',
+      '--subject',
+      manifest.subject_id,
+      '--run-id',
+      'cli-clean',
+      '--pass-env',
+      'OPENAI_API_KEY',
+    ]);
+
+    const runtime = JSON.parse(logs.join('\n'));
+    assert.strictEqual(runtime.run_id, 'cli-clean');
+    assert.strictEqual(runtime.review_mode, 'base_skill');
+    assert.strictEqual(runtime.target_profile.active_role_id, 'base');
+    assert.ok(runtime.launch.pass_through_env.includes('OPENAI_API_KEY'));
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-clean', 'clean-runtime.json')));
+  });
+});
+
+function createProgram(): Command {
+  return new Command()
+    .exitOverride()
+    .configureOutput({
+      writeOut: () => undefined,
+      writeErr: () => undefined,
+    });
+}
+
+function writeSkill(dirPath: string, name: string): void {
+  fs.mkdirSync(dirPath, { recursive: true });
+  fs.writeFileSync(path.join(dirPath, 'SKILL.md'), [
+    '---',
+    `name: ${name}`,
+    `description: ${name} description`,
+    '---',
+    '',
+    'Use evidence.',
+    '',
+  ].join('\n'), 'utf-8');
+}
+
+function writeEvidenceRefs(root: string): void {
+  writeJson(path.join(root, 'output/user-cat/candidates/usercat-cli/manifest.json'), { run_id: 'usercat-cli' });
+  writeText(path.join(root, 'logs/sessions/pet/2026-06-29/session/traces.jsonl'), '{"entry_type":"trace"}\n');
+  writeJson(path.join(root, 'output/inspector/cli-case.json'), { issue_type: 'none' });
+  writeJson(path.join(root, 'data/reviewer-runs/reviewer-cli/scorecard.json'), { decision: 'pass' });
+  writeText(path.join(root, 'data/reviewer-runs/reviewer-cli/report.md'), '# report\n');
+  writeJson(path.join(root, 'output/replay/cli-pass/replay-results.json'), { pass: true });
+}
+
+function writeJson(filePath: string, value: unknown): void {
+  writeText(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeText(filePath: string, value: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, value, 'utf-8');
+}

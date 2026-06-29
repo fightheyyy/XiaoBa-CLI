@@ -117,6 +117,11 @@
       "skills/skill-publish/**/*",
       "skills/remember/**/*",
       "skills/README.md",
+      "roles/user-cat/**/*",
+      "roles/inspector-cat/**/*",
+      "roles/engineer-cat/**/*",
+      "roles/reviewer-cat/**/*",
+      "roles/README.md",
       "skill-registry.json",
       ".env.example",
       "package.json"

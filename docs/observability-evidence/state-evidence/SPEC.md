@@ -4,7 +4,7 @@
 最后更新：2026-06-23
 适用范围：XiaoBa 的本地状态和运行证据层，包括 `data`、`logs`、`memory`、`output` 以及写入这些目录的 runtime/role/surface/tool 代码。
 
-本文是 **Observability & Evidence / 观测证据层** 的 durable source 子文档，不再作为独立第六个顶层模块。它定义什么是 durable session、trace、runner turn、provider transcript、visible history、artifact 和 evaluation input。
+本文是 **Observability & Evidence / 观测证据层** 的 durable source 子文档，不作为独立顶层架构模块。它定义什么是 durable session、trace、runner turn、provider transcript、visible history、artifact 和 evaluation input。
 
 ## Problem
 

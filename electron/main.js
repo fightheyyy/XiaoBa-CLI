@@ -2,6 +2,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, dialog } = require('electro
 const path = require('path');
 
 const DASHBOARD_PORT = 3800;
+const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat'];
 let mainWindow = null;
 let tray = null;
 let autoUpdater = null;
@@ -112,6 +113,29 @@ async function startServer() {
     // 复制 README
     const readmeSrc = path.join(bundledSkills, 'README.md');
     const readmeDest = path.join(skillsPath, 'README.md');
+    if (fs.existsSync(readmeSrc)) {
+      fs.copyFileSync(readmeSrc, readmeDest);
+    }
+  }
+
+  // 同步内置 roles 到 userData（保留用户安装的 roles）
+  const rolesPath = path.join(userDataPath, 'roles');
+  const bundledRoles = path.join(appRoot, 'roles');
+
+  if (fs.existsSync(bundledRoles)) {
+    fs.mkdirSync(rolesPath, { recursive: true });
+
+    for (const roleName of DEFAULT_BUNDLED_ROLES) {
+      const src = path.join(bundledRoles, roleName);
+      const dest = path.join(rolesPath, roleName);
+
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        fs.cpSync(src, dest, { recursive: true });
+      }
+    }
+
+    const readmeSrc = path.join(bundledRoles, 'README.md');
+    const readmeDest = path.join(rolesPath, 'README.md');
     if (fs.existsSync(readmeSrc)) {
       fs.copyFileSync(readmeSrc, readmeDest);
     }

@@ -5,13 +5,24 @@ import { SkillParser } from './skill-parser';
 import { Logger } from '../utils/logger';
 
 const DEFAULT_EXCLUDED_BASE_SKILLS = new Set([
+  'WebCLI',
+  'webcli',
   'OfficeCLI',
   'officecli-docx',
   'officecli-pptx',
   'officecli-xlsx',
+  'vision-analysis',
   'sub-agent',
   'background-task-runner',
 ]);
+
+export const DEFAULT_BUNDLED_BASE_SKILLS = [
+  'remember',
+  'role-publish',
+  'self-evolution',
+  'skill-publish',
+  'agent-browser',
+] as const;
 
 /**
  * Skills 管理器

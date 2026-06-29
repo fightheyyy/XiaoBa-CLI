@@ -17,6 +17,9 @@ const originalRolesRoot = process.env.XIAOBA_ROLES_ROOT;
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
+const describeResearcherLiveRole = fs.existsSync(path.join(process.cwd(), 'roles', 'researcher-cat', 'role.json'))
+  ? describe
+  : describe.skip;
 
 class LiveResearcherAIService {
   requests: Array<{ messages: Message[]; toolNames: string[] }> = [];
@@ -114,7 +117,7 @@ class LiveResearcherAIService {
   }
 }
 
-describe('ResearcherCat live AgentSession board smoke', () => {
+describeResearcherLiveRole('ResearcherCat live AgentSession board smoke', () => {
   let testRoot: string;
 
   beforeEach(() => {

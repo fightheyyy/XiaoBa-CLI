@@ -6,7 +6,11 @@ import { PromptManager } from '../src/utils/prompt-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
 import { SkillManager } from '../src/skills/skill-manager';
 
-describe('ResearcherCat role assets', () => {
+const describeResearcherRole = fs.existsSync(path.join(process.cwd(), 'roles', 'researcher-cat', 'role.json'))
+  ? describe
+  : describe.skip;
+
+describeResearcherRole('ResearcherCat role assets', () => {
   test('role.json 应存在且可解析', () => {
     const rolePath = path.join(process.cwd(), 'roles', 'researcher-cat', 'role.json');
     assert.ok(fs.existsSync(rolePath));

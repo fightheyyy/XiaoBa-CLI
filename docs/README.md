@@ -1,6 +1,6 @@
 # XiaoBa-CLI Docs
 
-`docs/` 是项目级和顶层架构模块的 spec / plan 真相源。当前顶层口径是五个模块：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation。`test/` 是 Evaluation 消费的 deterministic verification boundary；`state-evidence` 是 Observability & Evidence 的 durable source 子文档。
+`docs/` 是项目级和顶层架构模块的 spec / plan 真相源。当前顶层口径是六个模块：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation、Arena。`test/` 是 Evaluation 消费的 deterministic verification boundary；`state-evidence` 是 Observability & Evidence 的 durable source 子文档。
 
 ## Project
 
@@ -17,6 +17,7 @@
 | Roles & Skills：策略层 | [SPEC](roles-skills/SPEC.md) | [PLAN](roles-skills/PLAN.md) |
 | Observability & Evidence：观测证据层 | [SPEC](observability-evidence/SPEC.md) | [PLAN](observability-evidence/PLAN.md) |
 | Evaluation：评测与回归门禁 | [SPEC](evaluation/SPEC.md) | [PLAN](evaluation/PLAN.md) |
+| Arena：能力审判场 | [SPEC](arena/SPEC.md) | [PLAN](arena/PLAN.md) |
 
 ## Supporting Docs
 

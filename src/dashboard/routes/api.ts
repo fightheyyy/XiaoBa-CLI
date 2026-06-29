@@ -12,6 +12,7 @@ import { getDashboardActiveRole, registerDashboardApiExtensions } from '../../bo
 import { createPetRouter } from '../../pet/channel';
 import { PathResolver } from '../../utils/path-resolver';
 import { RoleResolver } from '../../utils/role-resolver';
+import { RoleManager } from '../../roles/role-manager';
 import { SkillParser } from '../../skills/skill-parser';
 import type { Skill } from '../../types/skill';
 import matter from 'gray-matter';
@@ -261,6 +262,24 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
+    }
+  });
+
+  router.delete('/roles/:name', (req, res) => {
+    try {
+      const result = RoleManager.removeRole(req.params.name);
+      const activeRole = getDashboardActiveRole();
+      const runningServices = serviceManager.getAll().filter(service => service.status === 'running');
+      res.json({
+        ok: true,
+        role: result,
+        active: activeRole || null,
+        runningServices,
+        requiresRestart: runningServices.length > 0,
+      });
+    } catch (e: any) {
+      const status = /not found/i.test(e.message) ? 404 : 400;
+      res.status(status).json({ error: e.message });
     }
   });
 
@@ -901,6 +920,7 @@ function getBaseRoleSummary(activeRole?: string | null): any {
     path: null,
     roleSkillCount: 0,
     roleSkills: [],
+    removable: false,
   };
 }
 
@@ -926,6 +946,7 @@ function getRoleSummary(roleName: string, activeRole?: string | null): any {
     path: fs.existsSync(rolePath) ? rolePath : null,
     roleSkillCount: roleSkills.length,
     roleSkills,
+    removable: fs.existsSync(rolePath),
   };
 }
 

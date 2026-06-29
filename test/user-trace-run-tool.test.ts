@@ -3,6 +3,7 @@ import * as assert from 'node:assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { DEFAULT_BUNDLED_ROLES } from '../src/roles/role-manager';
 import { getRoleSpecificToolsForRole } from '../src/roles/runtime-role-registry';
 import { UserTraceRunTool } from '../src/roles/user-cat/tools/user-trace-run-tool';
 import { SkillManager } from '../src/skills/skill-manager';
@@ -300,8 +301,8 @@ describe('UserTraceRunTool', () => {
     );
   });
 
-  test('can drive every durable target role through the same Dashboard Chat entrypoint', async () => {
-    const targetRoles = ['engineer-cat', 'inspector-cat', 'reviewer-cat', 'researcher-cat', 'secretary-cat'];
+  test('can drive every default durable target role through the same Dashboard Chat entrypoint', async () => {
+    const targetRoles = DEFAULT_BUNDLED_ROLES.filter(role => role !== 'user-cat');
 
     for (const targetRole of targetRoles) {
       const fakeAI = new FakeTargetRoleAIService();

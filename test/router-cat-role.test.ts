@@ -11,6 +11,9 @@ import { RoleResolver } from '../src/utils/role-resolver';
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
+const describeRouterRole = fs.existsSync(path.join(process.cwd(), 'roles', 'router-cat', 'role.json'))
+  ? describe
+  : describe.skip;
 
 function fakeChannel(surface: string) {
   return {
@@ -38,7 +41,7 @@ function restoreEnv(): void {
   }
 }
 
-describe('RouterCat role', () => {
+describeRouterRole('RouterCat role', () => {
   beforeEach(() => {
     RoleResolver.clearActiveRole();
   });

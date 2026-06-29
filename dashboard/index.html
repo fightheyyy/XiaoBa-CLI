@@ -3851,6 +3851,9 @@
         loadFailed: 'Load failed',
         deleteSkillConfirmPrefix: 'Delete skill "',
         deleteSkillConfirmSuffix: '"? This cannot be undone.',
+        deleteRoleConfirmPrefix: 'Delete role "',
+        deleteRoleConfirmSuffix: '"? This cannot be undone.',
+        deleteRoleFailed: 'Delete role failed: ',
         configPrimaryModel: 'LLM Primary Model',
         configBackupModel: 'LLM Backup Model',
         configFeishu: 'Feishu',
@@ -4003,6 +4006,9 @@
         loadFailed: '加载失败',
         deleteSkillConfirmPrefix: '确定要删除 skill "',
         deleteSkillConfirmSuffix: '" 吗？此操作不可恢复。',
+        deleteRoleConfirmPrefix: '确定要删除 role "',
+        deleteRoleConfirmSuffix: '" 吗？此操作不可恢复。',
+        deleteRoleFailed: '删除 role 失败: ',
         configPrimaryModel: 'LLM 主模型',
         configBackupModel: 'LLM 备用模型',
         configFeishu: '飞书',
@@ -4890,6 +4896,7 @@
       if (!roles.length) { g.innerHTML = '<div class="loading">'+t('noRoles')+'</div>'; return; }
       g.innerHTML = roles.map(role => {
         const roleSkills = role.roleSkills || [];
+        const roleNameArg = escapeHtml(escapeJs(role.name || ''));
         const tags = [
           role.active ? '<span class="tag green">'+t('tagCurrent')+'</span>' : '',
           role.inheritBaseSkills === false ? '<span class="tag gray">'+t('tagIndependentSkills')+'</span>' : '<span class="tag purple">'+t('tagInheritBase')+'</span>',
@@ -4902,7 +4909,10 @@
           '<div class="skill-tags">'+tags+'</div>'+
           (skillPreview ? '<div class="skill-tags">'+skillPreview+'</div>' : '')+
           (role.aliases&&role.aliases.length?'<div class="skill-files">Aliases: '+role.aliases.map(escapeHtml).join(', ')+'</div>':'')+
-          '<div class="skill-actions">'+(role.active?'<button class="btn" disabled>'+t('enabled')+'</button>':'<button class="btn btn-primary" onclick="activateRole(\''+escapeHtml(role.name)+'\')">'+t('enable')+'</button>')+'</div>'+
+          '<div class="skill-actions">'+
+            (role.active?'<button class="btn" disabled>'+t('enabled')+'</button>':'<button class="btn btn-primary" onclick="activateRole(\''+roleNameArg+'\')">'+t('enable')+'</button>')+
+            (role.removable?'<button class="btn btn-danger" onclick="deleteRole(\''+roleNameArg+'\')">'+t('delete')+'</button>':'')+
+          '</div>'+
         '</div>';
       }).join('');
     }
@@ -4921,6 +4931,22 @@
         await fetchPets({ preferDefault: true });
       } catch (e) {
         alert(t('switchRoleFailed')+e.message);
+      }
+    }
+
+    async function deleteRole(roleName) {
+      if(!confirm(t('deleteRoleConfirmPrefix')+roleName+t('deleteRoleConfirmSuffix')))return;
+      try {
+        const res = await fetch(API+'/api/roles/'+encodeURIComponent(roleName), { method:'DELETE' });
+        const data = await res.json();
+        if(data.error){alert(t('deleteRoleFailed')+data.error);return;}
+        if(data.requiresRestart){alert(t('roleSwitchedRestart'));}
+        await fetchRoles();
+        await fetchStatus();
+        await fetchSkills();
+        await fetchPets({ preferDefault: true });
+      } catch(e) {
+        alert(t('deleteRoleFailed')+e.message);
       }
     }
 

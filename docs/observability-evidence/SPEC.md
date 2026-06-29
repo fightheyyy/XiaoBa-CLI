@@ -3,7 +3,7 @@
 状态：Active
 最后更新：2026-06-23
 
-本文是五大顶层模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现不提供外部观测导出，也不在本地 trace/log 写入前做清洗。
+本文是顶层架构模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现不提供外部观测导出，也不在本地 trace/log 写入前做清洗。
 
 ## Problem
 

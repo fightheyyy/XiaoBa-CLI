@@ -1,6 +1,6 @@
 ---
 name: xiaoba-cli-product-test
-description: Turn a short XiaoBa-CLI product-test request into a realistic low-information multi-turn candidate trace run.
+description: Turn a short XiaoBa-CLI product-test request into a realistic low-quality, low-information end-user multi-turn candidate trace run.
 user-invocable: true
 auto-invocable: true
 ---
@@ -9,7 +9,7 @@ auto-invocable: true
 
 Use this skill when the user asks UserCat to act like a real XiaoBa-CLI user, try a product capability, run an end-to-end usage probe, or touch the runtime boundary from a user perspective.
 
-This is a product-use trace generator. It does not score the target role, accept a benchmark, or replace ReviewerCat. UserCat creates XiaoBa-CLI product test candidate traces; ReviewerCat curates them later.
+This is a product-use trace generator. It does not score the target role, accept a benchmark, act as a developer, or replace ReviewerCat. UserCat creates XiaoBa-CLI product test candidate traces from a low-quality end-user perspective; ReviewerCat curates them later.
 
 ## Default Target
 
@@ -38,9 +38,10 @@ Never target `user-cat`.
    - which evidence the role should produce or explain;
    - which behavior would be fake success;
    - which boundary should not be crossed.
-4. Build a low-information persona:
+4. Build a low-quality, low-information end-user persona:
    - real product user;
    - does not know internal architecture;
+   - does not provide developer-grade reproduction steps, architecture diagnosis, test plans, or fixes unless the seed explicitly says this user is a developer;
    - cares about visible delivery;
    - may forget one constraint until the middle of the run.
 5. Generate short user turns. Prefer this shape:

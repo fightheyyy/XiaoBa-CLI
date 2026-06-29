@@ -160,4 +160,21 @@ Legacy sub-agent wrapper.
     assert.strictEqual(deleteResponse.status, 200);
     assert.strictEqual(fs.existsSync(legacyPath), false);
   });
+
+  test('deletes an installed role and clears the active role', async () => {
+    const rolePath = path.join(testRoot, 'roles', 'engineer-cat');
+
+    const deleteResponse = await fetch(`${baseUrl}/api/roles/engineer-cat`, { method: 'DELETE' });
+    assert.strictEqual(deleteResponse.status, 200);
+    const result = await deleteResponse.json() as { ok: boolean; active: string | null };
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.active, null);
+    assert.strictEqual(fs.existsSync(rolePath), false);
+    assert.strictEqual(RoleResolver.getActiveRoleName(), undefined);
+
+    const listResponse = await fetch(`${baseUrl}/api/roles`);
+    assert.strictEqual(listResponse.status, 200);
+    const roles = await listResponse.json() as { roles: Array<{ name: string }> };
+    assert.strictEqual(roles.roles.some(role => role.name === 'engineer-cat'), false);
+  });
 });

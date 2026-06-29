@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import * as assert from 'node:assert';
-import { SkillManager } from '../src/skills/skill-manager';
+import { DEFAULT_BUNDLED_BASE_SKILLS, SkillManager } from '../src/skills/skill-manager';
 import { ToolManager } from '../src/tools/tool-manager';
 import { SubAgentManager } from '../src/core/sub-agent-manager';
 import { createSubAgentToolExecutor } from '../src/core/sub-agent-session';
@@ -15,18 +15,12 @@ describe('SkillManager runtime base skills', () => {
 
     const names = manager.getAllSkills().map(skill => skill.metadata.name).sort();
 
-    assert.deepStrictEqual(names, [
-      'agent-browser',
-      'remember',
-      'role-publish',
-      'self-evolution',
-      'skill-publish',
-      'vision-analysis',
-      'webcli',
-    ]);
+    assert.deepStrictEqual(names, [...DEFAULT_BUNDLED_BASE_SKILLS].sort());
     assert.strictEqual(manager.getSkill('officecli-docx'), undefined);
     assert.strictEqual(manager.getSkill('officecli-pptx'), undefined);
     assert.strictEqual(manager.getSkill('officecli-xlsx'), undefined);
+    assert.strictEqual(manager.getSkill('webcli'), undefined);
+    assert.strictEqual(manager.getSkill('vision-analysis'), undefined);
     assert.strictEqual(manager.getSkill('sub-agent'), undefined);
     assert.strictEqual(manager.getSkill('background-task-runner'), undefined);
     assert.strictEqual(manager.getSkill('general-background-task'), undefined);

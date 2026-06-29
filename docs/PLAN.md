@@ -1,12 +1,14 @@
 # XiaoBa-CLI PLAN
 
 状态：Active
-最后更新：2026-06-27
+最后更新：2026-06-29
 Owner：XiaoBa maintainers
 
-本文维护 XiaoBa-CLI 仓库级执行计划。`docs/SPEC.md` 定义项目级架构和 contract，本文维护当前状态、下一步、验收条件和验证证据。五个顶层架构模块是 Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation；Evaluation 当前只承认两条产品主线：Trace Replay 和 Live Agent Eval。`test/` 是独立工程验证边界，不是 Evaluation gate。更细的 durable 子模块可以继续维护自己的 `SPEC.md` / `PLAN.md`。
+本文维护 XiaoBa-CLI 仓库级执行计划。`docs/SPEC.md` 定义项目级架构和 contract，本文维护当前状态、下一步、验收条件和验证证据。六个顶层架构模块是 Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation、Arena；Evaluation 当前只承认两条产品主线：Trace Replay 和 Live Agent Eval。Arena 是 GitHub / 外部 skill 和本地 role 的本地审判场产品模块，v1 固定三种 review mode：`base_skill`、`role_skill`、`role`，不自动进入 Evaluation gate。`test/` 是独立工程验证边界，不是 Evaluation gate。更细的 durable 子模块可以继续维护自己的 `SPEC.md` / `PLAN.md`。
 
 ## Current Status
+
+2026-06-29：仓库级架构口径扩展为六个顶层模块：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation、Arena。Arena 已从规划/文档推进到最小控制面和 clean runtime prepare：把 GitHub / 外部 skill 和本地 role 放入 XiaoBa 真实 runtime 前，先用三种 review mode 做本地审判索引：`base_skill` 评 Base + skill，`role_skill` 评 role + skill，`role` 评 role 本身；`src/arena` 是代码，`docs/arena` 是设计文档，根目录 `arena/` 是真实评测现场和证据；`xiaoba arena runtime prepare` 能为每个 run 生成干净 `home/`、`skills/`、`roles/`、`workspace/`、`tmp/`、启动 env / command 和可选 macOS Seatbelt command；它通过 UserCat 真实端到端多轮低质量使用、session trace、InspectorCat 取证和 ReviewerCat scorecard 产出判断，只保存 subject manifest / clean runtime index / run index，不替代生产 `SkillManager` 或 role registry，不复制现有证据产物，也不自动接受 `eval/` benchmark source。自动 UserCat / Inspector / Reviewer 编排和 runner-side sandbox enforcement 仍是下一阶段。
 
 2026-06-23：仓库级架构口径收敛为五个顶层模块：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation。Evaluation 不再把所有 trace 相关东西都叫 eval，只保留两条主线：Trace Replay 负责“历史真实用户输入重新跑当前 runtime 并产出 fresh trace 对比”，Live Agent Eval 负责“curated benchmark case + verifier + scorecard”。`test/` 是 unit / integration / deterministic contract smoke 边界，不再通过 `eval-smoke` 二次包装进 eval benchmark portfolio；`eval/` 只负责 live agent eval benchmark。`eval:gate` 默认只聚合 BaseRuntime live agent eval。Observability & Evidence 只保留本地 trace / event / metric / artifact evidence；外部观测导出和本地 trace/log 清洗策略已退出当前实现。
 
@@ -54,7 +56,9 @@ flowchart LR
 - Dashboard legacy Inspector hook/server/MySQL 配置面已退出当前产品路径；InspectorCat 保留 `analyze_log` 取证工具，旧 hook runtime/API auto-start 等待 Inspector refactor 重新定义合同。
 - 旧中心化 eval/governance/source-acceptance 文件级资产已物理删除。
 - Heavy eval schema governance has been removed from the active path; benchmark assets now use `check:benchmarks` for live-only manifest/case/suite preflight.
-- `Guide` 保留为 ChinaTravel / TPC competition role，并拥有 role-local spec/plan、data/eval skills、`guide_tpc_baseline` / `guide_tpc_env_baseline` / `guide_tpc_eval_analysis` runtime tools、1000 Phase 1 v12 repaired predictions、official scorecard 和 stage-level eval analysis evidence；旧 role-wide gate 已退出 active eval 命令面，未来 Guide/role eval 必须按 live agent eval 形态重建后才能进入 `eval/benchmarks/<Role>/`。
+- Default policy assets are intentionally small: GitHub default tracking and Electron packaging keep only five base skills (`remember`, `role-publish`, `self-evolution`, `skill-publish`, `agent-browser`) and four core roles (`user-cat`, `inspector-cat`, `engineer-cat`, `reviewer-cat`). Non-default roles/skills require explicit install, Role Hub, or local ignored assets.
+- Arena module docs have been created at `docs/arena/SPEC.md` and `docs/arena/PLAN.md`; the minimal control plane now exists under `src/arena/**` and `src/commands/arena.ts`, while root `arena/**` is the Arena review-site data root for subject manifests, clean runtimes and run indexes.
+- Default Electron role bundle is narrowed to `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`; role deletion lifecycle is implemented through CLI and Dashboard while non-default roles remain future Role Hub / explicit-install assets.
 
 部分完成：
 
@@ -62,6 +66,7 @@ flowchart LR
 - Observability 现在是本地优先证据系统：session JSONL 投影到 local summary，AgentSession 路径以 session JSONL 作为 local summary 事实源。这些证据可被 Trace Replay、BaseRuntime live eval 或未来 role-owned live benchmark 消费，但不能自动变成 accepted benchmark source。
 - Session/trace/turn 术语已统一到 live log 主路径：`session` 是长期会话，`trace` 是一次用户请求到本次 `ConversationRunner` while-loop 截止，`turn` 保留给 while-loop 内部推进；新 live log 写入 `entry_type="trace"`、`trace_id`、`trace_index`，并把 lifecycle/provider events 嵌入 trace row。
 - Surface adapter/runtime/file smoke 仍属于 runtime harness；完整真实入口 E2E 应交给 ReviewerCat / role benchmark 分层推进。
+- Arena 最小控制面已完成：可导入本地 / GitHub skill、快照 role、准备 clean runtime overlay、记录三种 review mode inventory、创建 `clean-runtime.json` / `arena-run.json` 并校验 UserCat / trace / Inspector / Reviewer refs 与 replay attempt counts；自动 UserCat 触发、Inspector 调用、Reviewer replay 编排和 runner-side sandbox enforcement 仍未完成。
 
 未开始或仍需收敛：
 
@@ -69,6 +74,7 @@ flowchart LR
 - durable background job / subagent persistence 仍未形成完整 runtime contract。
 - ReviewerCat 的统一 ReviewTaskRunner、future role E2E scorecard 合并器和 provider transcript 深度 verifier 仍是后续主线。
 - Role benchmark 需要重新按 live agent eval shape 设计，不能把静态 trace fixture 或 rubric-only 文件放回 `eval/`。
+- Arena deep safety scanner、runner-side lightweight execution sandbox enforcement、automatic UserCat E2E trigger、automatic Inspector issue extraction 和 automatic Reviewer replay / scorecard 编排仍未开始或仍是部分实现。
 
 ## Milestones
 
@@ -80,6 +86,7 @@ flowchart LR
 6. M5：Surface runtime harness：partial; adapter/runtime/file smokes remain in runtime harness, while production-network full E2E belongs to ReviewerCat / role benchmark ownership.
 7. M6：Permission and control-plane security boundary：not started for network-exposed Dashboard/Pet control surfaces.
 8. M7：Durable session / background job state：partial for surface-scoped restore and visible-history refs; durable background job persistence remains incomplete.
+9. M8：Arena product module：minimal control plane completed for subject manifests, role snapshots, clean runtime prepare, run indexes and evidence refs; automatic UserCat-Inspector-Reviewer orchestration and runner-side sandbox enforcement remain pending.
 
 ## Next Steps
 
@@ -96,9 +103,8 @@ flowchart LR
 - Extend live state-boundary coverage to future maintained surfaces only after each surface has stable persisted visible-history refs.
 - Add an explicit long-term memory recall command/tool if product UX needs memory lookup beyond automatic lifecycle extraction.
 - Rebuild EngineerCat / all-roles / skill handoff / cross-role eval only as live agent eval cases before reintroducing them under `eval/`.
-- Keep Guide repair work under role-owned docs/evidence: current next order is chronology repair, budget / inner-city transport solving, verifier-filtered intercity mode repair, residual entity repair, reproducible data profiling, then LLM/SFT/RL only after deterministic verifier overlap plateaus.
-- Add SecretaryCat focused runtime/test coverage once Feishu auth/calendar/message wrappers have manual smoke evidence; only add eval coverage later as live agent replay.
-- Connect ReviewerCat to UserCat candidate packages as a read-only curation/review workflow; accepted benchmark additions still belong to role benchmark owners.
+- Connect ReviewerCat to UserCat run packages as a read-only curation/review workflow; accepted benchmark additions still belong to role benchmark owners.
+- Continue Arena in this order: deepen safety scan -> wire automatic runner to clean runtime prepare -> enforce lightweight sandbox on the runner path -> automatic UserCat real E2E multi-turn trigger -> automatic Inspector issue extraction -> automatic Reviewer replay / scorecard refs -> optional promotion workflow.
 
 ## Owners
 
@@ -110,13 +116,14 @@ flowchart LR
 - Skills：`skills/**`, `src/skills/**`
 - Observability & Evidence：`src/observability/**`, `logs/**`, `data/**`, `memory/**`, `output/**`, `docs/observability-evidence/state-evidence/**`
 - Evaluation strategy and execution：`eval/**`, `eval/benchmarks/**`
+- Arena：`src/arena/**`, `src/commands/arena.ts`, `arena/**`, `docs/arena/**`
 - Test verification boundary：`test/**`
 - Documentation governance：`docs/SPEC.md` / `docs/PLAN.md` and module SPEC/PLAN owners.
 
 ## Acceptance Criteria
 
 - `docs/SPEC.md` and `docs/PLAN.md` exist and stay in sync as the project-level source of truth.
-- The architecture module specs exist and stay discoverable from `docs/SPEC.md`: `docs/surface/SPEC.md`, `docs/agent-runtime/SPEC.md`, `docs/roles-skills/SPEC.md`, `docs/observability-evidence/SPEC.md`, `docs/trace-replay/SPEC.md`, and `docs/evaluation/SPEC.md`. `docs/evaluation/SPEC.md` remains a proxy to the real `eval/SPEC.md` control-plane source; `docs/trace-replay/SPEC.md` owns historical trace replay; `docs/observability-evidence/state-evidence/SPEC.md` remains the durable evidence subdocument under Observability & Evidence, and `test/SPEC.md` remains the deterministic verification boundary under Evaluation.
+- The architecture module specs exist and stay discoverable from `docs/SPEC.md`: `docs/surface/SPEC.md`, `docs/agent-runtime/SPEC.md`, `docs/roles-skills/SPEC.md`, `docs/observability-evidence/SPEC.md`, `docs/trace-replay/SPEC.md`, `docs/evaluation/SPEC.md`, and `docs/arena/SPEC.md`. `docs/evaluation/SPEC.md` remains a proxy to the real `eval/SPEC.md` control-plane source; `docs/trace-replay/SPEC.md` owns historical trace replay; `docs/observability-evidence/state-evidence/SPEC.md` remains the durable evidence subdocument under Observability & Evidence, `docs/arena/SPEC.md` owns skill / role / subject review product boundaries, and `test/SPEC.md` remains the deterministic verification boundary under Evaluation.
 - The `eval/` durable module has `SPEC.md` and `PLAN.md`, and remains clearly scoped as evaluation strategy/control-plane docs rather than raw trace or replay output storage.
 - The `test/` durable module has `SPEC.md` and `PLAN.md`, and remains clearly scoped as unit / integration / contract smoke rather than role behavior benchmark.
 - Every substantial long-lived module has `SPEC.md` and `PLAN.md`, or a documented reason why it is still a small utility.
@@ -125,9 +132,27 @@ flowchart LR
 - A milestone is marked complete only when code, docs, and verification evidence support it.
 - Security-sensitive surfaces have explicit auth, permission, and command/path validation boundaries before being treated as network-ready.
 - Default benchmark portfolio sources pass manifest loading and case-reference preflight before becoming gate evidence.
+- Arena imported or reviewed subjects remain untrusted / review-required and arena-only until explicit promotion.
+- Arena clean runtime preparation records run-local `home/`、`skills/`、`roles/`、`workspace/`、`tmp/` and launch env/commands in `clean-runtime.json` without persisting secret values.
+- Arena executable runs declare lightweight execution sandbox policy before subject overlay: temp workspace, no inherited production env, network off by default for untrusted subjects, and hard timeout.
+- Arena runs record exact review mode inventory: mode `base_skill|role_skill|role`, active role, default packaged base skills, arena subject skill when present, role-local skills when present, registered tools, provider-visible tools and surface.
+- Arena scorecards include stochastic replay outcomes: `pass`, `unstable`, `reopened`, `blocked` and `unsafe`; one lucky fresh replay cannot erase a prior failure, and replay attempt counts / trace refs must be recorded.
+- Default package role contents are allowlisted to the four core review-loop roles; additional roles require explicit install / Role Hub flow and installed roles remain removable.
 
 ## Verification Log
 
+- 2026-06-29：Arena review-site data root moved from the old nested data root to root `arena/**` so the physical split is `src/arena` for code, `docs/arena` for design, and `arena/` for real review-site data/evidence. Verification：`node --test -r tsx test/arena-manager.test.ts test/arena-command.test.ts`；`node --test -r tsx test/skill-manager-runtime.test.ts test/role-manager.test.ts`；`npm run build`；root write smoke created `arena/subjects/skill-602b8b3c25/arena-manifest.json` and `arena/runs/arena-root-smoke-20260629-01/clean-runtime.json`；`node dist/index.js arena import --help`；old nested Arena path grep returned no hits；`npm test`（387/387）。
+- 2026-06-29：Arena clean runtime prepare landed: `xiaoba arena runtime prepare` creates run-local `home/`、`skills/`、`roles/`、`workspace/`、`tmp/`, writes `clean-runtime.json`, emits explicit runtime env/commands and optional macOS Seatbelt command, and keeps secret values out of persisted JSON. Verification：`node --test -r tsx test/arena-manager.test.ts test/arena-command.test.ts`；`node --test -r tsx test/skill-manager-runtime.test.ts test/role-manager.test.ts`；`npm run build`；`node dist/index.js arena runtime prepare --help`；`node dist/index.js arena runtime prepare --mode base_skill --subject skill-6697f0dfff --run-id arena-hang-to-la-clean-20260629-01 --pass-env OPENAI_API_KEY`；`npm test`（387/387）。
+- 2026-06-29：Implemented Arena v1 minimal executable control plane: `xiaoba arena import skill|github`, `xiaoba arena snapshot role`, `xiaoba arena run create`, arena-only subject manifests, run indexes, evidence ref validation and stochastic replay attempt validation. Verification：`node --test -r tsx test/arena-manager.test.ts test/arena-command.test.ts`；`node --test -r tsx test/user-cat-role.test.ts`；`npm run build`；`npm test`（383/383）；`node dist/index.js arena --help`。
+- 2026-06-29：Added Arena stochastic replay outcome semantics: scorecards include `unstable`, and ReviewerCat must not close a prior failure from one lucky fresh replay. Verification：docs review；`git diff --check -- docs/arena/SPEC.md docs/arena/PLAN.md docs/PLAN.md`。
+- 2026-06-29：Clarified Arena UserCat semantics: UserCat is real end-to-end multi-turn use through a selected surface, not offline scenario generation. Verification：docs review；`git diff --check -- docs/arena/SPEC.md docs/arena/PLAN.md docs/PLAN.md`。
+- 2026-06-29：Fixed Arena v1 to three review modes only: `base_skill`, `role_skill`, and `role`; future subject types require a new explicit mode. Verification：docs review；`git diff --check -- docs/arena/SPEC.md docs/arena/PLAN.md docs/SPEC.md docs/PLAN.md`。
+- 2026-06-29：Renamed the sixth top-level architecture module to `Arena` and expanded it from skill-only review to generic subject review covering skills, roles and future adapter / harness recipes. Verification：stale-name grep returned no current docs hits；`rg -n "docs/arena|src/arena|xiaoba arena|subject-under-review" docs README.md`；`git diff --check -- docs README.md`。
+- 2026-06-29：Slimmed Arena data ownership so Arena reuses low-quality UserCat run packages, session `traces.jsonl`, Inspector outputs, ReviewerCat scorecards and eval artifacts by reference. Arena-owned review-site data now lives under root `arena/` and is limited to subject manifests, clean runtime indexes and run indexes unless explicitly exported. Verification：docs review；negative grep for generated Arena raw-file names；`git diff --check -- docs README.md roles`。
+- 2026-06-29：Added Arena lightweight execution sandbox requirement for reviewed skills/roles: Codex-like native sandbox where available, metadata-only fallback for untrusted subjects, temp workspace, no inherited production env, network off by default and hard timeout. Verification：docs review；`git diff --check -- docs README.md roles`。
+- 2026-06-29：Earlier Arena skill review profile was expanded from Base-only toward role-context review, then superseded by the fixed three-mode contract: `base_skill`、`role_skill`、`role`. Reviewer replay still means fresh current-runtime execution rather than old transcript reuse. Verification：docs review；`git diff --check -- docs/arena/SPEC.md docs/arena/PLAN.md docs/PLAN.md docs/SPEC.md`。
+- 2026-06-29：Default role package narrowed to four core review-loop roles and role deletion lifecycle added for CLI / Dashboard. Verification：`node --test -r tsx test/role-manager.test.ts test/default-role-bundle.test.ts test/dashboard-skills-api.test.ts`（7/7）；`npm run build`；`npm test`（376/376）；`git diff --check`。
+- 2026-06-29：Added the original skill-only review draft as the sixth top-level architecture module with dedicated SPEC/PLAN, root docs index entries, and module boundary rules. Verification：module-reference grep and `git diff --check -- docs README.md`。
 - 2026-06-25：Non-Room PR follow-up closed the remaining delivery/UI/docs review findings: Feishu text send failures now propagate into failed delivery evidence, main Dashboard pet Chat sends/replays with role-scoped `sessionKey`, message-mode channel replies render as separate visible messages, ReviewerCat writeback wording matches current runtime capability, and README role spec links point to existing files. Verification：`npm ci`；`npm run build`；`npm test`（358/358）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run check:benchmarks`（1 manifest，11 cases）；`npm run eval:base-runtime`（11/11 benchmark cases，11/11 eval cases）；`npm run eval:gate`（1/1 item，11/11 cases）；`git diff --check`。
 - 2026-06-25：Non-Room PR follow-up restored release eval and production delivery/security contracts: BaseRuntime Pet fixtures now use valid role-base session keys, benchmark preflight validates Pet payloads, Weixin delivers `finalResponseVisible` text through channel callbacks, and Dashboard summary redacts sensitive blocked-reason values. Verification：`npm run build`；`npm test`（354/354）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run check:benchmarks`（1 manifest，11 cases）；`npm run eval:base-runtime`（11/11 benchmark cases，11/11 eval cases）；`npm run eval:gate`（1/1 items，11/11 cases）；`git diff --check`。
 - 2026-06-23：Trace Replay 成为独立产品主线：新增 `src/replay` runner、`xiaoba replay --trace`、`npm run replay:trace`、trace replay module docs，把 `eval/` 口径收窄为 Live Agent Eval benchmark，并移除旧 trace-proposal / trace-continuity 观测 action 路径。Verification：`node --test -r tsx test/trace-replay-runner.test.ts`；`node --test -r tsx test/dashboard-observability-api.test.ts`；`npm run build`；`npm run check:benchmarks`；`npm run replay:trace -- --help`；`node dist/index.js replay --help`；真实 Pet trace one-turn smoke 产出 `output/replay/manual-smoke-userboundary20-one-final`、fresh trace / visible history / comparison report。

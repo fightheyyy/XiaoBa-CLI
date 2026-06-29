@@ -39,8 +39,19 @@ xiaoba --role <role-name>
 
 ```bash
 xiaoba --role inspector-cat
-xiaoba chat --role secretary-cat -m "Check my calendar tomorrow morning"
-xiaoba chat --role router-cat -m "帮我判断这个任务该派给谁，并在后台跑起来"
+xiaoba --role engineer-cat
+xiaoba --role reviewer-cat
 xiaoba chat --role user-cat -m "用这个 seed 测 engineer-cat：用户说 CLI 命令坏了，但不知道哪次改坏的。"
-xiaoba chat --role guide -m "给 TPC Phase 1 做一个 schema-valid + verifier-repair baseline"
 ```
+
+## 管理命令
+
+默认安装包和 GitHub 默认跟踪资产只保留 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat` 四个核心协作角色；其他角色应通过 Role Hub / 外部仓库按需安装。
+
+```bash
+xiaoba role list
+xiaoba role info engineer-cat
+xiaoba role remove engineer-cat
+```
+
+`base` / `default` / `none` 不是可删除角色。删除当前激活角色后，后续会话会回到 Base。

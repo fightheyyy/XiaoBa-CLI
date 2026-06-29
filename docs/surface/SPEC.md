@@ -4,7 +4,7 @@
 最后更新：2026-06-24
 适用范围：XiaoBa 的用户入口层，包括 `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`dashboard` 和 `electron`。
 
-本文件是五大顶层模块之一的入口层 spec。Dashboard 的页面细节继续由 `dashboard/SPEC.md` 维护；本文只定义所有入口共同遵守的边界和 contract。
+本文件是顶层架构模块之一的入口层 spec。Dashboard 的页面细节继续由 `dashboard/SPEC.md` 维护；本文只定义所有入口共同遵守的边界和 contract。
 
 ## Problem
 

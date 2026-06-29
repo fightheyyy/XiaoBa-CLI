@@ -1,7 +1,7 @@
 # Roles And Skills PLAN
 
 状态：Active
-最后更新：2026-06-27
+最后更新：2026-06-29
 Owner：Policy maintainers
 
 本文维护 `roles/` + `skills/` 的策略层执行计划。`roles/SPEC.md` 定义 Roles & Skills 顶层模块架构和边界；各角色目录继续维护自己的 `SPEC.md` 和 `PLAN.md`。
@@ -10,11 +10,7 @@ Owner：Policy maintainers
 
 2026-06-07 追加：Sub-agent dispatch 现在使用 `role_name` / `skill_name` 二选一契约：只传 `skill_name` 表示当前/继承 role 的明确后台 skill；只传 `role_name` 表示跨 role 派遣，由子智能体加载目标 role 后通过 `skill` 工具自行选择 role-local skill。`task_description` / `user_message` 仍是必填。
 
-ResearcherCat 现在有面向 CLI 用户的 `--role researcher` 推荐别名；RoleResolver 会把它解析到 canonical role id `researcher-cat`，并沿用同一套 role-aware ToolManager 工具注入。
-
-`roles/` 当前包含八个长期角色：`engineer-cat`、`inspector-cat`、`reviewer-cat`、`researcher-cat`、`secretary-cat`、`router-cat`、`user-cat` 和 `guide`。这些角色都有角色级 SPEC/PLAN；`inspector-cat` 保留 runtime triage / evidence forensics / issue router 的角色边界和 `analyze_log` 取证工具，`analyze_log` 会输出 `summary.signalQuality`、`summary.recommendedIntakeAction` 和 `issueProfiles[]`。旧 Inspector hook executor、hook API、独立 runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已暂停，等待 Inspector refactor 重新定义 intake/runtime/config 合同。`engineer-cat`、`inspector-cat`、`reviewer-cat`、`researcher-cat`、`secretary-cat` 和 `user-cat` 已有 README、role.json、prompt 和 role-local skills；`router-cat` 已有 README、role.json、prompt 和窄 base tool policy，但没有 role-local skills 或 role-specific runtime tools。ToolManager 已支持 base / role / surface 三层工具注册，role config 可以通过 `inheritBaseTools`、`baseToolAllowlist`、`baseToolDenylist` 控制 base tool 继承；现在还支持 `toolVisibility.mode:"skill_scoped"`、`skillToolsetAliases` 和 `confirmedToolGate`。SecretaryCat 已关闭 base tool 继承并只 allowlist `skill`，同时声明 skill-scoped Feishu toolsets，让默认 provider-visible tools 只剩 `skill + auth`，由 domain skills 激活 calendar/message/task/mail/minutes/docs/drive/sheets/base 等 scoped tools；UserCat 已关闭 base tool 继承并只 allowlist read/search/skill helpers，新增 `xiaoba-cli-product-test` skill 用于把短产品试用需求转成 candidate trace run，且 `user_trace_run` 默认通过 Dashboard Chat/Pet 原生入口写 native pet/chat evidence；RouterCat 已关闭 base tool 继承并只 allowlist subagent 控制工具与只读 read/search helpers。`engineer-cat`、`inspector-cat`、`reviewer-cat`、`researcher-cat`、`secretary-cat`、`user-cat` 和 `guide` 有对应 `src/roles/**` runtime 扩展；RouterCat 复用 base `spawn_subagent` runtime，不新增 `src/roles` 扩展。Guide 的 `guide_tpc_baseline` / `guide_tpc_env_baseline` / `guide_tpc_eval_analysis` 已覆盖 schema-only baseline、environment-bound baseline、verifier-filtered repair 和 stage-level analysis。当前 Guide 最高 Phase 1 候选在 `output/guide/tpc-env-baseline/phase1-v12-quoteparse-full/`，生成 1000/1000 prediction files 和 `XiaoBaGuide_venv12.zip`，官方 scorecard 为 overall 90.3290 / FPR 93.8，eval-analysis 拆出 schema 1000/1000、commonsense/environment 999/1000、raw hard logic 938/1000、all-pass 938/1000。旧 EngineerCat / ResearcherCat / UserCat deterministic or static eval assets 已从 `eval/` 删除；当前 role 层只保留 runtime tools、focused tests 和候选 trace 生产能力，未来 role benchmark 必须按 live agent eval shape 重写后再进入 `eval/benchmarks/<Role>`。
-
-2026-06-12 追加：`Guide` 已把 Phase 1 优先级推进到 v12 高分候选：`guide_tpc_env_baseline` 使用官方 environment 生成稳定 skeleton，并用官方 commonsense / hard-logic functions 过滤 chronology、budget-transport、route-mode、time/place、hotel-distance、cheapest-intercity、budget-prune 和 quote-safe entity repair。当前 score 从 env-bound v1 的 overall 70.4136 / FPR 53.7 提升到 v12 的 overall 90.3290 / FPR 93.8；下一步是 residual chronology、other.unclassified time-window/duration、budget 和 residual entity repair。
+GitHub 默认跟踪资产和默认 Electron 包现在只保留四个核心协作角色：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。`src/roles/role-manager.ts`、`xiaoba role list/info/remove` 和 Dashboard `DELETE /api/roles/:name` 已补齐角色列表、详情和删除生命周期；删除当前激活角色会清空 active role 并回到 Base，`base/default/none` 不可删除。`inspector-cat` 保留 runtime triage / evidence forensics / issue router 的角色边界和 `analyze_log` 取证工具，`analyze_log` 会输出 `summary.signalQuality`、`summary.recommendedIntakeAction` 和 `issueProfiles[]`。旧 Inspector hook executor、hook API、独立 runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已暂停，等待 Inspector refactor。`engineer-cat`、`inspector-cat`、`reviewer-cat` 和 `user-cat` 是默认 tracked role set；非默认角色只能作为本地 ignored 资产、外部仓库或 future Role Hub 安装，不能进入默认 Git 跟踪或默认 package。ToolManager 已支持 base / role / surface 三层工具注册，role config 可以通过 `inheritBaseTools`、`baseToolAllowlist`、`baseToolDenylist` 控制 base tool 继承；现在还支持 `toolVisibility.mode:"skill_scoped"`、`skillToolsetAliases` 和 `confirmedToolGate`。UserCat 已关闭 base tool 继承并只 allowlist read/search/skill helpers，新增 `xiaoba-cli-product-test` skill 用于把短产品试用需求转成低质量终端用户 candidate trace run，且 `user_trace_run` 默认通过 Dashboard Chat/Pet 原生入口写 native pet/chat evidence。旧 deterministic or static role eval assets 已从 `eval/` 删除；未来 role benchmark 必须按 live agent eval shape 重写后再进入 `eval/benchmarks/<Role>`。
 
 ```mermaid
 flowchart LR
@@ -35,14 +31,9 @@ flowchart LR
         RolesSpec["roles/SPEC.md"]
         RolesPlan["roles/PLAN.md"]
         InspectorDocs["inspector-cat SPEC/PLAN"]
-        ResearcherDocs["researcher-cat SPEC/PLAN"]
-        SecretaryDocs["secretary-cat SPEC/PLAN"]
-        ResearcherRuntime["researcher board runtime v0"]
-        ResearcherAuto["researcher auto research v0"]
-        ResearcherLive["researcher live board smoke"]
         UserAssets["user-cat production-gated trace runner"]
-        RouterAssets["router-cat control-plane role"]
-        GuideAssets["guide TPC baseline role + tool"]
+        RoleLifecycle["role lifecycle<br/>default bundle + delete"]
+        DefaultTracked["default tracked set<br/>5 skills + 4 roles"]
         Diagrams["Current/Target diagrams"]
     end
 
@@ -62,15 +53,9 @@ flowchart LR
     ReviewerDocs --> Diagrams
     RolesSpec --> RolesPlan
     InspectorDocs --> RolesPlan
-    ResearcherDocs --> RolesPlan
-    ResearcherRuntime --> RolesPlan
-    ResearcherAuto --> RoleEval
-    ResearcherLive --> RoleEval
-    SecretaryDocs --> RolesPlan
     UserAssets --> RolesPlan
-    RouterAssets --> RolesPlan
-    GuideAssets --> RolesPlan
-    GuideAssets --> RoleEval
+    RoleLifecycle --> RolesPlan
+    DefaultTracked --> RolesPlan
     RolesPlan --> ToolPolicy
     RolesPlan --> ScopedPolicy
     RolesPlan --> SkillPolicy
@@ -85,19 +70,14 @@ flowchart LR
 1. Role and skill inventory plus root policy module docs: completed.
 2. Current/Target architecture diagrams for durable role specs: completed.
 3. InspectorCat production triage role: refactor prep. SPEC/PLAN/prompt/README boundary and `analyze_log.issueProfiles[]` remain active; old hook executor binding, Dashboard config, and standalone startup are paused until the new Inspector contract is defined.
-4. ResearcherCat SPEC/PLAN baseline: completed.
+4. Non-default role work: historical/local only unless reintroduced through Role Hub or explicit install docs; not part of the default tracked set.
 5. Role-scoped tool policy enforcement: completed for base / role / surface visibility in ToolManager; eval coverage remains follow-up.
 6. Shared skill activation and visibility policy enforcement: partial.
 7. Role live eval / benchmark: reset. Old all-roles/core-skills/handoff/EngineerCat/ResearcherCat/UserCat deterministic eval commands were removed from the maintained command surface; future role eval must be live agent replay cases with explicit setup, tool/result expectations and verifiers.
 8. Cross-role handoff evidence schema: completed v0 through deterministic `role_handoffs` fixture and `cross_role_handoff` verifier; live runtime handoff capture remains follow-up work.
-9. SecretaryCat local secretary role MVP: completed for role assets, Feishu auth/calendar/contact/message wrappers, role-specific allowlist, and focused unit coverage.
-10. SecretaryCat expanded Feishu wrapper slice: completed first typed wrapper coverage for task, mail, minutes, docs, drive, sheets, and base; local file artifact evidence is covered for drive/minutes wrappers; live smoke and future live role eval coverage remain follow-up work.
-11. UserCat trace-production role: completed for role.json、README、prompt、trace-simulation skill、xiaoba-cli-product-test product-use preset skill、narrow tool policy、`user_trace_run` Dashboard Chat/Pet entrypoint runner、candidate trace package writer and focused positive/negative tests; ReviewerCat curation integration and full existing-role trace pilots are not started.
-12. ResearcherCat durable Research Board runtime and auto research orchestration: completed v0 with role-specific `auto_research_run` / board read/update tools, local JSON/JSONL/Markdown board artifacts, intake manifest/report artifacts, prompt guidance, focused tests, live AgentSession board smoke, programmatic board quality gate, workspace-intake fake-workspace auto research gate, and delivery-artifact-readiness fake-workspace gate; broader fake-workspace live effectiveness remains follow-up.
-13. ResearcherCat CLI alias entrypoint: completed with `--role researcher` resolving to canonical `researcher-cat` and exposing the same auto-research / board tools.
-14. SecretaryCat two-stage skill/tool visibility: completed v1 with role-level `toolVisibility`, domain skills, skill toolset aliases, confirmed tool gate, runtime enforcement, and focused tests; live Feishu effectiveness remains follow-up.
-15. Guide ChinaTravel / TPC competition role: completed role asset baseline, data profile, eval stage analysis, schema baseline, environment-bound baseline and v12 verifier-filtered repair with `role.json`、README、prompt、`data-profiling` / `eval-analysis` / `tpc-baseline` skills、SPEC/PLAN、`guide_tpc_baseline` / `guide_tpc_env_baseline` / `guide_tpc_eval_analysis` tools、focused role tests、1000 v12 Phase 1 predictions and `XiaoBaGuide_venv12.zip`; latest official verifier scorecard is overall 90.3290 / FPR 93.8; old role-wide evidence is historical only, and future Guide eval must be rebuilt as live agent replay before entering active `eval/`; residual chronology / other.unclassified / budget / residual entity repair remain follow-up.
-16. RouterCat IM control-plane role: completed initial role asset baseline with `role.json`、README、prompt、SPEC/PLAN、narrow base tool allowlist and focused role/tool tests; manual IM smoke and future live routing eval remain follow-up.
+9. UserCat low-quality end-user trace-production role: completed for role.json、README、prompt、trace-simulation skill、xiaoba-cli-product-test product-use preset skill、narrow tool policy、`user_trace_run` Dashboard Chat/Pet entrypoint runner、candidate trace package writer and focused positive/negative tests; ReviewerCat curation integration and full existing-role trace pilots are not started.
+10. Default role bundle and role deletion lifecycle：completed for package allowlist (`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`), Electron userData role sync, `RoleManager`, `xiaoba role list/info/remove`, Dashboard role deletion API/UI, and focused tests.
+11. Default tracked asset allowlist：completed for Git ignore policy and package allowlist so only 5 base skills + 4 core roles are tracked by default.
 
 ## Next Steps
 
@@ -106,28 +86,21 @@ flowchart LR
 - Make shared skill activation and role-private skill visibility explicit in tests.
 - Rebuild former all-roles / core-skills / skill-handoff / role-handoff coverage as live role and skill effectiveness cases before reintroducing commands.
 - Rebuild former EngineerCat deterministic workflow smoke as live AgentSession / Feishu replay once safe external smoke environments are available.
-- Rebuild former ResearcherCat deterministic workflow smoke as broader fake research workspace live replay.
 - Promote the deterministic InspectorCat -> EngineerCat -> ReviewerCat `role_handoffs` contract into live runtime handoff capture.
-- Extend true ReviewerCat semantic scoring over ResearcherCat board artifacts beyond the current deterministic `research_board_reviewer_semantic` hard verifier.
-- Add SecretaryCat live role eval coverage only after the wrapper set is manually smoked with a test Feishu tenant and can run through the live agent eval contract.
-- Add SecretaryCat small-model boundary benchmark coverage for visible tool count, mail/message separation, docs/drive separation, and confirmed write blocking.
-- Connect ReviewerCat curation for UserCat candidate packages, then use `xiaoba-cli-product-test` / `user_trace_run` to generate pilot multi-turn traces for EngineerCat first, followed by ReviewerCat、InspectorCat、ResearcherCat 和 SecretaryCat.
-- Run a manual RouterCat IM smoke for representative engineering, research, triage, review and secretary requests; if useful, design a future live routing eval that checks role_name dispatch and avoids static fixtures.
-- Connect Guide's next repair path in data/eval-derived order: fix chronology, solve budget/inner-city transport, add verifier-filtered intercity mode repair, finish residual entity failures, make `guide_tpc_data_profile` reproducible, stabilize the official repo/database/database_en mount, then consider LLM/SFT/RL only after deterministic verifier overlap plateaus.
+- Connect ReviewerCat curation for UserCat low-quality user packages, then use `xiaoba-cli-product-test` / `user_trace_run` to generate pilot multi-turn traces for EngineerCat first, followed by ReviewerCat and InspectorCat.
 - Keep role docs aligned when prompt, skill, tool, or runtime behavior changes.
+- Design Role Hub install/update commands before promoting any non-default role back into default docs or package inventory.
 
 ## Owners
 
 - Role catalog and activation：`roles/**`, `src/roles/runtime-role-registry.ts`
+- Role lifecycle / default package：`src/roles/role-manager.ts`, `src/commands/role.ts`, `electron/main.js`, `package.json`, Dashboard roles API/UI
 - Shared skill catalog and activation：`skills/**`, `src/skills/**`
 - EngineerCat：`roles/engineer-cat/**`, `src/roles/engineer-cat/**`
 - InspectorCat：`roles/inspector-cat/**`, `src/roles/inspector-cat/**`
 - ReviewerCat：`roles/reviewer-cat/**`, `src/roles/reviewer-cat/**`
-- ResearcherCat：`roles/researcher-cat/**`, `src/roles/researcher-cat/**`
-- SecretaryCat：`roles/secretary-cat/**`, `src/roles/secretary-cat/**`
-- RouterCat：`roles/router-cat/**`
 - UserCat：`roles/user-cat/**`
-- Guide：`roles/guide/**`, `src/roles/guide/**`
+- Default asset allowlist：`.gitignore`, `package.json`, default package tests
 - Role verification：`roles/reviewer-cat/**`, future live `eval/benchmarks/**`, `test/**`
 
 ## Acceptance Criteria
@@ -136,16 +109,20 @@ flowchart LR
 - Every role SPEC has Current Architecture and Target Architecture Mermaid diagrams.
 - Role-specific tools and skills are visible only where the active role or role-scoped session allows them.
 - `spawn_subagent` can dispatch by either explicit same-role `skill_name` or explicit target `role_name`; role-only child sessions may use `skill` to choose role-local skills, while main-session control and outbound delivery tools stay hidden.
-- RouterCat can act as a narrow IM control plane that dispatches by `role_name`, tracks subagent status, and does not expose worker execution tools.
 - Base tools are inherited by default, but roles can opt out and selectively allow helpers; surface tools such as `send_text` / `send_file` are not role tools.
 - Roles can opt into `toolVisibility.mode:"skill_scoped"` so active skills narrow provider-visible role tools, and confirmed write tools are blocked by runtime without immediate user confirmation intent.
 - Shared skills define instruction scope, required tools and side-effect/evidence expectations when relevant.
 - Cross-role handoff produces evidence that ReviewerCat can verify independently.
 - Role/skill effectiveness release gate reports pass, fail, partial, or blocked per role and core skill; it must not collapse all policy assets into one aggregate result.
-- UserCat candidate trace generation stays separated from ReviewerCat curation and benchmark acceptance.
+- UserCat low-quality user trace generation stays separated from ReviewerCat curation and benchmark acceptance.
+- Default packages include only `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`; non-default roles require explicit install / Role Hub flow.
+- Installed roles can be removed through CLI or Dashboard, while `base` / `default` / `none` remain non-removable.
 
 ## Verification Log
 
+- 2026-06-29：Default role package narrowed to `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`; added `RoleManager`, `xiaoba role list/info/remove`, Dashboard role deletion, Electron userData role sync, and package allowlist coverage. Verification：`node --test -r tsx test/role-manager.test.ts test/default-role-bundle.test.ts test/dashboard-skills-api.test.ts`（7/7）；`npm run build`；`npm test`（376/376）；`git diff --check`。
+- 2026-06-29：Clarified UserCat as low-quality / low-information end-user pressure, not developer / engineer / QA lead behavior, across role docs and Arena references. Verification：docs review；`git diff --check -- docs README.md roles`。
+- 2026-06-27：Added HuangShengDiJun and XuanShengDiJun as prompt-only fan-style parody roles for public Waywardzz / Last炫神 meme-inspired replies. Both roles have README、role.json、prompt、voice corpus、SPEC/PLAN and no base skills/tools. Verification：`node --test -r tsx test/di-jun-roles.test.ts test/tool-manager-roles.test.ts test/roles.test.ts`; `npm run build`; `git diff --check`; trailing-whitespace scan for new files.
 - 2026-06-24：Added RouterCat as an IM control-plane role. It has role assets, SPEC/PLAN, no base skill inheritance, no broad base tool inheritance, and only exposes subagent control plus read/search helpers. Verification：focused RouterCat role/tool tests; targeted role/tool-manager tests; `npm run build`; `git diff --check`.
 - 2026-06-27：Removed legacy Inspector standalone config from Dashboard and `.env.example`, and paused automatic Inspector hook runtime/API registration while keeping `analyze_log` available for refactor evidence. Verification：`node --test -r tsx test/tool-manager-roles.test.ts`; `node --test -r tsx test/skill-manager-runtime.test.ts`; `node --test -r tsx test/analyze-log-tool.test.ts test/inspector-runtime-support.test.ts`; `npm run build`; `git diff --check`.
 - 2026-06-24：Added UserCat `xiaoba-cli-product-test` role-local skill for turning short XiaoBa-CLI product-use requests into low-information candidate trace runs. Updated UserCat prompt routing, README, SPEC/PLAN, top-level roles docs, and focused skill-loading tests. Verification：`node --test -r tsx test/user-cat-role.test.ts test/user-trace-run-tool.test.ts` (9/9) and `npm run build`.
@@ -194,9 +171,8 @@ flowchart LR
 - Current role activation still has global-state paths; role-scoped Room agents partly avoid this but the broader runtime is not fully isolated.
 - ResearcherCat now has durable board state v0, focused live session bootstrap evidence, one live board quality gate, three fake-workspace auto research gates, and deterministic ReviewerCat-style board semantic scoring, but live model effectiveness across full research task families and true ReviewerCat semantic scoring over board artifacts remain incomplete.
 - All-roles release gate could become expensive if every role requires live model E2E; use layered gates before full live runs.
-- SecretaryCat can touch personal Feishu resources; wrapper confirmation policy and manual smoke evidence must mature before Feishu chat rollout.
 - UserCat can create low-quality or self-referential traces if seed quality, role-intent mapping, and ReviewerCat curation are weak; keep it out of benchmark acceptance decisions.
-- RouterCat may over-delegate simple requests or under-delegate long worker tasks until live smoke evidence tunes the prompt and future routing eval.
+- Role Hub remains undesigned; non-default roles should stay local / external until install, update, trust and deletion flows are explicit.
 
 ## Status Maintenance Rules
 

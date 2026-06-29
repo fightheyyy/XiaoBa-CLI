@@ -82,11 +82,12 @@ npm run electron:build:mac
 
 默认 Electron 包刻意保持干净：
 
-- 不预装任何 roles。
+- 默认只带 4 个核心协作 roles：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。
 - 只带 5 个 base skills：`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`。
 - `spawn_subagent`、文件读写、shell、grep、发送消息/文件等是 runtime tools，不作为 skill 打包。
+- roles 和 skills 都可以在 Dashboard 或 CLI 中删除；需要更多角色时再从 Role Hub / 外部仓库安装。
 
-开发仓库里仍保留 roles 和更多实验能力，默认包不把它们塞给用户。
+开发仓库里仍保留更多实验和领域角色，默认包不把它们塞给用户。
 
 ## 常用命令
 
@@ -107,17 +108,22 @@ flowchart LR
     Runtime["Agent Runtime<br/>session / tools / subagents"]
     Policy["策略<br/>roles / skills / prompts"]
     Evidence["证据<br/>logs / artifacts / replay"]
+    Arena["Arena<br/>skill / role review"]
 
     Surface --> Runtime
     Policy --> Runtime
     Runtime --> Evidence
     Evidence --> Runtime
+    Policy --> Arena
+    Runtime --> Arena
+    Evidence --> Arena
 ```
 
 - **Surface**：用户入口，例如 CLI、飞书、微信、Dashboard、桌宠。
 - **Runtime**：统一 agent loop，负责 provider、工具、上下文、subagent 和交付。
 - **Roles / Skills**：角色身份和可复用工作流，不和 runtime 混在一起。
 - **Evidence**：日志、产物、trace 和 eval，让行为能复盘、能改进。
+- **Arena**：把外部 skill、本地 role 等能力单元放进真实 runtime 审判，索引 UserCat、trace、Inspector 和 Reviewer/eval 证据。
 
 ## 文档
 
@@ -127,6 +133,7 @@ flowchart LR
 - [Surface](docs/surface/SPEC.md)
 - [Roles & Skills](docs/roles-skills/SPEC.md)
 - [Observability & Evidence](docs/observability-evidence/SPEC.md)
+- [Arena](docs/arena/SPEC.md)
 - [Skills 指南](skills/README.md)
 - [Roles 指南](roles/README.md)
 

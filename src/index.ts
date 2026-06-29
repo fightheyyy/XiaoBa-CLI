@@ -5,6 +5,8 @@ import { Logger } from './utils/logger';
 import { chatCommand } from './commands/chat';
 import { configCommand } from './commands/config';
 import { registerSkillCommand } from './commands/skill';
+import { registerRoleCommand } from './commands/role';
+import { registerArenaCommand } from './commands/arena';
 import { feishuCommand } from './commands/feishu';
 import { APP_VERSION } from './version';
 import { RoleResolver } from './utils/role-resolver';
@@ -120,6 +122,12 @@ async function main() {
 
   // Skill 管理命令
   registerSkillCommand(program);
+
+  // Role 管理命令
+  registerRoleCommand(program);
+
+  // Arena 能力审判场命令
+  registerArenaCommand(program);
 
   // 默认命令 - 进入交互模式
   program

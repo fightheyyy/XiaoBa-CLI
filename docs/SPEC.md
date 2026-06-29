@@ -1,14 +1,14 @@
 # XiaoBa-CLI SPEC
 
 状态：Draft
-最后更新：2026-06-23
+最后更新：2026-06-29
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。专题文档可以解释某个角色、benchmark、运维流程或历史方案，但不能替代本文的整体边界定义。
 
-## 五大架构模块索引
+## 顶层架构模块索引
 
-XiaoBa-CLI 维护一个项目级大 spec 和五个顶层架构模块。五个模块是简历、架构介绍和代码 review 的统一口径：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation。`test/` 是工程验证边界，不属于 Evaluation gate，也不单独作为第六个架构模块；`docs/observability-evidence/state-evidence` 是 Observability & Evidence 的持久化证据子文档。
+XiaoBa-CLI 维护一个项目级大 spec 和六个顶层架构模块。六个模块是简历、架构介绍和代码 review 的统一口径：Surface、Agent Runtime、Roles & Skills、Observability & Evidence、Evaluation、Arena。`test/` 是工程验证边界，不属于 Evaluation gate，也不单独作为架构模块；`docs/observability-evidence/state-evidence` 是 Observability & Evidence 的持久化证据子文档。
 
 | 模块 | Primary Spec | Plan / Supporting Docs | 覆盖范围 |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@ XiaoBa-CLI 维护一个项目级大 spec 和五个顶层架构模块。五个模
 | Roles & Skills：策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | `roles`、`src/roles`、`skills`、`src/skills` |
 | Observability & Evidence：观测证据层 | [`observability-evidence/SPEC.md`](observability-evidence/SPEC.md) | [`observability-evidence/PLAN.md`](observability-evidence/PLAN.md)、[`observability-evidence/state-evidence/SPEC.md`](observability-evidence/state-evidence/SPEC.md)、[`observability-evidence/state-evidence/PLAN.md`](observability-evidence/state-evidence/PLAN.md) | `src/observability`、`logs`、`data`、`memory`、`output`、trace projection 和 artifact evidence |
 | Evaluation：trace replay + live agent eval 层 | [`trace-replay/SPEC.md`](trace-replay/SPEC.md)、[`evaluation/SPEC.md`](evaluation/SPEC.md) | [`trace-replay/PLAN.md`](trace-replay/PLAN.md)、[`evaluation/PLAN.md`](evaluation/PLAN.md)、[`../test/SPEC.md`](../test/SPEC.md)、[`../test/PLAN.md`](../test/PLAN.md) | `src/replay`、`scripts/run-trace-replay.ts`、`eval`、`eval/benchmarks`、BaseRuntime live agent eval、hard verifiers、scorecard |
+| Arena：能力审判场 | [`arena/SPEC.md`](arena/SPEC.md) | [`arena/PLAN.md`](arena/PLAN.md) | `src/arena`、`src/commands/arena.ts`、root `arena`、GitHub skill import、local role review、三种 review mode、subject manifest、clean runtime overlay、arena run index、现有 UserCat / trace / Reviewer / eval 证据引用 |
 
 外部观测导出不是当前模块边界。本地 JSONL、artifact evidence 和 role/runtime scorecard 是权威事实；Observability 只输出本地 summary / trace evidence，不拥有 pass/fail，也不能自动接受生成的 benchmark candidate。
 
@@ -96,6 +97,15 @@ flowchart LR
         EvalBench["eval/benchmarks<br/>BaseRuntime live cases"]
     end
 
+    subgraph ArenaModule["Arena：能力审判场"]
+        ArenaDocs["docs/arena<br/>module spec / plan"]
+        ArenaSite["arena<br/>review site / evidence"]
+        ArenaCtl["src/arena + xiaoba arena<br/>manifest / clean runtime / run index"]
+        ExistingSkillCmd["existing skill install-github<br/>direct clone path"]
+        ExistingArenaInputs["existing UserCat / InspectorCat / ReviewerCat tools"]
+        ExistingRoleInputs["existing roles<br/>role docs / role tools"]
+    end
+
     Commands --> Core
     Feishu --> Core
     Weixin --> Core
@@ -121,6 +131,21 @@ flowchart LR
     Logs --> EvalBench
     EvalBench --> Eval
     Obs --> Eval
+    Skills --> ExistingSkillCmd
+    Skills --> ArenaCtl
+    Roles --> ArenaCtl
+    Roles --> ExistingArenaInputs
+    Roles --> ExistingRoleInputs
+    Logs --> ExistingArenaInputs
+    Logs --> ArenaCtl
+    ExistingSkillCmd --> ArenaCtl
+    ExistingArenaInputs --> ArenaCtl
+    ExistingRoleInputs --> ArenaCtl
+    ArenaCtl --> ArenaSite
+    ArenaCtl --> ArenaDocs
+    ExistingSkillCmd --> ArenaDocs
+    ExistingArenaInputs --> ArenaDocs
+    ExistingRoleInputs --> ArenaDocs
 ```
 
 ## Target Architecture
@@ -166,6 +191,12 @@ flowchart LR
         EvalBench["eval/benchmarks<br/>BaseRuntime / future role live benchmarks"]
     end
 
+    subgraph ArenaModule["Arena：capability review arena"]
+        Importer["subject intake<br/>GitHub skill / local role"]
+        ArenaRunner["arena runner<br/>three review modes + sandbox + subject overlay"]
+        ArenaIndex["arena run index<br/>UserCat / trace / Reviewer refs"]
+    end
+
     Surfaces --> Core
     Roles --> Core
     Skills --> Core
@@ -186,6 +217,14 @@ flowchart LR
     Test --> Skills
     Core --> Observability
     Eval --> Observability
+    Importer --> Skills
+    Importer --> Roles
+    Skills --> ArenaRunner
+    Roles --> ArenaRunner
+    ArenaRunner --> Core
+    Core --> ArenaIndex
+    Observability --> ArenaIndex
+    ArenaIndex -. "human rewrite only" .-> EvalBench
 ```
 
 ## 核心组件边界
@@ -200,6 +239,7 @@ flowchart LR
 | `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
+| `Arena` | 管 GitHub skill 导入、本地 role 审判、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、隔离评测、subject manifest、arena run index、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion 边界 | 不自动信任外部 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / Reviewer scorecard / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
 | `test/*` | 定义代码正确性、集成测试和 deterministic runtime contract smoke | 不承载 live agent eval benchmark；不保存 eval scorecard policy |
 | `src/replay/*` | 定义历史 trace replay：从本地 `traces.jsonl` 抽用户输入，重新驱动当前 runtime，产生 fresh trace 和轻量对比 | 不打 benchmark 分；不自动接受 eval case；不上传或脱敏本地 trace |
 | `eval/*` | 只定义 live agent eval：curated benchmark input、setup、runtime replay、tool/result verifier 和 scorecard | 不保存原始私密 trace；不承载普通单测；不保存 schema/contract/rubric governance；不收静态 JSONL regression |
@@ -308,11 +348,12 @@ Skill 是 instruction pack，用于注入领域流程和工作策略。Skill 不
 
 当前边界：
 
+- 默认 GitHub/package role set 只包含 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。
+- 非默认 role 必须通过显式安装、Role Hub 或本地 ignored 资产进入，不属于默认跟踪资产。
 - `engineer-cat`：实现修复和工程交付。
 - `reviewer-cat`：复跑、验收、证据判断、closed/reopened。
 - `inspector-cat`：runtime triage、evidence forensics、issue profile、handoff routing、skill/benchmark 机会挖掘。
-- `researcher` / `researcher-cat`：研究和资料整理。
-- `secretary-cat`：本地优先个人秘书，使用窄 Feishu wrapper tools 管理授权、日程、联系人、消息草稿和日常简报。
+- `user-cat`：真实端到端低质量用户使用与候选 trace pressure。
 
 ## Evidence And Logging
 
@@ -375,7 +416,7 @@ Quality System
 └── Observability Evidence System
 ```
 
-`test/` 维护代码正确性和 deterministic contract smoke：unit / integration tests 在 `test/**/*.test.ts`，runtime contract smoke 在 `test/contract-smoke/suites` 和 `test/contract-smoke/fixtures`。`src/replay` / `xiaoba replay --trace` 维护历史 trace replay：输入本地 `traces.jsonl`，抽取真实用户输入，重新驱动当前 runtime 并生成 fresh trace 对比。`eval/` 只维护 live agent eval benchmark：curated 输入请求 + setup + runtime replay + tool/result verifier + scorecard。`check:benchmarks` 只验证 live benchmark manifest、case id 和 referenced suite。`eval/benchmarks/BaseRuntime/` 是当前唯一 live eval benchmark root，包含 11 条 Pet/IM runtime replay cases。`eval:gate` 默认只聚合这套 live BaseRuntime eval。
+`test/` 维护代码正确性和 deterministic contract smoke：unit / integration tests 在 `test/**/*.test.ts`，runtime contract smoke 在 `test/contract-smoke/suites` 和 `test/contract-smoke/fixtures`。`src/replay` / `xiaoba replay --trace` 维护历史 trace replay：输入本地 `traces.jsonl`，抽取真实用户输入，重新驱动当前 runtime 并生成 fresh trace 对比。`eval/` 只维护 live agent eval benchmark：curated 输入请求 + setup + runtime replay + tool/result verifier + scorecard。`Arena` 是能力审判场产品模块，不属于 `eval/`；它的 run 可以启发未来 live eval case，但必须人工重写后才能进入 `eval/benchmarks`。`check:benchmarks` 只验证 live benchmark manifest、case id 和 referenced suite。`eval/benchmarks/BaseRuntime/` 是当前唯一 live eval benchmark root，包含 11 条 Pet/IM runtime replay cases。`eval:gate` 默认只聚合这套 live BaseRuntime eval。
 
 Live runtime alignment：`AgentSession` provider failure fallback turns now emit the same degraded provider transcript boundary facts required by the deterministic State/Evidence gate, while production-network provider replay remains a later E2E layer.
 
@@ -458,6 +499,7 @@ contract hard gate
 - `docs/surface/SPEC.md` 定义入口层 contract。
 - `docs/agent-runtime/SPEC.md` 定义核心运行时、provider transcript 和 tool boundary。
 - `docs/roles-skills/SPEC.md` 定义 Roles & Skills 策略层入口。
+- `docs/arena/SPEC.md` 定义 GitHub skill 导入、本地 role 审判、隔离评测、现有 evidence refs 和 promotion 边界。
 - `docs/observability-evidence/state-evidence/SPEC.md` 定义状态、日志、memory、artifact 和证据 contract。
 - `test/SPEC.md` 定义 unit / integration / contract smoke 测试边界。
 - `eval/SPEC.md` 定义 live agent eval 准入标准、BaseRuntime live benchmark 和 gate policy。

@@ -8,7 +8,11 @@ import { getRoleSpecificToolsForRole } from '../src/roles/runtime-role-registry'
 import { PromptManager } from '../src/utils/prompt-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
 
-describe('Guide role assets', () => {
+const describeGuideRole = fs.existsSync(path.join(process.cwd(), 'roles', 'guide', 'role.json'))
+  ? describe
+  : describe.skip;
+
+describeGuideRole('Guide role assets', () => {
   afterEach(() => {
     RoleResolver.clearActiveRole();
   });

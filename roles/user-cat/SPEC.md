@@ -4,7 +4,7 @@
 最后更新：2026-06-24
 适用范围：`roles/user-cat` 候选用户模拟角色、真实多轮对话 trace 生产、role benchmark seed 扩展和 trace 质量反馈闭环。
 
-本文档是 `UserCat` 的角色设计真相源。`UserCat` 的目标不是当 reviewer、judge 或 engineer，而是专门作为真实用户压力源，为 XiaoBa 现有 roles 生成高质量、多轮、可记录、可复现、可进入后续 benchmark curation 的候选 trace。
+本文档是 `UserCat` 的角色设计真相源。`UserCat` 的目标不是当 reviewer、judge、developer 或 engineer，而是专门作为低质量终端用户压力源，为 XiaoBa 现有 roles 生成高质量、多轮、可记录、可复现、可进入后续 benchmark curation 的候选 trace。
 
 ## Problem
 
@@ -24,7 +24,7 @@ In scope:
 
 - 阅读目标 role 的 `SPEC.md`、`PLAN.md`、prompt、README 和已有 eval evidence。
 - 从 role 设计意图推导用户任务、真实痛点、失败压力和对话策略。
-- 基于 seed 生成真人风格多轮用户消息。
+- 基于 seed 生成低质量终端用户风格的多轮用户消息；除非 seed 明确指定用户是开发者，否则不提供开发者级复现步骤、架构判断、测试计划或修复方案。
 - 将一句 XiaoBa-CLI 产品试用需求转换为 product-use seed、低信息多轮脚本和 candidate trace run。
 - 通过真实 XiaoBa entrypoint 与目标 role 对话，产生 raw trace。
 - 输出 candidate trace package，包含 persona、seed、scenario、role-intent map、conversation trace、candidate benchmark metadata 和 trace quality self-check。
@@ -42,7 +42,7 @@ Out of scope:
 
 ## Current Architecture
 
-当前仓库已有 `UserCat` candidate trace 生产角色：`role.json`、README、system prompt、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused tests。`UserCat` 可以通过 role resolver 加载；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`trace-simulation` 负责通用 role trace 设计；`xiaoba-cli-product-test` 负责把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转换为 product-use seed、role intent map、persona、scenario plan 和低信息 user messages。`user_trace_run` 默认通过 Dashboard Chat/Pet surface 的 `/api/pet/message` 原生入口驱动目标 role，使用 `pet:<petId>:role-<target-role>:run-<run-id>` 这类 role-scoped session key，让原生 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**` 按产品入口落盘；UserCat 自己只额外写 candidate trace/package 索引，并强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`。`entrypoint:"agent_session"` 只作为 legacy direct fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；candidate trace 只有经过 ReviewerCat/benchmark maintainer 清洗成 live replay case 后，才能进入 `eval/`。ReviewerCat curation integration、full existing-role trace pilot 和 adaptive next-message generation 尚未实现。
+当前仓库已有 `UserCat` 低质量用户 candidate trace 生产角色：`role.json`、README、system prompt、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused tests。`UserCat` 可以通过 role resolver 加载；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`trace-simulation` 负责通用 role trace 设计；`xiaoba-cli-product-test` 负责把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转换为 product-use seed、role intent map、persona、scenario plan 和低信息 user messages。`user_trace_run` 默认通过 Dashboard Chat/Pet surface 的 `/api/pet/message` 原生入口驱动目标 role，使用 `pet:<petId>:role-<target-role>:run-<run-id>` 这类 role-scoped session key，让原生 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**` 按产品入口落盘；UserCat 自己只额外写 candidate trace/package 索引，并强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`。`entrypoint:"agent_session"` 只作为 legacy direct fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；candidate trace 只有经过 ReviewerCat/benchmark maintainer 清洗成 live replay case 后，才能进入 `eval/`。ReviewerCat curation integration、full existing-role trace pilot 和 adaptive next-message generation 尚未实现。
 
 ```mermaid
 flowchart LR
@@ -99,7 +99,7 @@ flowchart LR
 
 ## Target Architecture
 
-目标是增加一个专门的 trace 生产角色：`UserCat` 先理解目标 role 为什么存在，再用“零假设、真实粗糙、有 taste 的用户行为”与目标 role 对话，产生候选 trace。ReviewerCat 只审核 trace 质量和证据强度；benchmark harness 只接收 fixture 化、verifier 化、baseline 化后的 accepted cases。
+目标是增加一个专门的 trace 生产角色：`UserCat` 先理解目标 role 为什么存在，再用“零假设、真实粗糙、有 taste 的低质量终端用户行为”与目标 role 对话，产生候选 trace。ReviewerCat 只审核 trace 质量和证据强度；benchmark harness 只接收 fixture 化、verifier 化、baseline 化后的 accepted cases。
 
 ```mermaid
 flowchart LR
@@ -181,9 +181,9 @@ flowchart LR
 
 ### 1. UserCat 的角色定位
 
-`UserCat = Realistic User Pressure Source`
+`UserCat = Low-Quality End-User Pressure Source`
 
-它的核心职责是生成真实多轮对话，不是生成漂亮 prompt。它要让目标 role 暴露真实能力：
+它的核心职责是生成真实多轮低质量用户对话，不是生成漂亮 prompt，也不是像开发者一样帮目标 role 补齐复现、测试和实现方案。它要让目标 role 暴露真实能力：
 
 - EngineerCat 是否能从含糊工程需求推进到实现、验证和交付证据。
 - InspectorCat 是否能从用户抱怨和日志线索里发现问题、归因和路由。
@@ -198,6 +198,7 @@ flowchart LR
 - 不知道内部架构。
 - 不知道应该先跑什么命令。
 - 不知道 role 的专业术语。
+- 不会主动给出完整复现步骤、内部架构猜测、测试计划或修复方案。
 - 需求说得不完整。
 - 中途补信息或改需求。
 - 会问“所以现在能用了吗”。

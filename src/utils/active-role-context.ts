@@ -6,7 +6,9 @@ const DEFAULT_ROLE_NAMES = new Set(['', 'base', 'default', 'none']);
 
 export class ActiveRoleContext {
   static getProjectRoot(): string {
-    return process.cwd();
+    return process.env.XIAOBA_PROJECT_ROOT
+      ? path.resolve(process.env.XIAOBA_PROJECT_ROOT)
+      : process.cwd();
   }
 
   static getRolesRoot(): string {

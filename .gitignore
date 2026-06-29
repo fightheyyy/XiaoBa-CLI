@@ -18,6 +18,7 @@ tmp/
 
 # Runtime data and logs
 data/
+/arena/
 logs/
 files/
 turnLogs/
@@ -41,21 +42,35 @@ benchmarks/BioBench/
 /CLAUDE.md
 
 # Generated or local skill content
+/skills/*
+!/skills/README.md
+!/skills/agent-browser/
+!/skills/agent-browser/**
+!/skills/self-evolution/
+!/skills/self-evolution/**
+!/skills/role-publish/
+!/skills/role-publish/**
+!/skills/skill-publish/
+!/skills/skill-publish/**
+!/skills/remember/
+!/skills/remember/**
 skills/_crafted/
 skills/_learned/
 skills/bio-skills/
 
-# Unreviewed role drafts
-roles/inspector-cat/SPEC.md
-roles/inspector-cat/PLAN.md
-roles/researcher-cat/SPEC.md
-roles/researcher-cat/PLAN.md
-roles/reviewer-cat/PLAN.md
-roles/secretary-cat/
-src/roles/secretary-cat/
-tests/secretary-cat-role.test.ts
-tests/secretary-feishu-tools.test.ts
-docs/roles/secretary-cat-prd.md
+# Default tracked roles
+/roles/*
+!/roles/README.md
+!/roles/SPEC.md
+!/roles/PLAN.md
+!/roles/user-cat/
+!/roles/user-cat/**
+!/roles/inspector-cat/
+!/roles/inspector-cat/**
+!/roles/engineer-cat/
+!/roles/engineer-cat/**
+!/roles/reviewer-cat/
+!/roles/reviewer-cat/**
 
 # Python caches
 __pycache__/

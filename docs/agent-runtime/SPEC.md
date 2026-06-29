@@ -4,7 +4,7 @@
 最后更新：2026-06-27
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
-本文是五大顶层模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据和评测分别由各自模块 spec 维护。
+本文是顶层架构模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据、评测和 Arena 分别由各自模块 spec 维护。
 
 ## Problem
 
