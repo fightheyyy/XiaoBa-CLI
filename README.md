@@ -1,44 +1,53 @@
 <div align="center">
-  <img src="assets/banner.png" alt="XiaoBa Banner" width="100%">
+  <img src="assets/banner.png" alt="XiaoBaCLI Banner" width="100%">
 
-  # XiaoBa
+  # XiaoBaCLI
 
-  **一个活在聊天和本机环境里的 AI 同事 runtime。**
+  **让 Personal Agents 活在聊天里，并接上本机工具、文件和长期上下文。**
 
-  XiaoBa 把 agent 放回工作真正开始的地方：IM、Dashboard、文件、工具和长期上下文。
+  XiaoBaCLI 是一个本地优先的 AI Harness：把 IM、CLI、Dashboard、角色、skills、subagents、工具调用和运行证据接到同一套 agent runtime 里。
 
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
   [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [English](README.en.md) · [快速开始](#快速开始) · [默认安装包](#默认安装包) · [文档](#文档)
+  [English](README.en.md) · [快速开始](#快速开始) · [文档](#文档)
+
+  <br>
+
+  <img src="assets/xiaoba-readme-hero.png" alt="XiaoBaCLI Personal Agents Harness Runtime" width="100%">
 </div>
 
 ---
 
-## XiaoBa 是什么？
+## XiaoBaCLI 是什么？
 
-XiaoBa 不是另一个终端聊天壳，也不是只会回群消息的 bot。
+XiaoBaCLI 不是另一个终端聊天壳，也不是只会回群消息的 bot。
 
-它更像一个本地优先的 **agent OS / AI 同事运行时**：
+它做的是中间这一层：**把聊天里的 Personal Agents，变成能调用本机工具、能跑后台任务、能交付文件、能留下证据的 AI 同事 runtime。**
 
-- 在 CLI、Dashboard、飞书、微信、桌宠等入口里复用同一套 agent loop。
-- 让 agent 能读文件、跑命令、调用工具、交付消息和文件。
-- 支持 roles、skills、subagents、长期上下文、日志和可回放证据。
-- 让长任务在后台跑，主会话还能继续响应。
+```mermaid
+flowchart LR
+    Surface["消息入口<br/>IM / CLI / Dashboard / Pet"]
+    Harness["XiaoBaCLI Harness<br/>session / roles / skills / context"]
+    Runtime["Agent Runtime<br/>LLM / tools / subagents"]
+    Delivery["交付<br/>send_text / send_file / workflow"]
+    Replay["评测与回放<br/>trace / replay / verifier / scorecard"]
 
-一句话：**XiaoBa 给 AI agent 一个能长期协作、能交付、能被你塑形的身体。**
+    Surface --> Harness
+    Harness --> Runtime
+    Runtime --> Delivery
+    Runtime --> Replay
+    Replay --> Harness
+```
 
-## 为什么做这个？
+## 关键点
 
-真实工作经常不是从 IDE 开始，而是从一条消息开始：
-
-- “这个 bug 帮我看下。”
-- “这个文件整理一下。”
-- “这个任务先在后台跑，完成了告诉我。”
-- “这个 agent 的行为越来越像我一点。”
-
-XiaoBa 做的是中间层：把聊天、文件、本机工具、角色身份和运行证据接在一起，让 agent 不只是回答，而是能持续参与工作。
+- **评测与回放层**：XiaoBaCLI 会记录本地 trace 证据，包括用户输入、工具调用、文件产物、异常恢复和最终交付。
+- **历史任务可重跑**：可以从历史 trace 抽取 replay case，重新驱动当前 runtime 生成 fresh trace。
+- **长期回归可验证**：通过 verifier / scorecard 检查 agent 行为是否真的稳定，而不是只看一次演示。
+- **消息场景即控制面**：需求、追问、进度和交付可以从 IM、CLI、Dashboard 或桌宠进入同一套 runtime。
+- **Personal Agents 有运行身体**：roles、skills、tools、context、memory、subagents 和 delivery 共同组成可工作的 agent。
 
 ## 快速开始
 
@@ -58,36 +67,17 @@ XIAOBA_LLM_API_KEY=your_api_key
 XIAOBA_LLM_MODEL=your_model
 ```
 
-本地聊天：
+启动聊天：
 
 ```bash
 npm run dev -- chat -i
 ```
 
-启动桌面 Dashboard：
+启动 Dashboard：
 
 ```bash
 npm run electron:dev
 ```
-
-构建 macOS 安装包：
-
-```bash
-npm run electron:build:mac
-```
-
-生成结果在 `release/XiaoBa-<version>-mac.dmg`。
-
-## 默认安装包
-
-默认 Electron 包刻意保持干净：
-
-- 默认只带 4 个核心协作 roles：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。
-- 只带 5 个 base skills：`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`。
-- `spawn_subagent`、文件读写、shell、grep、发送消息/文件等是 runtime tools，不作为 skill 打包。
-- roles 和 skills 都可以在 Dashboard 或 CLI 中删除；需要更多角色时再从 Role Hub / 外部仓库安装。
-
-开发仓库里仍保留更多实验和领域角色，默认包不把它们塞给用户。
 
 ## 常用命令
 
@@ -95,51 +85,19 @@ npm run electron:build:mac
 | --- | --- |
 | 交互聊天 | `npm run dev -- chat -i` |
 | 单条消息 | `npm run dev -- chat -m "帮我总结这个项目"` |
+| 指定角色 | `npm run dev -- chat -r engineer-cat -i` |
 | Dashboard | `npm run electron:dev` |
 | 构建 | `npm run build` |
 | 测试 | `npm test` |
 | macOS 打包 | `npm run electron:build:mac` |
 
-## 核心概念
+## 默认安装包
 
-```mermaid
-flowchart LR
-    Surface["入口<br/>CLI / IM / Dashboard / Pet"]
-    Runtime["Agent Runtime<br/>session / tools / subagents"]
-    Policy["策略<br/>roles / skills / prompts"]
-    Evidence["证据<br/>logs / artifacts / replay"]
-    Arena["Arena<br/>skill / role review"]
-
-    Surface --> Runtime
-    Policy --> Runtime
-    Runtime --> Evidence
-    Evidence --> Runtime
-    Policy --> Arena
-    Runtime --> Arena
-    Evidence --> Arena
-```
-
-- **Surface**：用户入口，例如 CLI、飞书、微信、Dashboard、桌宠。
-- **Runtime**：统一 agent loop，负责 provider、工具、上下文、subagent 和交付。
-- **Roles / Skills**：角色身份和可复用工作流，不和 runtime 混在一起。
-- **Evidence**：日志、产物、trace 和 eval，让行为能复盘、能改进。
-- **Arena**：把外部 skill、本地 role 等能力单元放进真实 runtime 审判，索引 UserCat、trace、Inspector 和 Reviewer/eval 证据。
+默认 Electron 包刻意保持干净：只带 4 个核心 roles（`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`）和 5 个 base skills（`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`）。更多角色和 skills 通过显式安装进入。
 
 ## 文档
 
-- [项目架构](docs/SPEC.md)
-- [当前计划](docs/PLAN.md)
-- [Agent Runtime](docs/agent-runtime/SPEC.md)
-- [Surface](docs/surface/SPEC.md)
-- [Roles & Skills](docs/roles-skills/SPEC.md)
-- [Observability & Evidence](docs/observability-evidence/SPEC.md)
-- [Arena](docs/arena/SPEC.md)
-- [Skills 指南](skills/README.md)
-- [Roles 指南](roles/README.md)
-
-## 状态
-
-XiaoBa 仍在快速迭代中。当前重点是桌面分发、IM-native runtime、role/skill 生态和可验证的后台任务闭环。
+- [Docs Index](docs/README.md)
 
 ## License
 
