@@ -13,8 +13,8 @@ const pngPath = path.join(outDir, 'hero.png');
 
 const width = 1280;
 const height = 460;
-const frameCount = 64;
-const delayMs = 72;
+const frameCount = 12;
+const delayMs = 140;
 const mono = 'JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace';
 const figletFont = 'ANSI Shadow';
 
