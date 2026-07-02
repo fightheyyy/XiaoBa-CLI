@@ -13,20 +13,20 @@ const pngPath = path.join(outDir, 'hero.png');
 
 const width = 1280;
 const height = 460;
-const frameCount = 12;
-const delayMs = 140;
+const delayMs = 105;
+const initialPauseFrames = 4;
+const rowPauseFrames = 3;
+const finalHoldFrames = 12;
 const mono = 'JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace';
 const figletFont = 'ANSI Shadow';
 
-const rows = [
+const rowSpecs = [
   {
     text: 'AGENTS CAN GROW.',
     y: 78,
     fill: '#fff7ed',
     size: 8.8,
     lineHeight: 10.4,
-    start: 0.05,
-    duration: 0.24,
   },
   {
     text: 'XIAO BA',
@@ -34,8 +34,6 @@ const rows = [
     fill: '#f5c542',
     size: 15.2,
     lineHeight: 17.2,
-    start: 0.26,
-    duration: 0.28,
   },
   {
     text: 'MAKES GROWTH REVIEWABLE.',
@@ -43,18 +41,24 @@ const rows = [
     fill: '#f1d18a',
     size: 6.7,
     lineHeight: 8.1,
-    start: 0.55,
-    duration: 0.26,
   },
-].map((item) => {
+];
+
+let typingFrame = initialPauseFrames;
+const rows = rowSpecs.map((item) => {
   const ascii = toFiglet(item.text);
   const maxWidth = Math.max(...ascii.map((lineValue) => lineValue.length));
-  return { ...item, ascii, maxWidth, charWidth: item.size * 0.61 };
+  const startFrame = typingFrame;
+  typingFrame += item.text.length + rowPauseFrames;
+  return { ...item, ascii, maxWidth, charWidth: item.size * 0.61, startFrame };
 });
+const footerStartFrame = typingFrame + 2;
+const frameCount = footerStartFrame + finalHoldFrames;
 
 const palette = buildPalette();
 
 function toFiglet(value) {
+  if (!value) return [''];
   return figlet.textSync(value, {
     font: figletFont,
     horizontalLayout: 'default',
@@ -68,11 +72,6 @@ function clamp(value, min = 0, max = 1) {
 
 function easeOut(t) {
   return 1 - Math.pow(1 - clamp(t), 3);
-}
-
-function easeInOut(t) {
-  t = clamp(t);
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function attr(value) {
@@ -107,16 +106,17 @@ function line(x1, y1, x2, y2, options = {}) {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity(alpha)}"/>`;
 }
 
-function revealAscii(lines, progress) {
-  const maxWidth = Math.max(...lines.map((line) => line.length));
-  const visibleWidth = Math.floor(easeOut(progress) * maxWidth);
-  return lines.map((line) => line.padEnd(maxWidth).slice(0, visibleWidth));
+function visibleText(block, frame) {
+  const visibleChars = Math.min(block.text.length, Math.max(0, frame - block.startFrame + 1));
+  return block.text.slice(0, visibleChars);
 }
 
-function renderAsciiBlock(block, t) {
-  const progress = clamp((t - block.start) / block.duration);
-  const visible = revealAscii(block.ascii, progress);
-  const alpha = progress <= 0 ? 0 : 0.92 + Math.sin(t * Math.PI * 3) * 0.05;
+function renderAsciiBlock(block, frame) {
+  const typed = visibleText(block, frame);
+  if (!typed) return '';
+  const visible = toFiglet(typed);
+  const progress = clamp(typed.length / block.text.length);
+  const alpha = 0.9 + easeOut(progress) * 0.08;
   const blockLeft = (width - block.maxWidth * block.charWidth) / 2;
   return visible.map((lineValue, index) => text(blockLeft, block.y + index * block.lineHeight, lineValue, {
     size: block.size,
@@ -126,14 +126,24 @@ function renderAsciiBlock(block, t) {
   })).join('\n');
 }
 
+function currentCursor(frame) {
+  const active = rows.find((row) => frame >= row.startFrame && frame < row.startFrame + row.text.length)
+    ?? rows.findLast((row) => frame >= row.startFrame)
+    ?? rows[0];
+  const typed = visibleText(active, frame);
+  const visible = toFiglet(typed);
+  const currentWidth = Math.max(...visible.map((lineValue) => lineValue.length));
+  const blockLeft = (width - active.maxWidth * active.charWidth) / 2;
+  return {
+    x: blockLeft + currentWidth * active.charWidth + 6,
+    y: active.y - active.lineHeight + active.ascii.length * active.lineHeight + 5,
+  };
+}
+
 function renderSvg(frame) {
-  const t = frame / (frameCount - 1);
-  const cursorBlock = rows.findLast((row) => t >= row.start) ?? rows[0];
-  const cursorProgress = clamp((t - cursorBlock.start) / cursorBlock.duration);
-  const cursorX = (width - cursorBlock.maxWidth * cursorBlock.charWidth) / 2 + cursorBlock.maxWidth * cursorBlock.charWidth * easeOut(cursorProgress);
-  const cursorY = cursorBlock.y - cursorBlock.lineHeight + cursorBlock.ascii.length * cursorBlock.lineHeight + 5;
-  const cursorAlpha = t < 0.91 ? 0.65 + 0.35 * (Math.sin(t * Math.PI * 20) > 0 ? 1 : 0) : 0;
-  const footerProgress = clamp((t - 0.88) / 0.10);
+  const cursor = currentCursor(frame);
+  const cursorAlpha = frame < footerStartFrame ? 0.65 + 0.35 * (frame % 2 === 0 ? 1 : 0) : 0;
+  const footerProgress = clamp((frame - footerStartFrame) / finalHoldFrames);
   const footerAlpha = easeOut(footerProgress) * 0.95;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -142,10 +152,10 @@ function renderSvg(frame) {
   <rect width="${width}" height="${height}" fill="#211504" opacity="0.16"/>
   ${line(118, 55, 1162, 55, { stroke: '#7c5a16', alpha: 0.35 })}
 
-  ${rows.map((row) => renderAsciiBlock(row, t)).join('\n')}
+  ${rows.map((row) => renderAsciiBlock(row, frame)).join('\n')}
 
   ${text(width / 2, 407, 'trace / replay / arena / scorecard', { size: 24, weight: 800, fill: '#f6d37a', alpha: footerAlpha })}
-  <rect x="${cursorX}" y="${cursorY}" width="9" height="18" fill="#facc15" opacity="${opacity(cursorAlpha)}"/>
+  <rect x="${cursor.x}" y="${cursor.y}" width="9" height="18" fill="#facc15" opacity="${opacity(cursorAlpha)}"/>
 </svg>`;
 }
 
