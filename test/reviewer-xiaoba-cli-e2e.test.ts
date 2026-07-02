@@ -54,9 +54,9 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
     assert.strictEqual(scorecard.roleEffectiveness.role, 'engineer-cat');
     assert.match(scorecard.roleEffectiveness.rating, /effective|partial|ineffective/);
     assert.ok(scorecard.threeLayerEvidence.workingTrace);
-    assert.match(report, /XiaoBa-CLI True E2E Report/);
-    assert.match(report, /Three-Layer Evidence/);
-    assert.match(report, /Role Effectiveness Score/);
+    assert.match(report, /XiaoBa-CLI 真实端到端验收中文报告/);
+    assert.match(report, /## 三层证据/);
+    assert.match(report, /## 角色有效性评分/);
     assert.match(cleanPane, /ENGINEER:/);
     assert.ok(fs.existsSync(path.join(runDir, 'evidence', '01-verifier-ok.stdout.log')));
 

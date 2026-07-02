@@ -1,7 +1,7 @@
 # Agent Runtime PLAN
 
 状态：Active
-最后更新：2026-06-25
+最后更新：2026-06-30
 Owner：Runtime maintainers
 
 本文维护核心 agent harness runtime 的当前执行状态。架构边界见 `SPEC.md`。历史实现日志由 git 保存；本文只保留当前状态、下一步和近期有效验证。
@@ -74,6 +74,7 @@ Completed:
 - Channel final text is hidden from users by default; explicit `send_text` / `send_file` is the normal channel delivery path.
 - Channel fallback final replies remain available only through opt-in `deliveryFallbackFinalReply` and then write synthetic `send_text` ToolResults with delivery evidence.
 - Context compression defaults now use a Codex-aligned long-context budget: 258400 tokens with a 0.7 trigger threshold, shared by `AgentSession`'s `ContextCompressor` and the `ConversationRunner` pre-request compression guard.
+- Context compression now records structured runtime evidence: restore/pre-message and runner pre-request compaction emit `context_compaction` events, and successful compactions append compact-after messages to same-session `context-snapshots/<session_id>.jsonl`.
 - Maintained role tools can expose explicit `Tool.getArtifactManifest()` evidence through the runtime tool boundary.
 - Observability is local-only in the current implementation; the runtime does not start an external exporter.
 
@@ -122,6 +123,7 @@ Partial:
 - Every assistant tool call has a matching tool result before the next provider request.
 - Tool failures, cancels, retries, blocked states and provider failures become structured runtime facts.
 - Provider transcript, working trace and durable session are documented and separately auditable.
+- Context compaction can be audited from trace event to compact-after snapshot by `event_id` / `snapshot_id`.
 - Confirmed tools are hidden without recent positive confirmation and blocked when payload anchors do not match the confirmation/proposal.
 - Opt-in channel fallback replies produce delivery evidence instead of relying only on side effects; default channel final text remains hidden from users.
 - Observability remains local-first; external exporter failure cannot exist in the current runtime path.
@@ -129,6 +131,7 @@ Partial:
 
 ## Verification Log
 
+- 2026-06-30：Context compaction evidence landed for AgentSession restore/pre-message compression and ConversationRunner pre-request compression, with same-session compact-after snapshot refs and local summary projection. Verification：`node --test -r tsx test/logger.test.ts test/agent-session-log.test.ts test/conversation-runner-harness.test.ts`（30/30）；`node --test -r tsx test/pet-channel.test.ts test/provider-network-readiness-runner.test.ts test/eval-runner.test.ts test/researcher-live-agent-session.test.ts`（52/52）；`npm run build`；`npm test`（391/391）。
 - 2026-06-27：`spawn_subagent` now supports no-skill dispatch while preserving `role_name` / `skill_name` mutual exclusion; role-only dispatch still exposes `skill` for target-role skill selection, but no-skill dispatch hides `skill` and runs directly. Removed the obsolete `background-task-runner` fallback skill from source, runtime defaults, Dashboard hidden/default handling, Electron packaging files, and BaseRuntime replay fixtures. Verification：`node --test -r tsx test/skill-manager-runtime.test.ts test/sub-agent-status.test.ts test/tool-manager-roles.test.ts`（32/32）；`npm run build`；`npm run eval:base-runtime`（benchmarkCases 11/11，evalCases 11/11）；`npm run electron:build:mac`；`git diff --check`。
 - 2026-06-27：Context compression default budget aligned with Codex-style long-context operation: shared default window is now 258400 tokens and shared default trigger threshold is 0.7 across `ContextCompressor` and `ConversationRunner`, with env overrides preserved. Verification：`node --test -r tsx test/context-compressor.test.ts`（35/35）；`node --test -r tsx test/conversation-runner-harness.test.ts`（11/11）；`npm run build`。
 - 2026-06-25：Feishu/channel skill command result semantics tightened at the AgentSession boundary. `CommandResult` and `HandleMessageResult` now carry `finalResponseVisible`, so channel-backed slash skills can keep normal final assistant text hidden after explicit `send_text` delivery while still direct-sending provider/busy/error text that is explicitly visible to the user. Verification：`node --test -r tsx test/feishu-engineer-runtime.test.ts test/agent-session-skill-integration.test.ts test/pet-channel.test.ts test/dashboard-observability-api.test.ts`（24/24）；`npm test`（353/353）；`npm run test:contract-smoke`（6/6 items，23/23 cases）；`npm run build`。

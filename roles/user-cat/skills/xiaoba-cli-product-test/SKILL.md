@@ -44,14 +44,14 @@ Never target `user-cat`.
    - does not provide developer-grade reproduction steps, architecture diagnosis, test plans, or fixes unless the seed explicitly says this user is a developer;
    - cares about visible delivery;
    - may forget one constraint until the middle of the run.
-5. Generate short user turns. Prefer this shape:
+5. Generate one short opening user turn plus fallback pressure turns. Prefer this shape:
    1. vague opening based on the requirement;
    2. push to use the real product path, not explain internals first;
    3. ask where the visible result or evidence is;
    4. add one missed constraint, context, or correction;
    5. ask what is blocked or risky if it cannot be completed;
    6. ask for final user-visible delivery and how to verify it.
-6. Call `user_trace_run` when the user asks UserCat to actually test, run, try, or produce the trace.
+6. Call `user_trace_run` with `interaction_mode: "adaptive"` when the user asks UserCat to actually test, run, try, or produce the trace. UserCat should read each target-role reply and decide whether to ask for evidence, add a missed constraint, ask for blocked reason, or stop.
 7. Keep the default `entrypoint` as `dashboard_chat` unless the user explicitly asks for the legacy direct AgentSession fallback.
 8. After the tool returns, report only candidate trace locations, native session/visible-history evidence, and obvious next owner. Do not score pass/fail.
 
@@ -75,6 +75,7 @@ Prepare arguments like this:
 ```json
 {
   "entrypoint": "dashboard_chat",
+  "interaction_mode": "adaptive",
   "target_role": "engineer-cat",
   "seed": {
     "version": 1,

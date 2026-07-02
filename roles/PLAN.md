@@ -1,7 +1,7 @@
 # Roles And Skills PLAN
 
 状态：Active
-最后更新：2026-06-29
+最后更新：2026-07-01
 Owner：Policy maintainers
 
 本文维护 `roles/` + `skills/` 的策略层执行计划。`roles/SPEC.md` 定义 Roles & Skills 顶层模块架构和边界；各角色目录继续维护自己的 `SPEC.md` 和 `PLAN.md`。
@@ -10,7 +10,7 @@ Owner：Policy maintainers
 
 2026-06-07 追加：Sub-agent dispatch 现在使用 `role_name` / `skill_name` 二选一契约：只传 `skill_name` 表示当前/继承 role 的明确后台 skill；只传 `role_name` 表示跨 role 派遣，由子智能体加载目标 role 后通过 `skill` 工具自行选择 role-local skill。`task_description` / `user_message` 仍是必填。
 
-GitHub 默认跟踪资产和默认 Electron 包现在只保留四个核心协作角色：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。`src/roles/role-manager.ts`、`xiaoba role list/info/remove` 和 Dashboard `DELETE /api/roles/:name` 已补齐角色列表、详情和删除生命周期；删除当前激活角色会清空 active role 并回到 Base，`base/default/none` 不可删除。`inspector-cat` 保留 runtime triage / evidence forensics / issue router 的角色边界和 `analyze_log` 取证工具，`analyze_log` 会输出 `summary.signalQuality`、`summary.recommendedIntakeAction` 和 `issueProfiles[]`。旧 Inspector hook executor、hook API、独立 runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已暂停，等待 Inspector refactor。`engineer-cat`、`inspector-cat`、`reviewer-cat` 和 `user-cat` 是默认 tracked role set；非默认角色只能作为本地 ignored 资产、外部仓库或 future Role Hub 安装，不能进入默认 Git 跟踪或默认 package。ToolManager 已支持 base / role / surface 三层工具注册，role config 可以通过 `inheritBaseTools`、`baseToolAllowlist`、`baseToolDenylist` 控制 base tool 继承；现在还支持 `toolVisibility.mode:"skill_scoped"`、`skillToolsetAliases` 和 `confirmedToolGate`。UserCat 已关闭 base tool 继承并只 allowlist read/search/skill helpers，新增 `xiaoba-cli-product-test` skill 用于把短产品试用需求转成低质量终端用户 candidate trace run，且 `user_trace_run` 默认通过 Dashboard Chat/Pet 原生入口写 native pet/chat evidence。旧 deterministic or static role eval assets 已从 `eval/` 删除；未来 role benchmark 必须按 live agent eval shape 重写后再进入 `eval/benchmarks/<Role>`。
+GitHub 默认跟踪资产和默认 Electron 包现在只保留四个核心协作角色：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。`src/roles/role-manager.ts`、`xiaoba role list/info/remove` 和 Dashboard `DELETE /api/roles/:name` 已补齐角色列表、详情和删除生命周期；删除当前激活角色会清空 active role 并回到 Base，`base/default/none` 不可删除。`inspector-cat` 保留 runtime triage / evidence forensics / issue router 的角色边界和 `analyze_log` 取证工具，`analyze_log` 会输出 `summary.signalQuality`、`summary.recommendedIntakeAction` 和 `issueProfiles[]`。旧 Inspector hook executor、hook API、独立 runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已暂停，等待 Inspector refactor。`engineer-cat`、`inspector-cat`、`reviewer-cat` 和 `user-cat` 是默认 tracked role set；非默认角色只能作为本地 ignored 资产、外部仓库或 future Role Hub 安装，不能进入默认 Git 跟踪或默认 package。ToolManager 已支持 base / role / surface 三层工具注册，role config 可以通过 `inheritBaseTools`、`baseToolAllowlist`、`baseToolDenylist` 控制 base tool 继承；现在还支持 `toolVisibility.mode:"skill_scoped"`、`skillToolsetAliases` 和 `confirmedToolGate`。UserCat 已关闭 base tool 继承并只 allowlist read/search/skill helpers，`xiaoba-cli-product-test` skill 会把短产品试用需求转成低质量终端用户 opening / fallback pressures；`user_trace_run interaction_mode:"adaptive"` 默认通过 Dashboard Chat/Pet 原生入口真实发送开场消息，读取每轮用户可见结果、tool events 和证据后再决定下一句或停止，并在两轮前过早停止时继续追问以形成 minimum two-turn evidence pressure；当 planned fallback 含 required artifact/schema pressure 时会保留该压力，防止 adaptive planner 丢掉关键产物验收。旧 deterministic or static role eval assets 已从 `eval/` 删除；未来 role benchmark 必须按 live agent eval shape 重写后再进入 `eval/benchmarks/<Role>`。
 
 ```mermaid
 flowchart LR
@@ -32,6 +32,7 @@ flowchart LR
         RolesPlan["roles/PLAN.md"]
         InspectorDocs["inspector-cat SPEC/PLAN"]
         UserAssets["user-cat production-gated trace runner"]
+        AdaptiveUser["UserCat adaptive next-message controller"]
         RoleLifecycle["role lifecycle<br/>default bundle + delete"]
         DefaultTracked["default tracked set<br/>5 skills + 4 roles"]
         Diagrams["Current/Target diagrams"]
@@ -54,6 +55,7 @@ flowchart LR
     RolesSpec --> RolesPlan
     InspectorDocs --> RolesPlan
     UserAssets --> RolesPlan
+    AdaptiveUser --> RolesPlan
     RoleLifecycle --> RolesPlan
     DefaultTracked --> RolesPlan
     RolesPlan --> ToolPolicy
@@ -75,7 +77,7 @@ flowchart LR
 6. Shared skill activation and visibility policy enforcement: partial.
 7. Role live eval / benchmark: reset. Old all-roles/core-skills/handoff/EngineerCat/ResearcherCat/UserCat deterministic eval commands were removed from the maintained command surface; future role eval must be live agent replay cases with explicit setup, tool/result expectations and verifiers.
 8. Cross-role handoff evidence schema: completed v0 through deterministic `role_handoffs` fixture and `cross_role_handoff` verifier; live runtime handoff capture remains follow-up work.
-9. UserCat low-quality end-user trace-production role: completed for role.json、README、prompt、trace-simulation skill、xiaoba-cli-product-test product-use preset skill、narrow tool policy、`user_trace_run` Dashboard Chat/Pet entrypoint runner、candidate trace package writer and focused positive/negative tests; ReviewerCat curation integration and full existing-role trace pilots are not started.
+9. UserCat low-quality end-user trace-production role: completed for role.json、README、prompt、trace-simulation skill、xiaoba-cli-product-test product-use preset skill、narrow tool policy、`user_trace_run` Dashboard Chat/Pet entrypoint runner、adaptive next-message controller、minimum evidence pressure、required artifact/schema pressure preservation、candidate trace package writer and focused positive/negative tests; ReviewerCat curation integration and full existing-role trace pilots are not started.
 10. Default role bundle and role deletion lifecycle：completed for package allowlist (`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`), Electron userData role sync, `RoleManager`, `xiaoba role list/info/remove`, Dashboard role deletion API/UI, and focused tests.
 11. Default tracked asset allowlist：completed for Git ignore policy and package allowlist so only 5 base skills + 4 core roles are tracked by default.
 
@@ -120,6 +122,8 @@ flowchart LR
 
 ## Verification Log
 
+- 2026-07-01：UserCat adaptive pressure preservation landed through the SkillsBench live proofs. `user_trace_run interaction_mode:"adaptive"` now keeps at least two target turns when turn budget allows, even if the planner wants to stop after the first target reply, and preserves planned required artifact/schema pressure when the adaptive planner omits it. Verification：`node --test -r tsx test/user-trace-run-tool.test.ts`；`npm run build`。
+- 2026-06-30：UserCat `user_trace_run` gained `interaction_mode:"adaptive"` so live runs use an opening/fallback plan but choose each next low-information user message after observing the previous target turn's user-visible result, tool events and evidence; scripted mode remains for fixed replay compatibility, and Arena now invokes UserCat in adaptive mode by default. Verification：`node --test -r tsx test/user-trace-run-tool.test.ts test/user-cat-role.test.ts test/arena-runner.test.ts`（12/12）；`npm run build`。
 - 2026-06-29：Default role package narrowed to `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`; added `RoleManager`, `xiaoba role list/info/remove`, Dashboard role deletion, Electron userData role sync, and package allowlist coverage. Verification：`node --test -r tsx test/role-manager.test.ts test/default-role-bundle.test.ts test/dashboard-skills-api.test.ts`（7/7）；`npm run build`；`npm test`（376/376）；`git diff --check`。
 - 2026-06-29：Clarified UserCat as low-quality / low-information end-user pressure, not developer / engineer / QA lead behavior, across role docs and Arena references. Verification：docs review；`git diff --check -- docs README.md roles`。
 - 2026-06-27：Added HuangShengDiJun and XuanShengDiJun as prompt-only fan-style parody roles for public Waywardzz / Last炫神 meme-inspired replies. Both roles have README、role.json、prompt、voice corpus、SPEC/PLAN and no base skills/tools. Verification：`node --test -r tsx test/di-jun-roles.test.ts test/tool-manager-roles.test.ts test/roles.test.ts`; `npm run build`; `git diff --check`; trailing-whitespace scan for new files.

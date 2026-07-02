@@ -138,6 +138,132 @@ describe('registerArenaCommand', () => {
     assert.ok(runtime.launch.pass_through_env.includes('OPENAI_API_KEY'));
     assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-clean', 'clean-runtime.json')));
   });
+
+  test('registers arena run execute dry-run command with sandbox shell runner', async () => {
+    const importProgram = createProgram();
+    registerArenaCommand(importProgram);
+    await importProgram.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'skills/demo-skill']);
+    const manifest = JSON.parse(logs.join('\n'));
+    logs = [];
+
+    const executeProgram = createProgram();
+    registerArenaCommand(executeProgram);
+    await executeProgram.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'run',
+      'execute',
+      '--mode',
+      'base_skill',
+      '--subject',
+      manifest.subject_id,
+      '--run-id',
+      'cli-execute-dry',
+      '--sandbox-engine',
+      'macos_seatbelt',
+      '--dry-run',
+    ]);
+
+    const output = JSON.parse(logs.join('\n'));
+    assert.strictEqual(output.status, 'dry_run');
+    assert.strictEqual(output.command_kind, 'sandbox_shell_command');
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-execute-dry', 'arena-runner.json')));
+  });
+
+  test('registers arena run execute with workspace seed option', async () => {
+    writeJson(path.join(testRoot, 'fixtures', 'workspace-seed', 'employee_data.json'), { name: 'Sarah Chen' });
+    const importProgram = createProgram();
+    registerArenaCommand(importProgram);
+    await importProgram.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'skills/demo-skill']);
+    const manifest = JSON.parse(logs.join('\n'));
+    logs = [];
+
+    const executeProgram = createProgram();
+    registerArenaCommand(executeProgram);
+    await executeProgram.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'run',
+      'execute',
+      '--mode',
+      'base_skill',
+      '--subject',
+      manifest.subject_id,
+      '--run-id',
+      'cli-execute-seeded-dry',
+      '--workspace-seed',
+      'fixtures/workspace-seed',
+      '--sandbox-engine',
+      'macos_seatbelt',
+      '--dry-run',
+    ]);
+
+    const output = JSON.parse(logs.join('\n'));
+    const runtime = JSON.parse(fs.readFileSync(output.clean_runtime_path, 'utf-8'));
+    assert.strictEqual(runtime.copied.workspace_seed.source, 'fixtures/workspace-seed');
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-execute-seeded-dry', 'workspace', 'employee_data.json')));
+  });
+
+  test('registers arena skill shortcut for installed XiaoBa skills', async () => {
+    const program = createProgram();
+    registerArenaCommand(program);
+
+    await program.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'skill',
+      'demo-skill',
+      '--run-id',
+      'cli-skill-dry',
+      '--sandbox-engine',
+      'macos_seatbelt',
+      '--dry-run',
+    ]);
+
+    const output = JSON.parse(logs.join('\n'));
+    assert.strictEqual(output.status, 'dry_run');
+    assert.strictEqual(output.command, 'arena skill');
+    assert.strictEqual(output.skill.name, 'demo-skill');
+    assert.strictEqual(output.review_mode, 'base_skill');
+    assert.strictEqual(output.run_id, 'cli-skill-dry');
+    assert.strictEqual(output.command_kind, 'sandbox_shell_command');
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'subjects', output.skill.subject_id, 'arena-manifest.json')));
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-skill-dry', 'arena-runner.json')));
+  });
+
+  test('registers arena skill shortcut for previously imported Arena subjects', async () => {
+    writeSkill(path.join(testRoot, 'external', 'hang-to-la-rating'), 'hang-to-la-rating');
+    const importProgram = createProgram();
+    registerArenaCommand(importProgram);
+    await importProgram.parseAsync(['node', 'xiaoba', 'arena', 'import', 'skill', 'external/hang-to-la-rating']);
+    logs = [];
+
+    const program = createProgram();
+    registerArenaCommand(program);
+    await program.parseAsync([
+      'node',
+      'xiaoba',
+      'arena',
+      'skill',
+      'hang-to-la-rating',
+      '--run-id',
+      'cli-imported-skill-dry',
+      '--sandbox-engine',
+      'macos_seatbelt',
+      '--dry-run',
+    ]);
+
+    const output = JSON.parse(logs.join('\n'));
+    assert.strictEqual(output.status, 'dry_run');
+    assert.strictEqual(output.command, 'arena skill');
+    assert.strictEqual(output.skill.name, 'hang-to-la-rating');
+    assert.strictEqual(output.run_id, 'cli-imported-skill-dry');
+    assert.strictEqual(output.command_kind, 'sandbox_shell_command');
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'cli-imported-skill-dry', 'arena-runner.json')));
+  });
 });
 
 function createProgram(): Command {

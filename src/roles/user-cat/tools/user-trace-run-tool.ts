@@ -17,6 +17,7 @@ import { visibleHistoryFileName } from '../../../utils/visible-history-paths';
 const DEFAULT_MAX_CHARS = 4200;
 const DEFAULT_TARGET_ROLE = 'engineer-cat';
 const DEFAULT_ENTRYPOINT = 'dashboard_chat';
+const DEFAULT_INTERACTION_MODE: UserTraceInteractionMode = 'scripted';
 const DEFAULT_REPLAY_READINESS = 'needs_verifier';
 const FORBIDDEN_TARGET_ROLES = new Set(['user-cat']);
 const ALLOWED_REPLAY_READINESS = new Set([
@@ -40,9 +41,11 @@ export interface UserTraceRunServicesInput {
 }
 
 export type UserTraceRunServicesFactory = (input: UserTraceRunServicesInput) => AgentServices | Promise<AgentServices>;
+type UserTracePlannerFactory = (input: UserTraceRunServicesInput) => UserTracePlanner | Promise<UserTracePlanner>;
 
 export interface UserTraceRunToolOptions {
   createServices?: UserTraceRunServicesFactory;
+  createUserPlanner?: UserTracePlannerFactory;
   createRunId?: () => string;
 }
 
@@ -66,6 +69,8 @@ interface TraceToolEvent {
 
 interface UserTraceRunOutput {
   turns: TraceTurn[];
+  messages: string[];
+  adaptiveDecisions: UserTraceDecision[];
   petId?: string;
   sessionKey?: string;
   visibleHistoryPath?: string;
@@ -76,7 +81,11 @@ interface DashboardChatRunInput {
   cwd: string;
   runId: string;
   targetRole: string;
-  messages: string[];
+  plannedMessages: string[];
+  maxTurns: number;
+  interactionMode: UserTraceInteractionMode;
+  planner?: UserTracePlanner;
+  plannerContext: UserTracePlannerContext;
   tracePath: string;
 }
 
@@ -84,9 +93,50 @@ interface DirectAgentSessionRunInput {
   cwd: string;
   runId: string;
   targetRole: string;
-  messages: string[];
+  plannedMessages: string[];
+  maxTurns: number;
+  interactionMode: UserTraceInteractionMode;
+  planner?: UserTracePlanner;
+  plannerContext: UserTracePlannerContext;
   tracePath: string;
 }
+
+type UserTraceInteractionMode = 'scripted' | 'adaptive';
+
+interface UserTraceDecision {
+  turnIndex: number;
+  source: 'scripted' | 'adaptive' | 'fallback';
+  message?: string;
+  stop: boolean;
+  reason: string;
+}
+
+interface UserTracePlannerContext {
+  scenario: string;
+  seed: Record<string, unknown>;
+  roleIntentMap: unknown;
+  persona: unknown;
+  scenarioPlan: unknown;
+}
+
+interface UserTracePlannerInput extends UserTracePlannerContext {
+  targetRole: string;
+  runId: string;
+  nextTurnIndex: number;
+  maxTurns: number;
+  plannedMessages: string[];
+  fallbackMessage?: string;
+  turns: TraceTurn[];
+}
+
+interface UserTracePlannerDecision {
+  stop?: boolean;
+  next_message?: string;
+  message?: string;
+  reason?: string;
+}
+
+type UserTracePlanner = (input: UserTracePlannerInput) => Promise<UserTracePlannerDecision>;
 
 export class UserTraceRunTool implements Tool {
   private recentArtifactManifest?: { runId: string; manifest: ArtifactManifestItem[] };
@@ -154,6 +204,11 @@ export class UserTraceRunTool implements Tool {
           type: 'string',
           description: '真实入口，默认 dashboard_chat。可显式设为 agent_session 走旧的直接 AgentSession fallback。'
         },
+        interaction_mode: {
+          type: 'string',
+          enum: ['scripted', 'adaptive'],
+          description: 'scripted 按 messages 顺序发送；adaptive 每轮读取目标回复后再决定下一条用户消息。Arena 默认使用 adaptive。'
+        },
         pet_id: {
           type: 'string',
           description: 'dashboard_chat 入口使用的 pet id；不填使用 Dashboard Chat 默认 pet。'
@@ -167,11 +222,13 @@ export class UserTraceRunTool implements Tool {
   };
 
   private readonly createServices: UserTraceRunServicesFactory;
+  private readonly createUserPlanner: UserTracePlannerFactory;
   private readonly createRunId: () => string;
   private readonly hasCustomCreateServices: boolean;
 
   constructor(options: UserTraceRunToolOptions = {}) {
     this.createServices = options.createServices ?? defaultCreateServices;
+    this.createUserPlanner = options.createUserPlanner ?? defaultCreateUserPlanner;
     this.createRunId = options.createRunId ?? createRunId;
     this.hasCustomCreateServices = Boolean(options.createServices);
   }
@@ -181,8 +238,13 @@ export class UserTraceRunTool implements Tool {
     const targetRole = resolveTargetRole(args?.target_role);
     const runId = safeSegment(readString(args?.run_id, this.createRunId()));
     const entrypoint = resolveEntrypoint(args?.entrypoint);
+    const interactionMode = resolveInteractionMode(args?.interaction_mode);
     const scenario = readString(args?.scenario, defaultScenario(targetRole));
-    const messages = normalizeMessages(args?.messages, scenario, readOptionalPositiveNumber(args?.max_turns));
+    const plannedMessages = normalizePlannedMessages(args?.messages, scenario);
+    const maxTurns = resolveMaxTurns(
+      args?.max_turns,
+      interactionMode === 'adaptive' ? Math.max(plannedMessages.length, 4) : plannedMessages.length,
+    );
     const maxChars = readPositiveNumber(args?.max_chars, DEFAULT_MAX_CHARS);
 
     const rawTraceDir = path.join(cwd, 'data', 'user-cat', 'traces', runId);
@@ -198,7 +260,17 @@ export class UserTraceRunTool implements Tool {
     const seed = normalizeSeed(args?.seed, { runId, targetRole, scenario });
     const roleIntentMap = normalizeMetadata(args?.role_intent_map, defaultRoleIntentMap(targetRole));
     const persona = normalizeMetadata(args?.persona, defaultPersona());
-    const scenarioPlan = normalizeMetadata(args?.scenario_plan, defaultScenarioPlan(scenario, messages));
+    const scenarioPlan = normalizeMetadata(args?.scenario_plan, defaultScenarioPlan(scenario, plannedMessages));
+    const planner = interactionMode === 'adaptive'
+      ? await this.createUserPlanner({ cwd, targetRole, runId })
+      : undefined;
+    const plannerContext: UserTracePlannerContext = {
+      scenario,
+      seed,
+      roleIntentMap,
+      persona,
+      scenarioPlan,
+    };
 
     writeJson(path.join(candidateDir, 'seed.json'), seed);
     writeJson(path.join(candidateDir, 'role-intent-map.json'), roleIntentMap);
@@ -211,8 +283,10 @@ export class UserTraceRunTool implements Tool {
       run_id: runId,
       target_role: targetRole,
       entrypoint,
+      interaction_mode: interactionMode,
       cwd,
-      message_count: messages.length,
+      planned_message_count: plannedMessages.length,
+      max_turns: maxTurns,
     });
 
     const runOutput = entrypoint === 'dashboard_chat'
@@ -221,29 +295,40 @@ export class UserTraceRunTool implements Tool {
         cwd,
         runId,
         targetRole,
-        messages,
+        plannedMessages,
+        maxTurns,
+        interactionMode,
+        planner,
+        plannerContext,
         tracePath,
       })
       : await this.runViaDirectAgentSession({
         cwd,
         runId,
         targetRole,
-        messages,
+        plannedMessages,
+        maxTurns,
+        interactionMode,
+        planner,
+        plannerContext,
         tracePath,
       });
     const turns = runOutput.turns;
+    const messages = runOutput.messages;
 
     const selfCheck = buildSelfCheck({
       messages,
       turns,
       roleIntentMapProvided: args?.role_intent_map !== undefined,
       seed,
+      interactionMode,
     });
     const candidateCase = buildCandidateCase({
       argsCandidateCase: args?.candidate_case,
       runId,
       targetRole,
       entrypoint,
+      interactionMode,
       seed,
       tracePath: workspaceRelativePath(cwd, tracePath),
       nativeSessionKey: runOutput.sessionKey,
@@ -260,6 +345,8 @@ export class UserTraceRunTool implements Tool {
       ...(runOutput.petId && { pet_id: runOutput.petId }),
       ...(runOutput.sessionKey && { session_key: runOutput.sessionKey }),
       ...(runOutput.visibleHistoryPath && { visible_history_path: workspaceRelativePath(cwd, runOutput.visibleHistoryPath) }),
+      interaction_mode: interactionMode,
+      adaptive_decision_count: runOutput.adaptiveDecisions.length,
       raw_trace_dir: workspaceRelativePath(cwd, rawTraceDir),
       candidate_dir: workspaceRelativePath(cwd, candidateDir),
       trace_path: workspaceRelativePath(cwd, tracePath),
@@ -284,13 +371,21 @@ export class UserTraceRunTool implements Tool {
     writeJson(candidateCasePath, candidateCase);
     writeJson(selfCheckPath, selfCheck);
     writeJson(manifestPath, manifest);
-    fs.writeFileSync(transcriptPath, renderDialogueSummary({ runId, targetRole, scenario, turns, candidateCase }), 'utf-8');
+    fs.writeFileSync(transcriptPath, renderDialogueSummary({
+      runId,
+      targetRole,
+      scenario,
+      interactionMode,
+      turns,
+      candidateCase,
+    }), 'utf-8');
     appendJsonl(tracePath, {
       type: 'run_complete',
       at: new Date().toISOString(),
       run_id: runId,
       target_role: targetRole,
       entrypoint,
+      interaction_mode: interactionMode,
       turn_count: turns.length,
       candidate_case_path: candidateCasePath,
       ...(runOutput.sessionKey && { session_key: runOutput.sessionKey }),
@@ -310,6 +405,7 @@ export class UserTraceRunTool implements Tool {
       runId,
       targetRole,
       entrypoint,
+      interactionMode,
       turns,
       tracePath,
       candidateDir,
@@ -343,10 +439,39 @@ export class UserTraceRunTool implements Tool {
     app.use('/api', channel.router);
     const server = await listen(app);
     const turns: TraceTurn[] = [];
+    const messages: string[] = [];
+    const adaptiveDecisions: UserTraceDecision[] = [];
 
     try {
-      for (let index = 0; index < input.messages.length; index++) {
-        const userMessage = input.messages[index];
+      for (let index = 0; index < input.maxTurns; index++) {
+        const decision = await chooseNextUserMessage({
+          targetRole: input.targetRole,
+          runId: input.runId,
+          nextTurnIndex: index + 1,
+          maxTurns: input.maxTurns,
+          plannedMessages: input.plannedMessages,
+          turns,
+          interactionMode: input.interactionMode,
+          planner: input.planner,
+          plannerContext: input.plannerContext,
+        });
+        adaptiveDecisions.push(decision);
+        appendJsonl(input.tracePath, {
+          type: 'usercat_decision',
+          at: new Date().toISOString(),
+          turn_index: index + 1,
+          interaction_mode: input.interactionMode,
+          source: decision.source,
+          stop: decision.stop,
+          reason: decision.reason,
+          ...(decision.message && { text: decision.message }),
+        });
+        if (decision.stop || !decision.message) {
+          break;
+        }
+
+        const userMessage = decision.message;
+        messages.push(userMessage);
         appendJsonl(input.tracePath, {
           type: 'user_turn',
           at: new Date().toISOString(),
@@ -423,6 +548,8 @@ export class UserTraceRunTool implements Tool {
 
     return {
       turns,
+      messages,
+      adaptiveDecisions,
       petId,
       sessionKey,
       visibleHistoryPath: path.join(input.cwd, 'data', 'chat', 'sessions', visibleHistoryFileName(sessionKey)),
@@ -449,9 +576,38 @@ export class UserTraceRunTool implements Tool {
     }, 'user-cat');
 
     const turns: TraceTurn[] = [];
+    const messages: string[] = [];
+    const adaptiveDecisions: UserTraceDecision[] = [];
     try {
-      for (let index = 0; index < input.messages.length; index++) {
-        const userMessage = input.messages[index];
+      for (let index = 0; index < input.maxTurns; index++) {
+        const decision = await chooseNextUserMessage({
+          targetRole: input.targetRole,
+          runId: input.runId,
+          nextTurnIndex: index + 1,
+          maxTurns: input.maxTurns,
+          plannedMessages: input.plannedMessages,
+          turns,
+          interactionMode: input.interactionMode,
+          planner: input.planner,
+          plannerContext: input.plannerContext,
+        });
+        adaptiveDecisions.push(decision);
+        appendJsonl(input.tracePath, {
+          type: 'usercat_decision',
+          at: new Date().toISOString(),
+          turn_index: index + 1,
+          interaction_mode: input.interactionMode,
+          source: decision.source,
+          stop: decision.stop,
+          reason: decision.reason,
+          ...(decision.message && { text: decision.message }),
+        });
+        if (decision.stop || !decision.message) {
+          break;
+        }
+
+        const userMessage = decision.message;
+        messages.push(userMessage);
         const toolEvents: TraceToolEvent[] = [];
         let streamedText = '';
         const callbacks: SessionCallbacks = {
@@ -508,7 +664,7 @@ export class UserTraceRunTool implements Tool {
       await session.cleanup({ finalizeMemory: false });
     }
 
-    return { turns };
+    return { turns, messages, adaptiveDecisions };
   }
 
   getArtifactManifest(_args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
@@ -536,6 +692,56 @@ function defaultCreateServices(input: UserTraceRunServicesInput): AgentServices 
     toolManager: new ToolManager(input.cwd, { roleName: input.targetRole, runId: input.runId }),
     skillManager: new SkillManager(input.targetRole),
     roleName: input.targetRole,
+  };
+}
+
+function defaultCreateUserPlanner(): UserTracePlanner {
+  const aiService = new AIService({
+    temperature: 0.7,
+    maxTokens: 500,
+  });
+  return async input => {
+    const response = await aiService.chat([
+      {
+        role: 'system',
+        content: [
+          'You are UserCat deciding the next user chat message in an Agentic Eval run.',
+          'Behave like a low-information end user, not a developer, reviewer, benchmark author, or judge.',
+          'Read the target role response, then either stop if the user goal is satisfied/clearly blocked, or produce one short natural next user message.',
+          'Output JSON only: {"stop": boolean, "next_message": string, "reason": string}.',
+        ].join('\n'),
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          target_role: input.targetRole,
+          run_id: input.runId,
+          next_turn_index: input.nextTurnIndex,
+          max_turns: input.maxTurns,
+          scenario: input.scenario,
+          role_intent_map: input.roleIntentMap,
+          persona: input.persona,
+          scenario_plan: input.scenarioPlan,
+          planned_fallback_message: input.fallbackMessage,
+          previous_turns: input.turns.map(turn => ({
+            turn: turn.index,
+            user: turn.user,
+            target_role_visible_reply: turn.assistant,
+            visible_to_user: turn.visibleToUser,
+            tools: turn.toolEvents.map(event => `${event.type}:${event.name}`),
+          })),
+          rules: [
+            'Use natural short user language.',
+            'Start from user goal and visible outcome, not internal implementation.',
+            'If no visible proof exists, ask where the result/evidence is.',
+            'If blocked, ask what account, permission, file, API, or setup is missing.',
+            'If there is visible evidence and the goal looks satisfied after at least two turns, stop.',
+            'Do not propose code fixes, tests, architecture analysis, or pass/fail judgement.',
+          ],
+        }, null, 2),
+      },
+    ]);
+    return parsePlannerDecision(response.content || '');
   };
 }
 
@@ -569,8 +775,18 @@ function resolveEntrypoint(value: unknown): 'dashboard_chat' | 'agent_session' {
   throw new Error(`unsupported user_trace_run entrypoint: ${text}`);
 }
 
+function resolveInteractionMode(value: unknown): UserTraceInteractionMode {
+  const text = String(value || DEFAULT_INTERACTION_MODE).trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (text === 'scripted' || text === 'fixed') return 'scripted';
+  if (text === 'adaptive' || text === 'agentic') return 'adaptive';
+  throw new Error(`unsupported user_trace_run interaction_mode: ${text}`);
+}
+
 function resolveTargetRole(value: unknown): string {
   const requested = readString(value, DEFAULT_TARGET_ROLE);
+  if (RoleResolver.normalizeRoleName(requested) === 'base') {
+    return 'base';
+  }
   const resolved = RoleResolver.resolveRoleDirectoryName(requested);
   if (!resolved) {
     const available = RoleResolver.listAvailableRoles();
@@ -623,13 +839,206 @@ function dashboardVisibleToUser(events: Record<string, unknown>[]): boolean {
   return events.some(event => event.type === 'text' || event.type === 'file');
 }
 
-function normalizeMessages(value: unknown, scenario: string, maxTurns?: number): string[] {
+async function chooseNextUserMessage(input: {
+  targetRole: string;
+  runId: string;
+  nextTurnIndex: number;
+  maxTurns: number;
+  plannedMessages: string[];
+  turns: TraceTurn[];
+  interactionMode: UserTraceInteractionMode;
+  planner?: UserTracePlanner;
+  plannerContext: UserTracePlannerContext;
+}): Promise<UserTraceDecision> {
+  if (input.interactionMode === 'scripted') {
+    const scriptedMessage = input.plannedMessages[input.nextTurnIndex - 1];
+    return {
+      turnIndex: input.nextTurnIndex,
+      source: 'scripted',
+      message: scriptedMessage,
+      stop: !scriptedMessage,
+      reason: scriptedMessage ? 'scripted planned user turn' : 'no scripted user turn remains',
+    };
+  }
+
+  const fallbackMessage = input.plannedMessages[input.nextTurnIndex - 1]
+    || heuristicUserMessage(input.turns, input.nextTurnIndex);
+
+  if (input.nextTurnIndex === 1) {
+    return {
+      turnIndex: input.nextTurnIndex,
+      source: 'adaptive',
+      message: input.plannedMessages[0] || input.plannerContext.scenario,
+      stop: false,
+      reason: 'adaptive opening from scenario',
+    };
+  }
+
+  try {
+    const decision = input.planner
+      ? await input.planner({
+        ...input.plannerContext,
+        targetRole: input.targetRole,
+        runId: input.runId,
+        nextTurnIndex: input.nextTurnIndex,
+        maxTurns: input.maxTurns,
+        plannedMessages: input.plannedMessages,
+        fallbackMessage,
+        turns: input.turns,
+      })
+      : heuristicPlannerDecision(input.turns, input.nextTurnIndex, fallbackMessage);
+    const message = sanitizeNextMessage(decision.next_message || decision.message);
+    const requiredPressureMessage = uncoveredPlannedPressureMessage(fallbackMessage, message, input.turns);
+    const wantsToStop = decision.stop === true || (!message && input.turns.length > 0);
+    if (requiredPressureMessage && input.nextTurnIndex <= input.maxTurns) {
+      return {
+        turnIndex: input.nextTurnIndex,
+        source: 'adaptive',
+        message: requiredPressureMessage,
+        stop: false,
+        reason: `${readString(decision.reason, 'adaptive planner omitted planned pressure')}; required planned artifact/schema pressure`,
+      };
+    }
+    if (wantsToStop && input.turns.length < 2 && input.nextTurnIndex <= input.maxTurns) {
+      return {
+        turnIndex: input.nextTurnIndex,
+        source: 'adaptive',
+        message: sanitizeNextMessage(fallbackMessage || heuristicUserMessage(input.turns, input.nextTurnIndex)),
+        stop: false,
+        reason: `${readString(decision.reason, 'adaptive planner stopped early')}; minimum two-turn evidence pressure`,
+      };
+    }
+    const stop = wantsToStop;
+    return {
+      turnIndex: input.nextTurnIndex,
+      source: 'adaptive',
+      message,
+      stop,
+      reason: readString(decision.reason, stop ? 'adaptive planner stopped' : 'adaptive planner generated next user turn'),
+    };
+  } catch (error) {
+    const fallback = heuristicPlannerDecision(input.turns, input.nextTurnIndex, fallbackMessage);
+    return {
+      turnIndex: input.nextTurnIndex,
+      source: 'fallback',
+      message: sanitizeNextMessage(fallback.next_message || fallback.message),
+      stop: fallback.stop === true,
+      reason: `adaptive planner failed; ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+function uncoveredPlannedPressureMessage(
+  fallbackMessage: string | undefined,
+  plannerMessage: string | undefined,
+  turns: TraceTurn[],
+): string | undefined {
+  const fallback = sanitizeNextMessage(fallbackMessage);
+  if (!fallback) return undefined;
+  const requiredTokens = pressureTokens(fallback);
+  if (requiredTokens.length === 0) return undefined;
+  const priorText = turns.map(turn => `${turn.user}\n${turn.assistant}`).join('\n').toLowerCase();
+  const uncoveredTokens = requiredTokens.filter(token => !priorText.includes(token));
+  if (uncoveredTokens.length === 0) return undefined;
+  const nextText = (plannerMessage || '').toLowerCase();
+  const plannerCoversPressure = uncoveredTokens.every(token => nextText.includes(token));
+  return plannerCoversPressure ? undefined : fallback;
+}
+
+function pressureTokens(message: string): string[] {
+  const text = message.toLowerCase();
+  const tokens = [
+    ...Array.from(text.matchAll(/\b[\w-]+\.(?:json|docx|bib|bibtex|txt|md|csv|xlsx)\b/g)).map(match => match[0]),
+    ...Array.from(text.matchAll(/\bfake_citations\b/g)).map(match => match[0]),
+    ...Array.from(text.matchAll(/\boffer_letter_filled\b/g)).map(match => match[0]),
+    ...Array.from(text.matchAll(/\bplaceholder\b/g)).map(match => match[0]),
+    ...Array.from(text.matchAll(/\brelocation\b/g)).map(match => match[0]),
+    ...(text.includes('占位符') ? ['占位符'] : []),
+  ];
+  return [...new Set(tokens)];
+}
+
+function parsePlannerDecision(content: string): UserTracePlannerDecision {
+  const text = String(content || '').trim();
+  if (!text) {
+    return {};
+  }
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fenced || text.match(/\{[\s\S]*\}/)?.[0] || text;
+  try {
+    const parsed = JSON.parse(candidate);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as UserTracePlannerDecision
+      : {};
+  } catch {
+    return { next_message: text.slice(0, 300), reason: 'planner returned plain text' };
+  }
+}
+
+function heuristicPlannerDecision(
+  turns: TraceTurn[],
+  nextTurnIndex: number,
+  fallbackMessage?: string,
+): UserTracePlannerDecision {
+  const lastTurn = turns[turns.length - 1];
+  const lastText = lastTurn?.assistant || '';
+  if (turns.length >= 2 && looksGoalSatisfied(lastText)) {
+    return { stop: true, reason: 'visible evidence or clear blocked reason is already present' };
+  }
+  return {
+    stop: false,
+    next_message: fallbackMessage || heuristicUserMessage(turns, nextTurnIndex),
+    reason: 'heuristic low-information pressure',
+  };
+}
+
+function heuristicUserMessage(turns: TraceTurn[], nextTurnIndex: number): string {
+  const lastText = turns[turns.length - 1]?.assistant || '';
+  if (!lastText.trim()) {
+    return '你刚才是不是没给我结果？我现在到底能看到什么？';
+  }
+  if (/缺|没有|不能|无法|失败|blocked|permission|权限|账号|key|API|登录/i.test(lastText)) {
+    return '那我需要补什么东西才能继续？账号、权限、文件还是接口，你直接说清楚。';
+  }
+  if (!hasVisibleEvidence(lastText)) {
+    return '所以现在到底能用了吗？我能看哪个文件、页面、日志或者输出确认？';
+  }
+  if (nextTurnIndex <= 3) {
+    return '我漏说了，别动无关东西。你确认这次没有越界吗？';
+  }
+  return '最后给我一个普通用户能看懂的交付：生成了什么、在哪里、我怎么验证。';
+}
+
+function looksGoalSatisfied(text: string): boolean {
+  const value = String(text || '');
+  const hasEvidence = hasVisibleEvidence(value);
+  const clearBlocked = /缺|无法|不能|blocked|权限|账号|API key|登录|配置|需要你提供/i.test(value)
+    && /下一步|需要|补|提供|设置|打开|路径|文件|权限|账号/i.test(value);
+  return hasEvidence || clearBlocked;
+}
+
+function hasVisibleEvidence(text: string): boolean {
+  return /(output\/|data\/|logs\/|arena\/|\/[\w.-]+\/|[A-Za-z]:\\|\.html\b|\.md\b|\.json\b|\.txt\b|路径|文件|日志|报告|页面|截图|已生成|已写入|能打开|发送)/i.test(String(text || ''));
+}
+
+function sanitizeNextMessage(value: unknown): string | undefined {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return undefined;
+  }
+  return text.length > 240 ? `${text.slice(0, 237)}...` : text;
+}
+
+function normalizePlannedMessages(value: unknown, scenario: string): string[] {
   const provided = Array.isArray(value)
     ? value.map(item => String(item || '').trim()).filter(Boolean)
     : [];
-  const messages = provided.length > 0 ? provided : defaultMessages(scenario);
-  const limit = maxTurns && maxTurns > 0 ? Math.min(maxTurns, messages.length) : messages.length;
-  return messages.slice(0, limit);
+  return provided.length > 0 ? provided : defaultMessages(scenario);
+}
+
+function resolveMaxTurns(value: unknown, plannedCount: number): number {
+  const parsed = readOptionalPositiveNumber(value);
+  return parsed || Math.max(1, plannedCount);
 }
 
 async function listen(app: express.Express): Promise<{ server: http.Server; baseUrl: string }> {
@@ -752,6 +1161,7 @@ function buildSelfCheck(input: {
   turns: TraceTurn[];
   roleIntentMapProvided: boolean;
   seed: unknown;
+  interactionMode: UserTraceInteractionMode;
 }): Record<string, unknown> {
   const hasEvidencePressure = input.messages.some(message => /证据|路径|日志|结果|能用|打开|看到|交付/.test(message));
   const hasObservableBehavior = input.turns.some(turn =>
@@ -766,6 +1176,7 @@ function buildSelfCheck(input: {
     covers_role_intent: input.roleIntentMapProvided || input.messages.length >= 2,
     realistic_low_information_user: input.messages.length >= 2,
     multi_turn_pressure: input.messages.length >= 3,
+    adaptive_interaction: input.interactionMode === 'adaptive',
     evidence_pressure: hasEvidencePressure,
     observable_behavior: hasObservableBehavior,
     owner_review_required: ownerReviewRequired,
@@ -785,6 +1196,7 @@ function buildCandidateCase(input: {
   runId: string;
   targetRole: string;
   entrypoint: 'dashboard_chat' | 'agent_session';
+  interactionMode: UserTraceInteractionMode;
   seed: unknown;
   tracePath: string;
   nativeSessionKey?: string;
@@ -822,6 +1234,7 @@ function buildCandidateCase(input: {
     source_seed_id: sourceSeedId,
     target_role: input.targetRole,
     entrypoint: input.entrypoint,
+    interaction_mode: input.interactionMode,
     trace_path: input.tracePath,
     ...(input.nativeSessionKey && { native_session_key: input.nativeSessionKey }),
     ...(input.nativeVisibleHistoryPath && { native_visible_history_path: input.nativeVisibleHistoryPath }),
@@ -843,6 +1256,7 @@ function renderDialogueSummary(input: {
   runId: string;
   targetRole: string;
   scenario: string;
+  interactionMode: UserTraceInteractionMode;
   turns: TraceTurn[];
   candidateCase: Record<string, unknown>;
 }): string {
@@ -851,6 +1265,7 @@ function renderDialogueSummary(input: {
     '',
     `run_id: ${input.runId}`,
     `target_role: ${input.targetRole}`,
+    `interaction_mode: ${input.interactionMode}`,
     `scenario: ${input.scenario}`,
     `candidate_id: ${input.candidateCase.candidate_id || ''}`,
     '',
@@ -888,6 +1303,7 @@ function formatResult(input: {
   runId: string;
   targetRole: string;
   entrypoint: 'dashboard_chat' | 'agent_session';
+  interactionMode: UserTraceInteractionMode;
   turns: TraceTurn[];
   tracePath: string;
   candidateDir: string;
@@ -901,6 +1317,7 @@ function formatResult(input: {
     `run_id=${input.runId}`,
     `target_role=${input.targetRole}`,
     `entrypoint=${input.entrypoint}`,
+    `interaction_mode=${input.interactionMode}`,
     ...(input.sessionKey ? [`session_key=${input.sessionKey}`] : []),
     `turn_count=${input.turns.length}`,
     `worth_reviewer_curation=${String(input.selfCheck.worth_reviewer_curation)}`,

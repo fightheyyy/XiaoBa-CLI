@@ -206,7 +206,7 @@ describeResearcherLiveRole('ResearcherCat live AgentSession board smoke', () => 
     assert.equal(events.length, 1);
     assert.equal(events[0].event_type, 'research_board_update');
 
-    const sessionLogFiles = collectFiles(path.join(testRoot, 'logs', 'sessions', 'cli')).filter(file => file.endsWith('.jsonl'));
+    const sessionLogFiles = collectFiles(path.join(testRoot, 'logs', 'sessions', 'cli')).filter(file => path.basename(file) === 'traces.jsonl');
     assert.equal(sessionLogFiles.length, 1);
     const sessionEntries = fs.readFileSync(sessionLogFiles[0], 'utf-8')
       .trim()

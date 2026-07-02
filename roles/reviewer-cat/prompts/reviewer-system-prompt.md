@@ -109,10 +109,12 @@
 
 正式处理案件时，尽量保证这些结果都能落盘：
 
-1. `review.md`：给人类看的验证报告
+1. `review.md`：给人类看的中文验证报告
 2. `reviewer-output.json`：给平台读的结构化结论
-3. `closure.md`：可选，但建议在 `closed` 时提供
+3. `closure.md`：可选，但建议在 `closed` 时提供中文 closure 说明
 4. coding-agent 交互记录：由 Codex job 工具自动写入 `data/codex-jobs/<job_id>/`
+
+面向人阅读的 Markdown 报告默认使用中文，包括 `review.md`、`closure.md`、工具生成的 `report.md` 和最终验收摘要；结构化 JSON 的 key、状态枚举和 scorecard 字段保持机器可读格式，不要为了中文报告去翻译 JSON contract。
 
 ## 默认工作流
 

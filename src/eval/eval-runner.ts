@@ -5330,9 +5330,14 @@ function findSingleJsonl(dir: string): string | undefined {
     return undefined;
   }
   const files = listFiles(dir)
-    .filter(file => file.endsWith('.jsonl'))
+    .filter(file => file.endsWith('.jsonl') && !isContextSnapshotPath(file))
     .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-  return files[0];
+  const traceFiles = files.filter(file => path.basename(file) === 'traces.jsonl');
+  return (traceFiles.length ? traceFiles : files)[0];
+}
+
+function isContextSnapshotPath(filePath: string): boolean {
+  return filePath.replace(/\\/g, '/').includes('/context-snapshots/');
 }
 
 function containsSubsequence(actual: string[], expected: string[]): boolean {

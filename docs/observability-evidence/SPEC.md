@@ -1,7 +1,7 @@
 # Observability Evidence System SPEC
 
 状态：Active
-最后更新：2026-06-23
+最后更新：2026-06-30
 
 本文是顶层架构模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现不提供外部观测导出，也不在本地 trace/log 写入前做清洗。
 
@@ -50,6 +50,7 @@ flowchart LR
     subgraph Log["Durable evidence log"]
         Logger["SessionTurnLogger"]
         JSONL["traces.jsonl"]
+        Snapshots["context-snapshots<br/>compact-after JSONL"]
         RuntimeLog["runtime.log"]
     end
 
@@ -71,6 +72,7 @@ flowchart LR
     Provider --> Logger
     Delivery --> Logger
     Logger --> JSONL
+    Logger --> Snapshots
     Logger --> RuntimeLog
     Logger --> Projector
     Projector --> Summary
@@ -84,6 +86,7 @@ flowchart LR
 Current implementation:
 
 - `src/utils/session-turn-logger.ts` owns durable trace evidence, writes `logs/sessions/<surface>/<date>/<session_id>/traces.jsonl` and human runtime text to sibling `runtime.log`, and invokes `src/observability/session-log-projector.ts` after trace append.
+- Context compression is first-class evidence: `context_compaction` runtime events are embedded in the next trace row, and successful compactions append a compact-after snapshot to sibling `context-snapshots/<session_id>.jsonl`; the event's `snapshot_ref` points at the matching snapshot line by `snapshot_id`.
 - `src/observability/session-log-projector.ts` projects trace、embedded runtime_event、provider_error、delivery evidence and token facts into local summary.
 - `src/observability/index.ts` owns local summary storage and local trace/span helpers; no external exporter is configured.
 - `AgentSession` records session lifecycle facts through `SessionTurnLogger`; its `ConversationRunner` is configured `mirror_only` so local summary does not double count runtime metrics.
@@ -98,6 +101,7 @@ Current implementation:
 flowchart LR
     subgraph LocalTruth["Local truth"]
         JSONL["traces.jsonl<br/>single machine truth"]
+        Snapshots["context-snapshots<br/>compact-after state"]
         RuntimeLog["runtime.log<br/>human debug"]
         Artifacts["artifact evidence"]
         RoleBench["role benchmark source"]
@@ -117,6 +121,7 @@ flowchart LR
     end
 
     JSONL --> Projector
+    Snapshots --> Debug
     RuntimeLog -.-> Maintainer["human debug"]
     Projector --> Obs
     Artifacts --> Obs
@@ -130,6 +135,7 @@ Target rules:
 
 - Observability is evidence, not governance.
 - Local runtime facts enter observability through `traces.jsonl` projection when a session log exists; the local trace log is raw local evidence before persistence.
+- Context compression must leave a structured `context_compaction` event in `traces.jsonl`; successful compactions must store the compact-after messages as local snapshot evidence next to the owning session log. These snapshots are evidence/restoration anchors, not default prompt material for replay.
 - Direct runtime metric recording is allowed only for standalone runners or explicit local-summary helper paths.
 - A trace-derived benchmark asset must be created explicitly by a benchmark owner; observability does not propose, accept, score, or patch benchmark source.
 - Runtime harness owns runtime/contract regression decisions.
@@ -154,3 +160,4 @@ Local invariants:
 - External observability export is not part of the current implementation.
 - Local summary preserves scalar local attributes, including prompt/tool previews when explicitly recorded, as local in-process evidence. Dashboard API responses redact preview attributes by default.
 - Local `traces.jsonl` keeps runtime facts as local evidence; benchmark curation rewrites raw traces into runnable eval cases.
+- `context_compaction` events and `context-snapshots/<session_id>.jsonl#<snapshot_id>` refs must agree by `event_id` / `snapshot_id`; consumers should resolve snapshot refs relative to the owning session log directory.

@@ -388,8 +388,10 @@ function isStructuredDegradedProviderTranscript(record: Record<string, unknown>)
 
 function findSingleSessionLog(workspaceDir: string): string | undefined {
   const logRoot = path.join(workspaceDir, 'logs', 'sessions');
-  const files = collectFiles(logRoot).filter(file => file.endsWith('.jsonl'));
-  return files[0];
+  const files = collectFiles(logRoot)
+    .filter(file => file.endsWith('.jsonl') && !file.replace(/\\/g, '/').includes('/context-snapshots/'));
+  const traceFiles = files.filter(file => path.basename(file) === 'traces.jsonl');
+  return (traceFiles.length ? traceFiles : files)[0];
 }
 
 function collectFiles(root: string): string[] {

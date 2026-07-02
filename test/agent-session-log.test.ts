@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { AgentSession, ERROR_MESSAGE } from '../src/core/agent-session';
+import { ContextCompressor } from '../src/core/context-compressor';
 import { ToolManager } from '../src/tools/tool-manager';
 import { Logger } from '../src/utils/logger';
 import { ChatResponse, Message } from '../src/types';
@@ -135,6 +136,62 @@ describe('AgentSession session log alignment', () => {
     assert.ok(turn);
     assert.strictEqual(turn.user.text, 'raw task');
     assert.strictEqual(turn.assistant.text, 'done');
+  });
+
+  test('pre-message compaction records a trace event and compact-after snapshot', async () => {
+    const aiService = new ScriptedAIService({ content: 'done' });
+    const session = new AgentSession('pet:compact-pre-message', {
+      aiService: aiService as any,
+      toolManager: new ToolManager(),
+      skillManager: new EmptySkillManager() as any,
+    }, 'pet');
+
+    (session as any).messages = [
+      { role: 'user', content: '第一轮：记住不要改无关文件。' },
+      { role: 'assistant', content: '已记住。' },
+      { role: 'user', content: '第二轮：命令坏了。' },
+      { role: 'assistant', content: '我先看证据。' },
+      { role: 'user', content: '第三轮：路径在 workspace 里。' },
+      { role: 'assistant', content: '收到。' },
+      { role: 'user', content: '第四轮：继续。' },
+      { role: 'assistant', content: '继续处理。' },
+    ];
+    (session as any).compressor = new ContextCompressor(aiService as any, {
+      maxContextTokens: 80,
+      compactionThreshold: 0.2,
+    });
+
+    await session.handleMessage('现在继续', { surface: 'pet' });
+
+    const tracePath = readSessionLogFile(testRoot, 'pet');
+    const entries = fs.readFileSync(tracePath, 'utf-8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
+    const compactEvent = embeddedRuntimeEvents(entries).find(entry => entry.event_type === 'context_compaction');
+    assert.ok(compactEvent);
+    assert.equal(compactEvent.source, 'agent_session_pre_message');
+    assert.equal(compactEvent.status, 'success');
+    assert.equal(compactEvent.snapshot_kind, 'compact_after');
+    assert.equal(compactEvent.snapshot_status, 'written');
+    assert.match(compactEvent.snapshot_ref, /^context-snapshots\/pet_compact-pre-message\.jsonl#/);
+    assert.equal(compactEvent.snapshot_id, compactEvent.snapshot_ref.split('#')[1]);
+
+    const snapshotPath = path.join(path.dirname(tracePath), 'context-snapshots', 'pet_compact-pre-message.jsonl');
+    assert.ok(fs.existsSync(snapshotPath));
+    const [snapshot] = fs.readFileSync(snapshotPath, 'utf-8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line));
+    assert.equal(snapshot.entry_type, 'context_snapshot');
+    assert.equal(snapshot.kind, 'compact_after');
+    assert.equal(snapshot.event_id, compactEvent.event_id);
+    assert.equal(snapshot.snapshot_id, compactEvent.snapshot_id);
+    assert.ok(snapshot.messages.some((message: Message) =>
+      message.role === 'system' && String(message.content).startsWith('[compact_boundary]')
+    ));
   });
 
   test('weixin message sessions use weixin surface prompt instead of feishu prompt', async () => {
@@ -511,7 +568,7 @@ describe('AgentSession session log alignment', () => {
 
 function readSessionLogFile(root: string, sessionType: string): string {
   const sessionRoot = path.join(root, 'logs', 'sessions', sessionType);
-  const files = collectFiles(sessionRoot).filter(file => file.endsWith('.jsonl'));
+  const files = collectFiles(sessionRoot).filter(file => path.basename(file) === 'traces.jsonl');
   assert.strictEqual(files.length, 1);
   return files[0];
 }

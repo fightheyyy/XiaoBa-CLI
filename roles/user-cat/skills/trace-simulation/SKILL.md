@@ -19,7 +19,7 @@ ReviewerCat curates and judges evidence.
 Benchmark harness owns fixture, verifier, replay, baseline, and release gates.
 ```
 
-`user_trace_run` is the UserCat runtime tool for live target-role dialogue. By default it sends UserCat's user messages through the native Dashboard Chat/Pet entrypoint so product traces and visible history land in the normal pet/chat locations; it does not judge the result.
+`user_trace_run` is the UserCat runtime tool for live target-role dialogue. In adaptive mode it sends the opening user message through the native Dashboard Chat/Pet entrypoint, reads the target role's visible reply, then decides the next low-information user message before continuing. Product traces and visible history land in the normal pet/chat locations; it does not judge the result.
 
 ## Workflow
 
@@ -37,21 +37,22 @@ Benchmark harness owns fixture, verifier, replay, baseline, and release gates.
    - relevant eval or benchmark evidence when available
 3. Write the role intent map before scenario design.
 4. Design a low-quality, low-information end-user persona.
-5. Design a 3-6 turn scenario:
+5. Design a 3-6 turn adaptive scenario:
    - vague opening;
    - one evidence challenge;
    - one missing detail or changed constraint;
    - one boundary or side-effect question;
    - a stop condition.
-6. Produce candidate user turns or a live-dialogue plan.
+6. Produce an opening user turn plus fallback pressures for adaptive live dialogue.
 7. If the user asks to run the trace for real, call `user_trace_run` with:
    - default `entrypoint: dashboard_chat`
+   - default `interaction_mode: adaptive` for Arena / live exploration
    - `target_role`
    - `seed`
    - `role_intent_map`
    - `persona`
    - `scenario_plan`
-   - `messages`
+   - `messages` as opening / fallback user pressures
 8. Produce candidate case metadata:
    - capability tags;
    - expected artifacts;

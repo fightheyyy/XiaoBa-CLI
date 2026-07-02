@@ -80,7 +80,7 @@ xiaoba skill list --role reviewer-cat
 - `codex_job_resume`：基于 `codex_session_id` 或 `parent_job_id` 追加一轮返工任务
 - `codex_job_cancel`：取消正在运行的 job，Windows 下会尝试杀进程树
 - `reviewer_eval_prepare`：先建立项目 eval 标准和本次验收计划，输出 `evaluation-profile.md`、`review-eval-plan.md`、`boundary-map.md`、`test-matrix.md`；这里的 test matrix 是真人端测场景矩阵。对 XiaoBa-CLI 会额外生成三层状态检查和 role effectiveness rubric
-- `reviewer_xiaoba_cli_e2e`：像真人一样启动并测试 XiaoBa-CLI 目标角色，默认测试 `engineer-cat`；优先用 tmux，缺失时可在 `auto` 模式降级到真实 CLI 子进程，并保存 terminal trace、verifier logs、three-layer evidence、role effectiveness scorecard 和 report
+- `reviewer_xiaoba_cli_e2e`：像真人一样启动并测试 XiaoBa-CLI 目标角色，默认测试 `engineer-cat`；优先用 tmux，缺失时可在 `auto` 模式降级到真实 CLI 子进程，并保存 terminal trace、verifier logs、three-layer evidence、role effectiveness scorecard 和中文 report
 - `reviewer_module_test`：历史/辅助证据入口，用于读取或生成低层验证摘要；不是 ReviewerCat 默认验收步骤
 - 多轮记录会写入 `data/codex-jobs/<job_id>/`
 - 同一个 case 建议使用稳定 job 前缀，例如 `case-CASE_ID-round-1`

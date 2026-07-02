@@ -1,14 +1,14 @@
 # UserCat PLAN
 
 状态：Active
-最后更新：2026-06-24
+最后更新：2026-07-01
 Owner：Evaluation maintainers / role maintainers
 
 本文维护 `UserCat` 的执行计划。[`SPEC.md`](SPEC.md) 定义 UserCat 的角色边界、数据流、target architecture 和 candidate trace contract。
 
 ## Current Status
 
-`UserCat` 已推进到低质量用户 candidate trace 生产角色 v1：仓库现在有 `roles/user-cat/role.json`、README、`prompts/user-system-prompt.md`、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused role/tool tests。它可以通过 role resolver 加载，prompt 明确要求低质量/低信息终端用户压力，而不是 developer / engineer / QA lead 行为；role tool policy 通过 `inheritBaseTools:false` + `baseToolAllowlist:["read_file","grep","glob","skill"]` 禁止 shell/write/edit/subagent 等生产越权工具；`xiaoba-cli-product-test` 可以把一句产品试用需求转换成 seed、role intent map、persona、scenario plan 和 5-7 轮 user messages；`user_trace_run` 默认通过 Dashboard Chat/Pet 的 `/api/pet/message` 原生入口逐轮发送 UserCat 设计的低信息 user messages，让产品观测层自然写入 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**`，UserCat 只额外写 raw candidate trace 和 candidate package，同时强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`，避免把候选 trace 误标为正式 benchmark。`entrypoint:"agent_session"` 仅作为显式 legacy fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；ReviewerCat curation integration、full existing-role trace pilot 和 adaptive next-message generation 仍未实现。
+`UserCat` 已推进到低质量用户 candidate trace 生产角色 v1：仓库现在有 `roles/user-cat/role.json`、README、`prompts/user-system-prompt.md`、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused role/tool tests。它可以通过 role resolver 加载，prompt 明确要求低质量/低信息终端用户压力，而不是 developer / engineer / QA lead 行为；role tool policy 通过 `inheritBaseTools:false` + `baseToolAllowlist:["read_file","grep","glob","skill"]` 禁止 shell/write/edit/subagent 等生产越权工具；`xiaoba-cli-product-test` 可以把一句产品试用需求转换成 seed、role intent map、persona、scenario plan 和 opening / fallback user pressures；`user_trace_run` 默认通过 Dashboard Chat/Pet 的 `/api/pet/message` 原生入口驱动目标 role，让产品观测层自然写入 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**`。`interaction_mode:"adaptive"` 已落地：UserCat 发送开场消息后，会读取目标 role 上一轮可见回复、tool events 和证据，再决定下一句低信息用户输入或停止；当 planner 想在两轮前停止且 turn budget 仍允许时，UserCat 会继续发出 fallback / heuristic 追问，形成最少两轮证据压力；当 planned fallback 包含明确的 required artifact/schema pressure（例如 `answer.json`、`fake_citations`）且 adaptive planner 没覆盖时，UserCat 会保留这条用户侧验收压力，避免真实多轮使用丢掉关键产物要求；`interaction_mode:"scripted"` 保留给固定脚本回放/兼容。UserCat 只额外写 raw candidate trace 和 candidate package，同时强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`，避免把候选 trace 误标为正式 benchmark。`entrypoint:"agent_session"` 仅作为显式 legacy fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；ReviewerCat curation integration 和 full existing-role trace pilot 仍未实现。
 
 ```mermaid
 flowchart LR
@@ -22,6 +22,7 @@ flowchart LR
         Skill["trace-simulation skill"]
         ProductSkill["xiaoba-cli-product-test skill"]
         Tool["user_trace_run tool"]
+        Adaptive["adaptive next-message controller"]
         ChatSurface["Dashboard Chat/Pet entrypoint"]
         ToolPolicy["narrow tool policy"]
         NativeEvidence["native pet logs / visible history"]
@@ -33,7 +34,6 @@ flowchart LR
     subgraph Pending["Pending：待实现"]
         Curation["ReviewerCat curation integration"]
         Pilot["existing-role trace pilot"]
-        Adaptive["adaptive next-message generation"]
     end
 
     subgraph Downstream["Downstream：后续消费"]
@@ -51,6 +51,8 @@ flowchart LR
     Prompt --> ProductSkill
     Skill --> Tool
     ProductSkill --> Tool
+    Tool --> Adaptive
+    Adaptive --> ChatSurface
     Tool --> ChatSurface
     ChatSurface --> NativeEvidence
     RoleJson --> ToolPolicy
@@ -65,7 +67,6 @@ flowchart LR
     Tool --> Curation
     Curation --> Pilot
     Tool --> Reviewer
-    Tool --> Adaptive
     Reviewer --> Benchmarks
     Reviewer --> Eval
     Reviewer --> Roles
@@ -175,6 +176,29 @@ flowchart LR
 - 真实测试请求仍通过 `user_trace_run` 走 Dashboard Chat/Pet 原生入口驱动目标 role；native trace 不能落到 UserCat 特殊 session。
 - 输出仍是 candidate trace，不允许 UserCat 判定 pass/fail 或 accepted benchmark。
 
+### M2.7. Adaptive Live Dialogue
+
+状态：Completed on 2026-06-30；minimum evidence pressure and required artifact/schema pressure preservation updated on 2026-07-01。
+
+目标：让 UserCat 不再只是固定 messages 播放器，而是在真实目标 role 每轮回复后，根据可见结果继续像低信息用户一样追问、补约束或停止。
+
+已完成：
+
+- `user_trace_run` 增加 `interaction_mode=scripted|adaptive`。
+- `adaptive` 模式第一轮使用 opening/fallback plan，后续每轮读取上一轮 TargetRole 回复、visible delivery 和 tool events，再生成下一条 user message。
+- adaptive decision 以 `usercat_decision` 写入 raw trace，candidate manifest / candidate-case / self-check 都记录 `interaction_mode`。
+- Arena runner 默认用 `interaction_mode:"adaptive"` 调用 UserCat。
+- adaptive planner 如果在两轮前想停止，且 `maxTurns` 仍允许，会被 minimum two-turn evidence pressure 覆盖，继续追问 artifact path、完成证明或缺口说明。
+- adaptive planner 如果漏掉 planned fallback 里的 required artifact/schema pressure，会回退到该 fallback message，继续要求目标 runtime 给出可验收的产物或格式证据。
+- 保留 `scripted` 模式，用于 deterministic 兼容和固定回放。
+
+验收条件：
+
+- focused tool test 能证明第二轮用户输入来自上一轮目标 role 回复。
+- focused tool test 能证明 adaptive mode 不会丢掉 planned required artifact/schema pressure。
+- 真实入口仍走 Dashboard Chat/Pet，native trace 不落到 UserCat 特殊路径。
+- UserCat 仍不判 pass/fail。
+
 ### M3. Existing Roles Trace Pilot
 
 状态：Not started。
@@ -226,8 +250,7 @@ flowchart LR
 
 1. 接入 ReviewerCat curation 输出 accepted / needs_fixture / needs_verifier / reject_usercat_quality。
 2. 用 `xiaoba-cli-product-test` 为 EngineerCat 先做 2 条 non-committed product-use pilot seed，通过 Dashboard Chat/Pet 入口验证 UserCat 是否能测到工程交付、证据追问和不越权边界。
-3. 决定是否实现 adaptive next-message generation，让 UserCat 可根据 target role 上一轮回复生成下一轮用户消息。
-4. 再扩展到 ReviewerCat、InspectorCat、ResearcherCat 和 SecretaryCat。
+3. 再扩展到 ReviewerCat、InspectorCat、ResearcherCat 和 SecretaryCat。
 
 ## Owners
 
@@ -257,6 +280,9 @@ flowchart LR
 - `agent_session` fallback 只能用于窄 harness debugging；默认 product-use testing 必须走 Dashboard Chat/Pet 原生入口，否则会把 UserCat 特殊路径误认为用户真实路径。
 
 ## Verification Log
+
+- 2026-06-30：Implemented adaptive UserCat live dialogue. `user_trace_run` now supports `interaction_mode=adaptive`, records `usercat_decision` events, writes interaction mode into candidate metadata, and Arena uses adaptive UserCat by default. Verification：`node --test -r tsx test/user-trace-run-tool.test.ts test/user-cat-role.test.ts test/arena-runner.test.ts`；`npm run build`。
+- 2026-07-01：Tightened adaptive UserCat minimum evidence pressure after the first SkillsBench live proof exposed early stopping risk. Adaptive mode now keeps at least two target turns when turn budget allows, even if the planner wants to stop after the first assistant answer. Verification：`node --test -r tsx test/user-trace-run-tool.test.ts`；`npm run build`。
 
 - 2026-06-02：Created UserCat SPEC/PLAN draft with data-flow-first target architecture, candidate trace contracts, trace quality bar, curation boundary, and implementation milestones.
 - 2026-06-02：Added UserCat M1 role assets: `role.json`, README, low-information system prompt, `trace-simulation` role-local skill, and focused role tests covering alias activation, prompt boundaries, skill isolation, no role-specific reviewer/engineer/secretary tools, and no background runtime service.

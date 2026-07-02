@@ -283,6 +283,61 @@ describe('AnalyzeLogTool runtime logs', () => {
     assert.ok(readFile.avgDuration > 0);
   });
 
+  test('JSONL channel trace 会把成功 send_text 当作可见回复而不是 empty_reply', async () => {
+    const logPath = path.join(testRoot, 'channel-delivery.jsonl');
+    const entries = [
+      {
+        entry_type: 'trace',
+        trace_id: 'trace-channel-1',
+        trace_index: 1,
+        turn: 1,
+        timestamp: '2026-06-30T10:00:00.000Z',
+        session_id: 'pet:xiaoba:role-base',
+        session_type: 'pet',
+        user: { text: '所以产物在哪' },
+        assistant: {
+          text: '',
+          tool_calls: [
+            {
+              id: 'tool-shell-1',
+              name: 'execute_shell',
+              arguments: { command: 'python3 - <<PY\nurllib.request.urlopen(url, timeout=10)\nprint("cdn_error=", err)\nPY' },
+              result: '命令执行成功: $ python3 - <<PY\nurllib.request.urlopen(url, timeout=10)\nprint("cdn_error=", err)\nPY\ncdn_status= 200',
+              status: 'success',
+              duration_ms: 1264,
+            },
+            {
+              id: 'tool-send-1',
+              name: 'send_text',
+              arguments: { text: '产物在 workspace/output/gsap/demo.html，可以直接打开。' },
+              result: '已发送',
+              status: 'success',
+              duration_ms: 4,
+            },
+          ],
+        },
+        tokens: { prompt: 5, completion: 1 },
+      },
+    ];
+    fs.writeFileSync(logPath, `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`, 'utf-8');
+
+    const tool = new AnalyzeLogTool();
+    const raw = await tool.execute(
+      { log_source: logPath, analysis_depth: 'deep' },
+      { workingDirectory: testRoot, conversationHistory: [] },
+    );
+    const result = JSON.parse(raw as string);
+
+    const issueTypes = new Set(result.issues.map((issue: any) => issue.type));
+    assert.strictEqual(result.summary.totalTurns, 1);
+    assert.strictEqual(result.summary.issueCount, 0);
+    assert.strictEqual(result.summary.toolCalls, 2);
+    assert.strictEqual(result.turns[0].aiResponse, '产物在 workspace/output/gsap/demo.html，可以直接打开。');
+    assert.ok(!issueTypes.has('empty_reply'));
+    assert.ok(!issueTypes.has('timeout'));
+    assert.ok(!issueTypes.has('tool_failure'));
+  });
+
   test('空闲样本会标记为 insufficient signal，而不是生产 issue 路由', async () => {
     const logPath = path.join(testRoot, 'idle.log');
     fs.writeFileSync(logPath, '[2026-04-12 10:00:00.000] [INFO] 正在启动服务...\n', 'utf-8');

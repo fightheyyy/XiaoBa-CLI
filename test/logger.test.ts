@@ -423,6 +423,75 @@ describe('Logger', () => {
     assert.deepEqual(entry.tokens, { prompt: 1, completion: 0 });
   });
 
+  test('context compaction events point at same-session after snapshots', () => {
+    const sessionLogger = new SessionTurnLogger('pet', 'pet:compact-demo');
+    const sessionLogPath = sessionLogger.getLogFilePath();
+    const snapshotPath = sessionLogger.getContextSnapshotFilePath();
+    if (fs.existsSync(sessionLogPath)) {
+      fs.unlinkSync(sessionLogPath);
+    }
+    if (fs.existsSync(snapshotPath)) {
+      fs.unlinkSync(snapshotPath);
+    }
+
+    const event = sessionLogger.logContextCompaction({
+      source: 'agent_session_pre_message',
+      status: 'success',
+      reason: 'threshold_exceeded',
+      surface: 'pet',
+      tokens_before: 190000,
+      tokens_after: 42000,
+      message_tokens_before: 190000,
+      message_tokens_after: 42000,
+      max_tokens: 258400,
+      threshold_ratio: 0.7,
+      threshold_tokens: 180880,
+      usage_percent_before: 74,
+      usage_percent_after: 16,
+      messages_before: 42,
+      messages_after: 3,
+      messages: [
+        { role: 'system', content: '[compact_boundary] 39 older messages summarized. Pre-compact tokens: 190000' },
+        { role: 'system', content: '[session_memory]\n用户要求不要改无关文件。' },
+        { role: 'user', content: '继续刚才的问题' },
+      ],
+    });
+    sessionLogger.logTurn(
+      '继续刚才的问题',
+      '继续处理',
+      [],
+      { prompt: 10, completion: 2 },
+    );
+
+    const [traceEntry] = fs.readFileSync(sessionLogPath, 'utf-8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line));
+    const compactEvent = traceEntry.events.find((item: any) => item.event_type === 'context_compaction');
+    assert.ok(compactEvent);
+    assert.equal(compactEvent.event_id, event.event_id);
+    assert.equal(compactEvent.source, 'agent_session_pre_message');
+    assert.equal(compactEvent.status, 'success');
+    assert.equal(compactEvent.snapshot_kind, 'compact_after');
+    assert.equal(compactEvent.snapshot_status, 'written');
+    assert.match(compactEvent.snapshot_ref, /^context-snapshots\/pet_compact-demo\.jsonl#/);
+    assert.equal(compactEvent.snapshot_id, compactEvent.snapshot_ref.split('#')[1]);
+    assert.equal(compactEvent.older_messages_summarized, 39);
+    assert.equal(compactEvent.pre_compact_tokens, 190000);
+
+    const [snapshot] = fs.readFileSync(snapshotPath, 'utf-8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line));
+    assert.equal(snapshot.entry_type, 'context_snapshot');
+    assert.equal(snapshot.kind, 'compact_after');
+    assert.equal(snapshot.event_id, compactEvent.event_id);
+    assert.equal(snapshot.snapshot_id, compactEvent.snapshot_id);
+    assert.equal(snapshot.session_id, 'pet:compact-demo');
+    assert.equal(snapshot.message_count, 3);
+    assert.equal(snapshot.messages[0].content, '[compact_boundary] 39 older messages summarized. Pre-compact tokens: 190000');
+  });
+
   test('context debug SDK boundary dumps preserve raw local provider payloads', () => {
     process.env.CONTEXT_DEBUG = 'true';
     ContextDebugLogger.dumpSdkBoundary('before', 'req-secret-debug', {

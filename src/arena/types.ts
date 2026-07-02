@@ -145,6 +145,10 @@ export interface ArenaCleanRuntimeIndex {
     missing_base_skills: string[];
     subject_skill?: string;
     role?: string;
+    workspace_seed?: {
+      source: string;
+      file_count: number;
+    };
   };
   isolation: {
     production_skills_root: string;
@@ -214,5 +218,6 @@ export interface PrepareArenaRuntimeInput {
   targetRoleId?: string;
   surface?: string;
   passThroughEnv?: string[];
+  workspaceSeedPath?: string;
   sandbox?: Partial<ArenaSandboxPolicy>;
 }

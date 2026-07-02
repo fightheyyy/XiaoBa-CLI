@@ -14,6 +14,7 @@ const originalRolesRoot = process.env.XIAOBA_ROLES_ROOT;
 const originalProjectRoot = process.env.XIAOBA_PROJECT_ROOT;
 const originalSkillsRoot = process.env.XIAOBA_SKILLS_ROOT;
 const originalArenaSecret = process.env.ARENA_SECRET;
+const originalDotenvConfigPath = process.env.DOTENV_CONFIG_PATH;
 
 describe('ArenaManager', () => {
   let testRoot = '';
@@ -27,6 +28,7 @@ describe('ArenaManager', () => {
     delete process.env.XIAOBA_PROJECT_ROOT;
     delete process.env.XIAOBA_SKILLS_ROOT;
     delete process.env.ARENA_SECRET;
+    delete process.env.DOTENV_CONFIG_PATH;
     manager = new ArenaManager({
       projectRoot: testRoot,
       now: () => new Date('2026-06-29T00:00:00.000Z'),
@@ -61,6 +63,7 @@ describe('ArenaManager', () => {
     restoreEnv('XIAOBA_PROJECT_ROOT', originalProjectRoot);
     restoreEnv('XIAOBA_SKILLS_ROOT', originalSkillsRoot);
     restoreEnv('ARENA_SECRET', originalArenaSecret);
+    restoreEnv('DOTENV_CONFIG_PATH', originalDotenvConfigPath);
   });
 
   test('imports a local skill as an arena-only subject manifest', () => {
@@ -197,6 +200,62 @@ describe('ArenaManager', () => {
     assert.ok(!runtimeJson.includes('super-secret-value'));
   });
 
+  test('clean runtime loads project .env without persisting secret values', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'env-skill'), {
+        name: 'env-skill',
+        description: 'Needs configured provider env',
+      }),
+    });
+    fs.writeFileSync(path.join(testRoot, '.env'), [
+      'XIAOBA_LLM_PROVIDER=openai',
+      'XIAOBA_LLM_API_BASE=https://api.example.test/v1',
+      'XIAOBA_LLM_API_KEY=sk-arena-secret',
+      'XIAOBA_LLM_MODEL=gpt-arena',
+      '',
+    ].join('\n'), 'utf-8');
+
+    const runtime = manager.prepareCleanRuntime({
+      runId: 'clean-base-skill-dotenv',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+    });
+
+    assert.strictEqual(runtime.launch.env.DOTENV_CONFIG_PATH, path.join(testRoot, '.env'));
+    assert.match(runtime.launch.shell_command, /DOTENV_CONFIG_PATH=/);
+    assert.doesNotMatch(runtime.launch.shell_command, /sk-arena-secret/);
+    const runtimeJson = fs.readFileSync(path.join(testRoot, 'arena', 'runs', 'clean-base-skill-dotenv', 'clean-runtime.json'), 'utf-8');
+    assert.ok(runtimeJson.includes('DOTENV_CONFIG_PATH'));
+    assert.ok(!runtimeJson.includes('sk-arena-secret'));
+  });
+
+  test('prepares clean runtime with a copied workspace seed', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'seeded-skill'), {
+        name: 'seeded-skill',
+        description: 'Needs workspace fixtures',
+      }),
+    });
+    writeJson(path.join(testRoot, 'fixtures', 'workspace-seed', 'employee_data.json'), { name: 'Sarah Chen' });
+    writeText(path.join(testRoot, 'fixtures', 'workspace-seed', 'nested', 'template.txt'), 'hello {{NAME}}');
+
+    const runtime = manager.prepareCleanRuntime({
+      runId: 'clean-base-skill-seeded',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      workspaceSeedPath: 'fixtures/workspace-seed',
+    });
+
+    assert.ok(fs.existsSync(path.join(runtime.roots.workspace_root, 'employee_data.json')));
+    assert.ok(fs.existsSync(path.join(runtime.roots.workspace_root, 'nested', 'template.txt')));
+    assert.deepStrictEqual(runtime.copied.workspace_seed, {
+      source: 'fixtures/workspace-seed',
+      file_count: 2,
+    });
+    const runtimeJson = JSON.parse(fs.readFileSync(path.join(testRoot, 'arena', 'runs', 'clean-base-skill-seeded', 'clean-runtime.json'), 'utf-8'));
+    assert.strictEqual(runtimeJson.copied.workspace_seed.file_count, 2);
+  });
+
   test('prepares a clean role_skill runtime with copied target role and subject skill', () => {
     const manifest = manager.importLocalSkill({
       skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'patch-helper'), {
@@ -283,7 +342,7 @@ describe('ArenaManager', () => {
     assert.strictEqual(run.target_profile.active_role_id, 'base');
   });
 
-  test('rejects pass without stable replay attempts', () => {
+  test('rejects pass with failed replay attempts', () => {
     const manifest = manager.importLocalSkill({
       skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'bad-pass'), {
         name: 'bad-pass',
@@ -319,8 +378,48 @@ describe('ArenaManager', () => {
         },
         decision: 'pass',
       }),
-      /pass requires completed replay attempts/,
+      /pass requires no failed or blocked replay attempts/,
     );
+  });
+
+  test('allows pass without replay attempts when no cases require replay', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'no-case-pass'), {
+        name: 'no-case-pass',
+        description: 'No case pass',
+      }),
+    });
+    const refs = writeEvidenceRefs(testRoot);
+
+    const run = manager.createRunIndex({
+      runId: 'no-case-pass',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      usercatRunRef: {
+        run_id: 'usercat-no-case',
+        package_path: refs.usercatPackage,
+        trace_refs: [refs.nativeTrace],
+      },
+      traceRefs: [refs.nativeTrace],
+      inspectorRefs: [refs.inspectorCase],
+      reviewerRef: {
+        run_id: 'reviewer-no-case',
+        scorecard_path: refs.scorecard,
+        report_path: refs.report,
+      },
+      replayAttempts: {
+        planned: 0,
+        completed: 0,
+        pass_count: 0,
+        fail_count: 0,
+        blocked_count: 0,
+        trace_refs: [],
+      },
+      decision: 'pass',
+    });
+
+    assert.strictEqual(run.decision, 'pass');
+    assert.strictEqual(run.replay_attempts.planned, 0);
   });
 });
 

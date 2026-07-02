@@ -28,6 +28,7 @@ import {
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
 import { getObservability, Observability, ObservabilityAttributes, ObservabilitySpanContext } from '../observability';
+import type { ContextCompactionLogInput } from '../utils/session-turn-logger';
 
 function contentToString(content: string | ContentBlock[] | null): string {
   if (!content) return '';
@@ -137,6 +138,8 @@ export interface RunnerOptions {
   observabilityMetricMode?: ObservabilityMetricMode;
   /** Channel surface 是否把未显式 send_text/send_file 的 final text 兜底外发；默认 false。 */
   deliveryFallbackFinalReply?: boolean;
+  /** AgentSession-owned session logger hook for compact evidence. */
+  onContextCompaction?: (event: ContextCompactionLogInput) => void;
 }
 
 /**
@@ -159,6 +162,7 @@ export class ConversationRunner {
   private observabilityContext?: ObservabilitySpanContext;
   private observabilityMetricMode: ObservabilityMetricMode;
   private deliveryFallbackFinalReply: boolean;
+  private onContextCompaction?: (event: ContextCompactionLogInput) => void;
 
   /** 截断字符串用于日志输出，避免日志过大 */
   private static truncateForLog(text: any, maxLen = 200): string {
@@ -186,6 +190,7 @@ export class ConversationRunner {
     this.observabilityContext = options?.observabilityContext;
     this.observabilityMetricMode = options?.observabilityMetricMode || 'local_and_mirror';
     this.deliveryFallbackFinalReply = options?.deliveryFallbackFinalReply === true;
+    this.onContextCompaction = options?.onContextCompaction;
 
     this.maxPromptTokens = this.resolvePromptBudget(options?.maxContextTokens);
     this.sessionLabel = this.toolExecutionContext?.sessionId
@@ -229,12 +234,57 @@ export class ConversationRunner {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 上下文: ${messageTokens} + ${toolTokens} = ${totalTokens} tokens (${usagePercent}%)`);
 
         // 检查压缩：考虑工具tokens，留足安全边际
-        const threshold = this.maxPromptTokens * resolveCompactionThreshold();
+        const thresholdRatio = resolveCompactionThreshold();
+        const threshold = this.maxPromptTokens * thresholdRatio;
         if (totalTokens > threshold) {
           Logger.info(`上下文使用率 ${usagePercent}%，触发压缩...`);
-          const compacted = await this.compressor.compactWithFallback(messages);
-          messages.length = 0;
-          messages.push(...compacted);
+          const messagesBefore = messages.length;
+          try {
+            const compacted = await this.compressor.compactWithFallback(messages);
+            messages.length = 0;
+            messages.push(...compacted);
+            const messageTokensAfter = estimateMessagesTokens(messages);
+            this.onContextCompaction?.({
+              source: 'conversation_runner',
+              status: 'success',
+              reason: 'threshold_exceeded',
+              ...(this.toolExecutionContext?.surface && { surface: this.toolExecutionContext.surface }),
+              turn: turns,
+              tokens_before: totalTokens,
+              tokens_after: messageTokensAfter + toolTokens,
+              message_tokens_before: messageTokens,
+              message_tokens_after: messageTokensAfter,
+              tool_tokens_before: toolTokens,
+              tool_tokens_after: toolTokens,
+              max_tokens: this.maxPromptTokens,
+              threshold_ratio: thresholdRatio,
+              threshold_tokens: Math.round(threshold),
+              usage_percent_before: usagePercent,
+              usage_percent_after: Math.round(((messageTokensAfter + toolTokens) / this.maxPromptTokens) * 100),
+              messages_before: messagesBefore,
+              messages_after: messages.length,
+              messages,
+            });
+          } catch (error) {
+            this.onContextCompaction?.({
+              source: 'conversation_runner',
+              status: 'failed',
+              reason: 'threshold_exceeded',
+              ...(this.toolExecutionContext?.surface && { surface: this.toolExecutionContext.surface }),
+              turn: turns,
+              tokens_before: totalTokens,
+              message_tokens_before: messageTokens,
+              tool_tokens_before: toolTokens,
+              max_tokens: this.maxPromptTokens,
+              threshold_ratio: thresholdRatio,
+              threshold_tokens: Math.round(threshold),
+              usage_percent_before: usagePercent,
+              messages_before: messagesBefore,
+              error_code: 'CONTEXT_COMPACTION_FAILED',
+              error_message: this.errorMessage(error),
+            });
+            throw error;
+          }
         }
       }
 

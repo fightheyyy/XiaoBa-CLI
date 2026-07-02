@@ -1,105 +1,52 @@
 <div align="center">
-  <img src="assets/banner.png" alt="XiaoBa-CLI Banner" width="100%">
+  <img src="assets/hero.gif" alt="Agents can grow. XiaoBa makes growth reviewable." width="100%">
 
   # XiaoBa-CLI
 
-  **Local-first Personal Agent Runtime with replayable traces & Arena-based capability review.**
+  **Governed Self-Improving Agent Runtime.**
 
-  XiaoBa-CLI lets personal agents live where work starts: chat, files, tools, long-running tasks, & delivery.
+  XiaoBa lets agents accumulate skills, reuse experience, and grow over time. More importantly, it makes every growth step reviewable with traces, replay, and Arena scorecards.
 
-  It is not just a chatbot shell. XiaoBa gives agents a runtime body, records what they actually did, replays past traces against the current system, & uses Arena to judge whether a skill or role is reliable enough to trust.
-
-  > Agents should not only answer. They should act, leave evidence, replay, & survive review.
+  > Agents can grow. XiaoBa makes growth reviewable.
 
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
   [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [简体中文](README.md) · [Quick Start](#quick-start) · [Why XiaoBa](#why-xiaoba) · [Core Concepts](#core-concepts) · [Docs](#docs)
-
-  <br>
-
-  <img src="assets/xiaoba-readme-hero.png" alt="XiaoBa-CLI Personal Agent Runtime" width="100%">
+  [简体中文](README.md) · [Quick Start](#quick-start) · [Arena](#arena) · [Evidence](#evidence) · [Docs](#docs)
 </div>
 
 ---
 
-## Why XiaoBa
+## What XiaoBa Does
 
-### 1. Runtime
+Many agents can "generate skills" or summarize experience. The hard problem is whether that growth is reliable, whether it regresses later, and whether humans can inspect, replay, and govern it.
 
-Give agents a working body: chat surfaces, roles, skills, tools, subagents, memory, files, & user-visible delivery.
+XiaoBa turns self-evolution into a governed loop:
 
-### 2. Replay & Regression
-
-Record real sessions as replayable traces, then rerun them against the current runtime to catch regressions, fake success, missing artifacts, & unstable behavior.
-
-### 3. Arena
-
-Review skills & roles before trusting them: run them in a clean runtime, pressure them with low-information users, inspect native evidence, replay failure cases, & produce scorecards.
-
-```mermaid
-flowchart LR
-    subgraph XiaoBa["XiaoBa-CLI Core"]
-        Surface["Surfaces<br/>CLI / IM / Dashboard / Pet"]
-        Policy["Roles & Skills<br/>identity / capability"]
-        Runtime["Agent Runtime<br/>session / providers / context"]
-        Action["Tools & Subagents<br/>files / shell / background work"]
-        Delivery["Delivery<br/>send_text / send_file"]
-        Evidence["Evidence<br/>logs / artifacts / delivery"]
-    end
-
-    Surface --> Runtime
-    Policy --> Runtime
-    Runtime --> Action
-    Runtime --> Delivery
-    Runtime --> Evidence
+```text
+skill / role candidate
+  -> clean runtime
+  -> real multi-turn use
+  -> native trace / artifacts
+  -> issue extraction
+  -> replay / verifier / scorecard
+  -> pass / unstable / reopened / blocked / unsafe
 ```
 
-```mermaid
-flowchart LR
-    subgraph Arena["Arena Core"]
-        Subject["Skill / Role Candidate"]
-        Clean["Clean Runtime<br/>isolated home / skills / workspace"]
-        UserCat["Low-info User<br/>real multi-turn pressure"]
-        NativeEvidence["Native Evidence<br/>trace / tools / artifacts"]
-        Inspector["Inspector<br/>issue extraction"]
-        Reviewer["Reviewer<br/>replay / verification"]
-        ReplayAttempts["Replay Attempts<br/>fresh runs"]
-        Scorecard["Scorecard<br/>pass / unstable / reopened / blocked / unsafe"]
-    end
+This is not another chatbot shell. XiaoBa's goal is:
 
-    Subject --> Clean
-    UserCat --> Clean
-    Clean --> NativeEvidence
-    NativeEvidence --> Inspector
-    Inspector --> Reviewer
-    NativeEvidence --> Reviewer
-    Reviewer --> ReplayAttempts
-    ReplayAttempts --> Scorecard
-    Reviewer --> Scorecard
+```text
+Agents can grow.
+XiaoBa makes growth reviewable.
 ```
 
----
+## Why It Is Different
 
-## What Is XiaoBa?
-
-XiaoBa-CLI is a local-first runtime for personal agents.
-
-XiaoBa is for developers building personal agents, local tool agents, role/skill systems, or long-running AI coworkers that need evidence & regression.
-
-The user sees an AI coworker in chat. Under the hood, XiaoBa connects model providers, tools, roles, skills, subagents, local files, delivery channels, session logs, trace replay, & Arena review gates into one recoverable loop.
-
-Most agent projects stop at "the agent replied." XiaoBa cares about what happened after that:
-
-- Did it call the right tools?
-- Did it produce the promised file?
-- Did the user actually receive the result?
-- Can the same task be replayed later?
-- Does the skill still work after the runtime changes?
-- Should this role or skill be trusted?
-
----
+- **Runtime**: Give agents a working body: roles, skills, tools, subagents, memory, files, delivery, and session state cooperate inside one recoverable runtime.
+- **Evidence**: XiaoBa records more than model text: real tool calls, file artifacts, user-visible delivery, session traces, and artifact evidence.
+- **Replay**: Historical real sessions can drive the current runtime again to catch regressions, fake success, missing artifacts, and unstable behavior.
+- **Arena**: New skills, new roles, and self-evolution outputs are untrusted candidates by default; Arena runs them in a clean runtime, lets UserCat perform real multi-turn use, then asks InspectorCat to extract cases and ReviewerCat to replay and score them.
 
 ## Quick Start
 
@@ -119,25 +66,18 @@ XIAOBA_LLM_API_KEY=your_api_key
 XIAOBA_LLM_MODEL=your_model
 ```
 
-Use `npm run dev -- <command>` while developing from source:
+Source development:
 
 ```bash
 npm run dev -- chat -i
-```
-
-Run with a role:
-
-```bash
 npm run dev -- chat -r engineer-cat -i
-npm run dev -- chat -r reviewer-cat -i
 ```
 
-If the CLI bin is available through a package install or `npm link`, the equivalent commands are:
+After package install or `npm link`:
 
 ```bash
 xiaoba chat -i
 xiaoba chat -r engineer-cat -i
-xiaoba arena skill <skill-name>
 ```
 
 Start the desktop Dashboard:
@@ -146,56 +86,47 @@ Start the desktop Dashboard:
 npm run electron:dev
 ```
 
----
+## Arena
 
-## Core Concepts
+Evaluate an installed skill:
 
-### Runtime
-
-XiaoBa's runtime coordinates user messages, role policy, skill activation, tool calls, subagents, model providers, memory, file artifacts, & delivery evidence. The model decides the next step; the runtime owns the engineering boundary.
-
-### Roles
-
-Roles are bounded agent identities, not just prompt styles. A role can define responsibility, tool visibility, skills, handoff behavior, & review expectations.
-
-Default core roles:
-
-- `user-cat`: low-information end-user pressure for producing realistic usage traces.
-- `inspector-cat`: reads logs & evidence, finds failure signals, & extracts issues.
-- `engineer-cat`: engineering implementation role with local tools & background task paths.
-- `reviewer-cat`: reviews, replays, verifies artifacts, & decides whether work is acceptable.
-
-### Skills
-
-Skills are local instruction packs that teach agents repeatable capabilities. XiaoBa supports base skills, role-local skills, & GitHub-imported skills.
-
-Default base skills:
-
-- `remember`
-- `role-publish`
-- `self-evolution`
-- `skill-publish`
-- `agent-browser`
-
-### Delivery
-
-Delivery means user-visible output, not internal final text. XiaoBa distinguishes "the model said it was done" from "the user actually received the result" through `send_text`, `send_file`, file artifacts, & delivery evidence.
-
-### Trace Replay
-
-A real session can become a replayable trace. XiaoBa can rerun historical user inputs against the current runtime to produce fresh evidence & catch regressions, fake success, missing artifacts, & broken tool boundaries.
-
-### Arena
-
-Arena is XiaoBa's local capability review ground. It evaluates skills & roles inside clean runtimes with low-information user pressure, native trace and artifact evidence, replay attempts, & scorecards.
-
-Arena decisions:
-
-```text
-pass / unstable / reopened / blocked / unsafe
+```bash
+xiaoba arena skill <skill-name>
 ```
 
----
+Equivalent source-development command:
+
+```bash
+npm run dev -- arena skill <skill-name>
+```
+
+Arena has three core review modes:
+
+| Mode | Goal |
+| --- | --- |
+| `base + skill` | Evaluate whether a skill works in the cleanest base runtime |
+| `role + skill` | Evaluate whether a skill remains reliable inside a specific role |
+| `role` | Evaluate whether a role itself is reliable |
+
+## Default Capabilities
+
+The default package keeps only the minimum trusted core:
+
+- Roles: `user-cat`, `inspector-cat`, `engineer-cat`, `reviewer-cat`
+- Skills: `remember`, `agent-browser`, `skill-publish`, `role-publish`, `self-evolution`
+
+Additional roles and skills enter through explicit installation, and should pass Arena or human review before becoming trusted.
+
+## Evidence
+
+Arena currently has live proof on 7 SkillsBench-derived external gold cases: 2 baseline cases plus 5 broad holdout cases, with false pass = 0.
+
+This proves that the current `UserCat -> InspectorCat -> ReviewerCat` loop can preserve real evidence, extract issues/cases, run multi-attempt replay, and avoid false pass when an external verifier fails or replay is unstable. It does not claim that every skill is already stable, or that the result fully generalizes across providers and time windows.
+
+Full proof boundaries:
+
+- [Cat Effectiveness Technical Report](docs/arena/CAT_EFFECTIVENESS_REPORT.md)
+- [Arena Effectiveness Experiment](docs/arena/ARENA_EFFECTIVENESS_EXPERIMENT.md)
 
 ## Common Commands
 
@@ -204,45 +135,14 @@ pass / unstable / reopened / blocked / unsafe
 | Interactive chat | `npm run dev -- chat -i` | `xiaoba chat -i` |
 | Single message | `npm run dev -- chat -m "summarize this repo"` | `xiaoba chat -m "summarize this repo"` |
 | Role chat | `npm run dev -- chat -r engineer-cat -i` | `xiaoba chat -r engineer-cat -i` |
+| Evaluate a skill | `npm run dev -- arena skill <skill-name>` | `xiaoba arena skill <skill-name>` |
 | Dashboard | `npm run electron:dev` | - |
 | Build | `npm run build` | - |
 | Test | `npm test` | - |
-| macOS package | `npm run electron:build:mac` | - |
-| Evaluate a skill with Arena | `npm run dev -- arena skill <skill-name>` | `xiaoba arena skill <skill-name>` |
-
----
-
-## Default Package
-
-The default Electron package is intentionally clean: it bundles 4 core roles (`user-cat`, `inspector-cat`, `engineer-cat`, `reviewer-cat`) & 5 base skills (`remember`, `role-publish`, `self-evolution`, `skill-publish`, `agent-browser`). More roles & skills enter through explicit installation.
-
----
-
-## Status
-
-XiaoBa-CLI is moving quickly. Current focus areas are the local-first runtime, IM / Dashboard surfaces, roles & skills, trace replay, Arena-based capability admission, & verifiable background task loops.
-
-Arena currently has live proof on the SkillsBench-derived `offer-letter-generator` dev seed and `citation-check` holdout seed. Broader generalization still requires 4-10 additional holdout cases before making large benchmark claims.
-
----
-
-## Arena Proof
-
-Arena's evidence is not only self-reported. The current dev + holdout SkillsBench-derived live proofs are:
-
-- `skillsbench.offer-letter-generator.v1`: hidden verifier `pass`, replay 1 pass / 2 fail, Arena correctly decided `unstable`.
-- `skillsbench.citation-check.v1`: hidden verifier `pass`, replay 1 pass / 1 fail, Arena correctly decided `unstable`.
-
-This proves that the `UserCat -> InspectorCat -> ReviewerCat` loop can preserve evidence, extract cases, run fresh replay, and decide `unstable` when the external verifier passes but replay is mixed. It does not claim that all skills are already stable.
-
-Full proof boundaries:
-
-- [Cat Effectiveness Technical Report](docs/arena/CAT_EFFECTIVENESS_REPORT.md)
-- [Arena Effectiveness Experiment](docs/arena/ARENA_EFFECTIVENESS_EXPERIMENT.md)
-
----
 
 ## Docs
+
+The README is the first-glance product entry. Detailed architecture, module boundaries, and long-term plans live in docs.
 
 - [Docs Index](docs/README.md)
 - [Project SPEC](docs/SPEC.md)

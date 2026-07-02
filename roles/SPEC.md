@@ -1,7 +1,7 @@
 # Roles And Skills SPEC
 
 状态：Active
-最后更新：2026-06-29
+最后更新：2026-07-01
 适用范围：XiaoBa 的策略层，包括 `roles/`、`src/roles/`、`skills/` 和 `src/skills/`。
 
 `roles/` 和 `skills/` 是 XiaoBa Runtime 的策略层。角色不是独立 runtime，skill 也不拥有 runtime loop；它们是在统一 agent harness 上叠加身份、职责、prompt、workflow、tools、验收边界和可见交付方式。GitHub 默认跟踪资产和默认 Electron 包只保留 5 个 base skills 与 4 个核心协作 roles：`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`，以及 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`。其他 role / skill 必须走显式安装、Role Hub 或本地 ignored 资产，不进入默认跟踪口径。
@@ -13,7 +13,7 @@ XiaoBa 需要用多个长期角色和可复用 skill 承载不同工程职责：
 - `InspectorCat` 是 runtime triage / evidence forensics / issue router：当前保留角色资产和 `analyze_log.issueProfiles[]` 取证合同；旧 hook server、Dashboard Inspector config 和 MySQL archive 路径已暂停，等待 Inspector refactor 重新定义 intake/runtime/config 合同。
 - `EngineerCat` 实现修复、运行验证并交付证据；当前 runtime/tool/test 路径约束它像人工 Codex 操作者一样完成任务整理、Codex runner dispatch、状态同步、验证失败返工、会话续接、多 Codex supervisor 和 ReviewerCat handoff。旧 deterministic role eval 已从 `eval/` 移除，未来必须重写成 live agent eval 才能回到 benchmark。
 - `ReviewerCat` 负责 replay、verification、scorecard 和 closed/reopened/blocked 判断。
-- `UserCat` 负责基于真实 seed 和目标 role 设计意图扮演低质量/低信息终端用户，生成多轮候选用户 trace，供 ReviewerCat 和 benchmark harness 后续 curation；它不是 developer、engineer、QA lead 或 benchmark author。当前已落地 role assets、窄 base tool policy、`trace-simulation` / `xiaoba-cli-product-test` role-local skills、默认走 Dashboard Chat/Pet 原生入口的 `user_trace_run` runner 和 candidate trace package writer。旧 `eval:user-cat` smoke 已从 `eval/` 移除，候选 trace 不能直接变成 benchmark。
+- `UserCat` 负责基于真实 seed 和目标 role 设计意图扮演低质量/低信息终端用户，生成多轮候选用户 trace，供 ReviewerCat 和 benchmark harness 后续 curation；它不是 developer、engineer、QA lead 或 benchmark author。当前已落地 role assets、窄 base tool policy、`trace-simulation` / `xiaoba-cli-product-test` role-local skills、默认走 Dashboard Chat/Pet 原生入口的 `user_trace_run` runner、adaptive next-message controller、minimum two-turn evidence pressure、required artifact/schema pressure preservation 和 candidate trace package writer。旧 `eval:user-cat` smoke 已从 `eval/` 移除，候选 trace 不能直接变成 benchmark。
 - 非默认角色可以作为 Role Hub / 本地安装资产继续演进，但不能被默认 Git 跟踪、默认 package 或默认 runtime inventory 偷偷带出去。
 
 角色层要避免两类问题：一是每个角色复制自己的 runtime loop；二是所有角色共享一团不可追踪的全局 prompt/tool 状态。
@@ -46,7 +46,7 @@ Out of scope:
 
 当前策略层的默认 Git 跟踪资产由四个核心协作角色、五个 base skills、共享 runtime 扩展和安装/删除生命周期组成。默认角色是 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`；默认 base skills 是 `remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`。角色生命周期现在通过 `RoleManager`、`xiaoba role list/info/remove` 和 Dashboard `DELETE /api/roles/:name` 支持删除，删除当前激活角色会回到 Base。`EngineerCat` 现在有 `engineer_task_*`、`engineer_codex_supervisor_*`、`EngineerTaskRunner` 和 `EngineerCodexSupervisor`；changed-file-aware quality gates 只追加 test/build/diff 类工程验证，不再追加已删除的 role eval 命令。`InspectorCat` 当前保留 `analyze_log` role-specific tool；旧 Inspector hook API、hook runtime auto-start、Dashboard Inspector config 和 `INSPECTOR_*` / `MYSQL_*` example config 已从 active path 移除，等待 refactor。非默认角色与非默认 skill 只能作为显式安装资产进入本机 `roles/` / `skills/`，默认 Git ignore 和 package allowlist 不会跟踪它们。
 
-`UserCat` 当前是 prompt + role-local skill + runtime tool 驱动的低质量用户 trace 生产角色：已有 `role.json`、README、system prompt、`trace-simulation` skill、`xiaoba-cli-product-test` product-use preset skill 和 `user_trace_run`；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`xiaoba-cli-product-test` 会把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转成 seed、role intent map、persona、scenario plan 和多轮 user messages，但 persona 必须保持终端用户视角，不主动提供 developer-grade 复现、架构诊断、测试计划或修复方案；`user_trace_run` 默认通过 Dashboard Chat/Pet `/api/pet/message` 入口发送用户消息，native evidence 落在 `logs/sessions/pet/**` 和 `data/chat/sessions/**`，candidate package 只是后续 curation input，不是 accepted benchmark。ReviewerCat curation integration 和 full existing-role pilot 仍未完成。
+`UserCat` 当前是 prompt + role-local skill + runtime tool 驱动的低质量用户 trace 生产角色：已有 `role.json`、README、system prompt、`trace-simulation` skill、`xiaoba-cli-product-test` product-use preset skill 和 `user_trace_run`；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`xiaoba-cli-product-test` 会把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转成 seed、role intent map、persona、scenario plan、opening message 和 fallback pressure turns，但 persona 必须保持终端用户视角，不主动提供 developer-grade 复现、架构诊断、测试计划或修复方案；`user_trace_run interaction_mode:"adaptive"` 默认通过 Dashboard Chat/Pet `/api/pet/message` 入口发送开场消息，然后读取上一轮用户可见回复、tool events 和证据来决定下一句低信息用户输入或停止；如果 planner 在两轮前想停止且 turn budget 仍允许，会继续发出 fallback / heuristic 追问，保证最少两轮证据压力；如果 planned fallback 包含 `answer.json`、`fake_citations` 这类 required artifact/schema pressure 而 planner 没覆盖，会保留该 fallback 以继续施压；`interaction_mode:"scripted"` 仅保留给固定脚本回放和兼容。native evidence 落在 `logs/sessions/pet/**` 和 `data/chat/sessions/**`，candidate package 只是后续 curation input，不是 accepted benchmark。ReviewerCat curation integration 和 full existing-role pilot 仍未完成。
 
 ```mermaid
 flowchart LR

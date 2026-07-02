@@ -1,7 +1,7 @@
 # Agent Runtime SPEC
 
 状态：Active
-最后更新：2026-06-27
+最后更新：2026-06-30
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
 本文是顶层架构模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据、评测和 Arena 分别由各自模块 spec 维护。
@@ -40,6 +40,8 @@ Current addendum：`scripts/check-provider-network-readiness.ts` adds an opt-in 
 
 Current addendum：Contract Boundary now also fixes deterministic cross-adapter failover sequence evidence. `provider_failover_sequence` verifies ordered `provider_error` events across OpenAI-compatible、Anthropic and Ollama attempts, including endpoint/error_code order, retry budget facts, monotonic timestamps and terminal blocked reason. This is a release contract for evidence shape; live production-network failover orchestration remains target architecture work.
 
+Current addendum：context compression now emits structured runtime evidence. `AgentSession` records restore / pre-message compaction, and `ConversationRunner` records pre-request compaction inside tool loops. Each successful compaction writes a `context_compaction` event plus a compact-after snapshot in the owning session log directory, so replay/debug consumers can anchor later behavior to the post-compact working memory without storing full pre-compact context by default.
+
 ```mermaid
 flowchart LR
     subgraph Inputs["Inputs"]
@@ -60,6 +62,7 @@ flowchart LR
         Visibility["ToolVisibilityResolver<br/>all / skill scoped + confirmed gate"]
         Tools["src/tools"]
         Observability["Observability<br/>local summary"]
+        CompactEvidence["compact evidence<br/>event + after snapshot"]
     end
 
     subgraph Outputs["Outputs"]
@@ -78,6 +81,7 @@ flowchart LR
     SkillPolicy --> Session
     Memory --> Session
     Session --> Compressor
+    Compressor --> CompactEvidence
     Session --> Runner
     Runner --> Provider
     Provider --> Runner
@@ -91,6 +95,7 @@ flowchart LR
     Tools --> Artifacts
     Session --> Observability
     Runner --> Observability
+    CompactEvidence --> SessionLog
 ```
 
 ## Target Architecture
@@ -191,6 +196,7 @@ Runtime 需要稳定维护这些结构化事实：
 
 - `surface`、`sessionKey`、role、active skills 和 budget。
 - context compression budget defaults: max context tokens、compaction threshold、effective trigger token count and environment overrides.
+- context compression evidence: source、status、reason、token/message counts、threshold facts、same-session compact-after `snapshot_ref` and matching `snapshot_id`.
 - tool layer、visible tool set、role base-tool inheritance policy 和 surface delivery context。
 - tool visibility mode、active skill、visible tool names、hidden tool count、confirmed tool gate decision。
 - provider request/response 的 token 和 model metadata；debug dump 只能保留结构、长度、sha256 摘要和非敏感元数据，不能持久化 raw prompt/tool arguments/response payload。
@@ -201,6 +207,7 @@ Runtime 需要稳定维护这些结构化事实：
 - role-local artifact manifest should be tool-owned when the role tool knows creation/update semantics; fallback inference must ignore operational paths such as cwd and ids and mark inferred entries as compatibility evidence.
 - maintained role tool artifact contract entries must state whether `artifact_manifest` is required or not applicable, so role registry changes cannot silently fall back to prose/log inference.
 - runtime event，例如 timeout、interrupt、context compression、fallback delivery、provider_error，包括 provider failure budget / blocked evidence。
+- compact snapshots are local after-compaction message snapshots for replay/debug anchoring; they are not raw provider request/response payloads and do not replace curated replay case packets.
 - optional observability attributes for session/model/tool/provider/delivery/eval facts; explicitly recorded previews remain local raw evidence.
 
 ## Interaction With Other Modules

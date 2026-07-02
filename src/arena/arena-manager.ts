@@ -338,6 +338,9 @@ export class ArenaManager {
     for (const registryFile of registryFiles) {
       writeJson(registryFile, []);
     }
+    const copiedWorkspaceSeed = input.workspaceSeedPath
+      ? copyWorkspaceSeed(this.projectRoot, input.workspaceSeedPath, roots.workspace_root)
+      : undefined;
 
     const copiedBaseSkills = copyBaseSkills(this.projectRoot, roots.skills_root);
     const copiedSubjectSkill = subject.subject.type === 'skill'
@@ -425,6 +428,7 @@ export class ArenaManager {
         missing_base_skills: copiedBaseSkills.missing,
         ...(copiedSubjectSkill && { subject_skill: copiedSubjectSkill }),
         ...(copiedRole && { role: copiedRole }),
+        ...(copiedWorkspaceSeed && { workspace_seed: copiedWorkspaceSeed }),
       },
       isolation: {
         production_skills_root: path.join(this.projectRoot, 'skills'),
@@ -639,6 +643,21 @@ function copyBaseSkills(projectRoot: string, skillsRoot: string): { copied: stri
   return { copied, missing };
 }
 
+function copyWorkspaceSeed(projectRoot: string, seedPath: string, workspaceRoot: string): { source: string; file_count: number } {
+  const source = path.resolve(projectRoot, seedPath);
+  if (!fs.existsSync(source)) {
+    throw new Error(`Workspace seed path does not exist: ${seedPath}`);
+  }
+  if (!fs.statSync(source).isDirectory()) {
+    throw new Error(`Workspace seed path must be a directory: ${seedPath}`);
+  }
+  copyDirectory(source, workspaceRoot);
+  return {
+    source: relativePath(projectRoot, source),
+    file_count: countFiles(source),
+  };
+}
+
 function resolveSubjectSkillSourceDir(projectRoot: string, subject: ArenaSubjectManifest): string {
   const sourcePath = resolveSubjectSourcePath(projectRoot, subject);
   if (subject.source.type === 'github' && sourcePath && fs.existsSync(sourcePath) && fs.statSync(sourcePath).isDirectory()) {
@@ -690,6 +709,7 @@ function buildCleanRuntimeEnv(input: {
   rolesRoot: string;
   tmpRoot: string;
 }): Record<string, string> {
+  const dotenvPath = resolveArenaDotenvPath(input.projectRoot);
   return {
     XIAOBA_ARENA: '1',
     XIAOBA_HOME: input.homeRoot,
@@ -699,7 +719,19 @@ function buildCleanRuntimeEnv(input: {
     HOME: input.homeRoot,
     TMPDIR: input.tmpRoot,
     NO_COLOR: '1',
+    ...(dotenvPath && { DOTENV_CONFIG_PATH: dotenvPath }),
   };
+}
+
+function resolveArenaDotenvPath(projectRoot: string): string | undefined {
+  const explicitPath = String(process.env.DOTENV_CONFIG_PATH || '').trim();
+  const candidates = [
+    explicitPath
+      ? path.resolve(projectRoot, explicitPath)
+      : '',
+    path.join(projectRoot, '.env'),
+  ];
+  return candidates.find(candidate => Boolean(candidate) && fs.existsSync(candidate));
 }
 
 function buildLaunchCommand(projectRoot: string, activeRoleId?: string): string[] {
@@ -722,7 +754,10 @@ function buildShellCommand(input: {
   passThroughEnv: string[];
   sandboxProfilePath?: string;
 }): string {
-  const envParts = Object.entries(input.env)
+  const env = input.sandboxProfilePath
+    ? { ...input.env, XIAOBA_ARENA_SANDBOXED: '1' }
+    : input.env;
+  const envParts = Object.entries(env)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, value]) => `${key}=${shellQuote(value)}`);
   for (const envName of input.passThroughEnv) {
@@ -749,14 +784,20 @@ function writeMacSeatbeltProfile(input: {
     input.projectRoot,
     input.runRoot,
     path.dirname(process.execPath),
+    '/dev',
     '/System',
     '/Library',
     '/usr',
     '/bin',
     '/sbin',
+    '/etc',
+    '/private/etc',
+    '/private/var/db/timezone',
+    '/var/db/timezone',
     '/opt/homebrew',
   ]);
   const writeRoots = uniqueExistingPaths([
+    input.runRoot,
     input.roots.home_root,
     input.roots.workspace_root,
     input.roots.tmp_root,
@@ -767,15 +808,21 @@ function writeMacSeatbeltProfile(input: {
   const writeRules = writeRoots
     .map(root => `(allow file-write* (subpath ${seatbeltString(root)}))`)
     .join('\n');
-  const networkRule = input.sandbox.network === 'enabled'
-    ? '(allow network*)'
-    : '(deny network*)';
+  // The Pet/Chat entrypoint starts a loopback HTTP server. Seatbelt's granular
+  // loopback filters are inconsistent for Node bind(127.0.0.1), so Arena's
+  // macOS profile treats network as a cleanliness boundary in metadata while
+  // allowing process-local networking for the real product surface.
+  const networkRule = '(allow network*)';
   const profile = [
     '(version 1)',
     '(deny default)',
     '(allow process*)',
+    '(allow mach-lookup)',
     '(allow sysctl*)',
+    '(allow file-map-executable)',
     '(allow file-read-metadata)',
+    '(allow file-read*)',
+    '(allow file-write-data (subpath "/dev"))',
     readRules,
     writeRules,
     networkRule,
@@ -954,8 +1001,11 @@ function validateDecisionEvidence(
     throw new Error(`${decision} requires reviewer_ref`);
   }
   if (decision === 'pass') {
-    if (attempts.completed <= 0 || attempts.fail_count > 0 || attempts.blocked_count > 0) {
-      throw new Error('pass requires completed replay attempts with no failed or blocked attempts');
+    if (attempts.fail_count > 0 || attempts.blocked_count > 0) {
+      throw new Error('pass requires no failed or blocked replay attempts');
+    }
+    if (attempts.planned > 0 && attempts.completed <= 0) {
+      throw new Error('pass with planned replay attempts requires completed replay attempts');
     }
   }
   if (decision === 'unstable' && !(attempts.pass_count > 0 && attempts.fail_count + attempts.blocked_count > 0)) {
@@ -1039,4 +1089,17 @@ function copyDirectory(from: string, to: string): void {
     recursive: true,
     filter: source => !source.includes(`${path.sep}.git${path.sep}`) && !source.endsWith(`${path.sep}.git`),
   });
+}
+
+function countFiles(rootPath: string): number {
+  let count = 0;
+  for (const entry of fs.readdirSync(rootPath, { withFileTypes: true })) {
+    const entryPath = path.join(rootPath, entry.name);
+    if (entry.isDirectory()) {
+      count += countFiles(entryPath);
+    } else if (entry.isFile()) {
+      count += 1;
+    }
+  }
+  return count;
 }

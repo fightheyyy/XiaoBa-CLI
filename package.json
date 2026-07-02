@@ -30,6 +30,7 @@
     "eval:base-runtime": "tsx scripts/run-eval-benchmark.ts --out output/eval/base-runtime",
     "eval:gate": "tsx scripts/run-eval-gate.ts --live-agent-eval-only --out output/eval-gate",
     "replay:trace": "tsx scripts/run-trace-replay.ts",
+    "assets:readme-hero": "node scripts/generate-growth-reviewable-hero.mjs",
     "report": "node dist/index.js chat --exec '/report'",
     "clean-logs": "node scripts/clean-logs.mjs"
   },
@@ -80,6 +81,8 @@
     "electron": "^33.4.11",
     "electron-builder": "^26.8.1",
     "electron-packager": "^17.1.2",
+    "figlet": "^1.11.0",
+    "gifenc": "^1.0.3",
     "playwright": "^1.58.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

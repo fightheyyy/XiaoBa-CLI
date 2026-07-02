@@ -129,6 +129,28 @@ function projectRuntimeEventEntry(entry: SessionRuntimeEventLogEntry, inheritedA
     observability.recordLog('xiaoba.provider.error', attrs, 'ERROR');
     return;
   }
+  if (eventType === 'context_compaction') {
+    const attrs = {
+      ...baseAttrs,
+      ...runtimeEventAttributes(entry),
+      ...(stringValue(entry.source) && { 'xiaoba.context.compaction.source': stringValue(entry.source) }),
+      ...(stringValue(entry.reason) && { 'xiaoba.context.compaction.reason': stringValue(entry.reason) }),
+      ...(stringValue(entry.snapshot_kind) && { 'xiaoba.context.snapshot.kind': stringValue(entry.snapshot_kind) }),
+      ...(stringValue(entry.snapshot_status) && { 'xiaoba.context.snapshot.status': stringValue(entry.snapshot_status) }),
+      ...(numberValue(entry.turn) !== undefined && { 'xiaoba.turn': numberValue(entry.turn) }),
+    };
+    observability.recordMetric('xiaoba.context.compaction', 1, attrs);
+    const tokensBefore = numberValue(entry.tokens_before);
+    if (tokensBefore !== undefined) {
+      observability.recordMetric('xiaoba.context.compaction.tokens_before', tokensBefore, attrs, 'token');
+    }
+    const tokensAfter = numberValue(entry.tokens_after);
+    if (tokensAfter !== undefined) {
+      observability.recordMetric('xiaoba.context.compaction.tokens_after', tokensAfter, attrs, 'token');
+    }
+    observability.recordLog('xiaoba.context.compaction', attrs, stringValue(entry.status) === 'failed' ? 'ERROR' : 'INFO');
+    return;
+  }
 
   observability.recordLog(`xiaoba.runtime_event.${eventType}`, baseAttrs, 'INFO');
 }

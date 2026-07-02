@@ -326,6 +326,38 @@ function assertValidToolTranscript(messages: Message[]): void {
 }
 
 describe('ConversationRunner harness safeguards', () => {
+  test('reports runner compaction with compact-after messages', async () => {
+    const aiService = new RecordingAIService();
+    const events: any[] = [];
+    const runner = new ConversationRunner(aiService as any, new InvalidJsonToolExecutor(), {
+      maxContextTokens: 80,
+      onContextCompaction: event => events.push(event),
+    });
+
+    const result = await runner.run([
+      user('第一轮：记住不要改无关文件。'),
+      assistant('已记住。'),
+      user('第二轮：命令坏了。'),
+      assistant('我先看证据。'),
+      user('第三轮：路径在 workspace 里。'),
+      assistant('收到。'),
+      user('第四轮：继续。'),
+    ]);
+
+    assert.strictEqual(result.response, 'ok');
+    assert.equal(events.length, 1);
+    assert.equal(events[0].source, 'conversation_runner');
+    assert.equal(events[0].status, 'success');
+    assert.equal(events[0].reason, 'threshold_exceeded');
+    assert.equal(events[0].turn, 1);
+    assert.equal(typeof events[0].tokens_before, 'number');
+    assert.equal(typeof events[0].tokens_after, 'number');
+    assert.ok(events[0].messages_after < events[0].messages_before);
+    assert.ok(events[0].messages.some((message: Message) =>
+      message.role === 'system' && String(message.content).startsWith('[compact_boundary]')
+    ));
+  });
+
   test('channel-backed message surfaces hide final text by default', async () => {
     const messageSurfaces: ToolSurface[] = ['feishu', 'weixin', 'pet'];
     for (const surface of messageSurfaces) {

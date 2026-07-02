@@ -1,7 +1,7 @@
 # UserCat SPEC
 
 状态：Active
-最后更新：2026-06-24
+最后更新：2026-07-01
 适用范围：`roles/user-cat` 候选用户模拟角色、真实多轮对话 trace 生产、role benchmark seed 扩展和 trace 质量反馈闭环。
 
 本文档是 `UserCat` 的角色设计真相源。`UserCat` 的目标不是当 reviewer、judge、developer 或 engineer，而是专门作为低质量终端用户压力源，为 XiaoBa 现有 roles 生成高质量、多轮、可记录、可复现、可进入后续 benchmark curation 的候选 trace。
@@ -42,7 +42,7 @@ Out of scope:
 
 ## Current Architecture
 
-当前仓库已有 `UserCat` 低质量用户 candidate trace 生产角色：`role.json`、README、system prompt、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused tests。`UserCat` 可以通过 role resolver 加载；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`trace-simulation` 负责通用 role trace 设计；`xiaoba-cli-product-test` 负责把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转换为 product-use seed、role intent map、persona、scenario plan 和低信息 user messages。`user_trace_run` 默认通过 Dashboard Chat/Pet surface 的 `/api/pet/message` 原生入口驱动目标 role，使用 `pet:<petId>:role-<target-role>:run-<run-id>` 这类 role-scoped session key，让原生 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**` 按产品入口落盘；UserCat 自己只额外写 candidate trace/package 索引，并强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`。`entrypoint:"agent_session"` 只作为 legacy direct fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；candidate trace 只有经过 ReviewerCat/benchmark maintainer 清洗成 live replay case 后，才能进入 `eval/`。ReviewerCat curation integration、full existing-role trace pilot 和 adaptive next-message generation 尚未实现。
+当前仓库已有 `UserCat` 低质量用户 candidate trace 生产角色：`role.json`、README、system prompt、role-local `trace-simulation` skill、XiaoBa-CLI product-use preset skill、`user_trace_run` runtime tool 和 focused tests。`UserCat` 可以通过 role resolver 加载；role tool policy 已设置 `inheritBaseTools:false`，只 allowlist `read_file`、`grep`、`glob`、`skill`，并通过 role-specific tool 暴露 `user_trace_run`。`trace-simulation` 负责通用 role trace 设计；`xiaoba-cli-product-test` 负责把一句“像真实用户一样测试 XiaoBa-CLI 某能力”的需求转换为 product-use seed、role intent map、persona、scenario plan 和低信息 opening / fallback pressures。`user_trace_run` 默认通过 Dashboard Chat/Pet surface 的 `/api/pet/message` 原生入口驱动目标 role，使用 `pet:<petId>:role-<target-role>:run-<run-id>` 这类 role-scoped session key，让原生 `logs/sessions/pet/**`、`runtime.log` 和 `data/chat/sessions/**` 按产品入口落盘；`interaction_mode:"adaptive"` 会在每轮目标 role 输出后读取可见回复、tool events 和证据，再决定下一句小白用户输入或停止，并在 turn budget 允许时强制至少保留两轮证据压力，避免目标 role 一次看似完成就让 UserCat 过早停止；当 seed / fallback pressure 包含明确的 required artifact 或 schema token（例如 `answer.json`、`fake_citations`）且 planner 没有覆盖时，adaptive controller 会保留这条 planned pressure，防止小白用户忘记最关键的产物验收点；`interaction_mode:"scripted"` 保留给固定回放/兼容。UserCat 自己只额外写 candidate trace/package 索引，并强制 candidate 保持 `curation_status:not_curated` / `benchmark_acceptance:forbidden_until_curated`。`entrypoint:"agent_session"` 只作为 legacy direct fallback 保留。旧 `eval:user-cat` smoke 和 `eval/benchmarks/UserCat` 已删除；candidate trace 只有经过 ReviewerCat/benchmark maintainer 清洗成 live replay case 后，才能进入 `eval/`。ReviewerCat curation integration 和 full existing-role trace pilot 尚未实现。
 
 ```mermaid
 flowchart LR
@@ -117,7 +117,7 @@ flowchart LR
         Persona["human persona / taste"]
         ProductPreset["product-use preset skill"]
         Scenario["multi-turn scenario plan"]
-        Dialogue["live dialogue controller"]
+        Dialogue["adaptive live dialogue controller"]
         ChatEntrypoint["native chat entrypoint"]
         TracePack["candidate trace package"]
     end

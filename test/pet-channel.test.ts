@@ -849,7 +849,7 @@ describe('PetChannel', () => {
 
 function readPetSessionEntries(root: string): any[] {
   const logRoot = path.join(root, 'logs', 'sessions', 'pet');
-  const files = collectFiles(logRoot).filter(file => file.endsWith('.jsonl'));
+  const files = collectFiles(logRoot).filter(file => path.basename(file) === 'traces.jsonl');
   assert.ok(files.length > 0, 'expected pet session jsonl log');
   return files.flatMap(file => fs.readFileSync(file, 'utf-8')
     .trim()

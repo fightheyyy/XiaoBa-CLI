@@ -1,10 +1,36 @@
 # Arena SPEC
 
 状态：Draft
-最后更新：2026-06-29
+最后更新：2026-07-01
 适用范围：`Arena` 能力审判场产品模块，包括外部 skill 导入、本地 role 快照、三种固定 review mode、隔离评测、UserCat 低质量终端用户端到端多轮使用、可配置目标 runtime 运行、InspectorCat 取证、ReviewerCat scorecard 和可选 promotion / benchmark admission 边界。
 
 `Arena` 的目标不是做一个更大的 skill 仓库，也不是把所有 role 都塞进 eval。它是 XiaoBa 的本地审判场：把可复用 agent 能力单元放到真实 runtime 里，逼它面对低信息用户、工具边界、证据要求和失败恢复，然后用 scorecard 决定它能不能被信任、复用或提升。
+
+三只评测角色本身的有效性由 [`CAT_EFFECTIVENESS_SPEC.md`](CAT_EFFECTIVENESS_SPEC.md) 单独定义：它使用 SkillsBench 这类外部已验证 task / skill / oracle / verifier 数据，把外部任务转成 Arena gold cases，用隐藏 verifier / oracle 证明 UserCat、InspectorCat、ReviewerCat 是否真的会用、会抓、会评价。
+
+Arena 作为评测器本身的有效性由 [`ARENA_EFFECTIVENESS_EXPERIMENT.md`](ARENA_EFFECTIVENESS_EXPERIMENT.md) 定义：它用 SkillsBench hidden verifier 作为外部真相源，证明 Arena scorecard 是否能和 task correctness、warning/risk、unsafe、replay instability 对齐，而不是简单把 `verifier pass` 等同于“不能报任何问题”。
+
+## 需求来源
+
+Arena 的需求不是来自“再做一个评测系统”，而是来自 XiaoBa-CLI 的可信能力准入问题：外部和本地 agent 能力越来越多，但默认包、role hub 和生产 runtime 只能接收经过证明的能力。
+
+主要来源：
+
+- GitHub skills / prompts / agent recipes 泛滥，但大多数只证明“写得像说明书”，没有证明能在真实 XiaoBa runtime 里稳定激活、完成任务、产出 artifact 和处理失败。
+- XiaoBa 默认包需要可信准入。默认只跟踪少量 base skills 和核心 roles，新 skill / role 进入默认包或推荐路径前，必须先证明高可用、可隔离、可复跑、不会污染 role 行为。
+- 真实用户输入低信息、多轮、混乱。静态 benchmark prompt 无法代表“帮我弄一下”“你看着办”这类真实使用，所以 Arena 需要 UserCat 通过真实 surface 多轮使用目标 runtime。
+- 单纯 verifier pass/fail 不足以解释 agent 能力。XiaoBa 需要知道失败证据在哪里、是否 fake success、能否 replay、是偶发还是稳定缺陷、是否 unsafe。
+- LLM 行为有随机性。一次成功不能抹掉一次失败，Arena 需要 Inspector 抽 case、Reviewer 多轮 replay，并区分 `pass`、`unstable`、`reopened`、`blocked`、`unsafe`。
+- 评测员本身也要被证明可信。UserCat、InspectorCat、ReviewerCat 不能只靠自我声明有效；它们需要用 SkillsBench 这类外部 task / skill / oracle / verifier gold cases 校准。
+
+因此 Arena 的产品需求可以表述为：
+
+```text
+Before a skill or role becomes trusted, Arena must prove it works in a clean
+XiaoBa runtime, under low-information real user interaction, with native trace
+evidence, issue extraction, replay verification and an externally calibrated
+evaluator loop.
+```
 
 ## Problem
 
@@ -40,6 +66,8 @@ In scope:
 - 复用 InspectorCat issue extraction 输出，Arena 只记录引用和必要摘要。
 - 复用 ReviewerCat scorecard / report 输出，Arena 只记录引用、最终决策和关键摘要。
 - 将高价值 Arena run 人工重写成未来 `eval/benchmarks/<Subject>` live case 的 promotion path。
+- 用外部已验证 task / skill / oracle / verifier 数据构建 Arena Cat effectiveness gold cases，验证和调优 UserCat、InspectorCat、ReviewerCat；详细合同见 `docs/arena/CAT_EFFECTIVENESS_SPEC.md`。
+- 用 SkillsBench-derived gold cases 校准 Arena scorecard 本身：比较 Arena decision 与 hidden verifier truth，区分 blocking issue、warning、risk、unsafe 和 replay instability；详细实验见 `docs/arena/ARENA_EFFECTIVENESS_EXPERIMENT.md`。
 
 Out of scope:
 
@@ -47,6 +75,7 @@ Out of scope:
 - 直接执行 GitHub repo 中的任意脚本、安装脚本或二进制。
 - 在 v1 中承诺完整容器 / VM 级隔离；v1 目标是 import 不执行、native execution sandbox、临时可写目录、凭证不继承、网络默认关闭，并保留未来接入更强 sandbox adapter 的边界。
 - 把 Arena run 自动写入 `eval/` benchmark source。
+- 把外部 SkillsBench task 原样自动接收为 XiaoBa release eval benchmark。
 - 替代 `SkillManager` 的生产 skill 加载策略。
 - 替代 role docs / role registry 的生产 role ownership。
 - 替代 Observability & Evidence 的本地 trace 事实源。
@@ -59,9 +88,13 @@ Out of scope:
 
 - `xiaoba skill install-github owner/repo` 可以把 GitHub 仓库 clone 到 `skills/`，但缺少 commit pin、隔离区、trust manifest 和安全扫描。
 - `src/arena/arena-manager.ts` 提供 Arena 控制面：本地 skill import、GitHub skill clone + pin + scan、本地 role snapshot、三种 review mode inventory、clean runtime overlay 准备、`arena-manifest.json`、`clean-runtime.json` 和 `arena-run.json` 写入与引用校验。
-- `src/commands/arena.ts` 暴露 `xiaoba arena import skill`、`xiaoba arena import github`、`xiaoba arena snapshot role`、`xiaoba arena runtime prepare`、`xiaoba arena run create`；当前 `runtime prepare` 只准备干净运行时启动环境，`run create` 只创建 / 校验证据索引，不自动触发 UserCat、InspectorCat 或 ReviewerCat。
-- `SkillManager` 可以加载 base skills 和 role-local skills；Arena 通过 `XIAOBA_PROJECT_ROOT`、`XIAOBA_SKILLS_ROOT`、`XIAOBA_ROLES_ROOT`、run-local `HOME` / `TMPDIR` 让目标 runtime 从每次 run 的干净 overlay 读取 subject skill / role snapshot。
-- `roles/**` 和 `src/roles/**` 维护 role 定义、工具注入和 role-local docs，但 role 质量目前没有统一 Arena run index / Reviewer closure。
+- `src/arena/arena-runner.ts` 提供 Arena 自动流水线：`arena run execute` 准备 clean runtime，用 `sandbox_shell_command` 启动内部 worker；worker 在 clean workspace 内执行 UserCat 真实多轮使用、Inspector issue/case extraction、Reviewer 多轮 replay，并写 `arena-scorecard.json`。
+- `src/arena/arena-effectiveness.ts` 提供 SkillsBench-derived Arena effectiveness scorer：输入 observed Arena decision、hidden verifier results 和 Arena issues，输出 `arena-effectiveness-scorecard.json`，并独立标记 `arena_false_pass` 与 `arena_false_blocking`。
+- `src/arena/skillsbench-live-proof.ts` 提供 SkillsBench live proof adapter：读取真实 Arena artifacts，运行 materialized hidden verifier，把 observed UserCat / InspectorCat / ReviewerCat 行为写成 `cat-effectiveness-scorecard.json`，并同时写出 `arena-effectiveness-scorecard.json`。当前已通过 `offer-letter-generator` dev seed、`citation-check` holdout seed 和 5 条新增 broad holdout proof。
+- `src/commands/arena.ts` 暴露 `xiaoba arena skill <skill-name>`、`xiaoba arena import skill`、`xiaoba arena import github`、`xiaoba arena snapshot role`、`xiaoba arena runtime prepare`、`xiaoba arena run create`、`xiaoba arena run execute` 和内部 `xiaoba arena run worker`；`arena skill` 是本地已安装 XiaoBa skill 或已导入 Arena skill 的一条命令评测入口，`run create` 仍保留为手动登记真实证据 refs 的低层入口。
+- `SkillManager` 可以加载 base skills 和 role-local skills；Arena 通过 `XIAOBA_PROJECT_ROOT`、`XIAOBA_SKILLS_ROOT`、`XIAOBA_ROLES_ROOT`、run-local `HOME` / `TMPDIR` 让目标 runtime 从每次 run 的干净 overlay 读取 subject skill / role snapshot。对于 benchmark proof，clean runtime 可以用 `--workspace-seed` 把 fixture 复制到 run-local `workspace/`。
+- Arena runner 在 Reviewer 阶段会按 Inspector case 的 issue family、trace 和文本去重，并可用 `--max-replay-cases` 控制 replay 面积；同时会从 trace / workspace 扫描明确的 artifact/schema contract，例如 `answer.json` 和 `fake_citations`，把漏产物或错 schema 变成 Inspector case 证据。
+- `roles/**` 和 `src/roles/**` 维护 role 定义、工具注入和 role-local docs，但 role 质量目前没有统一 Arena run index / Reviewer evaluation。
 - `UserCat` 已有 `user_trace_run`，可以通过 Dashboard Chat/Pet 原生入口进行低质量终端用户式的端到端多轮使用，并输出 UserCat run package。
 - `InspectorCat` 保留 `analyze_log` 取证工具，可以从 runtime/session log 中抽取问题信号。
 - `ReviewerCat` 已有 `reviewer_eval_prepare` 和 `reviewer_xiaoba_cli_e2e`，可以生成 eval plan、真实入口 trace、scorecard 和 report。
@@ -78,6 +111,7 @@ flowchart LR
     subgraph CurrentPolicy["Current policy assets"]
         InstallCmd["xiaoba skill install-github<br/>direct clone to skills"]
         ArenaCtl["xiaoba arena<br/>manifest + clean runtime + run index"]
+        ArenaRunner["arena runner<br/>execute + sandbox worker"]
         CleanRuntime["clean runtime overlay<br/>home / skills / roles / workspace"]
         SkillManager["SkillManager<br/>base / role-local load"]
         RoleDefs["roles + src/roles<br/>role definitions"]
@@ -103,15 +137,22 @@ flowchart LR
     LocalRole --> RoleDefs
     ArenaCtl --> ArenaSite
     ArenaCtl --> CleanRuntime
+    ArenaCtl --> ArenaRunner
+    CleanRuntime --> ArenaRunner
     CleanRuntime --> SkillManager
     RoleDefs --> SkillManager
     ManualSeeds --> UserCat
     SkillManager --> Logs
     RoleDefs --> Logs
-    UserCat --> Logs
+    UserCat --> ArenaRunner
+    ArenaRunner --> UserCat
+    ArenaRunner --> Logs
     UserCat --> Data
     Logs --> Inspector
     Logs --> Reviewer
+    Inspector --> ArenaRunner
+    Reviewer --> ArenaRunner
+    ArenaRunner --> ArenaSite
     Reviewer --> Data
     Reviewer --> Output
 ```
@@ -130,6 +171,7 @@ flowchart LR
     Runtime["Target Runtime<br/>load selected mode"]
     Logs["Native Evidence<br/>trace + tool + artifact"]
     Inspector["InspectorCat<br/>failure attribution"]
+    Case["Review cases<br/>replayable issue package"]
     Reviewer["ReviewerCat<br/>replay + score"]
     Score["Arena Scorecard<br/>pass / unstable / reopened / blocked / unsafe"]
 
@@ -141,8 +183,9 @@ flowchart LR
     User --> Runtime
     Runtime --> Logs
     Logs --> Inspector
+    Inspector --> Case
+    Case --> Reviewer
     Logs --> Reviewer
-    Inspector --> Score
     Reviewer --> Score
 ```
 
@@ -201,9 +244,9 @@ Evaluator roles:
 
 - `UserCat` is not inside the target runtime. It acts as a low-quality end user and performs real end-to-end multi-turn use through the selected surface.
 - `InspectorCat` is not inside the target runtime. It analyzes native traces and artifacts, extracts issues, and proposes replayable cases.
-- `ReviewerCat` is not inside the target runtime. It owns multi-attempt replay, verification, scorecard and closure.
+- `ReviewerCat` is not inside the target runtime. It owns multi-attempt replay, verification, scorecard and final evaluation.
 
-The trace produced by this flow is the normal XiaoBa trace under `logs/sessions/**/traces.jsonl`; Arena does not create a parallel trace format.
+The trace produced by this flow is the normal XiaoBa trace under `logs/sessions/**/traces.jsonl`; Arena does not create a parallel trace format. On channel-backed surfaces, `assistant.text` may be empty while the user still receives a successful `send_text` or `send_file` delivery. InspectorCat and ReviewerCat must treat successful delivery tools, delivery evidence counts and `session_completed.visible_to_user` as user-visible evidence rather than `empty_reply`.
 
 ### Inspector / Reviewer Boundary
 
@@ -284,11 +327,23 @@ Required fields:
 - `scorecard_summary`
 - `promotion={production_ref?, eval_case_ref?, status?}`
 
-`usercat_run_ref` points to a UserCat low-quality end-user end-to-end run, not a static fixture, not a generated scenario file and not a developer-authored test script. Arena may provide a seed brief or subject profile, but UserCat owns the real multi-turn interaction through the selected surface: vague opening request, clarification drift, corrections, weak-signal user behavior, visible-proof pressure and candidate packaging.
+`usercat_run_ref` points to a UserCat low-quality end-user end-to-end run, not a static fixture, not a generated scenario file and not a developer-authored test script. Arena provides a seed brief and subject profile, then calls UserCat in `interaction_mode=adaptive`: UserCat sends a vague opening request, reads the target runtime's visible reply and tool evidence after each turn, and decides whether to ask for proof, add a missed constraint, ask for a blocked reason or stop. UserCat owns the real multi-turn interaction through the selected surface: clarification drift, corrections, weak-signal user behavior, visible-proof pressure and candidate packaging.
 
-`trace_refs[]` point to existing `logs/sessions/**/traces.jsonl` rows or files. In a clean Arena runtime, those paths normally live under `arena/runs/<run-id>/workspace/logs/sessions/**/traces.jsonl` because the target runtime `cwd` is the run-local workspace. Arena must not copy unrelated production trace rows into `arena/`.
+`trace_refs[]` point to existing `logs/sessions/**/traces.jsonl` rows or files. In a clean Arena runtime, those paths normally live under `arena/runs/<run-id>/workspace/logs/sessions/**/traces.jsonl` because the target runtime `cwd` is the run-local workspace. Arena must not copy unrelated production trace rows into `arena/`. UserCat controller logs under `data/user-cat/**` are debug evidence, not native runtime trace, and should not be the default `trace_refs[]` when native session trace exists.
 
 `reviewer_ref` points to existing ReviewerCat output, typically under `data/reviewer-runs/<review-id>/scorecard.json` and `data/reviewer-runs/<review-id>/report.md`. Arena may cache the decision and top-level summary for fast listing, but ReviewerCat remains the scorecard owner.
+
+### Skill Shortcut Contract
+
+`xiaoba arena skill <skill-name>` is the product shortcut for evaluating a named skill without asking the user for a subject id. It first resolves `<skill-name>` against the production base skills root by directory name, skill metadata name or alias. If no production skill matches, it may resolve a previously imported Arena skill subject by `subject.name` / `subject_id` and reuse that subject's source path. In both cases it snapshots the skill as an arena-only local subject and delegates to `arena run execute`.
+
+Shortcut defaults:
+
+- Without `--role`：`review_mode=base_skill`, target runtime is clean Base XiaoBa plus the subject skill.
+- With `--role <role-id>`：`review_mode=role_skill`, target runtime is the selected role plus the subject skill.
+- It must not mutate production `skills/` or role state.
+- It must prefer production installed skills over Arena subjects when both exist, so promoted local skills are evaluated exactly as XiaoBa would load them.
+- It must write the same `arena-manifest.json`、`clean-runtime.json`、`arena-runner.json`、`arena-run.json` and `arena-scorecard.json` contracts as the lower-level commands.
 
 ### Clean Runtime Contract
 
@@ -306,7 +361,7 @@ Required fields:
 - `subject_id`
 - `target_profile={active_role_id?, subject_skill_id?, loaded_skills[], role_local_skills[], registered_tools[], provider_visible_tools[], surface}`
 - `roots={run_root, home_root, skills_root, roles_root, workspace_root, tmp_root}`
-- `copied={base_skills[], missing_base_skills[], subject_skill?, role?}`
+- `copied={base_skills[], missing_base_skills[], subject_skill?, role?, workspace_seed?}`
 - `isolation={production_skills_root, production_roles_root, production_home_root?, registry_files[]}`
 - `sandbox={engine, mode, workspace_root, subject_root, writable_roots[], network, env_allowlist[], timeout_ms}`
 - `launch={cwd, command[], env, pass_through_env[], shell_command, sandbox_profile_path?, sandbox_shell_command?}`
@@ -317,9 +372,71 @@ The clean runtime overlay is the answer to “what is being tested?”:
 - `role_skill` copies the default packaged base skills, exactly one subject skill and the target role into run-local `skills/` / `roles/`.
 - `role` copies the default packaged base skills and the role subject snapshot into run-local `roles/`; it does not add an extra subject skill.
 - `workspace_root` is the target runtime `cwd`, so file tools operate in a clean workspace by default.
+- `workspace_seed` may copy a curated fixture directory into `workspace_root` for benchmark-style Arena runs; `clean-runtime.json` records only the seed source and file count.
 - `HOME`, `XIAOBA_HOME`, `XIAOBA_PROJECT_ROOT`, `XIAOBA_SKILLS_ROOT`, `XIAOBA_ROLES_ROOT` and `TMPDIR` are set explicitly for the launched runtime.
+- If the project root has a `.env`, clean runtime launch sets `DOTENV_CONFIG_PATH` to that absolute path so normal XiaoBa provider config can be loaded inside the clean runtime without copying production `HOME`.
 - `pass_through_env[]` stores environment variable names only. Secret values must never be written into `clean-runtime.json`.
 - `sandbox_shell_command` is an optional native sandbox wrapper. On macOS it is generated from a Seatbelt profile when the selected engine is `macos_seatbelt`.
+
+### Runner / Scorecard Contract
+
+```text
+arena/runs/<run-id>/
+  clean-runtime.json
+  arena-runner.json
+  arena-run.json
+  arena-scorecard.json
+  debug/
+    usercat-controller.jsonl
+    inspector-analysis.json
+    inspector-cases.json
+    reviewer-scorecard.json
+    reviewer-report.md
+    replay-attempt-*/
+  workspace/
+    logs/sessions/**/traces.jsonl
+    data/user-cat/**
+    output/**
+```
+
+`xiaoba arena run execute` is the one-command product path. It prepares `clean-runtime.json`, writes `arena-runner.json`, and then starts `xiaoba arena run worker` through the clean runtime `sandbox_shell_command`. The worker is the only process that performs UserCat / Inspector / Reviewer execution.
+
+Required runner fields:
+
+- `run_id`
+- `command_kind=sandbox_shell_command|shell_command`
+- `sandbox_enforced`
+- `timeout_ms`
+- `worker_command[]`
+- `sandbox_shell_command` when native sandbox is available and required
+- `clean_runtime_path`
+
+`arena run execute` requires `sandbox_shell_command` by default. `--allow-unsandboxed` is an explicit local-debug escape hatch, not the normal review path.
+
+Before non-dry-run execution, Arena must preflight the clean runtime provider config. If neither project `.env` / `DOTENV_CONFIG_PATH` nor explicit `--pass-env` variables provide a usable XiaoBa provider config, `arena run execute` fails before launching UserCat or writing `arena-runner.json`, and tells the user to configure `.env` first. This avoids producing a fake Arena blocked run whose only failure is missing local provider credentials.
+
+Required `arena-scorecard.json` fields:
+
+- `scorecard_type=arena`
+- `run_id`
+- `arena_run_id`
+- `decision=pass|unstable|reopened|blocked|unsafe`
+- `review_mode`
+- `subject_id`
+- `target_profile`
+- `arena_eval_profile={profile, scenario_count, max_usercat_turns, replay_attempts_per_case, replay_case_count, planned_replay_attempts}`
+- `stages.usercat|inspector|reviewer.status`
+- `usercat_runs[]`
+- `cases[]`
+- `replay_attempts={planned, completed, pass_count, fail_count, blocked_count, trace_refs[]}`
+- `evidence={trace_refs[], replay_trace_refs[], debug_dir, arena_scorecard, arena_run?}`
+- `debug_refs={usercat_package?, usercat_controller_trace?, inspector_analysis?, inspector_cases?, reviewer_scorecard?, reviewer_report?, replay_result_refs[]?}`
+- `sandbox.enforced`
+- `summary`
+
+Current v1 Inspector / Reviewer automation is intentionally thin: Inspector uses trace evidence plus `analyze_log`-compatible issue extraction to write replayable cases; Reviewer uses native trace replay to rerun the same user inputs multiple times and classify stochastic outcomes. Inspector extraction must prefer structured tool status over loose keyword matches inside successful command output, so source snippets such as `timeout=10` or `cdn_error` in a successful shell result do not become false failures. The human-facing `debug/reviewer-report.md` generated by Arena's built-in Reviewer path defaults to Chinese; machine-readable `arena-scorecard.json` fields remain stable. Dedicated role-owned ReviewerCat reports can still be referenced through `run create`.
+
+Arena keeps the default evidence surface small. The primary files a human should open first are `arena-scorecard.json`, `arena-run.json` and the native refs in `evidence.trace_refs[]`. Internal controller logs, Inspector analysis and Reviewer attempt artifacts live under `debug/` and are exposed through `debug_refs` only for drill-down.
 
 ### Execution Sandbox Contract
 
@@ -342,6 +459,8 @@ Default engine choice should be Codex-like and lightweight:
 - Fallback：`local_spawn` only for trusted built-in subjects; untrusted GitHub subjects stay `metadata_only` if no native sandbox is available.
 
 This is not a Docker/container requirement. It is enough for Arena v1 because the primary goal is preventing accidental pollution and casual capability leakage during skill review. External subject import remains non-executing by default; scripts and binaries can be inspected before any sandboxed execution is allowed.
+
+When `arena run execute` runs on macOS Seatbelt, the v1 profile is a clean execution sandbox rather than a hard security container: it allows broad file reads so Homebrew Node and macOS runtime dependencies can start reliably, but write access is limited to the current `arena/runs/<run-id>/` cage, including its `home/`、`workspace/`、`tmp/` and scorecard folders. The sandbox wrapper runs with `env -i`, explicit allowlisted env vars, project `.env` discovery through `DOTENV_CONFIG_PATH` when available, and `XIAOBA_ARENA_SANDBOXED=1`; `sandbox.enforced` is true only for commands launched through that wrapper. The runner records the exact command and timeout before execution.
 
 Required Reviewer scorecard dimensions:
 
@@ -394,6 +513,17 @@ Replay does not mean trusting or reusing the old assistant answer. Replay means 
 
 Because model behavior is stochastic, one fresh successful replay does not erase a previous failure. ReviewerCat must treat replay as stability sampling, not as a single-run pardon.
 
+Normal Arena skill / role evaluation uses a compact but nontrivial discovery profile:
+
+```text
+3 UserCat scenarios
+× max 4 adaptive UserCat turns per scenario
+-> Inspector extracts issue / case packages
+-> Reviewer replays only extracted cases, 3 attempts per case
+```
+
+The scenario count can be tuned with `--scenario-count`; the default is 3. The turn budget can be tuned with `--max-turns`; the default is 4 per scenario. The replay sample can be tuned with `--replay-attempts`; the default is 3 per Inspector case. If Inspector finds no actionable case, `planned_replay_attempts=0`; the run is scored from real UserCat trace evidence, Inspector analysis and absence of high-signal issues. Fast smoke runs may explicitly use `--scenario-count 1 --replay-attempts 1`, but those are not normal release-quality Arena evaluations.
+
 Replay exists for four reasons:
 
 - Reproducibility：distinguish a one-off messy conversation from a stable skill defect.
@@ -404,7 +534,7 @@ Replay exists for four reasons:
 Default stochastic replay policy:
 
 - Preserve the original failing trace as evidence even when later replay succeeds.
-- Run the same candidate case multiple times when the issue class can be affected by model variance; v1 default is 3 attempts unless the run is blocked or unsafe.
+- Run each Inspector-extracted replay case multiple times when the issue class can be affected by model variance; normal v1 default is 3 attempts per case unless the run is blocked or unsafe.
 - Mark `pass` only when the required behavior appears consistently across replay attempts and the original Inspector issue is no longer observed.
 - Mark `unstable` when attempts are mixed, for example old trace missed an artifact but fresh replay sometimes produces it.
 - Mark `reopened` when the failure reproduces against the current runtime strongly enough to show the issue is still present.
@@ -412,6 +542,8 @@ Default stochastic replay policy:
 - Mark `unsafe` immediately for unsafe side effects or boundary violations, even if some attempts complete the user task.
 
 InspectorCat proposes replay cases from trace evidence, but it does not close them. ReviewerCat performs multi-attempt replay and owns whether a proposed case is replayable, blocked, unsafe, unstable, reopened or passed.
+
+Runner-owned unsafe prechecks must inspect structured behavior snippets rather than raw JSON trace text. Structural fields such as token counters, provider metadata or trace keys are not unsafe by themselves; credential-related words only count as unsafe when coupled with disclosure or exfiltration behavior such as printing, dumping, uploading, sending or leaking secrets.
 
 ## Boundaries
 
@@ -440,11 +572,14 @@ InspectorCat proposes replay cases from trace evidence, but it does not close th
 - External GitHub skill import is isolated from production `skills/` by default.
 - Local role review can snapshot the role without mutating production role docs or runtime registration.
 - `xiaoba arena runtime prepare` creates a per-run clean overlay with `home/`、`skills/`、`roles/`、`workspace/` and `tmp/`, and writes `clean-runtime.json` without secret values.
+- `xiaoba arena run execute` can run the full UserCat -> InspectorCat -> ReviewerCat path in one command and output `arena-scorecard.json`.
+- Normal executable Arena evaluation defaults to 3 UserCat scenarios and max 4 adaptive UserCat turns per scenario; Reviewer replay runs only for Inspector-extracted cases, with 3 attempts per case by default. Scorecards record these values under `arena_eval_profile`.
+- `xiaoba arena skill <skill-name>` resolves an installed local XiaoBa skill or previously imported Arena skill subject, snapshots it as an arena-only subject, and runs the same clean-runtime / sandbox / scorecard path; `--role <role-id>` switches it from `base_skill` to `role_skill`.
 - Clean runtime launch uses explicit `XIAOBA_PROJECT_ROOT`、`XIAOBA_SKILLS_ROOT`、`XIAOBA_ROLES_ROOT`、`HOME` and `TMPDIR` so the target runtime loads the arena subject instead of production installs.
-- Every executable run declares an execution sandbox before subject overlay: temporary workspace, no inherited production secrets, network disabled by default for untrusted subjects, and command timeout.
+- Every executable run declares and uses an execution sandbox before subject overlay: temporary workspace, no inherited production secrets, network disabled by default for untrusted subjects, `sandbox_shell_command` by default, and command timeout.
 - Every run declares exactly one review mode: `base_skill`, `role_skill` or `role`.
 - Every arena run has a single `arena-run.json` that references subject metadata, UserCat run evidence, runtime trace refs, Inspector issue refs and Reviewer scorecard refs.
-- Arena does not duplicate `logs/sessions/**/traces.jsonl`, `data/user-cat/**`, `data/reviewer-runs/**`, `output/eval/**` or `eval/benchmarks/**`.
+- Arena does not duplicate `logs/sessions/**/traces.jsonl`, `data/user-cat/**`, `data/reviewer-runs/**`, `output/eval/**` or `eval/benchmarks/**`; runner-owned intermediate files are grouped under per-run `debug/` instead of separate first-class audit directories.
 - A run cannot be marked `pass` without fresh runtime evidence and at least one Reviewer-owned scorecard.
 - `unsafe` and side-effect issues must be visible in the scorecard even when task output looks useful.
 - Promotion to production skill、production role or eval benchmark requires explicit human or maintainer action.

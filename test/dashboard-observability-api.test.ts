@@ -250,10 +250,140 @@ describe('Dashboard observability API', () => {
     const petResponse = await fetch(`${baseUrl}/api/navigation/open?page=pet`);
     assert.strictEqual(petResponse.status, 200);
 
+    const arenaResponse = await fetch(`${baseUrl}/api/navigation/open?page=arena`);
+    assert.strictEqual(arenaResponse.status, 200);
+
     const retiredResponse = await fetch(`${baseUrl}/api/navigation/open?page=room`);
     assert.strictEqual(retiredResponse.status, 400);
     const body = await retiredResponse.json() as { error?: string };
     assert.strictEqual(body.error, 'Invalid dashboard page');
+  });
+
+  test('returns Arena subject and run summary without raw local paths', async () => {
+    const subjectDir = path.join(testRoot, 'arena', 'subjects', 'skill-gsap');
+    const runDir = path.join(testRoot, 'arena', 'runs', 'gsap-pass');
+    fs.mkdirSync(subjectDir, { recursive: true });
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(path.join(subjectDir, 'arena-manifest.json'), JSON.stringify({
+      version: 1,
+      subject_id: 'skill-gsap',
+      subject: {
+        type: 'skill',
+        name: 'gsap-core',
+        description: 'GSAP animation skill review target',
+        capabilities: ['timeline'],
+        required_tools: ['read_file'],
+      },
+      source: {
+        type: 'github',
+        owner: 'greensock',
+        repo: 'gsap-skills',
+      },
+      parsed: {
+        docs: ['SKILL.md'],
+        prompt_files: [],
+        skill_files: ['SKILL.md'],
+        declared_tools: [],
+      },
+      safety: {
+        risk_level: 'low',
+        warnings: [],
+      },
+      trust_level: 'review_required',
+      allowed_runtime: 'arena_only',
+      default_sandbox: {
+        mode: 'read_only',
+        network: 'disabled',
+        env_allowlist: [],
+        timeout_ms: 120000,
+      },
+      fingerprint: 'abc',
+      created_at: '2026-06-30T01:00:00.000Z',
+    }));
+    fs.writeFileSync(path.join(runDir, 'clean-runtime.json'), JSON.stringify({
+      version: 1,
+      run_id: 'gsap-pass',
+      review_mode: 'base_skill',
+      subject_id: 'skill-gsap',
+      subject_manifest_path: 'arena/subjects/skill-gsap/arena-manifest.json',
+      target_profile: {
+        active_role_id: 'base',
+        subject_skill_id: 'gsap-core',
+        loaded_skills: ['remember', 'gsap-core'],
+        role_local_skills: [],
+        registered_tools: ['read_file'],
+        provider_visible_tools: ['read_file'],
+        surface: 'pet',
+      },
+      sandbox: {
+        engine: 'macos_seatbelt',
+        mode: 'read_only',
+        workspace_root: '/Users/guowei/private/arena/workspace',
+        subject_root: '/Users/guowei/private/arena/skills/gsap-core',
+        writable_roots: ['/Users/guowei/private/arena/home'],
+        network: 'disabled',
+        env_allowlist: [],
+        timeout_ms: 120000,
+      },
+      created_at: '2026-06-30T01:05:00.000Z',
+    }));
+    fs.writeFileSync(path.join(runDir, 'arena-run.json'), JSON.stringify({
+      version: 1,
+      run_id: 'gsap-pass',
+      review_mode: 'base_skill',
+      subject_id: 'skill-gsap',
+      subject_manifest_path: 'arena/subjects/skill-gsap/arena-manifest.json',
+      target_profile: {
+        active_role_id: 'base',
+        subject_skill_id: 'gsap-core',
+        loaded_skills: ['remember', 'gsap-core'],
+        role_local_skills: [],
+        registered_tools: ['read_file'],
+        provider_visible_tools: ['read_file', 'edit_file'],
+        surface: 'pet',
+      },
+      usercat_run_ref: {
+        run_id: 'usercat-gsap',
+        package_path: 'data/usercat-runs/usercat-gsap',
+      },
+      trace_refs: ['logs/sessions/pet/2026-06-30/session/traces.jsonl'],
+      inspector_refs: ['data/inspector/issues/gsap.json'],
+      replay_attempts: {
+        planned: 3,
+        completed: 3,
+        pass_count: 3,
+        fail_count: 0,
+        blocked_count: 0,
+        trace_refs: [],
+      },
+      sandbox: {
+        engine: 'macos_seatbelt',
+        mode: 'read_only',
+        workspace_root: '/Users/guowei/private/arena/workspace',
+        subject_root: '/Users/guowei/private/arena/skills/gsap-core',
+        writable_roots: ['/Users/guowei/private/arena/home'],
+        network: 'disabled',
+        env_allowlist: [],
+        timeout_ms: 120000,
+      },
+      decision: 'pass',
+      scorecard_summary: 'passed',
+      promotion: {},
+      created_at: '2026-06-30T01:10:00.000Z',
+    }));
+
+    const summary = await getJson('/api/arena/summary');
+    assert.strictEqual(summary.root, 'arena');
+    assert.strictEqual(summary.totals.subjects, 1);
+    assert.strictEqual(summary.totals.runs, 1);
+    assert.strictEqual(summary.totals.reviewedRuns, 1);
+    assert.strictEqual(summary.totals.decisions.pass, 1);
+    assert.strictEqual(summary.subjects[0].name, 'gsap-core');
+    assert.strictEqual(summary.runs[0].subjectName, 'gsap-core');
+    assert.strictEqual(summary.runs[0].decision, 'pass');
+    assert.strictEqual(summary.runs[0].replayCompleted, 3);
+    assert.strictEqual(summary.runs[0].path, 'arena/runs/gsap-pass/arena-run.json');
+    assert.doesNotMatch(JSON.stringify(summary), /\/Users\/guowei/);
   });
 
   test('does not expose observability action endpoint', async () => {

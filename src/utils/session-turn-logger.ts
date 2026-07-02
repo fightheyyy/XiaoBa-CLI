@@ -13,6 +13,8 @@ import { projectSessionLogEntryToObservability } from '../observability/session-
 const SESSION_LOG_DIR = path.join('logs', 'sessions');
 const MAX_TOOL_RESULT_LENGTH = Number(process.env.XIAOBA_SESSION_TOOL_RESULT_LIMIT || 10000);
 const SESSION_LOG_SCHEMA_VERSION = 3;
+const CONTEXT_SNAPSHOT_DIR = 'context-snapshots';
+const COMPACT_BOUNDARY_PREFIX = '[compact_boundary]';
 
 type ToolCallStatus = ToolResultStatus;
 
@@ -76,6 +78,45 @@ export interface SessionRuntimeEventLogEntry {
 
 export type SessionTurnLogEntry = SessionTraceLogEntry | SessionLegacyTurnLogEntry;
 export type SessionLogEntry = SessionTraceLogEntry | SessionLegacyTurnLogEntry | SessionRuntimeLogEntry | SessionRuntimeEventLogEntry;
+
+export interface ContextCompactionLogInput {
+  source: 'agent_session_restore' | 'agent_session_pre_message' | 'conversation_runner' | string;
+  status: 'success' | 'failed';
+  reason?: string;
+  surface?: string;
+  turn?: number;
+  tokens_before?: number;
+  tokens_after?: number;
+  message_tokens_before?: number;
+  message_tokens_after?: number;
+  tool_tokens_before?: number;
+  tool_tokens_after?: number;
+  max_tokens?: number;
+  threshold_ratio?: number;
+  threshold_tokens?: number;
+  usage_percent_before?: number;
+  usage_percent_after?: number;
+  messages_before?: number;
+  messages_after?: number;
+  error_code?: string;
+  error_message?: string;
+  messages?: Message[];
+}
+
+interface ContextSnapshotLogEntry {
+  schema_version: number;
+  entry_type: 'context_snapshot';
+  snapshot_id: string;
+  event_id: string;
+  timestamp: string;
+  session_id: string;
+  session_type: string;
+  kind: 'compact_after';
+  source: string;
+  status: string;
+  message_count: number;
+  messages: Message[];
+}
 
 interface ToolCallLog {
   id: string;
@@ -143,6 +184,7 @@ export class SessionTurnLogger {
   private sessionDirectoryPath: string;
   private traceFilePath: string;
   private runtimeLogFilePath: string;
+  private contextSnapshotFilePath: string;
   private traceCounter = 0;
   private pendingRuntimeEvents: SessionRuntimeEventLogEntry[] = [];
 
@@ -158,6 +200,7 @@ export class SessionTurnLogger {
     fs.mkdirSync(this.sessionDirectoryPath, { recursive: true });
     this.traceFilePath = path.join(this.sessionDirectoryPath, 'traces.jsonl');
     this.runtimeLogFilePath = path.join(this.sessionDirectoryPath, 'runtime.log');
+    this.contextSnapshotFilePath = path.join(this.sessionDirectoryPath, CONTEXT_SNAPSHOT_DIR, `${safeSessionId}.jsonl`);
   }
 
   getLogFilePath(): string {
@@ -170,6 +213,10 @@ export class SessionTurnLogger {
 
   getRuntimeLogFilePath(): string {
     return this.runtimeLogFilePath;
+  }
+
+  getContextSnapshotFilePath(): string {
+    return this.contextSnapshotFilePath;
   }
 
   getSessionDirectoryPath(): string {
@@ -326,19 +373,160 @@ export class SessionTurnLogger {
     this.appendRuntimeLine(level, message);
   }
 
-  logRuntimeEvent(eventType: string, payload: Record<string, unknown> = {}): void {
+  logRuntimeEvent(eventType: string, payload: Record<string, unknown> = {}): SessionRuntimeEventLogEntry {
     const runtimeEntry: SessionRuntimeEventLogEntry = {
       ...this.normalizeRuntimeEventPayload(payload),
       schema_version: SESSION_LOG_SCHEMA_VERSION,
       entry_type: 'runtime_event',
-      event_id: `${this.safeId(this.sessionId)}.runtime_event.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`,
+      event_id: this.nextRuntimeEventId(),
       event_type: eventType,
       timestamp: new Date().toISOString(),
       session_id: this.sessionId,
       session_type: this.sessionType,
     };
-    this.pendingRuntimeEvents.push(runtimeEntry);
-    this.appendRuntimeLine('EVENT', this.runtimeEventLine(runtimeEntry));
+    this.stageRuntimeEvent(runtimeEntry);
+    return runtimeEntry;
+  }
+
+  logContextCompaction(input: ContextCompactionLogInput): SessionRuntimeEventLogEntry {
+    const timestamp = new Date().toISOString();
+    const eventId = this.nextRuntimeEventId();
+    const snapshot = input.status === 'success' && input.messages
+      ? this.writeContextSnapshot(eventId, timestamp, input)
+      : undefined;
+    const boundary = input.messages ? this.latestCompactBoundary(input.messages) : undefined;
+    const runtimeEntry: SessionRuntimeEventLogEntry = {
+      ...this.normalizeRuntimeEventPayload({
+        source: input.source,
+        status: input.status,
+        reason: input.reason || 'threshold_exceeded',
+        ...(input.surface && { surface: input.surface }),
+        ...(input.turn !== undefined && { turn: input.turn }),
+        ...(input.tokens_before !== undefined && { tokens_before: input.tokens_before }),
+        ...(input.tokens_after !== undefined && { tokens_after: input.tokens_after }),
+        ...(input.message_tokens_before !== undefined && { message_tokens_before: input.message_tokens_before }),
+        ...(input.message_tokens_after !== undefined && { message_tokens_after: input.message_tokens_after }),
+        ...(input.tool_tokens_before !== undefined && { tool_tokens_before: input.tool_tokens_before }),
+        ...(input.tool_tokens_after !== undefined && { tool_tokens_after: input.tool_tokens_after }),
+        ...(input.max_tokens !== undefined && { max_tokens: input.max_tokens }),
+        ...(input.threshold_ratio !== undefined && { threshold_ratio: input.threshold_ratio }),
+        ...(input.threshold_tokens !== undefined && { threshold_tokens: input.threshold_tokens }),
+        ...(input.usage_percent_before !== undefined && { usage_percent_before: input.usage_percent_before }),
+        ...(input.usage_percent_after !== undefined && { usage_percent_after: input.usage_percent_after }),
+        ...(input.messages_before !== undefined && { messages_before: input.messages_before }),
+        ...(input.messages_after !== undefined && { messages_after: input.messages_after }),
+        ...(boundary?.text && { boundary_preview: this.truncate(boundary.text, 500) }),
+        ...(boundary?.olderMessagesSummarized !== undefined && { older_messages_summarized: boundary.olderMessagesSummarized }),
+        ...(boundary?.preCompactTokens !== undefined && { pre_compact_tokens: boundary.preCompactTokens }),
+        ...(boundary?.fallbackUsed !== undefined && { fallback_used: boundary.fallbackUsed }),
+        ...(snapshot?.ref && {
+          snapshot_kind: 'compact_after',
+          snapshot_id: snapshot.snapshotId,
+          snapshot_ref: snapshot.ref,
+          snapshot_status: 'written',
+        }),
+        ...(snapshot?.error && {
+          snapshot_status: 'failed',
+          snapshot_error: snapshot.error,
+        }),
+        ...(input.error_code && { error_code: input.error_code }),
+        ...(input.error_message && { error_message: this.truncate(input.error_message, 500) }),
+      }),
+      schema_version: SESSION_LOG_SCHEMA_VERSION,
+      entry_type: 'runtime_event',
+      event_id: eventId,
+      event_type: 'context_compaction',
+      timestamp,
+      session_id: this.sessionId,
+      session_type: this.sessionType,
+    };
+    this.stageRuntimeEvent(runtimeEntry);
+    return runtimeEntry;
+  }
+
+  private stageRuntimeEvent(entry: SessionRuntimeEventLogEntry): void {
+    this.pendingRuntimeEvents.push(entry);
+    this.appendRuntimeLine('EVENT', this.runtimeEventLine(entry));
+  }
+
+  private nextRuntimeEventId(): string {
+    return `${this.safeId(this.sessionId)}.runtime_event.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  private writeContextSnapshot(
+    eventId: string,
+    timestamp: string,
+    input: ContextCompactionLogInput,
+  ): { snapshotId?: string; ref?: string; error?: string } {
+    const messages = input.messages || [];
+    const snapshotId = `${eventId}.compact_after`;
+    const safeSessionId = this.safeId(this.sessionId);
+    const ref = `${path.posix.join(CONTEXT_SNAPSHOT_DIR, `${safeSessionId}.jsonl`)}#${snapshotId}`;
+    const entry: ContextSnapshotLogEntry = {
+      schema_version: SESSION_LOG_SCHEMA_VERSION,
+      entry_type: 'context_snapshot',
+      snapshot_id: snapshotId,
+      event_id: eventId,
+      timestamp,
+      session_id: this.sessionId,
+      session_type: this.sessionType,
+      kind: 'compact_after',
+      source: input.source,
+      status: input.status,
+      message_count: messages.length,
+      messages: messages.map(message => this.normalizeSnapshotMessage(message)),
+    };
+
+    try {
+      fs.mkdirSync(path.dirname(this.contextSnapshotFilePath), { recursive: true });
+      fs.appendFileSync(this.contextSnapshotFilePath, JSON.stringify(entry) + '\n', 'utf-8');
+      return { snapshotId, ref };
+    } catch (error) {
+      return {
+        snapshotId,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  private normalizeSnapshotMessage(message: Message): Message {
+    if (!Array.isArray(message.content)) {
+      return message;
+    }
+
+    return {
+      ...message,
+      content: message.content.map(block => {
+        if (block.type === 'image' && (block as any).source?.data) {
+          const filePath = (block as any).filePath || 'unknown';
+          return { type: 'text' as const, text: `[图片: ${filePath}]` };
+        }
+        return block;
+      }),
+    };
+  }
+
+  private latestCompactBoundary(messages: Message[]): {
+    text: string;
+    olderMessagesSummarized?: number;
+    preCompactTokens?: number;
+    fallbackUsed?: boolean;
+  } | undefined {
+    const boundary = [...messages]
+      .reverse()
+      .find(message => message.role === 'system'
+        && typeof message.content === 'string'
+        && message.content.startsWith(COMPACT_BOUNDARY_PREFIX));
+    if (!boundary || typeof boundary.content !== 'string') return undefined;
+    const text = boundary.content;
+    const olderMatch = text.match(/\[compact_boundary\]\s+(\d+)\s+older messages summarized/i);
+    const tokenMatch = text.match(/Pre-compact tokens:\s*(\d+)/i);
+    return {
+      text,
+      ...(olderMatch && { olderMessagesSummarized: Number(olderMatch[1]) }),
+      ...(tokenMatch && { preCompactTokens: Number(tokenMatch[1]) }),
+      fallbackUsed: /deterministic fallback/i.test(text),
+    };
   }
 
   private normalizeRuntimeEventPayload(payload: Record<string, unknown>): Record<string, unknown> {

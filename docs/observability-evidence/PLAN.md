@@ -1,7 +1,7 @@
 # Observability Evidence System PLAN
 
 状态：Active
-最后更新：2026-06-25
+最后更新：2026-06-30
 Owner：runtime / state-evidence maintainers
 
 ## Current Status
@@ -17,6 +17,8 @@ Dashboard no longer exposes a user-facing observability panel. The backend API r
 2026-06-12：First unification pass landed. `SessionTurnLogger` now projects appended JSONL entries through `session-log-projector`; `AgentSession` records session lifecycle facts as runtime events and configures its `ConversationRunner` as mirror-only for metrics, so local summary facts come from the durable session log instead of a parallel runtime metric stream.
 
 2026-06-16：Session-log-v3 trace layout landed. One user request until its owning `ConversationRunner` while-loop stops is now the `trace`; `turn` is reserved for the while-loop iteration. New live logs write `logs/sessions/<surface>/<date>/<session_id>/traces.jsonl` with one trace row per user request, embed lifecycle/provider runtime events in that row, and write plain human runtime text to sibling `runtime.log`. Local summary allowlists `xiaoba.trace.*` attributes.
+
+2026-06-30：Context compaction is now an explicit trace evidence boundary. `AgentSession` restore / pre-message compaction and `ConversationRunner` pre-request compaction emit embedded `context_compaction` runtime events; successful compactions append compact-after messages to sibling `context-snapshots/<session_id>.jsonl`, and each event carries a `snapshot_ref` with the matching `snapshot_id`.
 
 ## Milestones
 
@@ -34,6 +36,7 @@ Dashboard no longer exposes a user-facing observability panel. The backend API r
 - Decide later whether lifecycle event names (`session_started` / `session_completed`) should be renamed to trace lifecycle names; the v3 storage boundary is already trace-first.
 - Consider adding model-call duration facts to session runtime events if local summary needs model latency without direct Runner local metrics.
 - Keep benchmark source creation explicit and owner-authored; observability must not generate candidate benchmark packets.
+- Keep compact snapshots scoped to compact-after state only by default; do not add full pre-compact or raw provider snapshots without a separate debug/forensic opt-in contract.
 
 ## Acceptance Criteria
 
@@ -43,9 +46,11 @@ Dashboard no longer exposes a user-facing observability panel. The backend API r
 - No observability command can mark a benchmark case accepted.
 - Local trace evidence remains faithful local truth; benchmark source admission requires an explicit live agent eval case rewrite.
 - AgentSession local summary facts can be traced back to `logs/sessions/<surface>/<date>/<session_id>/traces.jsonl` trace rows and embedded runtime events.
+- Context compaction evidence can be traced from `traces.jsonl` event to same-session `context-snapshots/<session_id>.jsonl#<snapshot_id>` by `event_id` / `snapshot_id`.
 
 ## Verification Log
 
+- 2026-06-30：Context compaction events and compact-after snapshots landed for AgentSession restore/pre-message and ConversationRunner pre-request compression; session-log projector records `xiaoba.context.compaction` metrics/logs, and trace readers ignore snapshot JSONL where they expect `traces.jsonl`. Verification：`node --test -r tsx test/logger.test.ts test/agent-session-log.test.ts test/conversation-runner-harness.test.ts`（30/30）；`node --test -r tsx test/pet-channel.test.ts test/provider-network-readiness-runner.test.ts test/eval-runner.test.ts test/researcher-live-agent-session.test.ts`（52/52）；`npm run build`；`npm test`（391/391）。
 - 2026-06-25：Dashboard observability summary redaction now covers sensitive `blocked_reason` values as well as preview attributes, so path/token text cannot leak through drilldown names or safe attribute keys. Verification：`node --test -r tsx test/dashboard-observability-api.test.ts`（3/3）；`npm test`（354/354）；`npm run build`。
 - 2026-06-25：Dashboard observability summary responses now redact prompt/tool preview attributes at the HTTP boundary while preserving raw in-process local summary evidence. Verification：`node --test -r tsx test/dashboard-observability-api.test.ts`；`npm test`（353/353）；`npm run build`。
 - 2026-06-23：Removed trace-proposal / trace-continuity from the current observability product path: deleted old runners/scripts, removed Dashboard `/api/observability/actions`, and kept `/api/observability/review` readonly. Verification：`node --test -r tsx test/dashboard-observability-api.test.ts`（3/3）；`npm run build`。

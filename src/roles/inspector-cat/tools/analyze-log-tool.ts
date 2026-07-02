@@ -287,9 +287,10 @@ export class AnalyzeLogTool implements Tool {
         endTime = timestamp;
 
         const userMsg = truncate(entry.user?.text || '');
-        const aiMsg = truncate(entry.assistant?.text || '');
+        const visibleDeliveryText = this.extractVisibleDeliveryText(entry);
+        const aiMsg = truncate(entry.assistant?.text || visibleDeliveryText || '');
         const toolCalls: ToolCallRecord[] = [];
-        const fullAiText = String(entry.assistant?.text || '');
+        const fullAiText = String(entry.assistant?.text || visibleDeliveryText || '');
 
         if (/\bkill\b/i.test(userMsg) && !/\bskill\b/i.test(userMsg)) {
           addIssue({
@@ -303,7 +304,7 @@ export class AnalyzeLogTool implements Tool {
           });
         }
 
-        if (!aiMsg || /\(empty\)/i.test(aiMsg)) {
+        if ((!aiMsg || /\(empty\)/i.test(aiMsg)) && !visibleDeliveryText) {
           addIssue({
             type: 'empty_reply',
             severity: 'medium',
@@ -337,7 +338,7 @@ export class AnalyzeLogTool implements Tool {
               ? tc.arguments
               : JSON.stringify(tc.arguments ?? {});
             const duration = typeof tc.duration_ms === 'number' ? tc.duration_ms : undefined;
-            const success = !/(失败|错误|error|fail|执行被阻止|denied|blocked)/i.test(resultText);
+            const success = this.isSuccessfulToolCall(tc, resultText);
 
             toolCalls.push({
               name: toolName,
@@ -382,7 +383,7 @@ export class AnalyzeLogTool implements Tool {
               });
             }
 
-            if (/timeout|超时/i.test(resultText)) {
+            if (!success && /timeout|超时/i.test(resultText)) {
               addIssue({
                 type: 'timeout',
                 severity: 'high',
@@ -395,7 +396,7 @@ export class AnalyzeLogTool implements Tool {
               });
             }
 
-            if (/429/.test(resultText) && /限流|重试|rate limit|too many requests/i.test(resultText)) {
+            if (!success && /429/.test(resultText) && /限流|重试|rate limit|too many requests/i.test(resultText)) {
               addIssue({
                 type: 'rate_limited_retry',
                 severity: 'medium',
@@ -407,7 +408,7 @@ export class AnalyzeLogTool implements Tool {
               });
             }
 
-            if (/执行被阻止: 读取路径超出工作目录/.test(resultText)) {
+            if (!success && /执行被阻止: 读取路径超出工作目录/.test(resultText)) {
               addIssue({
                 type: 'outside_read_blocked',
                 severity: 'medium',
@@ -419,7 +420,7 @@ export class AnalyzeLogTool implements Tool {
               });
             }
 
-            if (/不是内部或外部命令/.test(resultText) && /\b(head|tail|find|grep|ls)\b/i.test(paramsText + ' ' + resultText)) {
+            if (!success && /不是内部或外部命令/.test(resultText) && /\b(head|tail|find|grep|ls)\b/i.test(paramsText + ' ' + resultText)) {
               addIssue({
                 type: 'platform_command_mismatch',
                 severity: 'medium',
@@ -431,7 +432,7 @@ export class AnalyzeLogTool implements Tool {
               });
             }
 
-            if (/API调用失败|Connection error|\bENOTFOUND\b|认证失败|getaddrinfo/i.test(resultText)) {
+            if (!success && /API调用失败|Connection error|\bENOTFOUND\b|认证失败|getaddrinfo/i.test(resultText)) {
               addIssue({
                 type: 'api_or_network_failure',
                 severity: /\bENOTFOUND\b|Connection error|getaddrinfo/i.test(resultText) ? 'high' : 'medium',
@@ -575,6 +576,86 @@ export class AnalyzeLogTool implements Tool {
 
     return ('turn' in entry && ('user' in entry || 'assistant' in entry))
       || ('assistant' in entry && 'tokens' in entry);
+  }
+
+  private extractVisibleDeliveryText(entry: ParsedJsonlEntry): string {
+    const assistant = entry.assistant && typeof entry.assistant === 'object'
+      ? entry.assistant as Record<string, any>
+      : undefined;
+    const toolCalls = Array.isArray(assistant?.tool_calls) ? assistant.tool_calls : [];
+    const delivered: string[] = [];
+
+    for (const toolCall of toolCalls) {
+      if (!toolCall || typeof toolCall !== 'object') {
+        continue;
+      }
+      const name = String(toolCall.name || '');
+      if (name !== 'send_text' && name !== 'send_file') {
+        continue;
+      }
+      const resultText = typeof toolCall.result === 'string'
+        ? toolCall.result
+        : JSON.stringify(toolCall.result ?? '');
+      const success = this.isSuccessfulToolCall(toolCall, resultText);
+      if (!success) {
+        continue;
+      }
+
+      const args = toolCall.arguments && typeof toolCall.arguments === 'object'
+        ? toolCall.arguments as Record<string, any>
+        : {};
+      const text = name === 'send_text'
+        ? String(args.text || '').trim()
+        : String(args.file_path || args.path || args.fileName || args.file_name || '').trim();
+      delivered.push(text || `[visible delivery via ${name}]`);
+    }
+
+    if (delivered.length > 0) {
+      return delivered.join('\n');
+    }
+
+    const delivery = entry.delivery && typeof entry.delivery === 'object'
+      ? entry.delivery as Record<string, any>
+      : undefined;
+    if (delivery?.visible_to_user === true || Number(delivery?.delivery_evidence_count || 0) > 0) {
+      return '[visible delivery evidence]';
+    }
+    return '';
+  }
+
+  private isSuccessfulToolCall(toolCall: Record<string, any>, resultText: string): boolean {
+    if (typeof toolCall.success === 'boolean') {
+      return toolCall.success;
+    }
+    if (typeof toolCall.ok === 'boolean') {
+      return toolCall.ok;
+    }
+
+    const status = String(toolCall.status || '').trim().toLowerCase();
+    if (status) {
+      if (/^(success|ok|completed|complete|passed|pass)$/.test(status)) {
+        return true;
+      }
+      if (/^(failure|failed|error|blocked|denied|timeout|cancelled|canceled)$/.test(status)) {
+        return false;
+      }
+    }
+
+    return this.inferToolSuccessFromResult(resultText);
+  }
+
+  private inferToolSuccessFromResult(resultText: string): boolean {
+    const text = String(resultText || '').trim();
+    if (!text) {
+      return true;
+    }
+    if (/^(命令执行成功|工具执行成功|执行成功|已发送|发送成功|写入成功|文件已写入|读取成功)/i.test(text)) {
+      return true;
+    }
+    if (/^(命令执行失败|工具执行错误|工具执行失败|执行被阻止|错误|失败|error\b|failed\b)/i.test(text)) {
+      return false;
+    }
+    return !/(执行被阻止|permission denied|denied|blocked|timed out|timeout|超时|Connection error|\bENOTFOUND\b|认证失败|getaddrinfo)/i.test(text);
   }
 
   private isRuntimeEntry(entry: ParsedJsonlEntry): boolean {

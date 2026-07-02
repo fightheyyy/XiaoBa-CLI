@@ -33,6 +33,7 @@ max-turns: 40
 7. 单元测试、集成测试、红绿测试和常规 CI 属于 EngineerCat / 工程流水线；ReviewerCat 只读取这些结果作为辅助证据
 8. 验收 agent harness 时必须检查 Durable Session、Working Trace、Provider Transcript 三层证据
 9. 评测 XiaoBa-CLI roles 时必须按 role effectiveness rubric 记录 scorecard 或 blocked reason
+10. 面向人阅读的 Markdown 报告默认中文输出；`reviewer-output.json` / `scorecard.json` 的 key 和状态枚举保持机器可读 contract
 
 ## Coding Agent 交互流程
 

@@ -1,7 +1,7 @@
 # XiaoBa-CLI SPEC
 
 状态：Draft
-最后更新：2026-06-29
+最后更新：2026-07-02
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。专题文档可以解释某个角色、benchmark、运维流程或历史方案，但不能替代本文的整体边界定义。
@@ -17,13 +17,13 @@ XiaoBa-CLI 维护一个项目级大 spec 和六个顶层架构模块。六个模
 | Roles & Skills：策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | `roles`、`src/roles`、`skills`、`src/skills` |
 | Observability & Evidence：观测证据层 | [`observability-evidence/SPEC.md`](observability-evidence/SPEC.md) | [`observability-evidence/PLAN.md`](observability-evidence/PLAN.md)、[`observability-evidence/state-evidence/SPEC.md`](observability-evidence/state-evidence/SPEC.md)、[`observability-evidence/state-evidence/PLAN.md`](observability-evidence/state-evidence/PLAN.md) | `src/observability`、`logs`、`data`、`memory`、`output`、trace projection 和 artifact evidence |
 | Evaluation：trace replay + live agent eval 层 | [`trace-replay/SPEC.md`](trace-replay/SPEC.md)、[`evaluation/SPEC.md`](evaluation/SPEC.md) | [`trace-replay/PLAN.md`](trace-replay/PLAN.md)、[`evaluation/PLAN.md`](evaluation/PLAN.md)、[`../test/SPEC.md`](../test/SPEC.md)、[`../test/PLAN.md`](../test/PLAN.md) | `src/replay`、`scripts/run-trace-replay.ts`、`eval`、`eval/benchmarks`、BaseRuntime live agent eval、hard verifiers、scorecard |
-| Arena：能力审判场 | [`arena/SPEC.md`](arena/SPEC.md) | [`arena/PLAN.md`](arena/PLAN.md) | `src/arena`、`src/commands/arena.ts`、root `arena`、GitHub skill import、local role review、三种 review mode、subject manifest、clean runtime overlay、arena run index、现有 UserCat / trace / Reviewer / eval 证据引用 |
+| Arena：能力审判场 | [`arena/SPEC.md`](arena/SPEC.md) | [`arena/PLAN.md`](arena/PLAN.md) | `src/arena`、`src/commands/arena.ts`、root `arena`、GitHub skill import、local role review、三种 review mode、subject manifest、clean runtime overlay、sandboxed arena runner、arena run index、Arena scorecard、现有 UserCat / trace / Inspector / Reviewer / eval 证据引用 |
 
 外部观测导出不是当前模块边界。本地 JSONL、artifact evidence 和 role/runtime scorecard 是权威事实；Observability 只输出本地 summary / trace evidence，不拥有 pass/fail，也不能自动接受生成的 benchmark candidate。
 
 ## 1. 核心定位
 
-XiaoBa-CLI 是一个本地优先、message-native 的 agent harness runtime。它的核心不是把 LLM 接到几个工具上，而是把模型、工具、角色、skill、memory、context、artifact 和日志组织成一个可控、可观测、可恢复、可评测的运行时状态机。
+XiaoBa-CLI 是一个本地优先、message-native、可治理自进化的 agent harness runtime。它的核心不是把 LLM 接到几个工具上，也不是只让 agent 沉淀更多 skill；而是把模型、工具、角色、skill、memory、context、artifact、日志、replay 和 Arena review gate 组织成一个可控、可观测、可恢复、可评测的运行时状态机，让每次成长都能被证据验收。
 
 关键判断：
 
@@ -49,9 +49,11 @@ Harness is the runtime.
 - tool execution 必须闭环。
 - session state 必须隔离、可恢复、可清理。
 - context compression 不能丢当前任务和硬约束。
+- context compression 必须留下结构化断点证据，并把 compact 后 working memory 作为同 session snapshot 关联到 trace。
 - artifact 生成与发送必须有 evidence。
 - 日志必须可解析、可投影、可 replay。
 - 失败必须能归因到 runtime、skill、role 或外部系统。
+- self-evolution 产出的 skill / role 变更必须先被视为候选能力，通过 trace、replay、Arena scorecard 或明确人工验收后才能被信任。
 
 ## Current Architecture
 
@@ -100,7 +102,7 @@ flowchart LR
     subgraph ArenaModule["Arena：能力审判场"]
         ArenaDocs["docs/arena<br/>module spec / plan"]
         ArenaSite["arena<br/>review site / evidence"]
-        ArenaCtl["src/arena + xiaoba arena<br/>manifest / clean runtime / run index"]
+        ArenaCtl["src/arena + xiaoba arena<br/>manifest / clean runtime / runner / scorecard"]
         ExistingSkillCmd["existing skill install-github<br/>direct clone path"]
         ExistingArenaInputs["existing UserCat / InspectorCat / ReviewerCat tools"]
         ExistingRoleInputs["existing roles<br/>role docs / role tools"]
@@ -239,7 +241,7 @@ flowchart LR
 | `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
-| `Arena` | 管 GitHub skill 导入、本地 role 审判、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、隔离评测、subject manifest、arena run index、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion 边界 | 不自动信任外部 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / Reviewer scorecard / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
+| `Arena` | 管 GitHub skill 导入、本地 role 审判、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、隔离评测、subject manifest、sandboxed runner、arena run index、Arena scorecard、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion 边界 | 不自动信任外部 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
 | `test/*` | 定义代码正确性、集成测试和 deterministic runtime contract smoke | 不承载 live agent eval benchmark；不保存 eval scorecard policy |
 | `src/replay/*` | 定义历史 trace replay：从本地 `traces.jsonl` 抽用户输入，重新驱动当前 runtime，产生 fresh trace 和轻量对比 | 不打 benchmark 分；不自动接受 eval case；不上传或脱敏本地 trace |
 | `eval/*` | 只定义 live agent eval：curated benchmark input、setup、runtime replay、tool/result verifier 和 scorecard | 不保存原始私密 trace；不承载普通单测；不保存 schema/contract/rubric governance；不收静态 JSONL regression |

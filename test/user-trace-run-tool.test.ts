@@ -241,6 +241,159 @@ describe('UserTraceRunTool', () => {
     assert.equal(candidateCase.benchmark_acceptance, 'forbidden_until_curated');
   });
 
+  test('adaptive mode chooses each next user turn after observing the previous target turn', async () => {
+    const fakeAI = new FakeTargetRoleAIService();
+    const plannerInputs: any[] = [];
+    const tool = createToolWithFakeAI(fakeAI, () => 'trace-run-adaptive', async () => async input => {
+      plannerInputs.push({
+        nextTurnIndex: input.nextTurnIndex,
+        previousTurns: input.turns.map(turn => ({
+          user: turn.user,
+          assistant: turn.assistant,
+          visibleToUser: turn.visibleToUser,
+        })),
+      });
+      if (input.nextTurnIndex === 2) {
+        const visibleReply = input.turns[0].assistant.trim();
+        return {
+          next_message: visibleReply
+            ? `你刚才说的是“${visibleReply.slice(0, 18)}”，那我到底看哪个证据？`
+            : '你刚才没给我能看到的结果，那我到底看哪个证据？',
+          reason: 'ask for evidence after reading target reply',
+        };
+      }
+      if (input.nextTurnIndex === 3) {
+        return {
+          next_message: '我漏说了，别改无关东西，你确认一下。',
+          reason: 'add a missing constraint based on prior reply',
+        };
+      }
+      return {
+        stop: true,
+        reason: 'target has enough visible evidence for this candidate trace',
+      };
+    });
+
+    const output = await tool.execute({
+      cwd: '.',
+      target_role: 'engineer-cat',
+      run_id: 'trace-run-adaptive',
+      interaction_mode: 'adaptive',
+      max_turns: 4,
+      scenario: '我拿到一个 gsap skill，但不知道它能干嘛，帮我直接用一下。',
+      messages: [
+        '这个 gsap skill 我想直接用，但我也不知道该让它干嘛，你帮我试一下。',
+      ],
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    });
+
+    assert.match(output, /interaction_mode=adaptive/);
+    assert.match(output, /turn_count=3/);
+    assert.equal(fakeAI.requests.length, 3);
+    assert.equal(plannerInputs.length, 3);
+    assert.equal(plannerInputs[0].nextTurnIndex, 2);
+    assert.equal(plannerInputs[0].previousTurns[0].assistant, '');
+    assert.equal(plannerInputs[0].previousTurns[0].visibleToUser, false);
+
+    const tracePath = path.join(testRoot, 'data', 'user-cat', 'traces', 'trace-run-adaptive', 'trace.jsonl');
+    const traceLines = fs.readFileSync(tracePath, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+    const decisions = traceLines.filter(event => event.type === 'usercat_decision');
+    assert.equal(decisions.length, 4);
+    assert.equal(decisions[0].source, 'adaptive');
+    assert.equal(decisions[3].stop, true);
+    assert.match(decisions[1].text, /到底看哪个证据/);
+
+    const candidateCase = JSON.parse(fs.readFileSync(
+      path.join(testRoot, 'output', 'user-cat', 'candidates', 'trace-run-adaptive', 'candidate-case.json'),
+      'utf-8',
+    ));
+    assert.equal(candidateCase.interaction_mode, 'adaptive');
+    assert.equal(candidateCase.turn_count, 3);
+
+    const selfCheck = JSON.parse(fs.readFileSync(
+      path.join(testRoot, 'output', 'user-cat', 'candidates', 'trace-run-adaptive', 'trace-quality-self-check.json'),
+      'utf-8',
+    ));
+    assert.equal(selfCheck.adaptive_interaction, true);
+  });
+
+  test('adaptive mode keeps at least two turns even when planner wants to stop early', async () => {
+    const fakeAI = new FakeTargetRoleAIService();
+    const tool = createToolWithFakeAI(fakeAI, () => 'trace-run-adaptive-min-two', async () => async () => ({
+      stop: true,
+      reason: 'target already gave visible evidence',
+    }));
+
+    const output = await tool.execute({
+      cwd: '.',
+      target_role: 'engineer-cat',
+      run_id: 'trace-run-adaptive-min-two',
+      interaction_mode: 'adaptive',
+      max_turns: 3,
+      scenario: '帮我生成一个文件。',
+      messages: [
+        '帮我生成一个文件。',
+        '文件路径在哪里？你确认就是最终版吗？',
+      ],
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    });
+
+    assert.match(output, /turn_count=2/);
+    assert.equal(fakeAI.requests.length, 2);
+    const tracePath = path.join(testRoot, 'data', 'user-cat', 'traces', 'trace-run-adaptive-min-two', 'trace.jsonl');
+    const traceLines = fs.readFileSync(tracePath, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+    const decisions = traceLines.filter(event => event.type === 'usercat_decision');
+    assert.equal(decisions[1].stop, false);
+    assert.match(decisions[1].reason, /minimum two-turn evidence pressure/);
+  });
+
+  test('adaptive mode preserves required planned artifact and schema pressure', async () => {
+    const fakeAI = new FakeTargetRoleAIService();
+    const tool = createToolWithFakeAI(fakeAI, () => 'trace-run-adaptive-pressure', async () => async input => {
+      if (input.nextTurnIndex === 2) {
+        return {
+          next_message: 'Can you show me the JSON contents and confirm it is done?',
+          reason: 'ask a natural generic follow-up',
+        };
+      }
+      return {
+        stop: true,
+        reason: 'target gave visible evidence',
+      };
+    });
+
+    const output = await tool.execute({
+      cwd: '.',
+      target_role: 'engineer-cat',
+      run_id: 'trace-run-adaptive-pressure',
+      interaction_mode: 'adaptive',
+      max_turns: 3,
+      scenario: '帮我检查引用。',
+      messages: [
+        '帮我检查引用，给我一个 JSON。',
+        '你最后要给我 answer.json，对吧？里面必须有 fake_citations 这个列表，路径在哪里？',
+      ],
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    });
+
+    assert.match(output, /turn_count=2/);
+    const tracePath = path.join(testRoot, 'data', 'user-cat', 'traces', 'trace-run-adaptive-pressure', 'trace.jsonl');
+    const traceLines = fs.readFileSync(tracePath, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+    const decisions = traceLines.filter(event => event.type === 'usercat_decision');
+    assert.match(decisions[1].text, /answer\.json/);
+    assert.match(decisions[1].text, /fake_citations/);
+    assert.match(decisions[1].reason, /required planned artifact\/schema pressure/);
+  });
+
   test('emits tool-owned artifact manifest through ToolManager', async () => {
     const fakeAI = new FakeTargetRoleAIService();
     const tool = createToolWithFakeAI(fakeAI, () => 'trace-run-tool-owned');
@@ -336,9 +489,14 @@ describe('UserTraceRunTool', () => {
   });
 });
 
-function createToolWithFakeAI(fakeAI: FakeTargetRoleAIService, createRunId: () => string): UserTraceRunTool {
+function createToolWithFakeAI(
+  fakeAI: FakeTargetRoleAIService,
+  createRunId: () => string,
+  createUserPlanner?: any,
+): UserTraceRunTool {
   return new UserTraceRunTool({
     createRunId,
+    ...(createUserPlanner && { createUserPlanner }),
     createServices: ({ cwd, targetRole, runId }) => ({
       aiService: fakeAI as any,
       toolManager: new ToolManager(

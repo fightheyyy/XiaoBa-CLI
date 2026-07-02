@@ -1,5 +1,8 @@
 import { Command } from 'commander';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ArenaManager } from '../arena/arena-manager';
+import { executeArenaRun, runArenaPipelineWorker } from '../arena/arena-runner';
 import {
   ArenaAllowedRuntime,
   ArenaDecision,
@@ -10,11 +13,83 @@ import {
   ArenaTrustLevel,
   PrepareArenaRuntimeInput,
 } from '../arena/types';
+import { SkillParser } from '../skills/skill-parser';
+import { PathResolver } from '../utils/path-resolver';
 
 export function registerArenaCommand(program: Command): void {
   const arenaCmd = program
     .command('arena')
     .description('Arena: trace-grounded agentic eval for XiaoBa skills and roles');
+
+  arenaCmd
+    .command('skill <name>')
+    .description('Evaluate an installed XiaoBa skill by name through Arena')
+    .option('--role <id>', 'evaluate the skill inside a target role; default is clean base runtime')
+    .option('--run-id <id>', 'run id')
+    .option('--surface <name>', 'surface used by UserCat, default pet')
+    .option('--pass-env <name>', 'environment variable name to pass through; repeatable', collectOption, [])
+    .option('--workspace-seed <path>', 'directory copied into the clean Arena workspace before execution')
+    .option('--scenario <text>', 'UserCat low-information scenario opening')
+    .option('--message <text>', 'UserCat message; repeatable', collectOption, [])
+    .option('--max-turns <n>', 'max UserCat turns per scenario, default 4')
+    .option('--scenario-count <n>', 'UserCat scenario count for normal Arena eval, default 3')
+    .option('--replay-attempts <n>', 'Reviewer replay attempts, default 3')
+    .option('--max-replay-cases <n>', 'max Inspector cases selected for Reviewer replay, default 2')
+    .option('--dry-run', 'write the sandboxed runner command without executing it')
+    .option('--allow-unsandboxed', 'debug only: allow execution when no sandbox_shell_command is available')
+    .option('--sandbox-engine <engine>', 'macos_seatbelt|linux_bubblewrap|windows_native|local_spawn|none')
+    .option('--sandbox-mode <mode>', 'metadata_only|read_only|workspace_write')
+    .option('--sandbox-workspace <path>', 'sandbox workspace root')
+    .option('--sandbox-subject-root <path>', 'sandbox subject root')
+    .option('--sandbox-writable <path>', 'sandbox writable root; repeatable', collectOption, [])
+    .option('--network <mode>', 'disabled|enabled')
+    .option('--timeout-ms <n>', 'sandbox command timeout')
+    .action(async (name: string, options: ArenaSkillEvaluateOptions) => {
+      const projectRoot = PathResolver.getProjectRoot();
+      const skillPath = resolveInstalledSkillPath(projectRoot, name);
+      const manager = new ArenaManager({ projectRoot });
+      const manifest = manager.importLocalSkill({ skillPath });
+      const reviewMode: ArenaReviewMode = options.role ? 'role_skill' : 'base_skill';
+      const result = await executeArenaRun({
+        projectRoot,
+        reviewMode,
+        subjectId: manifest.subject_id,
+        runId: options.runId,
+        targetRoleId: options.role,
+        surface: options.surface,
+        passThroughEnv: options.passEnv || [],
+        workspaceSeedPath: options.workspaceSeed,
+        scenario: options.scenario,
+        messages: options.message || [],
+        maxTurns: parseOptionalPositiveInt(options.maxTurns, '--max-turns'),
+        scenarioCount: parseOptionalPositiveInt(options.scenarioCount, '--scenario-count'),
+        replayAttempts: parseOptionalPositiveInt(options.replayAttempts, '--replay-attempts'),
+        maxReplayCases: parseOptionalPositiveInt(options.maxReplayCases, '--max-replay-cases'),
+        dryRun: options.dryRun === true,
+        allowUnsandboxed: options.allowUnsandboxed === true,
+        sandbox: parseSandboxOptions(options),
+      });
+      printJson({
+        status: result.status,
+        command: 'arena skill',
+        skill: {
+          name: manifest.subject.name,
+          subject_id: manifest.subject_id,
+          source_path: manifest.source.path,
+        },
+        review_mode: reviewMode,
+        ...(options.role && { target_role_id: options.role }),
+        run_id: result.run_id,
+        sandbox_enforced: result.sandbox_enforced,
+        command_kind: result.command_kind,
+        clean_runtime_path: result.clean_runtime_path,
+        runner_path: result.runner_path,
+        ...(result.scorecard_path && { scorecard_path: result.scorecard_path }),
+        ...(result.stdout_path && { stdout_path: result.stdout_path }),
+        ...(result.stderr_path && { stderr_path: result.stderr_path }),
+        ...(result.scorecard && { scorecard: result.scorecard }),
+      });
+    });
 
   const importCmd = arenaCmd
     .command('import')
@@ -139,6 +214,78 @@ export function registerArenaCommand(program: Command): void {
       printJson(runIndex);
     });
 
+  runCmd
+    .command('execute')
+    .description('Run UserCat -> InspectorCat -> ReviewerCat in a clean sandboxed Arena runtime and output a scorecard')
+    .requiredOption('--mode <mode>', 'base_skill|role_skill|role')
+    .requiredOption('--subject <id>', 'Arena subject id or path to arena-manifest.json')
+    .option('--run-id <id>', 'run id')
+    .option('--target-role <id>', 'required for role_skill and role modes')
+    .option('--surface <name>', 'surface used by UserCat, default pet')
+    .option('--pass-env <name>', 'environment variable name to pass through; repeatable', collectOption, [])
+    .option('--workspace-seed <path>', 'directory copied into the clean Arena workspace before execution')
+    .option('--scenario <text>', 'UserCat low-information scenario opening')
+    .option('--message <text>', 'UserCat message; repeatable', collectOption, [])
+    .option('--max-turns <n>', 'max UserCat turns per scenario, default 4')
+    .option('--scenario-count <n>', 'UserCat scenario count for normal Arena eval, default 3')
+    .option('--replay-attempts <n>', 'Reviewer replay attempts, default 3')
+    .option('--max-replay-cases <n>', 'max Inspector cases selected for Reviewer replay, default 2')
+    .option('--dry-run', 'write the sandboxed runner command without executing it')
+    .option('--allow-unsandboxed', 'debug only: allow execution when no sandbox_shell_command is available')
+    .option('--sandbox-engine <engine>', 'macos_seatbelt|linux_bubblewrap|windows_native|local_spawn|none')
+    .option('--sandbox-mode <mode>', 'metadata_only|read_only|workspace_write')
+    .option('--sandbox-workspace <path>', 'sandbox workspace root')
+    .option('--sandbox-subject-root <path>', 'sandbox subject root')
+    .option('--sandbox-writable <path>', 'sandbox writable root; repeatable', collectOption, [])
+    .option('--network <mode>', 'disabled|enabled')
+    .option('--timeout-ms <n>', 'sandbox command timeout')
+    .action(async (options: ArenaRunExecuteOptions) => {
+      const result = await executeArenaRun({
+        reviewMode: parseReviewMode(options.mode),
+        subjectId: options.subject,
+        runId: options.runId,
+        targetRoleId: options.targetRole,
+        surface: options.surface,
+        passThroughEnv: options.passEnv || [],
+        workspaceSeedPath: options.workspaceSeed,
+        scenario: options.scenario,
+        messages: options.message || [],
+        maxTurns: parseOptionalPositiveInt(options.maxTurns, '--max-turns'),
+        scenarioCount: parseOptionalPositiveInt(options.scenarioCount, '--scenario-count'),
+        replayAttempts: parseOptionalPositiveInt(options.replayAttempts, '--replay-attempts'),
+        maxReplayCases: parseOptionalPositiveInt(options.maxReplayCases, '--max-replay-cases'),
+        dryRun: options.dryRun === true,
+        allowUnsandboxed: options.allowUnsandboxed === true,
+        sandbox: parseSandboxOptions(options),
+      });
+      printJson(result.scorecard || result);
+    });
+
+  runCmd
+    .command('worker')
+    .description('Internal Arena worker: run the trace-grounded UserCat/InspectorCat/ReviewerCat pipeline in the clean runtime')
+    .requiredOption('--run-id <id>', 'run id prepared by arena run execute')
+    .option('--scenario <text>', 'UserCat low-information scenario opening')
+    .option('--message <text>', 'UserCat message; repeatable', collectOption, [])
+    .option('--max-turns <n>', 'max UserCat turns per scenario')
+    .option('--scenario-count <n>', 'UserCat scenario count')
+    .option('--replay-attempts <n>', 'Reviewer replay attempts')
+    .option('--max-replay-cases <n>', 'max Inspector cases selected for Reviewer replay')
+    .option('--timeout-ms <n>', 'per-turn replay timeout')
+    .action(async (options: ArenaRunWorkerOptions) => {
+      const scorecard = await runArenaPipelineWorker({
+        runId: options.runId,
+        scenario: options.scenario,
+        messages: options.message || [],
+        maxTurns: parseOptionalPositiveInt(options.maxTurns, '--max-turns'),
+        scenarioCount: parseOptionalPositiveInt(options.scenarioCount, '--scenario-count'),
+        replayAttempts: parseOptionalPositiveInt(options.replayAttempts, '--replay-attempts'),
+        maxReplayCases: parseOptionalPositiveInt(options.maxReplayCases, '--max-replay-cases'),
+        timeoutMs: parseOptionalPositiveInt(options.timeoutMs, '--timeout-ms'),
+      });
+      printJson(scorecard);
+    });
+
   const runtimeCmd = arenaCmd
     .command('runtime')
     .description('Prepare clean Arena runtime overlays');
@@ -152,6 +299,7 @@ export function registerArenaCommand(program: Command): void {
     .option('--target-role <id>', 'required for role_skill and role modes')
     .option('--surface <name>', 'surface used by UserCat, default pet')
     .option('--pass-env <name>', 'environment variable name to pass through; repeatable', collectOption, [])
+    .option('--workspace-seed <path>', 'directory copied into the clean Arena workspace')
     .option('--sandbox-engine <engine>', 'macos_seatbelt|linux_bubblewrap|windows_native|local_spawn|none')
     .option('--sandbox-mode <mode>', 'metadata_only|read_only|workspace_write')
     .option('--sandbox-workspace <path>', 'sandbox workspace root')
@@ -168,6 +316,7 @@ export function registerArenaCommand(program: Command): void {
         targetRoleId: options.targetRole,
         surface: options.surface,
         passThroughEnv: options.passEnv || [],
+        workspaceSeedPath: options.workspaceSeed,
         sandbox: parseSandboxOptions(options),
       });
       printJson(runtimeIndex);
@@ -224,6 +373,52 @@ interface ArenaRuntimePrepareOptions extends ArenaSandboxOptionSet {
   targetRole?: string;
   surface?: string;
   passEnv?: string[];
+  workspaceSeed?: string;
+}
+
+interface ArenaRunExecuteOptions extends ArenaSandboxOptionSet {
+  mode: string;
+  subject: string;
+  runId?: string;
+  targetRole?: string;
+  surface?: string;
+  passEnv?: string[];
+  workspaceSeed?: string;
+  scenario?: string;
+  message?: string[];
+  maxTurns?: string;
+  scenarioCount?: string;
+  replayAttempts?: string;
+  maxReplayCases?: string;
+  dryRun?: boolean;
+  allowUnsandboxed?: boolean;
+}
+
+interface ArenaSkillEvaluateOptions extends ArenaSandboxOptionSet {
+  role?: string;
+  runId?: string;
+  surface?: string;
+  passEnv?: string[];
+  workspaceSeed?: string;
+  scenario?: string;
+  message?: string[];
+  maxTurns?: string;
+  scenarioCount?: string;
+  replayAttempts?: string;
+  maxReplayCases?: string;
+  dryRun?: boolean;
+  allowUnsandboxed?: boolean;
+}
+
+interface ArenaRunWorkerOptions {
+  runId: string;
+  scenario?: string;
+  message?: string[];
+  maxTurns?: string;
+  scenarioCount?: string;
+  replayAttempts?: string;
+  maxReplayCases?: string;
+  timeoutMs?: string;
 }
 
 function collectOption(value: string, previous: string[]): string[] {
@@ -232,6 +427,137 @@ function collectOption(value: string, previous: string[]): string[] {
 
 function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
+}
+
+function resolveInstalledSkillPath(projectRoot: string, value: string): string {
+  const direct = resolveSkillFileCandidate(projectRoot, value);
+  if (direct) return direct;
+
+  const baseSkillsRoot = PathResolver.getBaseSkillsPath();
+  const baseDirect = resolveSkillFileCandidate(projectRoot, path.join(baseSkillsRoot, value));
+  if (baseDirect) return baseDirect;
+
+  const matches = PathResolver.findSkillFiles(baseSkillsRoot)
+    .map(filePath => readSkillIdentity(filePath))
+    .filter((identity): identity is SkillIdentity => Boolean(identity));
+  const exactMatches = findSkillIdentityMatches(matches, value, false);
+  if (exactMatches.length === 1) return exactMatches[0].filePath;
+  if (exactMatches.length > 1) {
+    throw new Error(`ambiguous skill name: ${value}. Matches: ${exactMatches.map(match => match.filePath).join(', ')}`);
+  }
+
+  const looseMatches = findSkillIdentityMatches(matches, value, true);
+  if (looseMatches.length === 1) return looseMatches[0].filePath;
+  if (looseMatches.length > 1) {
+    throw new Error(`ambiguous skill name: ${value}. Matches: ${looseMatches.map(match => match.filePath).join(', ')}`);
+  }
+
+  const arenaSubjectSkill = resolveArenaSubjectSkillPath(projectRoot, value);
+  if (arenaSubjectSkill) return arenaSubjectSkill;
+
+  throw new Error(`Skill not found in XiaoBa skills system or Arena subjects: ${value}. Searched ${baseSkillsRoot} and arena/subjects.`);
+}
+
+function resolveSkillFileCandidate(projectRoot: string, value: string): string | undefined {
+  const absolutePath = path.isAbsolute(value) ? value : path.resolve(projectRoot, value);
+  if (!fs.existsSync(absolutePath)) return undefined;
+  const stat = fs.statSync(absolutePath);
+  if (stat.isDirectory()) {
+    const skillFile = path.join(absolutePath, 'SKILL.md');
+    return fs.existsSync(skillFile) ? skillFile : undefined;
+  }
+  if (stat.isFile() && path.basename(absolutePath) === 'SKILL.md') {
+    return absolutePath;
+  }
+  return undefined;
+}
+
+interface SkillIdentity {
+  filePath: string;
+  keys: string[];
+  rankMs?: number;
+}
+
+function readSkillIdentity(filePath: string): SkillIdentity | undefined {
+  try {
+    const skill = SkillParser.parse(filePath);
+    return {
+      filePath,
+      keys: [
+        skill.metadata.name,
+        ...(skill.metadata.aliases || []),
+        path.basename(path.dirname(filePath)),
+      ].filter(Boolean),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function findSkillIdentityMatches(skills: SkillIdentity[], value: string, caseInsensitive: boolean): SkillIdentity[] {
+  const target = caseInsensitive ? value.toLowerCase() : value;
+  return skills.filter(skill => skill.keys.some(key => (caseInsensitive ? key.toLowerCase() : key) === target));
+}
+
+function resolveArenaSubjectSkillPath(projectRoot: string, value: string): string | undefined {
+  const subjectsRoot = path.join(projectRoot, 'arena', 'subjects');
+  if (!fs.existsSync(subjectsRoot)) return undefined;
+
+  const matches = fs.readdirSync(subjectsRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => path.join(subjectsRoot, entry.name, 'arena-manifest.json'))
+    .filter(manifestPath => fs.existsSync(manifestPath))
+    .map(manifestPath => readArenaSubjectSkillIdentity(projectRoot, manifestPath))
+    .filter((identity): identity is SkillIdentity => Boolean(identity));
+
+  const exactMatches = findSkillIdentityMatches(matches, value, false);
+  if (exactMatches.length > 0) return pickLatestSkillIdentity(exactMatches).filePath;
+
+  const looseMatches = findSkillIdentityMatches(matches, value, true);
+  if (looseMatches.length > 0) return pickLatestSkillIdentity(looseMatches).filePath;
+
+  return undefined;
+}
+
+function readArenaSubjectSkillIdentity(projectRoot: string, manifestPath: string): SkillIdentity | undefined {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+      subject_id?: string;
+      created_at?: string;
+      subject?: { type?: string; name?: string };
+      source?: { path?: string };
+      parsed?: { skill_files?: string[] };
+    };
+    if (manifest.subject?.type !== 'skill' || !manifest.subject.name) return undefined;
+    const skillFile = [
+      manifest.source?.path,
+      ...(manifest.parsed?.skill_files || []),
+    ]
+      .map(candidate => typeof candidate === 'string' ? resolveSkillFileCandidate(projectRoot, candidate) : undefined)
+      .find(Boolean);
+    if (!skillFile) return undefined;
+    const createdAtMs = manifest.created_at ? Date.parse(manifest.created_at) : Number.NaN;
+    const manifestMtimeMs = fs.statSync(manifestPath).mtimeMs;
+    return {
+      filePath: skillFile,
+      keys: [
+        manifest.subject.name,
+        manifest.subject_id || '',
+        path.basename(path.dirname(skillFile)),
+      ].filter(Boolean),
+      rankMs: Number.isFinite(createdAtMs) ? createdAtMs : manifestMtimeMs,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function pickLatestSkillIdentity(matches: SkillIdentity[]): SkillIdentity {
+  return [...matches].sort((left, right) => {
+    const timeDelta = (right.rankMs || 0) - (left.rankMs || 0);
+    if (timeDelta !== 0) return timeDelta;
+    return right.filePath.localeCompare(left.filePath);
+  })[0];
 }
 
 function parseTrustLevel(value: string | undefined): ArenaTrustLevel | undefined {
@@ -296,6 +622,15 @@ function parseOptionalNonNegativeInt(value: string | undefined, name: string): n
   const parsed = Number.parseInt(value, 10);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new Error(`${name} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+function parseOptionalPositiveInt(value: string | undefined, name: string): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
   }
   return parsed;
 }

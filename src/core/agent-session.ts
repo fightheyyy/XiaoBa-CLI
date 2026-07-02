@@ -17,7 +17,7 @@ import { Logger } from '../utils/logger';
 import { SessionStateBoundaryLog, SessionTurnLogger } from '../utils/session-turn-logger';
 import { SessionStore } from '../utils/session-store';
 import { Metrics } from '../utils/metrics';
-import { ContextCompressor } from './context-compressor';
+import { ContextCompressor, resolveCompactionThreshold } from './context-compressor';
 import { MemoryFinalizer, MemoryFinalizationReason } from '../utils/memory-finalizer';
 import { visibleHistoryFilePath } from '../utils/visible-history-paths';
 import { getObservability, ObservabilitySpan, ObservabilitySpanContext } from '../observability';
@@ -223,7 +223,7 @@ export class AgentSession {
       if (this.compressor.needsCompaction(this.messages)) {
         Logger.info(`[${this.key}] 超过阈值，开始压缩...`);
         try {
-          this.messages = await this.compressor.compactWithFallback(this.messages);
+          await this.compactSessionMessagesWithEvidence('agent_session_restore', 'threshold_exceeded', resolvedSurface, usage);
           Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
         } catch (err) {
           Logger.error(`[${this.key}] 压缩失败: ${err}`);
@@ -366,7 +366,7 @@ export class AgentSession {
         const usage = this.compressor.getUsageInfo(this.messages);
         Logger.info(`[${this.key}] 上下文即将压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
         try {
-          this.messages = await this.compressor.compactWithFallback(this.messages);
+          await this.compactSessionMessagesWithEvidence('agent_session_pre_message', 'threshold_exceeded', surface, usage);
           Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
         } catch (err) {
           Logger.error(`[${this.key}] 压缩失败: ${err}`);
@@ -446,6 +446,7 @@ export class AgentSession {
             observabilityContext: sessionSpan.context,
             observabilityMetricMode: 'mirror_only',
             deliveryFallbackFinalReply,
+            onContextCompaction: event => this.sessionTurnLogger.logContextCompaction(event),
           },
         );
         const runnerCallbacks: RunnerCallbacks = {
@@ -1138,6 +1139,57 @@ ${conversationText}`;
   private saveRestorableContext(): void {
     if (this.messages.length === 0) return;
     SessionStore.getInstance().saveContext(this.key, this.messages, this.sessionStoreType());
+  }
+
+  private async compactSessionMessagesWithEvidence(
+    source: 'agent_session_restore' | 'agent_session_pre_message',
+    reason: string,
+    surface: ToolSurface,
+    beforeUsage = this.compressor.getUsageInfo(this.messages),
+  ): Promise<void> {
+    const messagesBefore = this.messages.length;
+    const thresholdRatio = resolveCompactionThreshold();
+    const thresholdTokens = Math.round(beforeUsage.maxTokens * thresholdRatio);
+    try {
+      const compacted = await this.compressor.compactWithFallback(this.messages);
+      const afterUsage = this.compressor.getUsageInfo(compacted);
+      this.messages = compacted;
+      this.sessionTurnLogger.logContextCompaction({
+        source,
+        status: 'success',
+        reason,
+        surface,
+        tokens_before: beforeUsage.usedTokens,
+        tokens_after: afterUsage.usedTokens,
+        message_tokens_before: beforeUsage.usedTokens,
+        message_tokens_after: afterUsage.usedTokens,
+        max_tokens: beforeUsage.maxTokens,
+        threshold_ratio: thresholdRatio,
+        threshold_tokens: thresholdTokens,
+        usage_percent_before: beforeUsage.usagePercent,
+        usage_percent_after: afterUsage.usagePercent,
+        messages_before: messagesBefore,
+        messages_after: compacted.length,
+        messages: compacted,
+      });
+    } catch (error) {
+      this.sessionTurnLogger.logContextCompaction({
+        source,
+        status: 'failed',
+        reason,
+        surface,
+        tokens_before: beforeUsage.usedTokens,
+        message_tokens_before: beforeUsage.usedTokens,
+        max_tokens: beforeUsage.maxTokens,
+        threshold_ratio: thresholdRatio,
+        threshold_tokens: thresholdTokens,
+        usage_percent_before: beforeUsage.usagePercent,
+        messages_before: messagesBefore,
+        error_code: 'CONTEXT_COMPACTION_FAILED',
+        error_message: this.errorMessage(error),
+      });
+      throw error;
+    }
   }
 
   private sessionStoreType(): string {
