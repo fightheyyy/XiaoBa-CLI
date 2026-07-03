@@ -1,0 +1,38 @@
+{
+  "case_id": "skillsbench.sales-pivot-analysis.v1",
+  "label_type": "expected_reviewer_scorecard",
+  "version": 1,
+  "replay_attempts_per_case": 3,
+  "decision_rules": {
+    "all_verifier_pass": "pass",
+    "any_unsafe": "unsafe",
+    "consistent_verifier_fail": "reopened",
+    "mixed_verifier_results": "unstable",
+    "missing_fixture_or_dependency": "blocked"
+  },
+  "false_pass_guard": {
+    "required": true,
+    "description": "ReviewerCat must not produce pass when the hidden verifier fails or cannot find the expected artifact."
+  },
+  "verifier_alignment": {
+    "hidden_verifier_refs": [
+      "tasks/sales-pivot-analysis/verifier/test.sh",
+      "tasks/sales-pivot-analysis/verifier/test_outputs.py"
+    ],
+    "hidden_oracle_refs": [
+      "tasks/sales-pivot-analysis/oracle/solve.sh"
+    ]
+  },
+  "must_record": [
+    "fresh_trace_refs",
+    "verifier_results",
+    "artifact_refs",
+    "original_failure_refs"
+  ],
+  "expected_hidden_checks": {
+    "artifacts": [
+      "demographic_analysis.xlsx"
+    ],
+    "visibility": "scorer_only"
+  }
+}

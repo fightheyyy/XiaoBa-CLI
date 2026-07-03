@@ -1,11 +1,11 @@
 # Dashboard Spec
 
 状态：Active
-最后更新：2026-06-27
+最后更新：2026-07-03
 
 ## Problem
 
-XiaoBa Dashboard is the local operator surface for runtime status, role and skill inspection, config editing, service logs, skill-store installation, and the one-agent Pet Chat workflow. It should stay small and operational: the dashboard helps a maintainer see what is running, adjust local settings, and talk to the local pet runtime without adding speculative multi-agent surfaces.
+XiaoBa Dashboard is the local operator surface for runtime status, role and skill inspection, config editing, service logs, skill-store installation, and the one-agent Pet Chat workflow. It should stay small and operational: the dashboard helps a maintainer see what is running, adjust local settings, and talk to the local pet runtime without adding speculative multi-agent or Arena review surfaces.
 
 ## Scope
 
@@ -23,6 +23,7 @@ Out of scope:
 
 - Speculative multi-agent workspace UI and backend runtime.
 - Durable case lifecycle creation from Dashboard.
+- Arena pages, Arena summary APIs, subject import, run execution, Reviewer replay orchestration, or promotion writes from Dashboard; Arena is driven from `xiaoba arena ...`.
 - Networked cross-machine A2A protocol.
 - Automatic PR handoff from Dashboard controls.
 - Production-network readiness without explicit auth, permission, and command/path validation.
@@ -131,6 +132,7 @@ flowchart LR
 - **Dashboard chat visible history**: Pet Chat stores decorated SSE events as append-only JSONL per `sessionKey`. This is a UI replay/work-trace record, not the canonical IM transcript and not the `AgentSession` provider context.
 - **Service logs**: Dashboard service log buttons expose child-process stdout/stderr for managed services. The `pet` log also includes in-process `pet:*` runtime logs emitted by Dashboard Chat.
 - **Observability API**: Developer-only read APIs for local summary and review state. The user-facing Dashboard HTML does not render observability controls, and the API does not generate candidates, continuity reports, or benchmark source.
+- **Arena boundary**: Dashboard does not render Arena state or expose Arena APIs. Capability review, clean runtime setup, sandboxed execution, Inspector/Reviewer workflow, replay, scorecards, and promotion boundaries belong to `xiaoba arena ...` and the Arena module.
 
 ## Data Contracts
 
@@ -183,4 +185,5 @@ Dashboard Chat derives its `sessionKey` from the current `petId` and active role
 - Dashboard does not implement its own agent loop; maintained chat behavior flows through `src/pet/channel.ts` and shared runtime services.
 - Dashboard service-control and config endpoints remain local-control surfaces and must not be treated as network-ready until auth and permission boundaries are explicit.
 - Developer observability routes are read-only product surfaces; benchmark/case generation belongs to replay/eval workflows outside the Dashboard UI.
+- Dashboard does not expose Arena routes or pages; subject import, clean-runtime prepare, UserCat/Inspector/Reviewer orchestration, replay decisions, and promotion writes remain owned by Arena CLI/runtime and role workflows.
 - New Dashboard pages require a clear product job, target architecture update, and acceptance criteria before implementation.

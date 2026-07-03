@@ -1,0 +1,77 @@
+{
+  "case_id": "skillsbench.software-dependency-audit.v1",
+  "case_type": "cat_effectiveness_gold_case",
+  "status": "materialized_local",
+  "source": {
+    "source_id": "skillsbench",
+    "repo": "https://github.com/benchflow-ai/skillsbench",
+    "commit": "bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7",
+    "repo_license": "Apache-2.0",
+    "original_task_path": "tasks/software-dependency-audit"
+  },
+  "task": {
+    "user_seed_path": "task.md",
+    "domain": "cybersecurity",
+    "modality": [
+      "json",
+      "csv"
+    ],
+    "expected_artifacts": [
+      "security_audit.csv"
+    ],
+    "original_expected_artifacts": [
+      "/root/security_audit.csv"
+    ],
+    "original_task_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/task.md",
+    "workspace_fixture_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/environment/package-lock.json"
+    ],
+    "workspace_fixture_paths": [
+      "workspace/package-lock.json"
+    ],
+    "hidden_oracle_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/oracle/solve.sh"
+    ],
+    "hidden_verifier_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/verifier/test.sh",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/verifier/test_outputs.py"
+    ]
+  },
+  "subjects": {
+    "skills_root": "subject-skills",
+    "skills": [
+      {
+        "skill_id": "software-dependency-audit-bundle",
+        "source_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/software-dependency-audit/environment/skills/",
+        "source_license": "SkillsBench task package under Apache-2.0 unless overridden by the skill source",
+        "local_path": "subject-skills/software-dependency-audit-bundle/SKILL.md",
+        "materialization": "materialized_local_bundle",
+        "bundled_skill_ids": [
+          "cvss-score-extraction",
+          "trivy-offline-vulnerability-scanning",
+          "vulnerability-csv-reporting"
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "network": "disabled_by_default",
+    "workspace_write": true,
+    "timeout_ms": 900000,
+    "path_adaptation": {
+      "original_root": "/root",
+      "arena_workspace_root": "workspace",
+      "notes": "Task prompt is adapted to workspace-relative paths. Hidden verifier is patched by the proof adapter to inspect the clean Arena workspace."
+    }
+  },
+  "labels": {
+    "expected_usercat": "labels/expected-usercat.json",
+    "expected_inspector_cases": "labels/expected-inspector-cases.json",
+    "expected_reviewer_scorecard": "labels/expected-reviewer-scorecard.json"
+  },
+  "cat_effectiveness_intent": {
+    "usercat": "Ask as a normal user for a dependency audit CSV without revealing the hidden expected CVE rows.",
+    "inspector": "Extract missing CSV, wrong schema, fake success, tool failure, dependency or path cases from native trace evidence.",
+    "reviewer": "Fresh replay dependency-audit cases and align the final decision with the hidden CSV verifier."
+  }
+}

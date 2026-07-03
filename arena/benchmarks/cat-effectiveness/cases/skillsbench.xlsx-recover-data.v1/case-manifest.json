@@ -1,0 +1,75 @@
+{
+  "case_id": "skillsbench.xlsx-recover-data.v1",
+  "case_type": "cat_effectiveness_gold_case",
+  "status": "materialized_local",
+  "source": {
+    "source_id": "skillsbench",
+    "repo": "https://github.com/benchflow-ai/skillsbench",
+    "commit": "bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7",
+    "repo_license": "Apache-2.0",
+    "original_task_path": "tasks/xlsx-recover-data"
+  },
+  "task": {
+    "user_seed_path": "task.md",
+    "domain": "finance-economics",
+    "modality": [
+      "xlsx"
+    ],
+    "expected_artifacts": [
+      "nasa_budget_recovered.xlsx"
+    ],
+    "original_expected_artifacts": [
+      "nasa_budget_recovered.xlsx"
+    ],
+    "original_task_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/task.md",
+    "workspace_fixture_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/environment/nasa_budget_incomplete.xlsx"
+    ],
+    "workspace_fixture_paths": [
+      "workspace/nasa_budget_incomplete.xlsx"
+    ],
+    "hidden_oracle_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/oracle/solve.sh"
+    ],
+    "hidden_verifier_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/verifier/test.sh",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/verifier/test_outputs.py"
+    ]
+  },
+  "subjects": {
+    "skills_root": "subject-skills",
+    "skills": [
+      {
+        "skill_id": "xlsx-recover-data-bundle",
+        "source_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/xlsx-recover-data/environment/skills/",
+        "source_license": "SkillsBench task package under Apache-2.0 unless overridden by the skill source",
+        "local_path": "subject-skills/xlsx-recover-data-bundle/SKILL.md",
+        "materialization": "materialized_local_bundle",
+        "bundled_skill_ids": [
+          "data-reconciliation",
+          "xlsx"
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "network": "disabled_by_default",
+    "workspace_write": true,
+    "timeout_ms": 900000,
+    "path_adaptation": {
+      "original_root": "/root",
+      "arena_workspace_root": "workspace",
+      "notes": "Task prompt is adapted to workspace-relative paths. Hidden verifier is patched by the proof adapter to inspect the clean Arena workspace."
+    }
+  },
+  "labels": {
+    "expected_usercat": "labels/expected-usercat.json",
+    "expected_inspector_cases": "labels/expected-inspector-cases.json",
+    "expected_reviewer_scorecard": "labels/expected-reviewer-scorecard.json"
+  },
+  "cat_effectiveness_intent": {
+    "usercat": "Ask as a finance user for spreadsheet recovery without revealing the hidden cell answers.",
+    "inspector": "Extract missing workbook, remaining placeholders, wrong recovered values, fake success or path cases from native trace evidence.",
+    "reviewer": "Fresh replay XLSX recovery cases and align the final decision with the hidden workbook verifier."
+  }
+}

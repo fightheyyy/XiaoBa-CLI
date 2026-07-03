@@ -1,0 +1,65 @@
+{
+  "case_id": "skillsbench.citation-check.v1",
+  "case_type": "cat_effectiveness_gold_case",
+  "status": "materialized_local",
+  "source": {
+    "source_id": "skillsbench",
+    "repo": "https://github.com/benchflow-ai/skillsbench",
+    "commit": "bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7",
+    "repo_license": "Apache-2.0",
+    "original_task_path": "tasks/citation-check"
+  },
+  "task": {
+    "user_seed_path": "task.md",
+    "domain": "office-white-collar",
+    "modality": ["document", "json"],
+    "expected_artifacts": ["answer.json"],
+    "original_expected_artifacts": ["/root/answer.json"],
+    "original_task_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/task.md",
+    "workspace_fixture_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/environment/test.bib"
+    ],
+    "workspace_fixture_paths": ["workspace/test.bib"],
+    "hidden_oracle_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/oracle/detect_fakes.py",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/oracle/crossref_snapshot.json",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/oracle/solve.sh"
+    ],
+    "hidden_verifier_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/verifier/test.sh",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/verifier/test_outputs.py"
+    ]
+  },
+  "subjects": {
+    "skills_root": "subject-skills",
+    "skills": [
+      {
+        "skill_id": "citation-management",
+        "source_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/citation-check/environment/skills/citation-management/SKILL.md",
+        "source_license": "MIT License",
+        "local_path": "subject-skills/citation-management/SKILL.md",
+        "materialization": "materialized_local"
+      }
+    ]
+  },
+  "sandbox": {
+    "network": "disabled_by_default",
+    "workspace_write": true,
+    "timeout_ms": 900000,
+    "path_adaptation": {
+      "original_root": "/root",
+      "arena_workspace_root": "workspace",
+      "notes": "SkillsBench verifier expects /root/test.bib and /root/answer.json. Arena must either emulate those paths in sandbox or adapt verifier paths before executable proof runs."
+    }
+  },
+  "labels": {
+    "expected_usercat": "labels/expected-usercat.json",
+    "expected_inspector_cases": "labels/expected-inspector-cases.json",
+    "expected_reviewer_scorecard": "labels/expected-reviewer-scorecard.json"
+  },
+  "cat_effectiveness_intent": {
+    "usercat": "Use low-information, proof-seeking multi-turn behavior without leaking the hidden fake citation set.",
+    "inspector": "Extract missing artifact, wrong schema, fake success, tool failure or verifier-mismatch cases from native trace evidence.",
+    "reviewer": "Fresh replay Inspector cases and align final evaluation with hidden verifier/oracle evidence."
+  }
+}

@@ -146,3 +146,5 @@ For `roles/` and `roles/<role-name>/`:
 ## Working Rule
 
 Architecture first, then implementation. A substantial change should not begin until the relevant target Mermaid architecture is understood well enough to guide the work.
+
+Default to the simplest workable design. When a request can be solved with one field, one file, one command, or one narrow rule, do that first; do not introduce heavy schemas, extra manifests, new subsystems, or broad governance machinery unless the user explicitly asks for it or the existing implementation truly requires it.

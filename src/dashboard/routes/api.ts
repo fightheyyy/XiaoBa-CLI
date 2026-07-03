@@ -20,17 +20,10 @@ import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
 import { getObservability } from '../../observability';
 import { getDashboardObservabilityReviewState } from '../observability-actions';
-import type {
-  ArenaAllowedRuntime,
-  ArenaDecision,
-  ArenaReviewMode,
-  ArenaSubjectType,
-  ArenaTrustLevel,
-} from '../../arena/types';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
-const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store', 'arena']);
+const DASHBOARD_PAGES = new Set(['services', 'pet', 'config', 'skills', 'roles', 'store']);
 const DISABLED_SKILL_SUFFIX = '.disabled';
 const DASHBOARD_HIDDEN_SKILLS = new Set(['sub-agent', 'background-task-runner']);
 let dashboardNavigationRequest: { id: number; page: string; createdAt: number } | null = null;
@@ -87,62 +80,6 @@ const SAFE_OBSERVABILITY_ATTRIBUTE_KEYS = new Set([
 const REDACTED_SECRET = '<redacted-secret>';
 const REDACTED_PATH = '<redacted-path>';
 
-interface DashboardArenaSubjectSummary {
-  id: string;
-  name: string;
-  type: ArenaSubjectType | 'unknown';
-  description: string;
-  sourceType: string;
-  trustLevel: ArenaTrustLevel | 'unknown';
-  allowedRuntime: ArenaAllowedRuntime | 'unknown';
-  riskLevel: string;
-  warningCount: number;
-  capabilitiesCount: number;
-  requiredToolsCount: number;
-  createdAt: string;
-  path: string;
-}
-
-interface DashboardArenaRunSummary {
-  id: string;
-  subjectId: string;
-  subjectName: string;
-  reviewMode: ArenaReviewMode | 'unknown';
-  decision: ArenaDecision | 'prepared' | 'unknown';
-  surface: string;
-  activeRole: string;
-  subjectSkill: string;
-  loadedSkillCount: number;
-  providerVisibleToolCount: number;
-  traceCount: number;
-  replayPlanned: number;
-  replayCompleted: number;
-  replayPassCount: number;
-  replayFailCount: number;
-  replayBlockedCount: number;
-  hasRunIndex: boolean;
-  hasCleanRuntime: boolean;
-  sandboxMode: string;
-  network: string;
-  createdAt: string;
-  path: string;
-}
-
-interface DashboardArenaSummary {
-  root: string | null;
-  subjects: DashboardArenaSubjectSummary[];
-  runs: DashboardArenaRunSummary[];
-  totals: {
-    subjects: number;
-    runs: number;
-    preparedRuns: number;
-    reviewedRuns: number;
-    decisions: Record<string, number>;
-    modes: Record<string, number>;
-    latestRunAt: string;
-  };
-}
-
 function redactObservabilityString(value: string): string {
   return value
     .replace(/\bsk-[A-Za-z0-9_-]{10,}\b/g, REDACTED_SECRET)
@@ -188,160 +125,6 @@ function redactObservabilitySummary(value: unknown): unknown {
     }
   }
   return redacted;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
-function asString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-}
-
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
-
-function asNumber(value: unknown, fallback = 0): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function readJsonObject(filePath: string): Record<string, unknown> {
-  try {
-    return asRecord(JSON.parse(fs.readFileSync(filePath, 'utf-8')));
-  } catch {
-    return {};
-  }
-}
-
-function listDirectories(root: string): string[] {
-  try {
-    return fs.readdirSync(root, { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => path.join(root, entry.name))
-      .sort();
-  } catch {
-    return [];
-  }
-}
-
-function toProjectRelative(projectRoot: string, filePath: string): string {
-  const relative = path.relative(projectRoot, filePath);
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-    return path.basename(filePath);
-  }
-  return relative.split(path.sep).join('/');
-}
-
-function sortByCreatedAtDesc<T extends { createdAt: string; id: string }>(items: T[]): T[] {
-  return [...items].sort((left, right) => {
-    const leftTime = Date.parse(left.createdAt || '');
-    const rightTime = Date.parse(right.createdAt || '');
-    const leftValue = Number.isFinite(leftTime) ? leftTime : 0;
-    const rightValue = Number.isFinite(rightTime) ? rightTime : 0;
-    return rightValue - leftValue || right.id.localeCompare(left.id);
-  });
-}
-
-function countBy<T>(items: T[], getKey: (item: T) => string): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const item of items) {
-    const key = getKey(item) || 'unknown';
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return counts;
-}
-
-function getDashboardArenaSummary(projectRoot = process.cwd()): DashboardArenaSummary {
-  const arenaRoot = path.join(projectRoot, 'arena');
-  const subjectsRoot = path.join(arenaRoot, 'subjects');
-  const runsRoot = path.join(arenaRoot, 'runs');
-
-  const subjectDirs = listDirectories(subjectsRoot)
-    .filter(subjectDir => fs.existsSync(path.join(subjectDir, 'arena-manifest.json')));
-  const subjects = sortByCreatedAtDesc(subjectDirs.map(subjectDir => {
-    const manifestPath = path.join(subjectDir, 'arena-manifest.json');
-    const manifest = readJsonObject(manifestPath);
-    const subject = asRecord(manifest.subject);
-    const source = asRecord(manifest.source);
-    const safety = asRecord(manifest.safety);
-    const id = asString(manifest.subject_id, path.basename(subjectDir));
-    return {
-      id,
-      name: asString(subject.name, id),
-      type: asString(subject.type, 'unknown') as DashboardArenaSubjectSummary['type'],
-      description: asString(subject.description),
-      sourceType: asString(source.type, 'unknown'),
-      trustLevel: asString(manifest.trust_level, 'unknown') as DashboardArenaSubjectSummary['trustLevel'],
-      allowedRuntime: asString(manifest.allowed_runtime, 'unknown') as DashboardArenaSubjectSummary['allowedRuntime'],
-      riskLevel: asString(safety.risk_level, 'unknown'),
-      warningCount: asStringArray(safety.warnings).length,
-      capabilitiesCount: asStringArray(subject.capabilities).length,
-      requiredToolsCount: asStringArray(subject.required_tools).length,
-      createdAt: asString(manifest.created_at),
-      path: toProjectRelative(projectRoot, manifestPath),
-    };
-  }));
-  const subjectNames = new Map(subjects.map(subject => [subject.id, subject.name]));
-
-  const runDirs = listDirectories(runsRoot)
-    .filter(runDir => (
-      fs.existsSync(path.join(runDir, 'arena-run.json')) ||
-      fs.existsSync(path.join(runDir, 'clean-runtime.json'))
-    ));
-  const runs = sortByCreatedAtDesc(runDirs.map(runDir => {
-    const runPath = path.join(runDir, 'arena-run.json');
-    const cleanRuntimePath = path.join(runDir, 'clean-runtime.json');
-    const hasRunIndex = fs.existsSync(runPath);
-    const hasCleanRuntime = fs.existsSync(cleanRuntimePath);
-    const runIndex = hasRunIndex ? readJsonObject(runPath) : {};
-    const cleanRuntime = hasCleanRuntime ? readJsonObject(cleanRuntimePath) : {};
-    const primary = Object.keys(runIndex).length ? runIndex : cleanRuntime;
-    const target = asRecord(primary.target_profile);
-    const replay = asRecord(runIndex.replay_attempts);
-    const sandbox = asRecord(primary.sandbox);
-    const subjectId = asString(primary.subject_id, path.basename(runDir));
-    const id = asString(primary.run_id, path.basename(runDir));
-    return {
-      id,
-      subjectId,
-      subjectName: subjectNames.get(subjectId) || subjectId,
-      reviewMode: asString(primary.review_mode, 'unknown') as DashboardArenaRunSummary['reviewMode'],
-      decision: (hasRunIndex ? asString(runIndex.decision, 'unknown') : 'prepared') as DashboardArenaRunSummary['decision'],
-      surface: asString(target.surface, 'unknown'),
-      activeRole: asString(target.active_role_id, 'base'),
-      subjectSkill: asString(target.subject_skill_id),
-      loadedSkillCount: asStringArray(target.loaded_skills).length,
-      providerVisibleToolCount: asStringArray(target.provider_visible_tools).length,
-      traceCount: asStringArray(runIndex.trace_refs).length,
-      replayPlanned: asNumber(replay.planned),
-      replayCompleted: asNumber(replay.completed),
-      replayPassCount: asNumber(replay.pass_count),
-      replayFailCount: asNumber(replay.fail_count),
-      replayBlockedCount: asNumber(replay.blocked_count),
-      hasRunIndex,
-      hasCleanRuntime,
-      sandboxMode: asString(sandbox.mode, 'unknown'),
-      network: asString(sandbox.network, 'unknown'),
-      createdAt: asString(primary.created_at),
-      path: toProjectRelative(projectRoot, hasRunIndex ? runPath : cleanRuntimePath),
-    };
-  }));
-
-  return {
-    root: fs.existsSync(arenaRoot) ? toProjectRelative(projectRoot, arenaRoot) : null,
-    subjects,
-    runs,
-    totals: {
-      subjects: subjects.length,
-      runs: runs.length,
-      preparedRuns: runs.filter(run => run.hasCleanRuntime).length,
-      reviewedRuns: runs.filter(run => run.hasRunIndex).length,
-      decisions: countBy(runs, run => run.decision),
-      modes: countBy(runs, run => run.reviewMode),
-      latestRunAt: runs[0]?.createdAt || '',
-    },
-  };
 }
 
 export interface DashboardApiOptions {
@@ -405,14 +188,6 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
         rootDir: options.observabilityRootDir,
         outputRoot: options.observabilityOutputRoot,
       }));
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  router.get('/arena/summary', (_req, res) => {
-    try {
-      res.json(getDashboardArenaSummary(process.cwd()));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }

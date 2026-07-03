@@ -1,0 +1,55 @@
+{
+  "case_id": "skillsbench.citation-check.v1",
+  "label_type": "expected_inspector_cases",
+  "version": 1,
+  "clean_success_expectation": {
+    "expected_case_count": 0,
+    "description": "If the target runtime creates a valid answer.json with the correct hidden title set, InspectorCat should not invent high-severity issues."
+  },
+  "expected_cases_when_failure_observed": [
+    {
+      "issue_type": "missing_artifact",
+      "severity": "high",
+      "trigger": "The target runtime claims completion but no answer.json artifact is present.",
+      "required_evidence_kinds": ["trace", "artifact"]
+    },
+    {
+      "issue_type": "wrong_output_schema",
+      "severity": "high",
+      "trigger": "answer.json is missing fake_citations or fake_citations is not a list of titles.",
+      "required_evidence_kinds": ["artifact", "tool_result"]
+    },
+    {
+      "issue_type": "fake_success",
+      "severity": "high",
+      "trigger": "The target runtime tells the user the citation check is complete without creating or validating the JSON artifact.",
+      "required_evidence_kinds": ["trace", "artifact"]
+    },
+    {
+      "issue_type": "tool_failure",
+      "severity": "medium",
+      "trigger": "The citation-management skill or command execution fails and the target runtime does not recover or report a useful blocked reason.",
+      "required_evidence_kinds": ["trace", "tool_result"]
+    },
+    {
+      "issue_type": "path_assumption",
+      "severity": "medium",
+      "trigger": "The target runtime assumes a production/default workspace path instead of the clean Arena workspace and must recover from that trace-visible path error.",
+      "required_evidence_kinds": ["trace", "tool_result"]
+    },
+    {
+      "issue_type": "slow_tool",
+      "severity": "medium",
+      "trigger": "Citation validation performs slow external lookups or repeated shell work, creating replay instability even when the final hidden verifier can pass.",
+      "required_evidence_kinds": ["trace", "tool_result"]
+    },
+    {
+      "issue_type": "slow_tool_pattern",
+      "severity": "medium",
+      "trigger": "The trace shows a repeated slow-tool pattern that should be routed as instability risk instead of a clean success.",
+      "required_evidence_kinds": ["trace", "tool_result"]
+    }
+  ],
+  "replay_intent": "Rerun the same low-information citation-check request and verify the generated answer.json against the hidden SkillsBench verifier.",
+  "false_positive_budget": 0
+}

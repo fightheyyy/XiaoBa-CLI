@@ -1,12 +1,12 @@
 # Dashboard Plan
 
 状态：Active
-最后更新：2026-06-27
+最后更新：2026-07-03
 Owner：Dashboard maintainers
 
 ## Current Status
 
-Dashboard is now scoped to maintained local operations: Runtime/service control, one-agent Pet Chat, config editing, role/skill inspection, and skill-store installation. The speculative multi-agent workspace has been removed from the active Dashboard product path so the surface does not accumulate unclear functionality.
+Dashboard is now scoped to maintained local operations: Runtime/service control, one-agent Pet Chat, config editing, role/skill inspection, skill-store installation, and service logs. The speculative multi-agent workspace and embedded Arena page have been removed from the active Dashboard product path so the surface does not accumulate unclear functionality.
 
 Dashboard Pet Chat has role-scoped JSONL history for work-trace replay. The history stores decorated SSE events for the Chat page and is intentionally separate from IM-platform records and `AgentSession` provider context. Product-wise, the Chat page presents one local colleague; internally each active role gets one durable work trace. The base role uses the default `pet:<petId>` runtime key so the desktop widget and Dashboard Chat show the same conversation.
 
@@ -15,6 +15,8 @@ Dashboard managed services cover the maintained Feishu, Weixin, and Pet entries.
 Dashboard config no longer exposes the legacy Inspector hook/server/MySQL settings while InspectorCat is being refactored. Inspector-specific runtime configuration must return only after the new Inspector target contract is documented.
 
 Dashboard does not render the local observability summary or action controls in the user-facing Runtime page. `/api/observability/summary` and `/api/observability/review` remain available as developer read APIs.
+
+Arena is now intentionally CLI-driven from `xiaoba arena ...`. Dashboard no longer exposes an Arena page, Arena static assets, or `/api/arena/summary`; clean runtime preparation, UserCat/Inspector/Reviewer work, replay, scorecards, and promotion boundaries stay in the Arena module.
 
 ```mermaid
 flowchart LR
@@ -61,11 +63,13 @@ flowchart LR
 9. Dashboard observability action controls: removed from user-facing Dashboard and backend API.
 10. Speculative multi-agent workspace UI/API/runtime: removed from active Dashboard.
 11. Legacy Inspector hook/server/MySQL config group: removed from active Dashboard.
+12. Embedded Arena review-status page: removed from active Dashboard; Arena CLI owns review workflow and evidence.
 
 ## Next Steps
 
 - Add UI affordances for clearing, searching, or filtering the current role's Dashboard Pet Chat work trace if visible JSONL grows beyond simple replay.
 - Keep observability read-only in Dashboard; use `xiaoba replay --trace` for historical replay and `eval:*` for live agent eval.
+- Drive Arena only through `xiaoba arena ...` and role-owned workflows for import, clean runtime preparation, execution, review and promotion.
 - Define minimum production auth and permission rules before treating Dashboard/Pet endpoints as network-ready.
 - Require a clear product job and updated target architecture before adding any new Dashboard page.
 
@@ -80,9 +84,12 @@ flowchart LR
 ## Acceptance Criteria
 
 - `npm run build` passes.
-- Dashboard navigation exposes Runtime, Roles, Skills, Config, Store, and Chat only.
+- Dashboard navigation exposes Runtime, Roles, Skills, Config, Store, and Chat.
 - `GET /api/navigation/open?page=pet` is accepted.
+- `GET /api/navigation/open?page=arena` returns `400`.
 - Unknown or retired page names return `400` from `GET /api/navigation/open`.
+- `/api/arena/summary` is not exposed by the Dashboard backend.
+- Dashboard has no Arena nav item, no `page-arena` DOM, no Arena frontend fetch path, and no Dashboard-local Arena animation assets.
 - No Dashboard backend router exposes the retired multi-agent workspace API.
 - Mobile viewport does not horizontally overflow on maintained pages.
 - The `pet` service log modal shows in-process Dashboard Chat runtime logs for `pet:*` sessions, matching the child-process log behavior of Feishu and Weixin.
@@ -100,6 +107,7 @@ flowchart LR
 
 ## Verification Log
 
+- 2026-07-03: Removed the embedded Dashboard Arena page and summary route so Arena is CLI-driven only. Deleted the Dashboard Arena nav/page/styles/scripts, retired `/api/arena/summary`, removed Dashboard-local Arena animation asset directories, and changed navigation tests so `page=arena` returns `400` and `/api/arena/summary` returns `404`. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (4/4); `npm run build`; `npm test` (435/435); `git diff --check`.
 - 2026-06-27: Removed the speculative multi-agent workspace from Dashboard: deleted the frontend page/nav/styles/scripts, backend router, and active dashboard docs. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (4/4); `npm run build`; `git diff --cached --check`.
 - 2026-06-27: Removed the legacy Inspector config group from the Dashboard config page while InspectorCat is being refactored. Verification: `node --test -r tsx test/dashboard-skills-api.test.ts`; `node --test -r tsx test/dashboard-pet-runtime.test.ts`; `npm run build`; `git diff --check`.
 - 2026-06-25: Main Dashboard Pet Chat now passes the active role-scoped `sessionKey` to SSE replay and message sends, and message-mode `send_text` / channel replies append separate assistant bubbles instead of overwriting prior visible replies. Verification: `node --test -r tsx test/dashboard-pet-runtime.test.ts` (4/4); `npm run build`; `npm test` (358/358); `npm run test:contract-smoke` (6/6 items, 23/23 cases); `npm run eval:gate` (1/1 item, 11/11 cases); `git diff --check`.

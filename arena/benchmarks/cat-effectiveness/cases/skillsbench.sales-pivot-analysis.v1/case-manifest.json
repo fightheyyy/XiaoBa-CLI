@@ -1,0 +1,78 @@
+{
+  "case_id": "skillsbench.sales-pivot-analysis.v1",
+  "case_type": "cat_effectiveness_gold_case",
+  "status": "materialized_local",
+  "source": {
+    "source_id": "skillsbench",
+    "repo": "https://github.com/benchflow-ai/skillsbench",
+    "commit": "bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7",
+    "repo_license": "Apache-2.0",
+    "original_task_path": "tasks/sales-pivot-analysis"
+  },
+  "task": {
+    "user_seed_path": "task.md",
+    "domain": "office-white-collar",
+    "modality": [
+      "pdf",
+      "xlsx"
+    ],
+    "expected_artifacts": [
+      "demographic_analysis.xlsx"
+    ],
+    "original_expected_artifacts": [
+      "/root/demographic_analysis.xlsx"
+    ],
+    "original_task_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/task.md",
+    "workspace_fixture_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/environment/income.xlsx",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/environment/population.pdf"
+    ],
+    "workspace_fixture_paths": [
+      "workspace/income.xlsx",
+      "workspace/population.pdf"
+    ],
+    "hidden_oracle_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/oracle/solve.sh"
+    ],
+    "hidden_verifier_refs": [
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/verifier/test.sh",
+      "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/verifier/test_outputs.py"
+    ]
+  },
+  "subjects": {
+    "skills_root": "subject-skills",
+    "skills": [
+      {
+        "skill_id": "sales-pivot-analysis-bundle",
+        "source_ref": "https://raw.githubusercontent.com/benchflow-ai/skillsbench/bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7/tasks/sales-pivot-analysis/environment/skills/",
+        "source_license": "SkillsBench task package under Apache-2.0 unless overridden by the skill source",
+        "local_path": "subject-skills/sales-pivot-analysis-bundle/SKILL.md",
+        "materialization": "materialized_local_bundle",
+        "bundled_skill_ids": [
+          "pdf",
+          "xlsx"
+        ]
+      }
+    ]
+  },
+  "sandbox": {
+    "network": "disabled_by_default",
+    "workspace_write": true,
+    "timeout_ms": 900000,
+    "path_adaptation": {
+      "original_root": "/root",
+      "arena_workspace_root": "workspace",
+      "notes": "Task prompt is adapted to workspace-relative paths. Hidden verifier is patched by the proof adapter to inspect the clean Arena workspace."
+    }
+  },
+  "labels": {
+    "expected_usercat": "labels/expected-usercat.json",
+    "expected_inspector_cases": "labels/expected-inspector-cases.json",
+    "expected_reviewer_scorecard": "labels/expected-reviewer-scorecard.json"
+  },
+  "cat_effectiveness_intent": {
+    "usercat": "Ask as an analyst for a spreadsheet artifact without exposing the hidden pivot verifier details.",
+    "inspector": "Extract missing XLSX, invalid workbook, wrong sheet/pivot structure, dependency or path cases from native trace evidence.",
+    "reviewer": "Fresh replay spreadsheet-analysis cases and align the final decision with the hidden workbook verifier."
+  }
+}
