@@ -155,7 +155,7 @@ Source manifest 记录：
 | `skillsbench.sales-pivot-analysis.v1` | PDF + Excel workbook | mixed replay 应判 `unstable` |
 | `skillsbench.software-dependency-audit.v1` | dependency security CSV | 安全审计 artifact 失败时 reopened |
 
-它们都已经 materialized 到本地：
+这批 proof 使用的本地/Barena corpus 结构如下；完整 corpus 不随 XiaoBa-CLI 主仓发布：
 
 ```text
 arena/benchmarks/cat-effectiveness/cases/skillsbench.offer-letter-generator.v1/
@@ -197,7 +197,7 @@ arena/benchmarks/cat-effectiveness/cases/skillsbench.<broad-holdout>.v1/
 | `skillsbench.sales-pivot-analysis.v1` | `skillsbench-sales-pivot-live-20260701-02` | `fail` | 1 pass / 1 fail | `unstable` | `pass` | `pass` |
 | `skillsbench.software-dependency-audit.v1` | `skillsbench-software-audit-live-20260701-02` | `fail` | 0 pass / 1 fail | `reopened` | `pass` | `pass` |
 
-关键证据：
+关键证据（proof-time local paths；完整 runs 不随 XiaoBa-CLI 主仓发布）：
 
 - Offer-letter Arena run：`arena/runs/skillsbench-offer-letter-live-20260701-02/arena-scorecard.json`
 - Offer-letter hidden verifier：`arena/benchmarks/cat-effectiveness/runs/skillsbench-offer-letter-live-20260701-02/verifier/verifier-results.json`
@@ -275,7 +275,7 @@ src/arena/cat-effectiveness.ts
 当前测试位于：
 
 ```text
-test/arena-cat-effectiveness-data.test.ts
+test/arena-skillsbench-live-proof.test.ts
 test/arena-cat-effectiveness-scorer.test.ts
 ```
 
@@ -291,7 +291,7 @@ test/arena-cat-effectiveness-scorer.test.ts
 已验证命令：
 
 ```bash
-node --test -r tsx test/user-trace-run-tool.test.ts test/arena-skillsbench-live-proof.test.ts test/arena-cat-effectiveness-data.test.ts test/arena-cat-effectiveness-scorer.test.ts test/arena-effectiveness-scorer.test.ts test/arena-runner.test.ts test/arena-command.test.ts test/arena-manager.test.ts
+node --test -r tsx test/user-trace-run-tool.test.ts test/arena-skillsbench-live-proof.test.ts test/arena-cat-effectiveness-scorer.test.ts test/arena-effectiveness-scorer.test.ts test/arena-runner.test.ts test/arena-command.test.ts test/arena-manager.test.ts
 npm run build
 npm test
 npx tsx scripts/run-arena-skillsbench-proof.ts --case-id skillsbench.offer-letter-generator.v1 --run-id skillsbench-offer-letter-live-20260701-02 --skip-execute

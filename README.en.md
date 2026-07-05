@@ -119,7 +119,7 @@ Additional roles and skills enter through explicit installation, and should pass
 
 ## Evidence
 
-Arena currently has live proof on 7 SkillsBench-derived external gold cases: 2 baseline cases plus 5 broad holdout cases, with false pass = 0.
+Arena currently has live proof on 7 SkillsBench-derived external gold cases: 2 baseline cases plus 5 broad holdout cases, with false pass = 0. The full proof corpus is not shipped in the XiaoBa-CLI repo; it belongs in Barena or a local ignored data directory.
 
 This proves that the current `UserCat -> InspectorCat -> ReviewerCat` loop can preserve real evidence, extract issues/cases, run multi-attempt replay, and avoid false pass when an external verifier fails or replay is unstable. It does not claim that every skill is already stable, or that the result fully generalizes across providers and time windows.
 

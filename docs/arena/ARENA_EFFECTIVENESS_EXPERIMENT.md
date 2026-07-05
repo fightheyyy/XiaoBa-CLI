@@ -186,7 +186,7 @@ Arena 在多 seed / 多 provider / 多时间窗口下已经稳定有效。
 | `skillsbench.sales-pivot-analysis.v1` | `skillsbench-sales-pivot-live-20260701-02` | `fail` | 1 pass / 1 fail / 0 blocked | `unstable` | `unstable` | `pass` |
 | `skillsbench.software-dependency-audit.v1` | `skillsbench-software-audit-live-20260701-02` | `fail` | 0 pass / 1 fail / 0 blocked | `reopened` | `reopened` | `pass` |
 
-证据：
+证据（proof-time local paths；完整 proof corpus 不随 XiaoBa-CLI 主仓发布）：
 
 - Offer-letter Arena scorecard：`arena/runs/skillsbench-offer-letter-live-20260701-02/arena-scorecard.json`
 - Offer-letter hidden verifier：`arena/benchmarks/cat-effectiveness/runs/skillsbench-offer-letter-live-20260701-02/verifier/verifier-results.json`

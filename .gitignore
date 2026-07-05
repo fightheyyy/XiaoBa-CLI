@@ -19,9 +19,6 @@ tmp/
 # Runtime data and logs
 data/
 /arena/*
-!/arena/benchmarks/
-!/arena/benchmarks/**
-/arena/benchmarks/**/runs/
 logs/
 files/
 turnLogs/

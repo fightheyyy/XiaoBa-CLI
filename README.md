@@ -119,7 +119,7 @@ Arena 固定三种使用场景：
 
 ## 证据
 
-Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live proof：2 条 baseline + 5 条 broad holdout，false pass = 0。
+Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live proof：2 条 baseline + 5 条 broad holdout，false pass = 0。完整 proof corpus 不随 XiaoBa-CLI 主仓发布，后续归 Barena 或本地 ignored 数据目录管理。
 
 这证明的是当前 `UserCat -> InspectorCat -> ReviewerCat` loop 能保留真实证据、抽取 issue/case、执行多轮 replay，并在外部 verifier 失败或 replay 不稳定时避免误判为 pass。它不声称所有 skill 已经稳定，也不声称跨 provider / 跨时间窗口完全泛化。
 

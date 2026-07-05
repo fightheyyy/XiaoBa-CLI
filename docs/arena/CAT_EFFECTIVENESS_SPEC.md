@@ -1,7 +1,7 @@
 # Arena Cat Effectiveness SPEC
 
 状态：Draft
-最后更新：2026-07-01
+最后更新：2026-07-05
 适用范围：用外部已验证 task / skill / oracle / verifier 数据集验证和调优 `UserCat`、`InspectorCat`、`ReviewerCat` 的 Arena 子规格。首个目标数据源是 SkillsBench。
 
 本规格的目标不是评测 SkillsBench，也不是把外部 benchmark 直接搬进 `eval/`。它的目标是把外部经过验证的 skill task 变成 Arena 的 gold cases，用真实任务、真实 skill、隐藏 oracle 和独立 verifier 证明三只 Cat 是否真的有效：
@@ -59,12 +59,12 @@ Out of scope:
 
 ## Current Architecture
 
-当前状态是：Arena 已经有真实端到端评测链路，SkillsBench 数据源已被人工确认具备 task / skill / oracle / verifier 结构，仓库已有 7 条 materialized Cat effectiveness gold case。`skillsbench.offer-letter-generator.v1`、`skillsbench.citation-check.v1` 和 5 条 broad holdout case 都包含 workspace fixtures、subject skill、oracle、verifier 和三只 Cat 的 expected labels。`src/arena/cat-effectiveness.ts` 已实现 deterministic Cat scorer：它读取 gold labels，对 UserCat、InspectorCat、ReviewerCat 分别评分，并把 Reviewer false pass / UserCat oracle leakage 标为 blocking failure。`src/arena/skillsbench-live-proof.ts` 和 `scripts/run-arena-skillsbench-proof.ts` 已把真实 Arena artifacts、hidden verifier、Cat scorer 和 Arena effectiveness scorer 串成 dev + holdout + broad holdout live proof；runner 也支持 replay case 去重/上限和 artifact/schema contract scan，避免 holdout 因重复 case 或漏检 schema artifact 失真。
+当前状态是：Arena 已经有真实端到端评测链路，SkillsBench 数据源已被人工确认具备 task / skill / oracle / verifier 结构，并完成过 7 条 materialized Cat effectiveness gold case live proof。`skillsbench.offer-letter-generator.v1`、`skillsbench.citation-check.v1` 和 5 条 broad holdout case 都包含 workspace fixtures、subject skill、oracle、verifier 和三只 Cat 的 expected labels。完整 proof corpus 不再随 XiaoBa-CLI 主仓发布，后续归 Barena 或本地 ignored 数据目录管理。`src/arena/cat-effectiveness.ts` 已实现 deterministic Cat scorer：它读取 gold labels，对 UserCat、InspectorCat、ReviewerCat 分别评分，并把 Reviewer false pass / UserCat oracle leakage 标为 blocking failure。`src/arena/skillsbench-live-proof.ts` 和 `scripts/run-arena-skillsbench-proof.ts` 已把真实 Arena artifacts、hidden verifier、Cat scorer 和 Arena effectiveness scorer 串成 dev + holdout + broad holdout live proof；runner 也支持 replay case 去重/上限和 artifact/schema contract scan，避免 holdout 因重复 case 或漏检 schema artifact 失真。
 
 ```mermaid
 flowchart LR
     SB["SkillsBench<br/>external tasks"]
-    Seed["gold seeds<br/>7 materialized cases"]
+    Seed["external/local gold corpus<br/>7 proof cases"]
     Test["contract test<br/>provenance + hidden refs"]
     Arena["Arena runner<br/>UserCat -> Inspector -> Reviewer"]
     Trace["native trace<br/>logs/sessions"]
@@ -86,8 +86,8 @@ flowchart LR
 - SkillsBench repo：`benchflow-ai/skillsbench`
 - License：Apache-2.0
 - 已观察的 pinned commit：`bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7`
-- Source provenance：每个 `cases/skillsbench.*.v1/case-manifest.json` 内嵌 source repo / commit / license；`sources/` 只保留空目录占位，完整来源清单后续迁往 Barena。
-- Materialized seeds：`arena/benchmarks/cat-effectiveness/cases/skillsbench.*.v1/`
+- Source provenance：每个 proof case manifest 内嵌 source repo / commit / license；完整来源清单后续迁往 Barena。
+- Local proof corpus root（ignored by XiaoBa-CLI main）：`arena/benchmarks/cat-effectiveness/cases/skillsbench.*.v1/`
 - 抽样 case 具备 `task.md`、`oracle/` 和 `verifier/`。
 - 多个 case 具备 `environment/skills/*/SKILL.md`，可以作为被测 skill 数据源。
 - Scorer：`src/arena/cat-effectiveness.ts`
@@ -135,7 +135,7 @@ flowchart LR
 
 ## Data Layout
 
-Cat effectiveness data lives under Arena's real evidence/data root, not under `eval/`:
+Cat effectiveness data lives under Arena's real evidence/data root, not under `eval/`. In XiaoBa-CLI main this corpus is intentionally ignored; the same layout can be restored locally or owned by Barena:
 
 ```text
 arena/benchmarks/cat-effectiveness/
@@ -164,9 +164,9 @@ arena/benchmarks/cat-effectiveness/
       arena-effectiveness-scorecard.json
 ```
 
-`arena/benchmarks/cat-effectiveness/cases/**` is curated source data. `arena/benchmarks/cat-effectiveness/runs/**` is execution output for validating Cat behavior against those cases.
+`arena/benchmarks/cat-effectiveness/cases/**` is curated source data when a local or Barena corpus is present. `arena/benchmarks/cat-effectiveness/runs/**` is execution output for validating Cat behavior against those cases.
 
-Curated `sources/**` and `cases/**` are intended to be versioned with the repository. Generated `runs/**` remain local evidence by default and should not be committed unless a maintainer explicitly promotes a small, reviewed fixture.
+Curated `sources/**` and `cases/**` are no longer versioned with XiaoBa-CLI main. Generated `runs/**` remain local evidence by default and should not be committed unless a maintainer explicitly promotes a small, reviewed fixture in a dedicated benchmark repo.
 
 Raw external source files must retain provenance. If a case copies external files into the repo, `case-manifest.json` must record source license and original paths. If a case references external files without copying them, the manifest must record an exact fetch plan and pinned commit.
 
@@ -341,7 +341,7 @@ Example expected shape:
 
 ## Cat Effectiveness Scorecard
 
-Every run against a gold case writes:
+Every local/Barena run against a gold case writes:
 
 ```text
 arena/benchmarks/cat-effectiveness/runs/<run-id>/cat-effectiveness-scorecard.json
@@ -428,7 +428,7 @@ Do not import all SkillsBench tasks at once. The first executable-priority case 
 Cat effectiveness is not a release `eval/` benchmark by default.
 
 - `eval/` answers: does XiaoBa runtime / role behavior pass release-grade live benchmark cases?
-- `arena/benchmarks/cat-effectiveness` answers: are UserCat, InspectorCat and ReviewerCat trustworthy evaluators?
+- Local/Barena Cat effectiveness corpus answers: are UserCat, InspectorCat and ReviewerCat trustworthy evaluators?
 
 Promotion path is manual:
 
