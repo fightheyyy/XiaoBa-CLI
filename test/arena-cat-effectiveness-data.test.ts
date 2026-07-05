@@ -17,21 +17,19 @@ const caseIds = [
 
 describe('Arena Cat effectiveness gold data', () => {
   test('seeds SkillsBench cases with provenance and hidden judge refs', () => {
-    const source = readJson(path.join(dataRoot, 'sources', 'skillsbench', 'source-manifest.json'));
-
-    assert.strictEqual(source.source_id, 'skillsbench');
-    assert.strictEqual(source.repo, 'https://github.com/benchflow-ai/skillsbench');
-    assert.match(source.pinned_commit, /^[a-f0-9]{40}$/);
-    assert.strictEqual(source.repo_license, 'Apache-2.0');
-    assert.strictEqual(source.candidate_cases[0].case_id, 'skillsbench.offer-letter-generator.v1');
-    assert.strictEqual(source.candidate_cases[0].priority, 'first_slice');
+    const expectedRepo = 'https://github.com/benchflow-ai/skillsbench';
+    const expectedCommit = 'bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7';
+    const expectedLicense = 'Apache-2.0';
 
     for (const caseId of caseIds) {
       const manifest = readCaseManifest(caseId);
       assert.strictEqual(manifest.case_id, caseId);
       assert.strictEqual(manifest.case_type, 'cat_effectiveness_gold_case');
-      assert.strictEqual(manifest.source.commit, source.pinned_commit);
-      assert.ok(source.candidate_cases.some((item: any) => item.case_id === caseId));
+      assert.strictEqual(manifest.source.source_id, 'skillsbench');
+      assert.strictEqual(manifest.source.repo, expectedRepo);
+      assert.strictEqual(manifest.source.commit, expectedCommit);
+      assert.match(manifest.source.commit, /^[a-f0-9]{40}$/);
+      assert.strictEqual(manifest.source.repo_license, expectedLicense);
       assert.ok(manifest.task.expected_artifacts.length > 0);
       assert.ok(manifest.task.hidden_oracle_refs.every((ref: string) => ref.includes('/oracle/')));
       assert.ok(manifest.task.hidden_verifier_refs.every((ref: string) => ref.includes('/verifier/')));

@@ -86,7 +86,7 @@ flowchart LR
 - SkillsBench repo：`benchflow-ai/skillsbench`
 - License：Apache-2.0
 - 已观察的 pinned commit：`bf3793e9ec20e9682e6f18dbf4de3c69163dc9c7`
-- Source manifest：`arena/benchmarks/cat-effectiveness/sources/skillsbench/source-manifest.json`
+- Source provenance：每个 `cases/skillsbench.*.v1/case-manifest.json` 内嵌 source repo / commit / license；`sources/` 只保留空目录占位，完整来源清单后续迁往 Barena。
 - Materialized seeds：`arena/benchmarks/cat-effectiveness/cases/skillsbench.*.v1/`
 - 抽样 case 具备 `task.md`、`oracle/` 和 `verifier/`。
 - 多个 case 具备 `environment/skills/*/SKILL.md`，可以作为被测 skill 数据源。
@@ -140,8 +140,7 @@ Cat effectiveness data lives under Arena's real evidence/data root, not under `e
 ```text
 arena/benchmarks/cat-effectiveness/
   sources/
-    skillsbench/
-      source-manifest.json
+    .gitkeep
   cases/
     <case-id>/
       case-manifest.json
