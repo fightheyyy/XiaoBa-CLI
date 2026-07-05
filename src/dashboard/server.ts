@@ -31,7 +31,7 @@ export async function startDashboard(
   app.use('/api', createApiRouter(serviceManager, { onNavigate: options.onNavigate }));
 
   // Serve frontend
-  const frontendPath = path.join(__dirname, '../../dashboard');
+  const frontendPath = path.join(__dirname, '../../desktop/dashboard');
   app.use(express.static(frontendPath));
 
   // SPA fallback

@@ -66,10 +66,10 @@ updateJsonVersion(path.join(rootDir, 'package.json'), version);
 console.log('Updated package.json');
 
 replaceInFile(
-  path.join(rootDir, 'dashboard', 'index.html'),
+  path.join(rootDir, 'desktop', 'dashboard', 'index.html'),
   /sidebar-brand-ver">v[\d.]+</,
   `sidebar-brand-ver">v${version}<`
 );
-console.log('Updated dashboard/index.html');
+console.log('Updated desktop/dashboard/index.html');
 
 console.log('Version injection complete.');

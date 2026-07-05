@@ -11,7 +11,7 @@ export async function startPetServer(port: number = DEFAULT_PORT, host?: string)
   const app = express();
   const listenHost = host || process.env.XIAOBA_PET_HOST || DEFAULT_HOST;
   const bodyLimit = process.env.XIAOBA_API_BODY_LIMIT || '50mb';
-  const frontendPath = path.join(__dirname, '../../dashboard');
+  const frontendPath = path.join(__dirname, '../../desktop/dashboard');
 
   await startCommandSupport();
 

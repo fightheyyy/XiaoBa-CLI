@@ -49,10 +49,10 @@ export function resolvePetDesktopEntry(): string {
 
   const appRoot = process.env.XIAOBA_APP_ROOT;
   if (appRoot && appRoot.trim()) {
-    return path.resolve(appRoot.trim(), 'electron', 'pet-main.js');
+    return path.resolve(appRoot.trim(), 'desktop', 'electron', 'pet-main.js');
   }
 
-  return path.resolve(process.cwd(), 'electron', 'pet-main.js');
+  return path.resolve(process.cwd(), 'desktop', 'electron', 'pet-main.js');
 }
 
 function resolveElectronExecutable(): string | null {

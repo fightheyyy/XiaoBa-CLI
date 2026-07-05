@@ -670,8 +670,8 @@ export class PetChannel {
 
   private petRoots(): Array<{ dir: string; label: string }> {
     const roots = [
-      { dir: path.resolve(process.cwd(), 'dashboard', 'pets'), label: 'bundled' },
-      { dir: path.resolve(process.env.XIAOBA_APP_ROOT || '', 'dashboard', 'pets'), label: 'bundled' },
+      { dir: path.resolve(process.cwd(), 'desktop', 'dashboard', 'pets'), label: 'bundled' },
+      { dir: path.resolve(process.env.XIAOBA_APP_ROOT || '', 'desktop', 'dashboard', 'pets'), label: 'bundled' },
       { dir: path.resolve(process.env.XIAOBA_PETS_DIR || ''), label: 'custom' },
       ...(process.env.XIAOBA_INCLUDE_CODEX_PETS === 'true'
         ? [{ dir: path.join(os.homedir(), '.codex', 'pets'), label: 'codex' }]

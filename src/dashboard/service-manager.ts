@@ -130,7 +130,7 @@ export class ServiceManager extends EventEmitter {
     const explicitPetMain = process.env.XIAOBA_PET_MAIN;
     const petMain = explicitPetMain && explicitPetMain.trim()
       ? path.resolve(explicitPetMain.trim())
-      : path.resolve(this.getAppRoot(), 'electron', 'pet-main.js');
+      : path.resolve(this.getAppRoot(), 'desktop', 'electron', 'pet-main.js');
 
     return {
       command: electronExecutable,

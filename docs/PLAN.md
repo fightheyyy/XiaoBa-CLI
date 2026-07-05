@@ -114,7 +114,7 @@ flowchart LR
 ## Owners
 
 - Runtime harness：`src/core/**`
-- Surface：`src/commands/**`, `src/feishu/**`, `src/weixin/**`, `src/pet/**`, `src/dashboard/**`
+- Surface：`src/commands/**`, `src/feishu/**`, `src/weixin/**`, `src/pet/**`, `src/dashboard/**`, `desktop/**`
 - Provider adapters：`src/providers/**`
 - Tool boundary：`src/tools/**`, `src/types/tool.ts`
 - Roles：`roles/**`, `src/roles/**`

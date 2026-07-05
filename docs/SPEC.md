@@ -12,7 +12,7 @@ XiaoBa-CLI 维护一个项目级大 spec 和六个顶层架构模块。六个模
 
 | 模块 | Primary Spec | Plan / Supporting Docs | 覆盖范围 |
 | --- | --- | --- | --- |
-| Surface：入口层 | [`surface/SPEC.md`](surface/SPEC.md) | [`surface/PLAN.md`](surface/PLAN.md) | `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`dashboard`、`electron` |
+| Surface：入口层 | [`surface/SPEC.md`](surface/SPEC.md) | [`surface/PLAN.md`](surface/PLAN.md) | `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`desktop` |
 | Agent Runtime：会话与工具编排层 | [`agent-runtime/SPEC.md`](agent-runtime/SPEC.md) | [`agent-runtime/PLAN.md`](agent-runtime/PLAN.md) | `src/core`、`src/providers`、`src/tools`、runtime 类型、session lifecycle 和 agent loop |
 | Roles & Skills：策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | `roles`、`src/roles`、`skills`、`src/skills` |
 | Observability & Evidence：观测证据层 | [`observability-evidence/SPEC.md`](observability-evidence/SPEC.md) | [`observability-evidence/PLAN.md`](observability-evidence/PLAN.md)、[`observability-evidence/state-evidence/SPEC.md`](observability-evidence/state-evidence/SPEC.md)、[`observability-evidence/state-evidence/PLAN.md`](observability-evidence/state-evidence/PLAN.md) | `src/observability`、`logs`、`data`、`memory`、`output`、trace projection 和 artifact evidence |
@@ -67,7 +67,7 @@ flowchart LR
         Weixin["src/weixin"]
         Pet["src/pet"]
         Dashboard["src/dashboard"]
-        Electron["electron"]
+        Desktop["desktop<br/>Dashboard static + Electron shell"]
     end
 
     subgraph Harness["Agent Runtime：会话与工具编排"]
@@ -113,7 +113,7 @@ flowchart LR
     Weixin --> Core
     Pet --> Core
     Dashboard --> Core
-    Electron --> Dashboard
+    Desktop --> Dashboard
 
     Core --> Providers
     Core --> Tools
@@ -506,5 +506,5 @@ contract hard gate
 - `test/SPEC.md` 定义 unit / integration / contract smoke 测试边界。
 - `eval/SPEC.md` 定义 live agent eval 准入标准、BaseRuntime live benchmark 和 gate policy。
 - `eval/benchmarks/SPEC.md` 定义 live benchmark source。
-- `dashboard/SPEC.md`、`roles/*/SPEC.md`、`eval/benchmarks/*/SPEC.md` 是对应顶层模块下的 durable 子模块 spec。
+- `desktop/SPEC.md`、`roles/*/SPEC.md`、`eval/benchmarks/*/SPEC.md` 是对应顶层模块下的 durable 子模块 spec。
 - 如果实现改变了本文定义的组件边界、状态机、日志格式或 live eval 边界，必须同步更新本文。

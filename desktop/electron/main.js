@@ -32,12 +32,12 @@ try {
 
 function getAppRoot() {
   // asar 已关闭
-  // 打包后: Resources/app/electron/main.js -> Resources/app/
-  // 开发时: electron/main.js -> ./
+  // 打包后: Resources/app/desktop/electron/main.js -> Resources/app/
+  // 开发时: desktop/electron/main.js -> ./
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'app');
   }
-  return path.join(__dirname, '..');
+  return path.join(__dirname, '..', '..');
 }
 
 /**
@@ -45,7 +45,7 @@ function getAppRoot() {
  */
 function getNodeExePath() {
   if (app.isPackaged) {
-    // extraFiles 将 build-resources/node/ 复制到 Contents/node/
+    // extraFiles 将 desktop/build-resources/node/ 复制到 Contents/node/
     const nodeFileName = process.platform === 'win32' ? 'node.exe' : 'node';
     // macOS: process.execPath = Contents/MacOS/XiaoBa, 需要 ../node/node
     // Windows: process.execPath = XiaoBa.exe, 需要 ./node/node.exe
@@ -69,7 +69,7 @@ function getNodeModulesPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'node_modules');
   }
-  return path.join(__dirname, '..', 'node_modules');
+  return path.join(__dirname, '..', '..', 'node_modules');
 }
 
 async function startServer() {

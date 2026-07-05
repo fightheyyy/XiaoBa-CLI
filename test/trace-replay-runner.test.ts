@@ -48,7 +48,7 @@ class ReplayFakeAIService {
 }
 
 function writePet(root: string, id: string): void {
-  const petDir = path.join(root, 'dashboard', 'pets', id);
+  const petDir = path.join(root, 'desktop', 'dashboard', 'pets', id);
   fs.mkdirSync(petDir, { recursive: true });
   fs.writeFileSync(path.join(petDir, 'pet.json'), JSON.stringify({
     id,

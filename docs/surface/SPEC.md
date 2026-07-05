@@ -1,10 +1,10 @@
 # Surfaces SPEC
 
 状态：Active
-最后更新：2026-06-24
-适用范围：XiaoBa 的用户入口层，包括 `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`dashboard` 和 `electron`。
+最后更新：2026-07-05
+适用范围：XiaoBa 的用户入口层，包括 `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard` 和 `desktop`。
 
-本文件是顶层架构模块之一的入口层 spec。Dashboard 的页面细节继续由 `dashboard/SPEC.md` 维护；本文只定义所有入口共同遵守的边界和 contract。
+本文件是顶层架构模块之一的入口层 spec。Dashboard / Electron / packaging 资源细节继续由 `desktop/SPEC.md` 维护；本文只定义所有入口共同遵守的边界和 contract。
 
 ## Problem
 
@@ -23,8 +23,8 @@ In scope:
 
 - CLI 命令入口：`src/commands/**`。
 - IM 平台入口：`src/feishu/**`、`src/weixin/**`。
-- Pet 和 Dashboard 入口：`src/pet/**`、`src/dashboard/**`、`dashboard/**`。
-- Electron 桌面壳：`electron/**`。
+- Pet 和 Dashboard 入口：`src/pet/**`、`src/dashboard/**`、`desktop/dashboard/**`。
+- Electron 桌面壳和桌面打包资源：`desktop/electron/**`、`desktop/build-resources/**`。
 - 入口级 session key、channel callbacks、文件上传下载、SSE、service control 和配置入口。
 
 Out of scope:

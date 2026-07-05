@@ -339,7 +339,9 @@ function inspectProject(cwd: string): ProjectSignals {
     hasRolesDir: fs.existsSync(path.join(cwd, 'roles')),
     hasSkillsDir: fs.existsSync(path.join(cwd, 'skills')),
     hasToolsDir: fs.existsSync(path.join(cwd, 'src', 'tools')) || fs.existsSync(path.join(cwd, 'tools')),
-    hasElectronFiles: fs.existsSync(path.join(cwd, 'electron')) || fs.existsSync(path.join(cwd, 'electron-main.js')),
+    hasElectronFiles: fs.existsSync(path.join(cwd, 'desktop', 'electron'))
+      || fs.existsSync(path.join(cwd, 'electron'))
+      || fs.existsSync(path.join(cwd, 'electron-main.js')),
     hasPythonFiles: hasFileMatching(cwd, file => file.endsWith('.py')),
     hasRobotFiles: fs.existsSync(path.join(cwd, 'package.xml'))
       || fs.existsSync(path.join(cwd, 'launch'))

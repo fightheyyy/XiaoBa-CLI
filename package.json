@@ -2,7 +2,7 @@
   "name": "xiaoba-cli",
   "version": "0.1.1",
   "description": "XiaoBa - 一个智能的AI对话助手CLI工具",
-  "main": "electron/main.js",
+  "main": "desktop/electron/main.js",
   "bin": {
     "xiaoba": "dist/index.js"
   },
@@ -111,8 +111,8 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*",
-      "dashboard/**/*",
+      "desktop/electron/**/*",
+      "desktop/dashboard/**/*",
       "prompts/**/*",
       "skills/agent-browser/**/*",
       "skills/self-evolution/**/*",
@@ -150,7 +150,7 @@
     ],
     "extraFiles": [
       {
-        "from": "build-resources/node",
+        "from": "desktop/build-resources/node",
         "to": "node",
         "filter": [
           "**/*"
@@ -162,14 +162,14 @@
       "target": [
         "dmg"
       ],
-      "icon": "build-resources/icon.icns",
+      "icon": "desktop/build-resources/icon.icns",
       "artifactName": "${productName}-${version}-mac.${ext}"
     },
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "build-resources/icon.ico",
+      "icon": "desktop/build-resources/icon.ico",
       "artifactName": "${productName}-${version}-win.${ext}"
     },
     "nsis": {
@@ -184,7 +184,7 @@
         "deb"
       ],
       "category": "Development",
-      "icon": "build-resources/icon.png",
+      "icon": "desktop/build-resources/icon.png",
       "artifactName": "${productName}-${version}-linux.${ext}"
     },
     "dmg": {

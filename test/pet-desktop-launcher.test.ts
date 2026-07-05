@@ -33,7 +33,7 @@ describe('Pet desktop launcher', () => {
 
     assert.strictEqual(
       resolvePetDesktopEntry(),
-      path.join(appRoot, 'electron', 'pet-main.js'),
+      path.join(appRoot, 'desktop', 'electron', 'pet-main.js'),
     );
 
     process.chdir(originalCwd);

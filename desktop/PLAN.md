@@ -1,10 +1,12 @@
-# Dashboard Plan
+# Desktop Surface Plan
 
 状态：Active
-最后更新：2026-07-03
-Owner：Dashboard maintainers
+最后更新：2026-07-05
+Owner：Surface / Dashboard maintainers
 
 ## Current Status
+
+Dashboard, Electron shell, pet widget assets, and desktop packaging resources now live under `desktop/` as one GitHub-visible surface bundle: `desktop/dashboard/**`, `desktop/electron/**`, and `desktop/build-resources/**`. This is a physical repository cleanup only; the architecture module remains Surface, and runtime backend code stays in `src/dashboard` / `src/pet`.
 
 Dashboard is now scoped to maintained local operations: Runtime/service control, one-agent Pet Chat, config editing, role/skill inspection, skill-store installation, and service logs. The speculative multi-agent workspace and embedded Arena page have been removed from the active Dashboard product path so the surface does not accumulate unclear functionality.
 
@@ -27,6 +29,8 @@ flowchart LR
         Roles["Roles"]
         Skills["Skills / Store"]
         Logs["Service logs"]
+        Electron["Electron shell"]
+        PackageAssets["package resources"]
     end
 
     subgraph Evidence["Evidence"]
@@ -41,6 +45,8 @@ flowchart LR
     end
 
     Runtime --> Logs
+    PackageAssets --> Electron
+    Electron --> Runtime
     Chat --> ChatHistory
     Chat --> SessionLogs
     Runtime --> ObsRead
@@ -64,6 +70,7 @@ flowchart LR
 10. Speculative multi-agent workspace UI/API/runtime: removed from active Dashboard.
 11. Legacy Inspector hook/server/MySQL config group: removed from active Dashboard.
 12. Embedded Arena review-status page: removed from active Dashboard; Arena CLI owns review workflow and evidence.
+13. Root directory consolidation: completed for Dashboard static assets, Electron shell, and desktop package resources under `desktop/`.
 
 ## Next Steps
 
@@ -72,13 +79,15 @@ flowchart LR
 - Drive Arena only through `xiaoba arena ...` and role-owned workflows for import, clean runtime preparation, execution, review and promotion.
 - Define minimum production auth and permission rules before treating Dashboard/Pet endpoints as network-ready.
 - Require a clear product job and updated target architecture before adding any new Dashboard page.
+- Keep desktop-only static assets, Electron entrypoints, and package resources under `desktop/`; do not recreate root `dashboard/`, `electron/`, or `build-resources/` directories.
 
 ## Owners
 
-- Frontend surface: `dashboard/index.html`.
+- Frontend surface: `desktop/dashboard/index.html`.
 - Dashboard API: `src/dashboard/routes/api.ts`.
 - Developer observability API: `src/dashboard/routes/api.ts`, `src/dashboard/observability-actions.ts`, `src/observability`.
-- Dashboard Pet Chat API and visible history: `src/pet/channel.ts`, `src/pet/chat-history-store.ts`, `dashboard/pet-runtime.js`.
+- Dashboard Pet Chat API and visible history: `src/pet/channel.ts`, `src/pet/chat-history-store.ts`, `desktop/dashboard/pet-runtime.js`.
+- Electron shell and desktop packaging: `desktop/electron/**`, `desktop/build-resources/**`, `package.json` electron-builder config.
 - Role-scoped prompt/skills/tools: `src/utils/prompt-manager.ts`, `src/skills/skill-manager.ts`, `src/bootstrap/tool-manager.ts`, `src/roles/runtime-role-registry.ts`.
 
 ## Acceptance Criteria
@@ -104,9 +113,11 @@ flowchart LR
 - Runtime page does not render the local observability summary panel, hash-only trace timeline, queue state, or Generate/Sign/Patch observability controls.
 - `GET /api/observability/review` returns local evidence state with redacted paths and no raw home path.
 - `POST /api/observability/actions` is not exposed.
+- GitHub root does not track standalone `dashboard/`, `electron/`, or `build-resources/`; those assets live under `desktop/`.
 
 ## Verification Log
 
+- 2026-07-05: Consolidated Dashboard static assets, Electron shell, and desktop package resources under `desktop/`; updated runtime static paths, pet bundled asset lookup, Electron entrypoints, electron-builder config, scripts, tests, and Surface docs. Verification: `npm run build`; `node --test -r tsx test/dashboard-pet-runtime.test.ts test/pet-channel.test.ts test/trace-replay-runner.test.ts test/pet-desktop-launcher.test.ts test/default-role-bundle.test.ts` (30/30); `node --test -r tsx test/pet-desktop-launcher.test.ts test/default-role-bundle.test.ts test/dashboard-pet-runtime.test.ts` (12/12); `npm run electron:build:mac`.
 - 2026-07-03: Removed the embedded Dashboard Arena page and summary route so Arena is CLI-driven only. Deleted the Dashboard Arena nav/page/styles/scripts, retired `/api/arena/summary`, removed Dashboard-local Arena animation asset directories, and changed navigation tests so `page=arena` returns `400` and `/api/arena/summary` returns `404`. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (4/4); `npm run build`; `npm test` (435/435); `git diff --check`.
 - 2026-06-27: Removed the speculative multi-agent workspace from Dashboard: deleted the frontend page/nav/styles/scripts, backend router, and active dashboard docs. Verification: `node --test -r tsx test/dashboard-observability-api.test.ts` (4/4); `npm run build`; `git diff --cached --check`.
 - 2026-06-27: Removed the legacy Inspector config group from the Dashboard config page while InspectorCat is being refactored. Verification: `node --test -r tsx test/dashboard-skills-api.test.ts`; `node --test -r tsx test/dashboard-pet-runtime.test.ts`; `npm run build`; `git diff --check`.

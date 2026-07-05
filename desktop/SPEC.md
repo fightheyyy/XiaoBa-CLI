@@ -1,9 +1,11 @@
-# Dashboard Spec
+# Desktop Surface Spec
 
 状态：Active
-最后更新：2026-07-03
+最后更新：2026-07-05
 
 ## Problem
+
+`desktop/` is the single GitHub-visible home for XiaoBa's local visual surface: Dashboard static assets, Electron desktop shell, pet widget assets, and desktop packaging resources. It keeps UI and desktop packaging assets together so the repository root does not present Dashboard, Electron, and build resources as three unrelated product modules.
 
 XiaoBa Dashboard is the local operator surface for runtime status, role and skill inspection, config editing, service logs, skill-store installation, and the one-agent Pet Chat workflow. It should stay small and operational: the dashboard helps a maintainer see what is running, adjust local settings, and talk to the local pet runtime without adding speculative multi-agent or Arena review surfaces.
 
@@ -11,12 +13,14 @@ XiaoBa Dashboard is the local operator surface for runtime status, role and skil
 
 In scope:
 
-- Static dashboard pages served by `src/dashboard/server.ts`.
+- Static dashboard pages under `desktop/dashboard/**`, served by `src/dashboard/server.ts`.
+- Electron desktop shell under `desktop/electron/**`.
+- Desktop package icons and embedded Node resources under `desktop/build-resources/**`.
 - API routes under `src/dashboard/routes/api.ts`.
 - Runtime/service status, service start/stop/restart, and service log viewing.
 - Config editing for maintained local services and model settings.
 - Role and skill listing, role switching, skill enable/disable/delete, and skill-store installation.
-- Dashboard Pet Chat in `dashboard/index.html`, backed by `src/pet/channel.ts`, with visible JSONL event history for Chat work-trace replay.
+- Dashboard Pet Chat in `desktop/dashboard/index.html`, backed by `src/pet/channel.ts`, with visible JSONL event history for Chat work-trace replay.
 - Developer-only observability read endpoints under `/api/observability/*`, backed by the in-process `src/observability` summary and maintained eval runners. Dashboard HTML intentionally does not render a user-facing observability panel.
 
 Out of scope:
@@ -38,11 +42,16 @@ flowchart LR
         ChatInput["Pet Chat message"]
     end
 
-    subgraph UI["Dashboard UI"]
+    subgraph UI["desktop/dashboard"]
         RuntimePage["Runtime page"]
         ChatPage["Chat page"]
         ConfigPage["Config page"]
         RoleSkillPages["Roles / Skills / Store pages"]
+    end
+
+    subgraph Shell["desktop/electron + build-resources"]
+        ElectronShell["Electron shell"]
+        PackageAssets["icons / embedded node"]
     end
 
     subgraph Backend["src/dashboard"]
@@ -63,6 +72,9 @@ flowchart LR
         SessionLogs["logs/sessions"]
     end
 
+    Human --> ElectronShell
+    ElectronShell --> UI
+    PackageAssets --> ElectronShell
     Human --> UI
     Query --> UI
     ChatInput --> ChatPage
@@ -83,10 +95,11 @@ Dashboard stays a focused local control plane. New Dashboard work should deepen 
 
 ```mermaid
 flowchart LR
-    subgraph Surface["Dashboard surface"]
-        Static["dashboard/index.html"]
-        PetRuntimeJs["dashboard/pet-runtime.js"]
-        Electron["electron shell"]
+    subgraph Surface["desktop"]
+        Static["desktop/dashboard/index.html"]
+        PetRuntimeJs["desktop/dashboard/pet-runtime.js"]
+        Electron["desktop/electron shell"]
+        BuildResources["desktop/build-resources"]
     end
 
     subgraph Backend["Dashboard backend"]
@@ -110,6 +123,7 @@ flowchart LR
     end
 
     Static --> PetRuntimeJs
+    BuildResources --> Electron
     Electron --> Static
     Static --> Api
     Api --> ServiceControl

@@ -32,4 +32,4 @@
 - 项目级正文只维护在 `docs/SPEC.md` / `docs/PLAN.md`。
 - 根目录物理结构解释维护在 `docs/ROOT_STRUCTURE.md`；不要把 build output、local evidence、automation scripts 或 package assets 解释成新的架构模块。
 - 不再把历史 proposal、ops、growth、archive 或 reference 文档放在 `docs/` 下。
-- 更细的 durable 子模块文档继续保留在对应模块目录，例如 `dashboard/`、`roles/<role-name>/`、`test/`、`eval/`、`eval/benchmarks/BaseRuntime/`。
+- 更细的 durable 子模块文档继续保留在对应模块目录，例如 `desktop/`、`roles/<role-name>/`、`test/`、`eval/`、`eval/benchmarks/BaseRuntime/`。

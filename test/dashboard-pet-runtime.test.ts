@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as vm from 'vm';
 
 function loadPetRuntime(): any {
-  const runtimePath = path.join(process.cwd(), 'dashboard', 'pet-runtime.js');
+  const runtimePath = path.join(process.cwd(), 'desktop', 'dashboard', 'pet-runtime.js');
   const context: any = { window: {} };
   vm.runInNewContext(fs.readFileSync(runtimePath, 'utf-8'), context, { filename: runtimePath });
   return context.window.XiaoBaPetRuntime;
@@ -84,7 +84,7 @@ describe('Dashboard pet runtime event handling', () => {
 
 describe('Dashboard pet page wiring', () => {
   test('main dashboard chat passes role-scoped session keys to event replay and sends', () => {
-    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+    const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
 
     assert.match(index, /function roleScopedSessionKey\(petId, roleKey\)/);
     assert.match(index, /selectedSessionKey = roleScopedSessionKey\(selectedPetId, selectedPetRole\);/);
@@ -93,7 +93,7 @@ describe('Dashboard pet page wiring', () => {
   });
 
   test('main dashboard chat renders message-mode text as separate visible replies', () => {
-    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+    const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
 
     assert.match(index, /onText: \(_event, text, meta\) => \{\s*renderAssistantText\(text, meta\);/);
     assert.match(index, /onDone: \(event, meta\) => \{\s*if \(event\.visibleToUser !== false && event\.text && !meta\?\.alreadyRenderedText\) \{/);
@@ -102,13 +102,13 @@ describe('Dashboard pet page wiring', () => {
   });
 
   test('desktop pet widget does not repeat done text after a text event', () => {
-    const widget = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'pet-widget.html'), 'utf-8');
+    const widget = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'pet-widget.html'), 'utf-8');
 
     assert.match(widget, /onDone: \(event, meta\) => \{\s*if \(event\.text && !meta\?\.alreadyRenderedText\) showNotice\(event\.text, 5200\);/);
   });
 
   test('skills page renders card names through the dashboard display-name helper', () => {
-    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+    const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
 
     assert.match(index, /function getSkillDisplayName\(skill\) \{/);
     assert.match(index, /const displayName = getSkillDisplayName\(sk\);/);
@@ -118,7 +118,7 @@ describe('Dashboard pet page wiring', () => {
   });
 
   test('config page does not expose legacy Inspector settings', () => {
-    const index = fs.readFileSync(path.join(process.cwd(), 'dashboard', 'index.html'), 'utf-8');
+    const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
 
     assert.doesNotMatch(index, /title:'Inspector'/);
     assert.doesNotMatch(index, /INSPECTOR_SERVER_/);

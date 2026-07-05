@@ -1,7 +1,7 @@
 # Surfaces PLAN
 
 状态：Active
-最后更新：2026-06-25
+最后更新：2026-07-05
 Owner：Surface maintainers
 
 本文维护 XiaoBa 入口层的执行状态。架构边界见 `SPEC.md`。
@@ -82,7 +82,7 @@ flowchart LR
 - Keep production parser / normalizer coverage inside `test:surface-runtime` so entry behavior is checked through the real runtime path.
 - Extend trace continuity tests from ingress normalization into production-network surface E2E once real external auth/file paths are available.
 - Promote file upload/download and `send_file` evidence into structured state/evidence records.
-- Keep `dashboard/SPEC.md` for Dashboard-specific UI details; keep this spec focused on cross-surface contracts.
+- Keep `desktop/SPEC.md` for Dashboard / Electron / package-resource details; keep this spec focused on cross-surface contracts.
 
 ## Owners
 
@@ -90,8 +90,9 @@ flowchart LR
 - Feishu：`src/feishu/**`
 - Weixin：`src/weixin/**`
 - Pet：`src/pet/**`
-- Dashboard：`src/dashboard/**`, `dashboard/**`
-- Electron：`electron/**`
+- Dashboard：`src/dashboard/**`, `desktop/dashboard/**`
+- Electron：`desktop/electron/**`
+- Desktop package resources：`desktop/build-resources/**`
 
 ## Acceptance Criteria
 
@@ -125,4 +126,4 @@ flowchart LR
 ## Status Maintenance Rules
 
 - Any new entrypoint must update this plan and `SPEC.md`.
-- Dashboard-only UI changes belong in `dashboard/PLAN.md`; cross-entry delivery or auth changes belong here.
+- Dashboard-only UI and desktop packaging changes belong in `desktop/PLAN.md`; cross-entry delivery or auth changes belong here.

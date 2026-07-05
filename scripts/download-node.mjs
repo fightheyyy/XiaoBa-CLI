@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.join(__dirname, '..');
 
 const NODE_VERSION = process.argv[2] || 'v20.18.1';
-const OUTPUT_DIR = path.join(projectRoot, 'build-resources', 'node');
+const OUTPUT_DIR = path.join(projectRoot, 'desktop', 'build-resources', 'node');
 const NODE_EXE_URL = `https://nodejs.org/dist/${NODE_VERSION}/win-x64/node.exe`;
 
 function download(url, dest) {
