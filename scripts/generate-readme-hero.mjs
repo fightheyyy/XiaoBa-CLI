@@ -13,34 +13,34 @@ const pngPath = path.join(outDir, 'hero.png');
 
 const width = 1280;
 const height = 460;
-const delayMs = 105;
+const delayMs = 150;
 const initialPauseFrames = 4;
-const rowPauseFrames = 3;
-const finalHoldFrames = 12;
+const rowPauseFrames = 5;
+const finalHoldFrames = 20;
 const mono = 'JetBrains Mono, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace';
 const figletFont = 'ANSI Shadow';
 
 const rowSpecs = [
   {
-    text: 'AGENTS CAN GROW.',
-    y: 78,
-    fill: '#fff7ed',
-    size: 8.8,
-    lineHeight: 10.4,
+    text: 'MESSAGE YOUR WORK.',
+    y: 72,
+    fill: '#1f1a12',
+    size: 8.1,
+    lineHeight: 9.6,
   },
   {
-    text: 'XIAO BA',
-    y: 182,
-    fill: '#f5c542',
-    size: 15.2,
-    lineHeight: 17.2,
+    text: 'XIAOBA',
+    y: 178,
+    fill: '#b88712',
+    size: 15.8,
+    lineHeight: 17.8,
   },
   {
-    text: 'MAKES GROWTH REVIEWABLE.',
+    text: 'WORKS LIKE A TEAMMATE.',
     y: 338,
-    fill: '#f1d18a',
-    size: 6.7,
-    lineHeight: 8.1,
+    fill: '#2d2518',
+    size: 7.1,
+    lineHeight: 8.5,
   },
 ];
 
@@ -148,14 +148,11 @@ function renderSvg(frame) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="#050403"/>
-  <rect width="${width}" height="${height}" fill="#211504" opacity="0.16"/>
-  ${line(118, 55, 1162, 55, { stroke: '#7c5a16', alpha: 0.35 })}
+  <rect width="${width}" height="${height}" fill="#ffffff"/>
 
   ${rows.map((row) => renderAsciiBlock(row, frame)).join('\n')}
 
-  ${text(width / 2, 407, 'trace / replay / arena / scorecard', { size: 24, weight: 800, fill: '#f6d37a', alpha: footerAlpha })}
-  <rect x="${cursor.x}" y="${cursor.y}" width="9" height="18" fill="#facc15" opacity="${opacity(cursorAlpha)}"/>
+  <rect x="${cursor.x}" y="${cursor.y}" width="9" height="18" fill="#b88712" opacity="${opacity(cursorAlpha)}"/>
 </svg>`;
 }
 
@@ -183,9 +180,9 @@ function encodeGif(frames) {
 
 function buildPalette() {
   const colors = [
-    '#050403', '#0a0805', '#120d05', '#1f1606', '#211504', '#3d2a08', '#5b3b08', '#7c5a16',
-    '#8a6a2a', '#a16207', '#b45309', '#d97706', '#eab308', '#f5c542', '#f6d37a',
-    '#f1d18a', '#fde68a', '#fff7ed', '#fffbeb', '#ffffff',
+    '#1f1a12', '#2d2518', '#403621', '#6c5017', '#8a6a2a', '#a16207', '#b88712', '#c59b38',
+    '#d8b45f', '#e6ca85', '#ead9b4', '#efe3cb', '#f3ead7', '#f8f1e3', '#fdf8ec',
+    '#fffaf0', '#fffbeb', '#fffdf7', '#ffffff', '#000000',
   ].map((hex) => {
     const value = hex.slice(1);
     return [
@@ -201,9 +198,9 @@ function buildPalette() {
   }
 
   const ramps = [
-    [5, 4, 3, 245, 197, 66],
-    [5, 4, 3, 255, 247, 237],
-    [33, 21, 4, 246, 211, 122],
+    [31, 26, 18, 184, 135, 18],
+    [248, 241, 227, 255, 250, 240],
+    [216, 180, 95, 255, 250, 240],
   ];
   for (const [r0, g0, b0, r1, g1, b1] of ramps) {
     for (let i = 0; i < 48; i++) {

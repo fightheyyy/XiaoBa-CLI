@@ -1,13 +1,17 @@
 <div align="center">
-  <img src="assets/hero.gif" alt="Agents can grow. XiaoBa makes growth reviewable." width="100%">
+  <img src="assets/hero.gif" alt="Message your work. XiaoBa works like a teammate." width="100%">
 
   # XiaoBa-CLI
 
-  **Governed Self-Improving Agent Runtime.**
+  **An IM-native AI coworker runtime.**
 
-  XiaoBa lets agents accumulate skills, reuse experience, and grow over time. More importantly, it makes every growth step reviewable with traces, replay, and Arena scorecards.
+  Human-like delivery, async subagents, and replay eval traces for work that should be observable after it happens.
 
-  > Agents can grow. XiaoBa makes growth reviewable.
+  `CLI / Dashboard / Desktop Pet / Feishu / WeChat`<br>
+  `Human-like Reply / Async Subagents / Roles & Skills`<br>
+  `Trace / Replay / Scorecard / Agentic Eval`
+
+  > Work like a teammate. Leave traces like infrastructure.
 
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
@@ -20,33 +24,32 @@
 
 ## What XiaoBa Does
 
-Many agents can "generate skills" or summarize experience. The hard problem is whether that growth is reliable, whether it regresses later, and whether humans can inspect, replay, and govern it.
+XiaoBa-CLI is not trying to be another smarter chatbot. It is an **IM-native AI coworker runtime**: users send work through IM, CLI, Dashboard, or Desktop Pet; XiaoBa accepts the job, dispatches work, runs in the background, collects evidence, and delivers the result back.
 
-XiaoBa turns self-evolution into a governed loop:
+It is built around four ideas:
 
-```text
-skill / role candidate
-  -> clean runtime
-  -> real multi-turn use
-  -> native trace / artifacts
-  -> issue extraction
-  -> replay / verifier / scorecard
-  -> pass / unstable / reopened / blocked / unsafe
-```
+1. **Human-like delivery**: short feedback, no raw tool-log spam, confirmation when needed, and quiet background work when possible.
+2. **Subagents / roles**: the main agent owns the conversation and dispatches long-running work to role-specific subagents, so IM chat stays unblocked.
+3. **Observable / replayable / evaluable / regression-safe work**: every job leaves traces, tool results, artifacts, replay data, and scorecards.
+4. **Agentic Eval**: XiaoBa includes an early local Arena for capability review; the fuller CI for agents path will move to Barena: `Agents can grow. Barena makes growth reviewable.`
 
-This is not another chatbot shell. XiaoBa's goal is:
+Core flow:
 
 ```text
-Agents can grow.
-XiaoBa makes growth reviewable.
+IM / CLI / Dashboard / Pet -> XiaoBa Runtime
+  -> main agent -> role / subagent
+  -> tools / files / messages
+  -> trace / replay / scorecard
 ```
+
+XiaoBa makes AI coworkers useful for long-running work. Arena / Barena makes capability changes reviewable, replayable, and scoreable.
 
 ## Why It Is Different
 
-- **Runtime**: Give agents a working body: roles, skills, tools, subagents, memory, files, delivery, and session state cooperate inside one recoverable runtime.
-- **Evidence**: XiaoBa records more than model text: real tool calls, file artifacts, user-visible delivery, session traces, and artifact evidence.
-- **Replay**: Historical real sessions can drive the current runtime again to catch regressions, fake success, missing artifacts, and unstable behavior.
-- **Arena**: New skills, new roles, and self-evolution outputs are untrusted candidates by default; Arena runs them in a clean runtime, lets UserCat perform real multi-turn use, then asks InspectorCat to extract cases and ReviewerCat to replay and score them.
+- **IM-native**: not a one-shot CLI prompt, but a runtime for message surfaces, long conversations, and long-running work.
+- **Coworker-like**: users see short feedback and deliverables, not verbose process narration or raw tool logs.
+- **Async dispatch**: subagents / roles can take over background work while the main conversation stays interactive.
+- **Replay eval**: traces, artifacts, replay, and scorecards form an inspectable evidence chain.
 
 ## Quick Start
 
@@ -86,9 +89,9 @@ Start the desktop Dashboard:
 npm run electron:dev
 ```
 
-## Arena
+## Arena / Barena
 
-Evaluate an installed skill:
+XiaoBa includes an early local Arena module for skill / role capability review. Evaluate an installed skill:
 
 ```bash
 xiaoba arena skill <skill-name>
@@ -108,6 +111,13 @@ Arena has three core review modes:
 | `role + skill` | Evaluate whether a skill remains reliable inside a specific role |
 | `role` | Evaluate whether a role itself is reliable |
 
+The fuller Agentic Eval / CI for agents path will move to Barena:
+
+```text
+Agents can grow.
+Barena makes growth reviewable.
+```
+
 ## Default Capabilities
 
 The default package keeps only the minimum trusted core:
@@ -119,7 +129,7 @@ Additional roles and skills enter through explicit installation, and should pass
 
 ## Evidence
 
-Arena currently has live proof on 7 SkillsBench-derived external gold cases: 2 baseline cases plus 5 broad holdout cases, with false pass = 0. The full proof corpus is not shipped in the XiaoBa-CLI repo; it belongs in Barena or a local ignored data directory.
+Arena currently has live proof on 7 SkillsBench-derived external gold cases: 2 baseline cases plus 5 broad holdout cases, with false pass = 0. The full proof corpus is not shipped in the XiaoBa-CLI repo; it belongs in a local ignored data directory or a separate evaluation corpus.
 
 This proves that the current `UserCat -> InspectorCat -> ReviewerCat` loop can preserve real evidence, extract issues/cases, run multi-attempt replay, and avoid false pass when an external verifier fails or replay is unstable. It does not claim that every skill is already stable, or that the result fully generalizes across providers and time windows.
 

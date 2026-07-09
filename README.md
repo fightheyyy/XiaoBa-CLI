@@ -1,13 +1,17 @@
 <div align="center">
-  <img src="assets/hero.gif" alt="Agents can grow. XiaoBa makes growth reviewable." width="100%">
+  <img src="assets/hero.gif" alt="Message your work. XiaoBa works like a teammate." width="100%">
 
   # XiaoBa-CLI
 
-  **可治理自进化 Agent Runtime。**
+  **一个 IM-native 的 AI 同事 Runtime。**
 
-  让 agent 能沉淀 skill、复用经验、长期成长；也让每一次成长都能被 trace 留证、replay 复跑、Arena scorecard 验收。
+  拟人交付、异步 subagents、可观测 replay eval；让 Agent 像同事一样接活，也让它做过的事能被复盘。
 
-  > Agent 可以成长，但不能乱长。
+  `CLI / Dashboard / 桌宠 / 飞书 / 微信`<br>
+  `Human-like Reply / Async Subagents / Roles & Skills`<br>
+  `Trace / Replay / Scorecard / Agentic Eval`
+
+  > 像同事一样接活，不像 chatbot 一样刷屏。
 
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
   [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
@@ -20,33 +24,32 @@
 
 ## XiaoBa 在干嘛
 
-很多 agent 都会“生成 skill”或“总结经验”。真正的问题是：这些成长到底能不能信，升级后会不会回归，出问题时人类能不能查证、复跑和管住它。
+XiaoBa-CLI 不是再做一个更会聊天的 agent，而是做一个 **IM-native AI coworker runtime**：用户从 IM、CLI、Dashboard 或桌宠丢任务进来，XiaoBa 接活、派工、后台执行、回收证据，再把结果交付回来。
 
-XiaoBa-CLI 把 self-evolution 变成一个可治理闭环：
+它围绕四件事设计：
 
-```text
-skill / role candidate
-  -> clean runtime
-  -> real multi-turn use
-  -> native trace / artifacts
-  -> issue extraction
-  -> replay / verifier / scorecard
-  -> pass / unstable / reopened / blocked / unsafe
-```
+1. **拟人**：少废话，不把工具日志甩给用户；该确认时确认，该交付时交付，后台跑时就安静跑。
+2. **Subagent / 多 role**：主 agent 负责对话和调度，长任务交给 role / subagent 后台执行，IM 主对话不被阻塞。
+3. **可观测 / 可回放 / 可评测 / 可回归**：每次工作都留下 trace、tool result、artifact、replay 和 scorecard，出问题能复盘，升级后能回归。
+4. **Agentic Eval**：XiaoBa 内置早期 Arena 做本地能力验收；更完整的 CI for agents 会独立到 Barena：`Agents can grow. Barena makes growth reviewable.`
 
-这不是又一个 agent 聊天壳。XiaoBa 的目标是：
+核心工作流：
 
 ```text
-Agents can grow.
-XiaoBa makes growth reviewable.
+IM / CLI / Dashboard / Pet -> XiaoBa Runtime
+  -> main agent -> role / subagent
+  -> tools / files / messages
+  -> trace / replay / scorecard
 ```
+
+XiaoBa 负责让 AI 同事能长期干活。Arena / Barena 负责让能力变化可复盘、可回放、可评分。
 
 ## 为什么不一样
 
-- **Runtime**：给 agent 一个能工作的身体，roles、skills、tools、subagents、memory、files、delivery 和 session state 都在同一个可恢复 runtime 里协作。
-- **Evidence**：不只记录“模型说了什么”，还记录真实工具调用、文件产物、用户可见交付、session trace 和 artifact evidence。
-- **Replay**：历史真实会话可以重新驱动当前 runtime，抓出回归、假成功、缺失产物和不稳定行为。
-- **Arena**：新 skill、新 role、self-evolution 产物默认都是候选能力；Arena 会把它们放进干净 runtime，由 UserCat 真实多轮使用，再交给 InspectorCat 抽 case，ReviewerCat replay 和评分。
+- **IM-native**：不是一次性 CLI prompt，而是面向消息入口、长对话和长任务的 runtime。
+- **像同事**：用户看到的是短反馈和交付结果，不是冗长链路说明和 raw tool log。
+- **异步派工**：subagent / role 在后台接管长任务，主对话继续可交互。
+- **Replay eval**：trace、artifact、replay、scorecard 形成可复盘的工作证据链。
 
 ## 快速开始
 
@@ -86,9 +89,9 @@ xiaoba chat -r engineer-cat -i
 npm run electron:dev
 ```
 
-## Arena
+## Arena / Barena
 
-评测一个已安装 skill：
+XiaoBa 内置早期 Arena 子模块，用来做本地 skill / role 能力验收。评测一个已安装 skill：
 
 ```bash
 xiaoba arena skill <skill-name>
@@ -108,6 +111,13 @@ Arena 固定三种使用场景：
 | `role + skill` | 测 skill 引入指定 role 后是否可靠 |
 | `role` | 测一个 role 本身是否可靠 |
 
+后续更完整的 Agentic Eval / CI for agents 会独立成 Barena：
+
+```text
+Agents can grow.
+Barena makes growth reviewable.
+```
+
 ## 默认能力
 
 默认包只带最小可信核心：
@@ -119,7 +129,7 @@ Arena 固定三种使用场景：
 
 ## 证据
 
-Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live proof：2 条 baseline + 5 条 broad holdout，false pass = 0。完整 proof corpus 不随 XiaoBa-CLI 主仓发布，后续归 Barena 或本地 ignored 数据目录管理。
+Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live proof：2 条 baseline + 5 条 broad holdout，false pass = 0。完整 proof corpus 不随 XiaoBa-CLI 主仓发布，后续归本地 ignored 数据目录或独立评测 corpus 管理。
 
 这证明的是当前 `UserCat -> InspectorCat -> ReviewerCat` loop 能保留真实证据、抽取 issue/case、执行多轮 replay，并在外部 verifier 失败或 replay 不稳定时避免误判为 pass。它不声称所有 skill 已经稳定，也不声称跨 provider / 跨时间窗口完全泛化。
 
