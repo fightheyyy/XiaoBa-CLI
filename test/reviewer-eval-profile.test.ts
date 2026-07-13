@@ -194,11 +194,10 @@ describe('ReviewerCat eval profile preparation', () => {
     assert.ok(manager.getTool('reviewer_module_test'));
   });
 
-  test('ReviewerCat prompt and spec include distilled multi-lens review model', () => {
-    const spec = fs.readFileSync(path.join(originalCwd, 'roles', 'reviewer-cat', 'SPEC.md'), 'utf-8');
+  test('ReviewerCat runtime prompt includes distilled multi-lens review model', () => {
     const prompt = fs.readFileSync(path.join(originalCwd, 'roles', 'reviewer-cat', 'prompts', 'reviewer-system-prompt.md'), 'utf-8');
 
-    for (const content of [spec, prompt]) {
+    for (const content of [prompt]) {
       assert.match(content, /test-engineer lens/);
       assert.match(content, /code-quality lens/);
       assert.match(content, /security lens/);

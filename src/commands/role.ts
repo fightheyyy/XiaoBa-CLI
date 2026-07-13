@@ -42,7 +42,7 @@ function listRoles(): void {
     Logger.warning('没有找到任何 role');
     Logger.info('\n提示：');
     Logger.info('  - 将 role 放在 roles/<role-name>/role.json');
-    Logger.info('  - 默认安装包只内置 user-cat、inspector-cat、engineer-cat、reviewer-cat');
+    Logger.info('  - 默认安装包内置 review-loop roles，以及 engineer-cat、browser-cat、gui-cat、secretary-cat');
     return;
   }
 

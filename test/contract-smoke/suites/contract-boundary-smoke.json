@@ -3,7 +3,7 @@
   "name": "Contract Boundary Smoke",
   "version": "0.1",
   "description": "Deterministic hard-gate smoke cases for provider error fallback, tool permission denial, and workspace path boundary enforcement.",
-  "source": "eval/PLAN.md#M18-contract-boundary-smoke",
+  "source": "docs/evaluation/SPEC.md#stable-boundaries",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

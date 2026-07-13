@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Tool } from '../types/tool';
 import { RoleResolver } from '../utils/role-resolver';
+import { ConfigManager } from '../utils/config';
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
 import { ToolManager } from '../tools/tool-manager';
@@ -31,6 +32,7 @@ import { ReviewerModuleTestTool } from './reviewer-cat/tools/module-test-tool';
 import { ResearchBoardReadTool, ResearchBoardUpdateTool } from './researcher-cat/tools/research-board-tools';
 import { ResearchAutoResearchRunTool } from './researcher-cat/tools/research-auto-run-tool';
 import { FeishuAuthLoginCompleteTool, FeishuAuthLoginStartTool, FeishuAuthStatusTool } from './secretary-cat/tools/feishu-auth-tools';
+import { DefaultLarkCliRunner } from './secretary-cat/utils/lark-cli-runner';
 import {
   FeishuCalendarAgendaTool,
   FeishuCalendarCreateTool,
@@ -81,6 +83,8 @@ import {
   FeishuTaskUpdateConfirmedTool,
 } from './secretary-cat/tools/feishu-task-tools';
 import { UserTraceRunTool } from './user-cat/tools/user-trace-run-tool';
+import { createBrowserCatTools } from './browser-cat';
+import { createGuiCatTools } from './gui-cat';
 
 export interface RoleRuntimeSupport {
   stop(): Promise<void>;
@@ -129,7 +133,25 @@ function isGuideRole(roleName?: string): boolean {
   return !!activeRole && normalizeRole(activeRole) === 'guide';
 }
 
+function isBrowserRole(roleName?: string): boolean {
+  const activeRole = roleName || RoleResolver.getActiveRoleName();
+  return !!activeRole && normalizeRole(activeRole) === 'browser-cat';
+}
+
+function isGuiRole(roleName?: string): boolean {
+  const activeRole = roleName || RoleResolver.getActiveRoleName();
+  return !!activeRole && normalizeRole(activeRole) === 'gui-cat';
+}
+
 export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
+  if (isBrowserRole(roleName)) {
+    return createBrowserCatTools();
+  }
+
+  if (isGuiRole(roleName)) {
+    return createGuiCatTools();
+  }
+
   if (isGuideRole(roleName)) {
     return [
       new GuideTpcBaselineTool(),
@@ -165,43 +187,50 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
     return [new AnalyzeLogTool()];
   }
   if (isSecretaryRole(roleName)) {
+    const surfaceAppId = String(
+      process.env.FEISHU_APP_ID || ConfigManager.getConfig().feishu?.appId || '',
+    ).trim();
+    const larkCli = new DefaultLarkCliRunner(
+      'lark-cli',
+      surfaceAppId ? { ...process.env, FEISHU_APP_ID: surfaceAppId } : process.env,
+    );
     return [
-      new FeishuAuthStatusTool(),
-      new FeishuAuthLoginStartTool(),
-      new FeishuAuthLoginCompleteTool(),
-      new FeishuCalendarAgendaTool(),
-      new FeishuCalendarCreateTool(),
-      new FeishuCalendarUpdateTool(),
-      new FeishuCalendarDeleteTool(),
-      new FeishuContactSearchTool(),
+      new FeishuAuthStatusTool(larkCli),
+      new FeishuAuthLoginStartTool(larkCli),
+      new FeishuAuthLoginCompleteTool(larkCli),
+      new FeishuCalendarAgendaTool(larkCli),
+      new FeishuCalendarCreateTool(larkCli),
+      new FeishuCalendarUpdateTool(larkCli),
+      new FeishuCalendarDeleteTool(larkCli),
+      new FeishuContactSearchTool(larkCli),
       new FeishuMessageDraftTool(),
-      new FeishuMessageSendConfirmedTool(),
-      new FeishuTaskListTool(),
-      new FeishuTaskCreateConfirmedTool(),
-      new FeishuTaskUpdateConfirmedTool(),
-      new FeishuTaskStateConfirmedTool(),
-      new FeishuMailTriageTool(),
-      new FeishuMailReadTool(),
-      new FeishuMailDraftCreateTool(),
-      new FeishuMailDraftSendConfirmedTool(),
-      new FeishuMinutesSearchTool(),
-      new FeishuMinutesGetTool(),
-      new FeishuMinutesNotesTool(),
-      new FeishuMinutesDownloadTool(),
-      new FeishuDocsSearchTool(),
-      new FeishuDocsFetchTool(),
-      new FeishuDocsCreateConfirmedTool(),
-      new FeishuDocsUpdateConfirmedTool(),
-      new FeishuDriveSearchTool(),
-      new FeishuDriveUploadConfirmedTool(),
-      new FeishuDriveDownloadTool(),
-      new FeishuDriveImportConfirmedTool(),
-      new FeishuSheetsReadTool(),
-      new FeishuSheetsAppendConfirmedTool(),
-      new FeishuBaseTableListTool(),
-      new FeishuBaseFieldListTool(),
-      new FeishuBaseRecordListTool(),
-      new FeishuBaseRecordUpsertConfirmedTool(),
+      new FeishuMessageSendConfirmedTool(larkCli),
+      new FeishuTaskListTool(larkCli),
+      new FeishuTaskCreateConfirmedTool(larkCli),
+      new FeishuTaskUpdateConfirmedTool(larkCli),
+      new FeishuTaskStateConfirmedTool(larkCli),
+      new FeishuMailTriageTool(larkCli),
+      new FeishuMailReadTool(larkCli),
+      new FeishuMailDraftCreateTool(larkCli),
+      new FeishuMailDraftSendConfirmedTool(larkCli),
+      new FeishuMinutesSearchTool(larkCli),
+      new FeishuMinutesGetTool(larkCli),
+      new FeishuMinutesNotesTool(larkCli),
+      new FeishuMinutesDownloadTool(larkCli),
+      new FeishuDocsSearchTool(larkCli),
+      new FeishuDocsFetchTool(larkCli),
+      new FeishuDocsCreateConfirmedTool(larkCli),
+      new FeishuDocsUpdateConfirmedTool(larkCli),
+      new FeishuDriveSearchTool(larkCli),
+      new FeishuDriveUploadConfirmedTool(larkCli),
+      new FeishuDriveDownloadTool(larkCli),
+      new FeishuDriveImportConfirmedTool(larkCli),
+      new FeishuSheetsReadTool(larkCli),
+      new FeishuSheetsAppendConfirmedTool(larkCli),
+      new FeishuBaseTableListTool(larkCli),
+      new FeishuBaseFieldListTool(larkCli),
+      new FeishuBaseRecordListTool(larkCli),
+      new FeishuBaseRecordUpsertConfirmedTool(larkCli),
     ];
   }
   if (isReviewerRole(roleName)) {

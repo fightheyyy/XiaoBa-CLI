@@ -53,6 +53,8 @@ export interface SubAgentSpawnOptions {
   notifyParent?: (subAgentId: string, taskDescription: string, question: string) => Promise<void>;
   /** Parent trace context inherited from spawn_subagent tool execution. */
   observabilityContext?: ObservabilitySpanContext;
+  /** Trusted parent session identity inherited from the spawning runtime context. */
+  parentSessionId?: string;
 }
 
 const SUB_AGENT_ALWAYS_HIDDEN_TOOLS = new Set([
@@ -108,6 +110,7 @@ export function createSubAgentToolManager(
   workingDirectory: string,
   subAgentId: string,
   roleName?: string,
+  contextOptions: { parentSessionId?: string; abortSignal?: AbortSignal } = {},
 ): ToolManager {
   return createRoleAwareToolManager(
     workingDirectory,
@@ -116,6 +119,8 @@ export function createSubAgentToolManager(
       surface: 'agent',
       permissionProfile: 'strict',
       ...(roleName ? { roleName } : {}),
+      ...(contextOptions.parentSessionId ? { parentSessionId: contextOptions.parentSessionId } : {}),
+      ...(contextOptions.abortSignal ? { abortSignal: contextOptions.abortSignal } : {}),
     },
     roleName,
   );
@@ -125,10 +130,17 @@ export function createSubAgentToolExecutor(
   workingDirectory: string,
   subAgentId: string,
   roleName?: string,
-  options: { allowSkillTool?: boolean } = {},
+  options: {
+    allowSkillTool?: boolean;
+    parentSessionId?: string;
+    abortSignal?: AbortSignal;
+  } = {},
 ): SubAgentToolExecutor {
   return new SubAgentToolExecutor(
-    createSubAgentToolManager(workingDirectory, subAgentId, roleName),
+    createSubAgentToolManager(workingDirectory, subAgentId, roleName, {
+      parentSessionId: options.parentSessionId,
+      abortSignal: options.abortSignal,
+    }),
     options,
   );
 }
@@ -157,6 +169,7 @@ export class SubAgentSession {
   /** 子智能体执行期间创建的文件路径（用于自动发送产出） */
   private outputFiles: string[] = [];
   private selectedSkillName?: string;
+  private readonly abortController = new AbortController();
   /** 挂起等待主 agent 回答的问题 */
   private pendingQuestion: string | null = null;
   private pendingResolve: ((answer: string) => void) | null = null;
@@ -202,7 +215,12 @@ export class SubAgentSession {
         const delay = SubAgentSession.SESSION_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
         Logger.warning(`[SubAgent ${this.id}] 第 ${attempt} 次重试，${delay}ms 后开始`);
         this.reportProgress(`第 ${attempt} 次重试（${lastError?.message}）`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const retryReady = await this.waitForRetryDelay(delay);
+        if (!retryReady) {
+          this.status = 'stopped';
+          this.completedAt = this.completedAt ?? Date.now();
+          return;
+        }
         this.messages = [];
         this.outputFiles = [];
       }
@@ -225,6 +243,26 @@ export class SubAgentSession {
     this.completedAt = Date.now();
     this.resultSummary = `执行失败: ${lastError?.message}`;
     Logger.error(`[SubAgent ${this.id}] ${this.stopped ? '已停止' : '失败'}: ${lastError?.message}`);
+  }
+
+  private waitForRetryDelay(delayMs: number): Promise<boolean> {
+    if (this.stopped || this.abortController.signal.aborted) {
+      return Promise.resolve(false);
+    }
+
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = (elapsed: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.abortController.signal.removeEventListener('abort', onAbort);
+        resolve(elapsed && !this.stopped);
+      };
+      const onAbort = () => finish(false);
+      const timer = setTimeout(() => finish(true), delayMs);
+      this.abortController.signal.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
@@ -266,7 +304,11 @@ export class SubAgentSession {
       this.options.workingDirectory,
       this.id,
       this.options.roleName,
-      { allowSkillTool: this.shouldAllowSkillSelection() },
+      {
+        allowSkillTool: this.shouldAllowSkillSelection(),
+        parentSessionId: this.options.parentSessionId,
+        abortSignal: this.abortController.signal,
+      },
     );
 
     // 创建独立的 ConversationRunner（不注入 channel，子智能体不直接和用户通信）
@@ -280,15 +322,17 @@ export class SubAgentSession {
         sessionId: `subagent:${this.id}`,
         surface: 'agent',
         permissionProfile: 'strict',
+        abortSignal: this.abortController.signal,
         observabilityContext: this.options.observabilityContext,
         ...(this.options.roleName ? { roleName: this.options.roleName } : {}),
+        ...(this.options.parentSessionId ? { parentSessionId: this.options.parentSessionId } : {}),
       },
       observabilityContext: this.options.observabilityContext,
     });
 
     // 7. 用 callbacks 捕获进度
     const callbacks: RunnerCallbacks = {
-      onToolEnd: (name, result) => {
+      onToolEnd: (name, _toolUseId, result) => {
         this.detectAndReportProgress(name, result);
       },
     };
@@ -315,6 +359,7 @@ export class SubAgentSession {
     this.stopped = true;
     this.status = 'stopped';
     this.completedAt = Date.now();
+    this.abortController.abort();
     // 如果正在挂起等待，解除阻塞
     if (this.pendingResolve) {
       this.pendingResolve('（任务已被停止）');

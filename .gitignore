@@ -71,6 +71,16 @@ skills/bio-skills/
 !/roles/engineer-cat/**
 !/roles/reviewer-cat/
 !/roles/reviewer-cat/**
+!/roles/browser-cat/
+!/roles/browser-cat/**
+!/roles/gui-cat/
+!/roles/gui-cat/**
+!/roles/secretary-cat/
+!/roles/secretary-cat/role.json
+!/roles/secretary-cat/prompts/
+!/roles/secretary-cat/prompts/**
+!/roles/secretary-cat/skills/
+!/roles/secretary-cat/skills/**
 
 # Python caches
 __pycache__/
@@ -100,6 +110,9 @@ Thumbs.db
 *.swo
 *~
 bash.exe.stackdump
+
+# Local README rendering
+/README.preview.html
 
 # Personal scratch files
 *_resume.tex

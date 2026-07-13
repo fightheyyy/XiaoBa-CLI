@@ -3,7 +3,7 @@
   "name": "Red Team Boundary Smoke",
   "version": "0.1",
   "description": "Deterministic red-team lane cases for permission denial, workspace escape, and provider degradation boundaries.",
-  "source": "test/SPEC.md#Contracts",
+  "source": "docs/evaluation/SPEC.md#stable-boundaries",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

@@ -31,7 +31,7 @@ max-turns: 80
 
 ## 执行流程
 
-1. 读取 `roles/engineer-cat/SPEC.md`，按其中的 EngineerTaskRunner 设计执行。
+1. 读取 `docs/roles-skills/SPEC.md` 和当前任务上下文，按 EngineerCat 的稳定责任边界执行。
 2. 扫描仓库上下文，优先读现有文件、配置、脚本、测试和最近变更。
 3. 优先用 `engineer_task_run` 创建可追踪任务，让 runtime 落盘 `data/engineer-tasks/<task-id>/task.json`、`plan.md` 和 `validation.md`。
 4. 如果需要接续已有项目会话，先用 `codex_session_list` 查询，再把明确的 `codex_session_id` 交给 `engineer_task_run`。

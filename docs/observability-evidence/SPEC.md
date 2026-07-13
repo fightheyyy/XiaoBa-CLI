@@ -1,7 +1,7 @@
-# Observability Evidence System SPEC
+# Observability & Evidence SPEC
 
 状态：Active
-最后更新：2026-06-30
+最后更新：2026-07-13
 
 本文是顶层架构模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现不提供外部观测导出，也不在本地 trace/log 写入前做清洗。
 
@@ -161,3 +161,18 @@ Local invariants:
 - Local summary preserves scalar local attributes, including prompt/tool previews when explicitly recorded, as local in-process evidence. Dashboard API responses redact preview attributes by default.
 - Local `traces.jsonl` keeps runtime facts as local evidence; benchmark curation rewrites raw traces into runnable eval cases.
 - `context_compaction` events and `context-snapshots/<session_id>.jsonl#<snapshot_id>` refs must agree by `event_id` / `snapshot_id`; consumers should resolve snapshot refs relative to the owning session log directory.
+
+Durable evidence layout:
+
+```text
+logs/sessions/<surface>/<date>/<session-id>/
+  traces.jsonl
+  runtime.log
+  context-snapshots/<session-id>.jsonl
+data/chat/sessions/**
+memory/**
+output/replay/**
+output/eval/**
+```
+
+`traces.jsonl` is the machine-readable runtime fact source; `runtime.log` is human debug text; snapshots are compact-after recovery/evidence anchors; generated replay/eval outputs are derived artifacts and never replace the source trace.

@@ -1,0 +1,32 @@
+{
+  "name": "browser-cat",
+  "displayName": "BrowserCat",
+  "description": "Browser execution specialist that uses XiaoBa's Agent loop with pinned deterministic agent-browser capabilities and fresh page verification.",
+  "promptFile": "browser-system-prompt.md",
+  "aliases": [
+    "browser",
+    "web-agent",
+    "browser-agent"
+  ],
+  "inheritBaseSkills": false,
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "ask_parent",
+    "read_file",
+    "glob",
+    "grep",
+    "skill"
+  ],
+  "confirmedToolGate": {
+    "requireImmediateUserConfirmation": true,
+    "tools": [
+      "browser_click_confirmed"
+    ]
+  },
+  "metadata": {
+    "petId": "browser-cat",
+    "driver": "agent-browser",
+    "driverVersion": "0.31.1",
+    "toolPolicy": "xiaoba-agent-loop-plus-typed-browser-capabilities-and-read-only-context"
+  }
+}

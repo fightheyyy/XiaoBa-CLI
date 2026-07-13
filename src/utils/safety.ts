@@ -16,7 +16,10 @@ const DEFAULT_DANGEROUS_TOOLS = new Set([
 ]);
 
 const DANGEROUS_BASH_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
-  { pattern: /\brm\s+-rf\s+\/(\s|$)/i, reason: '检测到可能破坏系统的 rm -rf /' },
+  {
+    pattern: /\brm\s+(?=[^;\n]*(?:-[a-z]*r[a-z]*|--recursive)(?:\s|$))(?=[^;\n]*(?:-[a-z]*f[a-z]*|--force)(?:\s|$))[^;\n]+/i,
+    reason: '检测到递归强制删除（rm recursive + force）',
+  },
   { pattern: /\bdel\s+\/s\s+\/q\s+[a-z]:\\/i, reason: '检测到可能清空磁盘的 del /s /q' },
   { pattern: /\bformat(\.exe)?\s+[a-z]:/i, reason: '检测到磁盘格式化命令' },
   { pattern: /\bmkfs(\.\w+)?\b/i, reason: '检测到文件系统格式化命令' },

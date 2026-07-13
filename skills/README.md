@@ -2,7 +2,7 @@
 
 ## 统一的 Skill 管理
 
-默认情况下，基础 Skills 存放在项目根目录的 `skills/` 文件夹中。GitHub 默认跟踪和 Electron 默认打包只保留 5 个 base skills：`remember`、`role-publish`、`self-evolution`、`skill-publish`、`agent-browser`。
+默认情况下，基础 Skills 存放在项目根目录的 `skills/` 文件夹中。GitHub 默认跟踪和 Electron 默认打包只保留 4 个 base skills：`remember`、`role-publish`、`self-evolution`、`skill-publish`。浏览器任务由 Base 直接派遣 BrowserCat，浏览器工作方法放在 BrowserCat 的 role-local Skill 中。
 
 如果使用角色模式（例如 `xiaoba --role inspector-cat`），角色专属 Skills 会放在 `roles/<role>/skills/`，运行时会优先加载角色目录，再按角色配置决定是否继承基础 Skills。
 
@@ -16,9 +16,7 @@ skills/
 │   └── SKILL.md
 ├── self-evolution/
 │   └── SKILL.md
-├── skill-publish/
-│   └── SKILL.md
-└── agent-browser/
+└── skill-publish/
     └── SKILL.md
 ```
 

@@ -52,7 +52,14 @@ import {
   FeishuTaskStateConfirmedTool,
   FeishuTaskUpdateConfirmedTool,
 } from '../src/roles/secretary-cat/tools/feishu-task-tools';
-import { LarkCliRunner, LarkCliRunOptions, redactSecrets } from '../src/roles/secretary-cat/utils/lark-cli-runner';
+import {
+  DefaultLarkCliRunner,
+  LarkCliExecFile,
+  LarkCliRunner,
+  LarkCliRunOptions,
+  SecretaryToolError,
+  redactSecrets,
+} from '../src/roles/secretary-cat/utils/lark-cli-runner';
 
 class MockLarkCliRunner implements LarkCliRunner {
   readonly calls: Array<{ args: string[]; options?: LarkCliRunOptions }> = [];
@@ -75,6 +82,76 @@ const context: ToolExecutionContext = {
   conversationHistory: [],
   roleName: 'secretary-cat',
 };
+
+describe('SecretaryCat lark-cli application binding', () => {
+  test('selects the profile matching the configured Feishu Surface App ID without changing global state', async () => {
+    const calls: Array<{ args: string[]; env: NodeJS.ProcessEnv }> = [];
+    const executor: LarkCliExecFile = async (_command, args, options) => {
+      calls.push({ args, env: options.env });
+      if (args.join(' ') === 'profile list') {
+        return {
+          stdout: JSON.stringify([
+            { name: 'personal', appId: 'cli_personal', active: true },
+            { name: 'xiaoba-surface', appId: 'cli_xiaoba', active: false },
+          ]),
+          stderr: '',
+        };
+      }
+      return { stdout: JSON.stringify({ appId: 'cli_xiaoba' }), stderr: '' };
+    };
+    const runner = new DefaultLarkCliRunner('lark-cli', {
+      PATH: '/usr/bin',
+      HOME: '/tmp/home',
+      FEISHU_APP_ID: 'cli_xiaoba',
+      FEISHU_APP_SECRET: 'surface-secret',
+      XIAOBA_LLM_API_KEY: 'llm-secret',
+    }, executor);
+
+    await runner.run(['auth', 'status']);
+    await runner.run(['calendar', '+agenda', '--as', 'user']);
+
+    assert.deepEqual(calls.map(call => call.args), [
+      ['profile', 'list'],
+      ['--profile', 'xiaoba-surface', 'auth', 'status'],
+      ['--profile', 'xiaoba-surface', 'calendar', '+agenda', '--as', 'user'],
+    ]);
+    assert.equal(calls.every(call => call.env.FEISHU_APP_SECRET === undefined), true);
+    assert.equal(calls.every(call => call.env.XIAOBA_LLM_API_KEY === undefined), true);
+    assert.equal(calls.every(call => call.env.HOME === '/tmp/home'), true);
+  });
+
+  test('fails closed when no lark-cli profile matches the Feishu Surface application', async () => {
+    const executor: LarkCliExecFile = async () => ({
+      stdout: JSON.stringify([{ name: 'other', appId: 'cli_other', active: true }]),
+      stderr: '',
+    });
+    const runner = new DefaultLarkCliRunner(
+      'lark-cli',
+      { FEISHU_APP_ID: 'cli_xiaoba' },
+      executor,
+    );
+
+    await assert.rejects(
+      () => runner.run(['auth', 'status']),
+      (error: unknown) => error instanceof SecretaryToolError
+        && error.code === 'CLI_NOT_CONFIGURED'
+        && /matches the configured Feishu Surface application/.test(error.message),
+    );
+  });
+
+  test('keeps standalone lark-cli behavior when no Feishu Surface app is configured', async () => {
+    const calls: string[][] = [];
+    const executor: LarkCliExecFile = async (_command, args) => {
+      calls.push(args);
+      return { stdout: '{}', stderr: '' };
+    };
+    const runner = new DefaultLarkCliRunner('lark-cli', { PATH: '/usr/bin' }, executor);
+
+    await runner.run(['auth', 'status']);
+
+    assert.deepEqual(calls, [['auth', 'status']]);
+  });
+});
 
 describe('SecretaryCat Feishu wrapper tools', () => {
   test('auth status normalizes scopes without exposing raw token fields', async () => {

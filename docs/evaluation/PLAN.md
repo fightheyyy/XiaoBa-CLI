@@ -1,5 +1,61 @@
-# Evaluation PLAN Proxy
+# Evaluation PLAN
 
-Live Agent Eval source plan 由 [`../../eval/PLAN.md`](../../eval/PLAN.md) 维护。
+状态：Active
+最后更新：2026-07-13
+Owner：Runtime / Evaluation maintainers
 
-保留本文件是为了让 `docs/` 根目录按模块命名；真实 live agent eval 进展、gate 证据和 benchmark 维护状态仍以 `eval/PLAN.md` 为准。历史 trace replay 进展由 [`../trace-replay/PLAN.md`](../trace-replay/PLAN.md) 维护。
+## Current Status
+
+- Engineering tests, Trace Replay and Live Agent Eval have separate commands and meanings.
+- Trace Replay reads historical Pet/Chat input, drives the current runtime and writes fresh evidence plus lightweight comparison.
+- Live Agent Eval currently contains one BaseRuntime manifest with 11 fresh-run cases.
+- `eval:gate` aggregates live eval only; `check:benchmarks` performs source preflight only.
+- Legacy static/mixed role benchmarks are removed.
+- Trace Replay is not yet side-effect safe and role live eval has not been rebuilt.
+
+```mermaid
+flowchart LR
+    Tests["test:*<br/>code correctness"] --> Gate["release evidence"]
+    History["historical trace"] --> Replay["replay:*<br/>fresh rerun"]
+    Cases["curated live cases"] --> Eval["eval:*<br/>verifier + scorecard"]
+```
+
+## Milestones
+
+1. Test / Replay / Eval boundary：completed。
+2. Trace Replay v1：completed。
+3. BaseRuntime 11-case live eval：completed。
+4. Live-only eval gate and benchmark preflight：completed。
+5. Replay side-effect isolation：not started。
+6. Role-owned live eval：not started after legacy asset removal。
+7. Multi-run real-model effectiveness evidence：not started。
+
+## Next Steps
+
+- Add side-effect-safe replay behavior before arbitrary historical reruns.
+- Keep `eval/` live-only and source authoring manual.
+- Rebuild role eval only with task-specific setup, expected result and hard verifiers.
+- Keep deterministic runtime checks under `test:*`.
+- Do not reintroduce generic schema/rubric/governance directories.
+
+## Owners
+
+- Engineering verification：`test/**`
+- Trace Replay：`src/replay/**`, `src/commands/replay.ts`, `scripts/run-trace-replay.ts`
+- Live eval runtime：`src/eval/**`, `scripts/run-eval-*.ts`
+- Benchmark source：`eval/benchmarks/**`
+
+## Acceptance Criteria
+
+- `test:*`, `replay:*`, `eval:*` and `check:*` remain semantically distinct.
+- Trace Replay does not output benchmark pass/fail or auto-author accepted cases.
+- Every Live Agent Eval case fresh-runs the current runtime.
+- `eval:gate` contains only live behavior evaluation.
+- Benchmark preflight does not claim behavior correctness.
+- Evaluation architecture changes update this PLAN and [`SPEC.md`](SPEC.md) only.
+
+## Risks / Open Questions
+
+- Replay can execute current real side effects and does not restore historical workspace state.
+- BaseRuntime uses scripted model decisions and does not prove broad real-model role effectiveness.
+- No default role benchmark currently provides fresh-run release evidence.

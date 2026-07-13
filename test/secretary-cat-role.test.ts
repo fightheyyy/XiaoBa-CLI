@@ -15,9 +15,6 @@ import { RoleResolver } from '../src/utils/role-resolver';
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
-const describeSecretaryRole = fs.existsSync(path.join(process.cwd(), 'roles', 'secretary-cat', 'role.json'))
-  ? describe
-  : describe.skip;
 
 function fakeChannel(surface: string) {
   return {
@@ -75,7 +72,7 @@ class FakeConfirmedMessageSendTool implements Tool {
   }
 }
 
-describeSecretaryRole('SecretaryCat role', () => {
+describe('SecretaryCat role', () => {
   after(() => {
     if (originalRole) {
       process.env.XIAOBA_ROLE = originalRole;
@@ -105,6 +102,7 @@ describeSecretaryRole('SecretaryCat role', () => {
     assert.equal(config.inheritBaseTools, false);
     assert.deepEqual(config.baseToolAllowlist, ['skill']);
     assert.equal(config.toolVisibility.mode, 'skill_scoped');
+    assert.ok(config.aliases.includes('feishu-cat'));
     assert.deepEqual(config.toolVisibility.defaultTools, [
       'skill',
       'feishu_auth_status',
@@ -114,6 +112,7 @@ describeSecretaryRole('SecretaryCat role', () => {
 
     RoleResolver.activateRole('secretary');
     assert.equal(RoleResolver.getActiveRoleName(), 'secretary-cat');
+    assert.equal(RoleResolver.resolveRoleDirectoryName('FeishuCat'), 'secretary-cat');
   });
 
   test('prompt and role-local skills load without base skill inheritance', async () => {

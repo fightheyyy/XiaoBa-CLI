@@ -1,7 +1,7 @@
 # Agent Runtime SPEC
 
 状态：Active
-最后更新：2026-06-30
+最后更新：2026-07-13
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
 本文是顶层架构模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据、评测和 Arena 分别由各自模块 spec 维护。
@@ -25,8 +25,8 @@ Out of scope:
 
 - 平台入口协议和用户可见交付，属于 `docs/surface/SPEC.md`。
 - Role/skill policy，属于 `docs/roles-skills/SPEC.md`。
-- 日志、artifact 和 trace projection 的持久化证据边界，属于 `docs/observability-evidence/SPEC.md` 和 `docs/observability-evidence/state-evidence/SPEC.md`。
-- Deterministic contract smoke belongs to `test/SPEC.md`; replay/verifier/scorecard belong to `eval/SPEC.md` and `eval/benchmarks/SPEC.md`。
+- 日志、artifact 和 trace projection 的持久化证据边界，属于 [`../observability-evidence/SPEC.md`](../observability-evidence/SPEC.md)。
+- Deterministic smoke、Trace Replay、verifier 和 scorecard 归 [`../evaluation/SPEC.md`](../evaluation/SPEC.md)。
 
 ## Current Architecture
 
@@ -128,6 +128,7 @@ flowchart LR
         RuntimeEvent["runtime event"]
         Artifact["artifact manifest"]
         LocalSummary["observability local summary"]
+        DriverResult["external driver result<br/>trust / version / outcome"]
     end
 
     subgraph Downstream["Downstream"]
@@ -149,11 +150,13 @@ flowchart LR
     VisibleTools --> Runner
     Tools --> ToolResult
     Tools --> Artifact
+    Tools --> DriverResult
     Runner --> RuntimeEvent
     Runner --> Delivery
     Runner --> LocalSummary
     ToolResult --> Evidence
     Artifact --> Evidence
+    DriverResult --> Evidence
     RuntimeEvent --> Evidence
     Delivery --> Evidence
     Evidence --> Gates
@@ -189,6 +192,10 @@ flowchart LR
 - Provider-visible transcript、trace、durable session 和 visible history 可以内容不同，但必须可关联且不能互相替代；live `AgentSession` trace logs expose `state_boundary` refs for durable session, legacy `working_trace` evidence and provider transcript digest reference, and release-grade state evidence 可用 `state_boundary_contract` + `provider_transcript_normalization` 证明 provider transcript 只是 normalized `sha256` reference，不是 raw messages/tool payloads 或普通路径 ref。Degraded provider transcript evidence must additionally carry structured `degradation_reason` / terminal `status`, `fallback_chain`, `blocked_reason` and explicit false raw-payload storage flags, so provider failures can be audited without raw transcript retention.
 - Provider adapter 负责把各自的消息、tool call、usage 和 streaming 协议归一为 runtime 合同；Ollama native adapter 使用 `/api/chat`、NDJSON streaming、默认 `think:false`、`keep_alive`、`num_ctx` 和可选 API key，以支持本地小模型。
 - Retry 必须有上限；重复失败后应改变策略或报告 blocked reason。显式 `retryable` 的 ToolResult retry exhausted 后必须进入 `blocked` 终态并记录 `retry_count` / `retry_budget` / `retry_budget_exhausted`；同一 run 内重复出现同名、同参、同错误的不可重试 ToolResult，必须在 bounded failure budget 后由 `ConversationRunner` 收束为 `blocked` ToolResult，并记录 prior failure count、budget exhaustion 和 `blocked_reason`；interrupt/cancel 必须进入 `cancelled` 终态且不可重试。
+- SubAgent stop 必须中断 waiting input、role-tool AbortSignal 和 retry backoff，并阻止迟到 callback 进入已关闭的 CLI session；provider HTTP 和通用 Shell 只有在各自 adapter 消费 AbortSignal 后才能声称物理取消，当前仍是明确缺口。
+- 外部 browser/GUI driver 只能通过 role-scoped typed tool adapter 进入 Runtime。Adapter 必须使用 fixed binary + `execFile(argv[])`、显式 timeout/AbortSignal、结构化 error code 和不可信内容标记；不得使用 Shell、动态 `npx latest`、MCP sidecar 或 driver 自带 Agent loop 绕过 ToolManager。
+- 物理 GUI 是进程外共享副作用资源。GuiCat mutation 在执行前必须持有全局桌面 lease；timeout 后 outcome 为 uncertain，不能自动重放。Browser session identity 由可信父 session、child session 和 workspace 共同派生，使同一父会话并发 BrowserCat 也使用不同 native session。
+- Browser driver 的 HOME、USERPROFILE、XDG、APPDATA、TMP、socket 和 restore state 必须落在 Runtime 私有目录；不能为了 Chrome discovery 暴露真实 HOME。Unix runtime 根使用短原子 `/tmp/xab-*` 目录以满足 macOS Unix socket path limit。
 
 ## Data Contracts
 
@@ -214,5 +221,5 @@ Runtime 需要稳定维护这些结构化事实：
 
 - 从 `docs/surface/SPEC.md` 接收规范化 user turn 和 callbacks。
 - 从 `docs/roles-skills/SPEC.md` 接收 role prompt、role-scoped tools 和 skill policy。
-- 向 `docs/observability-evidence/SPEC.md` / `docs/observability-evidence/state-evidence/SPEC.md` 输出 session logs、runtime events、artifact evidence、trace projection 和 durable state。
+- 向 [`../observability-evidence/SPEC.md`](../observability-evidence/SPEC.md) 输出 session logs、runtime events、artifact evidence、trace projection 和 durable state。
 - 由 `test/contract-smoke` 的 deterministic contract smoke 和 `eval/benchmarks/BaseRuntime` 的 release-blocking runtime benchmark cases 分层验证 transcript completeness、failure observability、delivery evidence 和 JSONL compatibility。

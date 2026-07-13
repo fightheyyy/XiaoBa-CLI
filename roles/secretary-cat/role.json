@@ -1,0 +1,125 @@
+{
+  "name": "secretary-cat",
+  "displayName": "SecretaryCat",
+  "description": "Feishu workplace role over the official lark-cli, with XiaoBa-scoped routing, confirmation, delivery, and evidence.",
+  "promptFile": "secretary-system-prompt.md",
+  "aliases": [
+    "secretary",
+    "personal-secretary",
+    "assistant-secretary",
+    "feishu-cat",
+    "feishucat",
+    "飞书猫"
+  ],
+  "inheritBaseSkills": false,
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "skill"
+  ],
+  "toolVisibility": {
+    "mode": "skill_scoped",
+    "defaultTools": [
+      "skill",
+      "feishu_auth_status",
+      "feishu_auth_login_start",
+      "feishu_auth_login_complete"
+    ],
+    "skillToolsets": {
+      "calendar": [
+        "feishu_calendar_agenda",
+        "feishu_calendar_create",
+        "feishu_calendar_update",
+        "feishu_calendar_delete",
+        "feishu_contact_search"
+      ],
+      "contact": [
+        "feishu_contact_search"
+      ],
+      "message": [
+        "feishu_contact_search",
+        "feishu_message_draft",
+        "feishu_message_send_confirmed"
+      ],
+      "task": [
+        "feishu_task_list",
+        "feishu_task_create_confirmed",
+        "feishu_task_update_confirmed",
+        "feishu_task_state_confirmed"
+      ],
+      "mail": [
+        "feishu_mail_triage",
+        "feishu_mail_read",
+        "feishu_mail_draft_create",
+        "feishu_mail_draft_send_confirmed"
+      ],
+      "minutes": [
+        "feishu_minutes_search",
+        "feishu_minutes_get",
+        "feishu_minutes_notes",
+        "feishu_minutes_download"
+      ],
+      "docs": [
+        "feishu_docs_search",
+        "feishu_docs_fetch",
+        "feishu_docs_create_confirmed",
+        "feishu_docs_update_confirmed"
+      ],
+      "drive": [
+        "feishu_drive_search",
+        "feishu_drive_upload_confirmed",
+        "feishu_drive_download",
+        "feishu_drive_import_confirmed"
+      ],
+      "sheets": [
+        "feishu_sheets_read",
+        "feishu_sheets_append_confirmed"
+      ],
+      "base": [
+        "feishu_base_table_list",
+        "feishu_base_field_list",
+        "feishu_base_record_list",
+        "feishu_base_record_upsert_confirmed"
+      ],
+      "brief": [
+        "feishu_calendar_agenda",
+        "feishu_task_list",
+        "feishu_mail_triage",
+        "feishu_minutes_search"
+      ]
+    }
+  },
+  "skillToolsetAliases": {
+    "daily-brief": [
+      "brief"
+    ],
+    "message-drafting": [
+      "message"
+    ],
+    "contact-lookup": [
+      "contact"
+    ]
+  },
+  "confirmedToolGate": {
+    "requireImmediateUserConfirmation": true,
+    "tools": [
+      "feishu_calendar_update",
+      "feishu_calendar_delete",
+      "feishu_message_send_confirmed",
+      "feishu_task_create_confirmed",
+      "feishu_task_update_confirmed",
+      "feishu_task_state_confirmed",
+      "feishu_mail_draft_send_confirmed",
+      "feishu_docs_create_confirmed",
+      "feishu_docs_update_confirmed",
+      "feishu_drive_upload_confirmed",
+      "feishu_drive_import_confirmed",
+      "feishu_sheets_append_confirmed",
+      "feishu_base_record_upsert_confirmed"
+    ]
+  },
+  "metadata": {
+    "modelHint": "gemma4:e4b-mlx via Ollama",
+    "toolPolicy": "xiaoba-confirmed-wrappers-over-official-lark-cli",
+    "capabilitySource": "https://github.com/larksuite/cli"
+  }
+}

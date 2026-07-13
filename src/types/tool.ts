@@ -190,6 +190,8 @@ export interface ToolExecutionContext {
   workingDirectory: string;
   conversationHistory: any[];
   sessionId?: string;
+  /** Trusted parent session identity injected by the runtime for child agents. */
+  parentSessionId?: string;
   surface?: ToolSurface;
   permissionProfile?: ToolPermissionProfile;
   runId?: string;

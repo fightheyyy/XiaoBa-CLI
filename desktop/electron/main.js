@@ -1,8 +1,17 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 
 const DASHBOARD_PORT = 3800;
-const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat'];
+const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat', 'browser-cat', 'gui-cat', 'secretary-cat'];
+const RETIRED_AGENT_BROWSER_SKILL_SHA256S = new Set([
+  '59bb1b5a07351f7b1940632695f3042afeef3268a06d03e1fbc3d85b91115648',
+  '26f30428a5cff69f396e821cb51060db1f13c7ec66473268b3731001ea63cd93',
+]);
+const LEGACY_ROLE_CONFIG_SHA256 = {
+  'browser-cat': '011fd179328b55cc375d3ef62794786369a05213d64e735be92ec4c56c7b2c46',
+  'gui-cat': '507bb834c6814ee30a5f7e883e6bd622c40fd97dfc8119804683d9b309656b75',
+};
 let mainWindow = null;
 let tray = null;
 let autoUpdater = null;
@@ -93,6 +102,23 @@ async function startServer() {
   const skillsPath = path.join(userDataPath, 'skills');
   const bundledSkills = path.join(appRoot, 'skills');
 
+  // BrowserCat now owns browser routing. Retire only exact XiaoBa-built copies of
+  // the old Base agent-browser Skill; preserve any user-customized Skill.
+  const retiredBrowserSkillDir = path.join(skillsPath, 'agent-browser');
+  const retiredBrowserSkillPath = path.join(retiredBrowserSkillDir, 'SKILL.md');
+  if (fs.existsSync(retiredBrowserSkillPath)) {
+    const installedHash = crypto.createHash('sha256')
+      .update(fs.readFileSync(retiredBrowserSkillPath))
+      .digest('hex');
+    if (RETIRED_AGENT_BROWSER_SKILL_SHA256S.has(installedHash)) {
+      const backupRoot = path.join(userDataPath, 'migration-backups', 'agent-browser');
+      const backupPath = path.join(backupRoot, `retired-${Date.now()}`);
+      fs.mkdirSync(backupRoot, { recursive: true });
+      fs.cpSync(retiredBrowserSkillDir, backupPath, { recursive: true });
+      fs.rmSync(retiredBrowserSkillDir, { recursive: true, force: true });
+    }
+  }
+
   if (fs.existsSync(bundledSkills)) {
     fs.mkdirSync(skillsPath, { recursive: true });
 
@@ -104,7 +130,6 @@ async function startServer() {
       const src = path.join(bundledSkills, dir.name);
       const dest = path.join(skillsPath, dir.name);
 
-      // 只复制不存在的 skill
       if (!fs.existsSync(dest)) {
         fs.cpSync(src, dest, { recursive: true });
       }
@@ -131,6 +156,28 @@ async function startServer() {
 
       if (fs.existsSync(src) && !fs.existsSync(dest)) {
         fs.cpSync(src, dest, { recursive: true });
+        continue;
+      }
+
+      // Existing built-in role directories are normally user-owned. Migrate only
+      // the exact pre-pet role.json shipped by XiaoBa, and add the bundled petId
+      // without replacing prompts, skills, or any other role files.
+      const bundledRoleConfigPath = path.join(src, 'role.json');
+      const installedRoleConfigPath = path.join(dest, 'role.json');
+      const legacyRoleConfigSha256 = LEGACY_ROLE_CONFIG_SHA256[roleName];
+      if (legacyRoleConfigSha256
+        && fs.existsSync(bundledRoleConfigPath)
+        && fs.existsSync(installedRoleConfigPath)
+        && crypto.createHash('sha256')
+          .update(fs.readFileSync(installedRoleConfigPath))
+          .digest('hex') === legacyRoleConfigSha256) {
+        const bundledRoleConfig = JSON.parse(fs.readFileSync(bundledRoleConfigPath, 'utf8'));
+        const installedRoleConfig = JSON.parse(fs.readFileSync(installedRoleConfigPath, 'utf8'));
+        installedRoleConfig.metadata = {
+          ...installedRoleConfig.metadata,
+          petId: bundledRoleConfig.metadata.petId,
+        };
+        fs.writeFileSync(installedRoleConfigPath, `${JSON.stringify(installedRoleConfig, null, 2)}\n`);
       }
     }
 

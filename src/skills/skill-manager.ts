@@ -21,7 +21,6 @@ export const DEFAULT_BUNDLED_BASE_SKILLS = [
   'role-publish',
   'self-evolution',
   'skill-publish',
-  'agent-browser',
 ] as const;
 
 /**

@@ -33,6 +33,7 @@ interface PetManifest {
   id: string;
   displayName?: string;
   description?: string;
+  spriteVersionNumber?: number;
   spritesheetPath?: string;
 }
 

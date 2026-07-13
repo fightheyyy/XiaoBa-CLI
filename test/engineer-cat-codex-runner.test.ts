@@ -71,11 +71,10 @@ describe('EngineerCat Codex runner role contract', () => {
     assert.match(runner.content, /data\/engineer-tasks\/<task-id>/);
   });
 
-  test('EngineerCat docs describe Codex runner path and not legacy external-provider routing', () => {
+  test('EngineerCat runtime assets and central role docs describe the Codex runner path', () => {
     const files = [
-      'roles/engineer-cat/SPEC.md',
-      'roles/engineer-cat/PLAN.md',
-      'roles/engineer-cat/README.md',
+      'docs/roles-skills/SPEC.md',
+      'docs/roles-skills/PLAN.md',
       'roles/engineer-cat/role.json',
       'roles/engineer-cat/prompts/behavior.md',
       'roles/engineer-cat/prompts/engineer-system-prompt.md',
@@ -91,13 +90,13 @@ describe('EngineerCat Codex runner role contract', () => {
       assert.doesNotMatch(content, /\btmux\b/, `${file} should not promise tmux team routing`);
     }
 
-    const spec = fs.readFileSync('roles/engineer-cat/SPEC.md', 'utf-8');
-    assert.match(spec, /Codex CLI 是当前已验证的外部 coding-agent 执行资源/);
-    assert.match(spec, /TaskRunner --> CodexJobs/);
-    assert.match(spec, /CodexJobs --> Codex/);
+    const spec = fs.readFileSync('docs/roles-skills/SPEC.md', 'utf-8');
+    assert.match(spec, /EngineerCat.*代码与工程接管/);
+    assert.match(spec, /UserCat --> Inspector/);
+    assert.match(spec, /Inspector --> Engineer/);
 
-    const plan = fs.readFileSync('roles/engineer-cat/PLAN.md', 'utf-8');
-    assert.match(plan, /`EngineerTaskRunner` -> `codex_job_\*` -> Codex CLI/);
+    const plan = fs.readFileSync('docs/roles-skills/PLAN.md', 'utf-8');
+    assert.match(plan, /EngineerCat Codex\/coding takeover/);
   });
 
   test('dashboard role introduction source exposes the updated EngineerCat description', () => {

@@ -16,6 +16,7 @@ import { BridgeClient } from '../bridge/bridge-client';
 import { ChimeInJudge } from '../bridge/chime-in-judge';
 import { ChannelCallbacks } from '../types/tool';
 import { randomUUID } from 'crypto';
+import { RoleResolver } from '../utils/role-resolver';
 
 interface PendingAttachment {
   fileName: string;
@@ -125,8 +126,10 @@ export class FeishuBot {
     }
     this.sender = overrides.sender || new MessageSender(this.client);
 
+    const roleName = RoleResolver.getActiveRoleName();
     const aiService = overrides.agentServices?.aiService || new AIService();
-    const toolManager = overrides.agentServices?.toolManager || createRoleAwareToolManager();
+    const toolManager = overrides.agentServices?.toolManager
+      || createRoleAwareToolManager(process.cwd(), {}, roleName);
 
     // 加载同事档案 + 已知 chat_id（供 bridge 和 session 使用）
     const teammates = loadTeammateProfiles();
@@ -149,13 +152,14 @@ export class FeishuBot {
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
     Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
 
-    const skillManager = overrides.agentServices?.skillManager || new SkillManager();
+    const skillManager = overrides.agentServices?.skillManager || new SkillManager(roleName);
 
     // 组装 AgentServices
     this.agentServices = overrides.agentServices || {
       aiService,
       toolManager,
       skillManager,
+      ...(roleName ? { roleName } : {}),
     };
 
     this.sessionManager = new MessageSessionManager(

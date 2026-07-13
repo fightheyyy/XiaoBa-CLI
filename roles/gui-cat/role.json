@@ -1,0 +1,34 @@
+{
+  "name": "gui-cat",
+  "displayName": "GuiCat",
+  "description": "macOS 桌面执行角色，使用 XiaoBa Agent loop 调用固定 Peekaboo 3.8.x 的确定性观察与操作能力。",
+  "promptFile": "gui-system-prompt.md",
+  "aliases": [
+    "gui",
+    "desktop",
+    "computer-use"
+  ],
+  "inheritBaseSkills": false,
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "ask_parent",
+    "read_file",
+    "glob",
+    "grep",
+    "skill"
+  ],
+  "confirmedToolGate": {
+    "requireImmediateUserConfirmation": true,
+    "tools": [
+      "gui_confirmed_action"
+    ]
+  },
+  "metadata": {
+    "petId": "gui-cat",
+    "platform": "darwin",
+    "minimumMacOS": "15.0",
+    "driver": "peekaboo",
+    "driverVersion": "3.8.x",
+    "toolPolicy": "xiaoba-agent-loop-plus-typed-gui-capabilities-and-read-only-context-no-shell"
+  }
+}

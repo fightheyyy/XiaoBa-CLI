@@ -3,7 +3,7 @@
   "name": "Surface Runtime Smoke",
   "version": "0.1.0",
   "description": "Deterministic runtime smoke for production FeishuBot event handling and Pet router.",
-  "source": "eval/PLAN.md#M21-surface-runtime-smoke",
+  "source": "docs/surface/SPEC.md#contracts",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

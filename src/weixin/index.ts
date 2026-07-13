@@ -12,6 +12,7 @@ import { Logger } from '../utils/logger';
 import { ChannelCallbacks } from '../types/tool';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { RoleResolver } from '../utils/role-resolver';
 
 const CHANNEL_VERSION = 'xiaoba-weixin/1.0';
 const DEFAULT_LONGPOLL_MS = 30000;
@@ -31,14 +32,16 @@ export class WeixinBot {
     this.sender = new MessageSender(config.token, config.baseUrl, config.cdnBaseUrl);
     this.stateDir = config.stateDir || path.join(process.cwd(), 'data', 'weixin');
 
+    const roleName = RoleResolver.getActiveRoleName();
     const aiService = new AIService();
-    const toolManager = createRoleAwareToolManager();
-    const skillManager = new SkillManager();
+    const toolManager = createRoleAwareToolManager(process.cwd(), {}, roleName);
+    const skillManager = new SkillManager(roleName);
 
     this.agentServices = {
       aiService,
       toolManager,
       skillManager,
+      ...(roleName ? { roleName } : {}),
     };
 
     this.sessionManager = new MessageSessionManager(this.agentServices, 'weixin');

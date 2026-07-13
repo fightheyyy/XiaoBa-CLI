@@ -1,57 +1,99 @@
 <div align="center">
-  <img src="assets/hero.gif" alt="Message your work. XiaoBa works like a teammate." width="100%">
+  <img src="assets/harness-social-preview.jpg" alt="XiaoBa Harness：从消息入口调度角色 Agent，并交付文件、消息和可回放证据" width="100%">
 
   # XiaoBa-CLI
 
-  **一个 IM-native 的 AI 同事 Runtime。**
+  **一套持续进化的 IM-native AI 同事 Runtime。**
 
-  拟人交付、异步 subagents、可观测 replay eval；让 Agent 像同事一样接活，也让它做过的事能被复盘。
+  把任务发给 XiaoBa。它负责沟通和派工，让角色 Agent 在后台执行，再把文件、消息和可回放证据交付回来。
 
-  `CLI / Dashboard / 桌宠 / 飞书 / 微信`<br>
-  `Human-like Reply / Async Subagents / Roles & Skills`<br>
-  `Trace / Replay / Scorecard / Agentic Eval`
+  <em>Message your work. XiaoBa works like a teammate.</em>
 
-  > 像同事一样接活，不像 chatbot 一样刷屏。
-
+  [![Release](https://img.shields.io/github/v/release/fightheyyy/XiaoBa-CLI?include_prereleases&label=release)](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1)
+  [![Desktop](https://img.shields.io/badge/desktop-macOS%20Apple%20Silicon-yellow.svg)](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1)
+  [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18-green.svg)](package.json)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-  [![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)](package.json)
-  [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](https://github.com/fightheyyy/XiaoBa-CLI)
 
-  [English](README.en.md) · [快速开始](#快速开始) · [Arena](#arena) · [证据](#证据) · [文档](#文档)
+  [下载 macOS 预览版](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1) · [快速开始](#快速开始) · [工作原理](#工作原理) · [证据与评测](#证据与评测) · [English](README.en.md)
+
+  <sub>当前桌面包为 Apple Silicon 技术预览版，采用 ad-hoc 签名，尚未完成 Apple notarization。</sub>
 </div>
 
 ---
 
-## XiaoBa 在干嘛
+## 把工作发给 XiaoBa
 
-XiaoBa-CLI 不是再做一个更会聊天的 agent，而是做一个 **IM-native AI coworker runtime**：用户从 IM、CLI、Dashboard 或桌宠丢任务进来，XiaoBa 接活、派工、后台执行、回收证据，再把结果交付回来。
+XiaoBa-CLI 不是另一个只会连续输出文字的 chatbot。它是一套围绕真实工作流设计的 **AI coworker harness runtime**：Base Main Agent 是唯一面向用户的沟通和调度入口，专业角色接管长任务，同一套 runtime 负责工具执行、状态恢复、交付和证据。
 
-它围绕四件事设计：
+| 你要完成的事 | XiaoBa 如何接管 | 最终交付 |
+| --- | --- | --- |
+| 修改代码、修复问题、验证构建 | EngineerCat 进入仓库和工程环境执行 | 代码改动、测试结果和 artifact evidence |
+| 浏览网页、收集资料、核验页面 | BrowserCat 通过受限 driver 执行浏览器任务 | 结构化结果、来源和页面证据 |
+| 操作桌面应用 | GuiCat 通过 macOS GUI driver 执行 | 操作结果和 GUI evidence |
+| 处理飞书日历、消息、任务和文档 | SecretaryCat 调用官方 `lark-cli` 工作流 | 飞书侧结果、文件和 delivery evidence |
+| 验收一个新 skill 或 role | UserCat 施压、InspectorCat 取证、ReviewerCat 复跑 | Arena scorecard 和明确结论 |
 
-1. **拟人**：少废话，不把工具日志甩给用户；该确认时确认，该交付时交付，后台跑时就安静跑。
-2. **Subagent / 多 role**：主 agent 负责对话和调度，长任务交给 role / subagent 后台执行，IM 主对话不被阻塞。
-3. **可观测 / 可回放 / 可评测 / 可回归**：每次工作都留下 trace、tool result、artifact、replay 和 scorecard，出问题能复盘，升级后能回归。
-4. **Agentic Eval**：XiaoBa 内置早期 Arena 做本地能力验收；更完整的 CI for agents 会独立到 Barena：`Agents can grow. Barena makes growth reviewable.`
+运行状态、trace 和 artifact evidence 默认保存在本地；模型 provider 可以按配置连接 OpenAI-compatible、Anthropic、Ollama 或其他兼容端点。
 
-核心工作流：
+## 工作原理
 
 ```text
-IM / CLI / Dashboard / Pet -> XiaoBa Runtime
-  -> main agent -> role / subagent
-  -> tools / files / messages
-  -> trace / replay / scorecard
+CLI / Feishu / WeChat / Pet / Dashboard
+                    |
+                    v
+       Base Main Agent：沟通、判断、派工
+                    |
+                    v
+      Role Subagent：后台接管专业任务
+                    |
+                    v
+        Tools / Drivers / Files / Messages
+                    |
+                    v
+      Deliverables + Trace + Replay + Scorecard
 ```
 
-XiaoBa 负责让 AI 同事能长期干活。Arena / Barena 负责让能力变化可复盘、可回放、可评分。
+- **一个控制平面**：Base 是唯一面向用户的主 Agent；七个角色复用同一套 XiaoBa Agent loop。
+- **后台派工**：角色 Subagent 处理长任务，主对话保持可交互。
+- **确定性能力边界**：浏览器、GUI 和飞书 driver 只提供能力，不启动第二套 Chat、Agent 或 MCP loop。
+- **交付优先**：文件、消息和工具结果进入结构化 evidence，不把“模型说完成了”当作完成。
+- **本地可复盘**：trace、artifact、delivery、replay 和 scorecard 形成可追溯证据链。
 
-## 为什么不一样
+## 运行界面
 
-- **IM-native**：不是一次性 CLI prompt，而是面向消息入口、长对话和长任务的 runtime。
-- **像同事**：用户看到的是短反馈和交付结果，不是冗长链路说明和 raw tool log。
-- **异步派工**：subagent / role 在后台接管长任务，主对话继续可交互。
-- **Replay eval**：trace、artifact、replay、scorecard 形成可复盘的工作证据链。
+<p align="center">
+  <img src="assets/dashboard.png" alt="XiaoBa Runtime Dashboard：运行服务、角色、技能、配置、商店和 Chat" width="100%">
+</p>
+
+<p align="center"><sub>Electron Dashboard 把运行服务、角色、技能、配置、商店和 Chat 收在同一个本地入口。</sub></p>
+
+## 七个默认角色
+
+Base Main Agent 负责面向用户、判断和派遣；角色是后台专业 Subagent，不是七套独立 Agent 框架。
+
+| 角色 | 责任 |
+| --- | --- |
+| UserCat | 用低信息、真实用户式输入给候选能力施压，产出候选 trace |
+| InspectorCat | 从 trace、工具和 artifact 中发现问题、保留证据并路由修复 |
+| ReviewerCat | 多轮 replay、验收修复并给出 `pass / unstable / reopened / blocked / unsafe` |
+| EngineerCat | 接管代码、仓库、构建和 Inspector/Reviewer 的修复工作 |
+| BrowserCat | 接管浏览器任务，执行受限且可验证的页面操作 |
+| GuiCat | 接管 macOS 桌面 GUI 任务 |
+| SecretaryCat | 接管飞书工作流；`FeishuCat` 是别名，领域能力由官方 `lark-cli` 提供 |
 
 ## 快速开始
+
+### macOS Desktop Preview
+
+[下载 XiaoBa v0.1.1 macOS Preview](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1)
+
+- 当前 DMG 面向 Apple Silicon（arm64）。
+- 这是公开技术预览版，不是已签名、notarized 的稳定发行版。
+- 完整校验值、源码 commit 和已知限制见 Release Notes。
+
+### CLI / 源码运行
+
+需要 Node.js 18 或更高版本：
 
 ```bash
 git clone https://github.com/fightheyyy/XiaoBa-CLI.git
@@ -60,7 +102,7 @@ npm install
 cp .env.example .env
 ```
 
-在 `.env` 写入模型配置：
+在 `.env` 中配置模型：
 
 ```env
 XIAOBA_LLM_PROVIDER=openai
@@ -69,74 +111,65 @@ XIAOBA_LLM_API_KEY=your_api_key
 XIAOBA_LLM_MODEL=your_model
 ```
 
-源码开发模式：
+启动交互式 CLI：
 
 ```bash
 npm run dev -- chat -i
+```
+
+指定角色：
+
+```bash
 npm run dev -- chat -r engineer-cat -i
 ```
 
-安装或 `npm link` 后：
-
-```bash
-xiaoba chat -i
-xiaoba chat -r engineer-cat -i
-```
-
-启动桌面 Dashboard：
+启动 Electron Dashboard：
 
 ```bash
 npm run electron:dev
 ```
 
-## Arena / Barena
+BrowserCat、GuiCat 和 SecretaryCat 等角色的外部 CLI / 平台依赖见 [`requirement.txt`](requirement.txt)。只在使用对应角色时安装和授权这些依赖。
 
-XiaoBa 内置早期 Arena 子模块，用来做本地 skill / role 能力验收。评测一个已安装 skill：
+## 证据与评测
+
+XiaoBa 把“完成”拆成可以检查的事实，而不是依赖一段看起来正确的回答。
+
+| 证据层 | 当前作用 |
+| --- | --- |
+| Trace | 保存一次用户请求中的模型、工具、失败、交付和 runtime event |
+| Artifact / Delivery Evidence | 记录文件、消息、外部回执和实际交付结果 |
+| Trace Replay | 用历史用户意图重新驱动当前 runtime，观察行为是否变化 |
+| Live Agent Eval | 对 curated case fresh-run 当前 runtime，并运行 hard verifiers |
+| Arena | 在 clean runtime 中验收候选 skill / role，输出可审计 scorecard |
+
+当前 BaseRuntime 维护 11 条 fresh-run live cases。Arena 还用 7 条 SkillsBench-derived controlled cases 校准 UserCat、InspectorCat 和 ReviewerCat；这只支持当前受控样本内的窄结论，不代表所有 provider、skill 或未来版本都已稳定。
+
+```bash
+npm test
+npm run replay:trace
+npm run eval:base-runtime
+npm run check:benchmarks
+```
+
+证据边界见 [Evaluation SPEC](docs/evaluation/SPEC.md) 和 [Arena Calibration Evidence](docs/arena/SPEC.md#calibration-evidence)。最近验证状态只维护在 [Project PLAN](docs/PLAN.md)，避免 README 里的数字过期。
+
+## Arena：能力进入默认包之前先验收
+
+Arena 不会因为一个 skill 写得像说明书就信任它。候选能力会进入隔离的 clean runtime，经过 UserCat 真实使用、InspectorCat 取证和 ReviewerCat 多轮 replay，再输出 `pass`、`unstable`、`reopened`、`blocked` 或 `unsafe`。
 
 ```bash
 xiaoba arena skill <skill-name>
 ```
 
-源码开发模式等价命令：
+Arena 固定支持 `base + skill`、`role + skill` 和 `role` 三种 review mode；promotion 必须由人明确执行，Arena 不会自动污染生产 `skills/` 或角色注册表。
 
-```bash
-npm run dev -- arena skill <skill-name>
-```
+## 当前边界
 
-Arena 固定三种使用场景：
-
-| 场景 | 目标 |
-| --- | --- |
-| `base + skill` | 测 skill 在最干净 base runtime 里是否高可用 |
-| `role + skill` | 测 skill 引入指定 role 后是否可靠 |
-| `role` | 测一个 role 本身是否可靠 |
-
-后续更完整的 Agentic Eval / CI for agents 会独立成 Barena：
-
-```text
-Agents can grow.
-Barena makes growth reviewable.
-```
-
-## 默认能力
-
-默认包只带最小可信核心：
-
-- Roles：`user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`
-- Skills：`remember`、`agent-browser`、`skill-publish`、`role-publish`、`self-evolution`
-
-更多 role / skill 通过显式安装进入，且应先经过 Arena 或人工验收。
-
-## 证据
-
-Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live proof：2 条 baseline + 5 条 broad holdout，false pass = 0。完整 proof corpus 不随 XiaoBa-CLI 主仓发布，后续归本地 ignored 数据目录或独立评测 corpus 管理。
-
-这证明的是当前 `UserCat -> InspectorCat -> ReviewerCat` loop 能保留真实证据、抽取 issue/case、执行多轮 replay，并在外部 verifier 失败或 replay 不稳定时避免误判为 pass。它不声称所有 skill 已经稳定，也不声称跨 provider / 跨时间窗口完全泛化。
-
-完整边界见：
-
-- [Cat Effectiveness Technical Report](docs/arena/CAT_EFFECTIVENESS_REPORT.md)
-- [Arena Effectiveness Experiment](docs/arena/ARENA_EFFECTIVENESS_EXPERIMENT.md)
+- macOS Electron DMG 仍是未 notarize 的 Apple Silicon preview。
+- BrowserCat、GuiCat 和 SecretaryCat 依赖各自固定或官方的外部 driver/CLI，并需要对应安装、权限或登录状态。
+- Dashboard、Pet 和 Bridge 的控制面仍以本地使用为主，尚未完成面向不可信网络的完整认证与 Owner 授权。
+- Trace Replay 可能执行当前真实 side effect；在 side-effect isolation 完成前，不应对任意历史 trace 无审查批量复跑。
 
 ## 常用命令
 
@@ -145,25 +178,21 @@ Arena 当前已经在 7 条 SkillsBench-derived 外部 gold case 上跑通 live 
 | 交互聊天 | `npm run dev -- chat -i` | `xiaoba chat -i` |
 | 单条消息 | `npm run dev -- chat -m "帮我总结这个项目"` | `xiaoba chat -m "帮我总结这个项目"` |
 | 指定角色 | `npm run dev -- chat -r engineer-cat -i` | `xiaoba chat -r engineer-cat -i` |
-| 评测 skill | `npm run dev -- arena skill <skill-name>` | `xiaoba arena skill <skill-name>` |
+| 验收 skill | `npm run dev -- arena skill <skill-name>` | `xiaoba arena skill <skill-name>` |
 | Dashboard | `npm run electron:dev` | - |
 | 构建 | `npm run build` | - |
 | 测试 | `npm test` | - |
 
-## 文档
+## 文档与社区
 
-README 只讲一眼能懂的产品入口；详细架构、模块边界和长期计划在文档里。
-
-- [Docs Index](docs/README.md)
-- [Project SPEC](docs/SPEC.md)
-- [Project PLAN](docs/PLAN.md)
-- [Agent Runtime SPEC](docs/agent-runtime/SPEC.md)
-- [Trace Replay SPEC](docs/trace-replay/SPEC.md)
-- [Arena SPEC](docs/arena/SPEC.md)
-- [Arena PLAN](docs/arena/PLAN.md)
-- [Skills Guide](skills/README.md)
+- [Project Architecture](docs/SPEC.md)
+- [Project Status / Plan](docs/PLAN.md)
 - [Roles Guide](roles/README.md)
+- [Skills Guide](skills/README.md)
+- [Releases](https://github.com/fightheyyy/XiaoBa-CLI/releases)
+- [Discussions](https://github.com/fightheyyy/XiaoBa-CLI/discussions)
+- [Issues](https://github.com/fightheyyy/XiaoBa-CLI/issues)
 
 ## License
 
-Apache-2.0
+[Apache-2.0](LICENSE)

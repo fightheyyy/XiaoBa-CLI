@@ -1,7 +1,7 @@
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
 import { Logger } from '../utils/logger';
-import { SubAgentSession, SubAgentInfo, SubAgentSpawnOptions } from './sub-agent-session';
+import { SubAgentSession, SubAgentInfo, SubAgentSpawnOptions, SubAgentStatus } from './sub-agent-session';
 import { randomUUID } from 'crypto';
 
 // ─── 平台回调注册 ───────────────────────────────────────
@@ -35,6 +35,10 @@ export class SubAgentManager {
   /** 完成后保留信息的时间（ms） */
   private static readonly RETENTION_MS = 30 * 60 * 1000;
 
+  private static isActiveStatus(status: SubAgentStatus): boolean {
+    return status === 'running' || status === 'waiting_for_input';
+  }
+
   private constructor() { }
 
   static getInstance(): SubAgentManager {
@@ -54,6 +58,21 @@ export class SubAgentManager {
     this.platformCallbacks.set(sessionKey, callbacks);
   }
 
+  /**
+   * 注销平台回调。传入 expectedCallbacks 时只删除同一个注册实例，避免旧会话
+   * 的迟到 cleanup 误删已经接管相同 session key 的新会话回调。
+   */
+  unregisterPlatformCallbacks(
+    sessionKey: string,
+    expectedCallbacks?: PlatformCallbacks,
+  ): boolean {
+    const current = this.platformCallbacks.get(sessionKey);
+    if (!current || (expectedCallbacks && current !== expectedCallbacks)) {
+      return false;
+    }
+    return this.platformCallbacks.delete(sessionKey);
+  }
+
   // ─── 子智能体生命周期 ─────────────────────────────────
 
   /**
@@ -67,12 +86,12 @@ export class SubAgentManager {
     workingDirectory: string,
     aiService: AIService,
     skillManager: SkillManager,
-    spawnOptions: Pick<SubAgentSpawnOptions, 'roleName' | 'allowSkillSelection' | 'observabilityContext'> = {},
+    spawnOptions: Pick<SubAgentSpawnOptions, 'roleName' | 'allowSkillSelection' | 'observabilityContext' | 'parentSessionId'> = {},
   ): SubAgentInfo | { error: string } {
     // 并发限制
-    const running = this.listByParent(parentSessionKey).filter(s => s.status === 'running');
-    if (running.length >= SubAgentManager.MAX_CONCURRENT_PER_SESSION) {
-      return { error: `最多同时运行 ${SubAgentManager.MAX_CONCURRENT_PER_SESSION} 个子任务，当前已有 ${running.length} 个在运行` };
+    const active = this.listByParent(parentSessionKey).filter(s => SubAgentManager.isActiveStatus(s.status));
+    if (active.length >= SubAgentManager.MAX_CONCURRENT_PER_SESSION) {
+      return { error: `最多同时运行 ${SubAgentManager.MAX_CONCURRENT_PER_SESSION} 个子任务，当前已有 ${active.length} 个在运行或等待输入` };
     }
 
     // 检查显式 skill 是否存在；没有预选 skill 时允许 role-only 或 no-skill 运行。
@@ -97,6 +116,7 @@ export class SubAgentManager {
       roleName: spawnOptions.roleName,
       allowSkillSelection: spawnOptions.allowSkillSelection ?? Boolean(spawnOptions.roleName && !skillName),
       observabilityContext: spawnOptions.observabilityContext,
+      parentSessionId: spawnOptions.parentSessionId ?? parentSessionKey,
       notifyParent: async (subAgentId, taskDesc, question) => {
         const msg = `[子智能体 ${subAgentId} 反馈]\n任务：${taskDesc}\n需要你的指示：${question}`;
         await platform.injectMessage(msg);
@@ -140,7 +160,7 @@ export class SubAgentManager {
    */
   stop(subAgentId: string): boolean {
     const session = this.subAgents.get(subAgentId);
-    if (!session || session.status !== 'running') {
+    if (!session || !SubAgentManager.isActiveStatus(session.status)) {
       return false;
     }
     session.stop();
@@ -164,7 +184,7 @@ export class SubAgentManager {
     if (!session) {
       return 'not_found';
     }
-    if (session.status !== 'running') {
+    if (!SubAgentManager.isActiveStatus(session.status)) {
       return 'not_running';
     }
 

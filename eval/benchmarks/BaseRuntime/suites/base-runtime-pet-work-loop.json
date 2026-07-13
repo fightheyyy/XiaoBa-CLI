@@ -3,7 +3,7 @@
   "name": "BaseRuntime Pet IM Coding Agent",
   "version": "0.1.0",
   "description": "Release-blocking BaseRuntime benchmark: Pet/IM coding-agent work, background subagent goal completion, explicit file/text delivery, default-off delivery fallback, malformed tool recovery, permission boundary, artifact evidence, and evidence-grounded follow-up.",
-  "source": "eval/benchmarks/BaseRuntime/SPEC.md#Target-Architecture",
+  "source": "docs/evaluation/SPEC.md#minimum-live-case-shape",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

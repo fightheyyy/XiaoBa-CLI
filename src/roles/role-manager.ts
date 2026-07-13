@@ -8,6 +8,9 @@ export const DEFAULT_BUNDLED_ROLES = [
   'inspector-cat',
   'engineer-cat',
   'reviewer-cat',
+  'browser-cat',
+  'gui-cat',
+  'secretary-cat',
 ] as const;
 
 const BASE_ROLE_NAMES = new Set(['', 'base', 'default', 'none']);

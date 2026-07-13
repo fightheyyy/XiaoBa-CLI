@@ -1,0 +1,51 @@
+XiaoBa-CLI role CLI requirements
+================================
+
+This is a human-readable role dependency inventory, not a Python pip requirements file.
+Run `npm install` first. Optional role CLIs are only needed when that role uses the listed external capability.
+
+Base Main Agent
+  npm CLI: none
+
+UserCat (user-cat)
+  npm CLI: none
+
+InspectorCat (inspector-cat)
+  npm CLI: none
+
+EngineerCat (engineer-cat)
+  npm CLI: @openai/codex
+  command: codex
+  needed for: delegated Codex engineering jobs and session resume
+  install: npm install --global @openai/codex
+
+ReviewerCat (reviewer-cat)
+  npm CLI: @openai/codex
+  command: codex
+  needed for: codex_job_* repair and resume flows; deterministic review can run without it
+  install: npm install --global @openai/codex
+
+BrowserCat (browser-cat)
+  npm CLI: agent-browser@0.31.1
+  command: agent-browser
+  needed for: real browser takeover
+  install: npm install --save-optional --save-exact agent-browser@0.31.1
+  note: install locally so XiaoBa can select the package's platform-native binary instead of an npm wrapper
+  runtime: Node.js >=24
+
+GuiCat (gui-cat, macOS only)
+  npm CLI: @steipete/peekaboo@3.8.0
+  command: peekaboo
+  needed for: real macOS desktop takeover
+  install: npm install --save-optional --save-exact @steipete/peekaboo@3.8.0
+  note: already declared by XiaoBa-CLI as an optional dependency and bundled into macOS Electron builds
+  runtime: Node.js >=22 for npm installation; macOS >=15 plus Screen Recording and Accessibility permissions
+
+SecretaryCat / FeishuCat (secretary-cat)
+  npm CLI: @larksuite/cli
+  command: lark-cli
+  needed for: real Feishu workplace workflows
+  install: npm install --global @larksuite/cli
+  setup: lark-cli auth login
+
+Project-pinned driver versions are compatibility contracts. Do not silently substitute another major or minor line.

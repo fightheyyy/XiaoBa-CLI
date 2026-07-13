@@ -198,7 +198,7 @@ describe('Feishu Engineer runtime', () => {
   test('Feishu message sessions expose engineer task tools and can route a message to engineer_task_run', async () => {
     RoleResolver.activateRole('engineer-cat');
     const feishuSource = fs.readFileSync(path.join(process.cwd(), 'src', 'feishu', 'index.ts'), 'utf-8');
-    assert.match(feishuSource, /createRoleAwareToolManager\(\)/);
+    assert.match(feishuSource, /createRoleAwareToolManager\(process\.cwd\(\), \{\}, roleName\)/);
 
     const fakeTool = new FakeEngineerTaskRunTool();
     const toolManager = createRoleAwareToolManager();

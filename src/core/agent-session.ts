@@ -385,18 +385,35 @@ export class AgentSession {
 
         // 注入后台子智能体状态（临时上下文，不持久化）
         const subAgentManager = SubAgentManager.getInstance();
-        const runningSubAgents = subAgentManager.listByParent(this.key);
-        if (runningSubAgents.length > 0) {
-          const statusLines = runningSubAgents.map(s => {
-            const statusLabel = s.status === 'running' ? '运行中' : s.status === 'completed' ? '已完成' : s.status === 'failed' ? '失败' : '已停止';
+        const subAgents = subAgentManager.listByParent(this.key);
+        if (subAgents.length > 0) {
+          const activeCount = subAgents.filter(s => (
+            s.status === 'running' || s.status === 'waiting_for_input'
+          )).length;
+          const statusLines = subAgents.map(s => {
+            const statusLabel = s.status === 'running'
+              ? '运行中'
+              : s.status === 'waiting_for_input'
+                ? '等待输入'
+                : s.status === 'completed'
+                  ? '已完成'
+                  : s.status === 'failed'
+                    ? '失败'
+                    : '已停止';
             const latest = s.progressLog[s.progressLog.length - 1] ?? '';
             const summary = s.status === 'completed' && s.resultSummary ? `\n  结果: ${s.resultSummary.slice(0, 200)}` : '';
-            return `- [${s.id}] ${s.taskDescription} (${statusLabel}) ${latest}${summary}`;
+            const pending = s.status === 'waiting_for_input' && s.pendingQuestion
+              ? `\n  待回复问题: ${s.pendingQuestion.slice(0, 500)}`
+              : '';
+            return `- [${s.id}] ${s.taskDescription} (${statusLabel}) ${latest}${pending}${summary}`;
           }).join('\n');
+          const retainedCount = subAgents.length - activeCount;
+          const statusSummary = `当前有 ${activeCount} 个活跃后台子任务`
+            + (retainedCount > 0 ? `，另保留 ${retainedCount} 个已结束任务记录` : '');
 
           const subagentStatusMsg: Message = {
             role: 'system',
-            content: `${TRANSIENT_SUBAGENT_STATUS_PREFIX}\n当前有 ${runningSubAgents.length} 个后台子任务：\n${statusLines}\n\n用户如果询问任务进度，请基于以上信息回答。如果用户要求停止任务，使用 stop_subagent 工具。`,
+            content: `${TRANSIENT_SUBAGENT_STATUS_PREFIX}\n${statusSummary}：\n${statusLines}\n\n用户如果询问任务进度，请基于以上信息回答。等待输入的任务应使用 resume_subagent 回复；用户如果要求停止任务，使用 stop_subagent。`,
           };
           // 插入到最后一条用户消息之前
           const lastUserIdx = contextMessages.length - 1;

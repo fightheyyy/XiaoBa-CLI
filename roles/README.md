@@ -1,57 +1,58 @@
-# Roles 目录说明
+# XiaoBa Roles
 
-`roles/` 用来存放 XiaoBa Runtime 的角色定义。
+XiaoBa 只有一个面向用户的 Base Main Agent。Role 是 Base 派遣的专业 Subagent 配置，全部复用同一套 XiaoBa Agent Runtime。
 
-角色层架构见 [`SPEC.md`](SPEC.md)，当前执行计划见 [`PLAN.md`](PLAN.md)。
+架构和进度统一维护在 [`docs/roles-skills/SPEC.md`](../docs/roles-skills/SPEC.md) 与 [`docs/roles-skills/PLAN.md`](../docs/roles-skills/PLAN.md)。
 
-每个角色都应该放在独立目录下，并至少包含以下内容：
+## 默认七个角色
+
+| Role | 责任 | 不负责 |
+| --- | --- | --- |
+| `user-cat` | 低信息用户压力、候选 trace | 判断通过、修代码 |
+| `inspector-cat` | 发现问题、整理证据、路由 | 实现修复、最终验收 |
+| `reviewer-cat` | 复跑、验收、closed/reopened/blocked | 主实现 |
+| `engineer-cat` | 代码与工程环境接管、实现返工 | 浏览器/桌面专属操作 |
+| `browser-cat` | 浏览器接管和页面证据验证 | 桌面 GUI、任意 Shell |
+| `gui-cat` | macOS 桌面 GUI 接管和操作证据 | 浏览器专属流程、任意 Shell |
+| `secretary-cat` | 飞书日历、消息、邮件、任务、文档和协同工作流；可用 `feishu-cat` / `FeishuCat` 别名 | 重写飞书 API/CLI、绕过确认直接执行后果动作 |
+
+稳定协作关系：
 
 ```text
-roles/
-└── <role-name>/
-    ├── README.md
-    ├── role.json
-    ├── prompts/
-    └── skills/
+UserCat -> InspectorCat -> EngineerCat -> ReviewerCat
+                                      ^          |
+                                      | reopened |
+                                      +----------+
 ```
 
-## 约定
-
-- `README.md`：说明这个角色的定位、职责、适用场景和使用方式
-- `role.json`：声明角色名称、描述、prompt 文件和 skill 继承策略
-- `prompts/`：存放角色专属 prompt
-- `skills/`：存放角色专属 skills
-
-## 设计原则
-
-- 只维护一套 `XiaoBa-CLI` runtime
-- 公共能力保留在主 runtime 中
-- 角色差异通过 `roles/<role>/` 覆盖和扩展
-- 角色专属能力只在对应 role 激活时加载
-
-## 使用方式
-
-```bash
-xiaoba --role <role-name>
-```
-
-示例：
-
-```bash
-xiaoba --role inspector-cat
-xiaoba --role engineer-cat
-xiaoba --role reviewer-cat
-xiaoba chat --role user-cat -m "用这个 seed 测 engineer-cat：用户说 CLI 命令坏了，但不知道哪次改坏的。"
-```
-
-## 管理命令
-
-默认安装包和 GitHub 默认跟踪资产只保留 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat` 四个核心协作角色；其他角色应通过 Role Hub / 外部仓库按需安装。
+## 使用
 
 ```bash
 xiaoba role list
 xiaoba role info engineer-cat
-xiaoba role remove engineer-cat
+xiaoba --role engineer-cat
+xiaoba --role browser-cat
+xiaoba --role gui-cat
+xiaoba --role feishu-cat
+xiaoba chat --role user-cat -m "像普通用户一样试用这个功能"
 ```
 
-`base` / `default` / `none` 不是可删除角色。删除当前激活角色后，后续会话会回到 Base。
+SecretaryCat 复用[官方 larksuite/cli](https://github.com/larksuite/cli)执行飞书能力。XiaoBa 只在它上面增加角色派遣、领域工具收窄、后果动作确认、交付和 evidence；使用前需在本机安装并配置官方 `lark-cli`。
+
+Base 派遣跨角色工作时使用 `role_name`，目标角色自行选择其可见 Skill。`base`、`default`、`none` 表示不激活角色。
+
+## Role 包结构
+
+```text
+roles/<role-name>/
+  role.json
+  prompts/<prompt-file>.md
+  skills/<skill-name>/SKILL.md   # optional
+```
+
+- `role.json`：名称、描述、prompt、skill/tool policy 和确认 gate。
+- `prompts/**`：运行时角色指令，不是用户文档。
+- `skills/**/SKILL.md`：角色工作方法，不拥有独立 Agent loop。
+- 原生角色工具位于 `src/roles/**`，必须经过共享 ToolManager。
+
+非默认角色通过显式安装或本地资产进入，不自动加入 GitHub 默认跟踪和 Electron 默认包。

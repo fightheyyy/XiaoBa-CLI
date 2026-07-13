@@ -3,7 +3,7 @@
   "name": "Surface Runtime File Smoke",
   "version": "0.1.0",
   "description": "Deterministic runtime smoke for production FeishuBot and Pet file delivery evidence.",
-  "source": "eval/PLAN.md#M22-surface-runtime-file-delivery",
+  "source": "docs/surface/SPEC.md#contracts",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

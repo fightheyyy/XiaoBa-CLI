@@ -111,6 +111,7 @@ export class SpawnSubagentTool implements Tool {
         roleName,
         allowSkillSelection,
         observabilityContext: context.observabilityContext,
+        parentSessionId: sessionKey,
       },
     );
 

@@ -454,8 +454,6 @@ function writeRole(root: string, roleName: string, config: Record<string, unknow
   const roleDir = path.join(root, 'roles', roleName);
   fs.mkdirSync(path.join(roleDir, 'prompts'), { recursive: true });
   fs.writeFileSync(path.join(roleDir, 'role.json'), JSON.stringify(config, null, 2), 'utf-8');
-  fs.writeFileSync(path.join(roleDir, 'README.md'), `# ${roleName}\n`, 'utf-8');
-  fs.writeFileSync(path.join(roleDir, 'SPEC.md'), `# ${roleName} SPEC\n`, 'utf-8');
   fs.writeFileSync(path.join(roleDir, 'prompts', 'system.md'), 'Role prompt.', 'utf-8');
 }
 

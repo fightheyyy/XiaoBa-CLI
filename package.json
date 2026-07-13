@@ -114,7 +114,6 @@
       "desktop/electron/**/*",
       "desktop/dashboard/**/*",
       "prompts/**/*",
-      "skills/agent-browser/**/*",
       "skills/self-evolution/**/*",
       "skills/role-publish/**/*",
       "skills/skill-publish/**/*",
@@ -124,6 +123,9 @@
       "roles/inspector-cat/**/*",
       "roles/engineer-cat/**/*",
       "roles/reviewer-cat/**/*",
+      "roles/browser-cat/**/*",
+      "roles/gui-cat/**/*",
+      "roles/secretary-cat/**/*",
       "roles/README.md",
       "skill-registry.json",
       ".env.example",
@@ -163,7 +165,13 @@
         "dmg"
       ],
       "icon": "desktop/build-resources/icon.icns",
-      "artifactName": "${productName}-${version}-mac.${ext}"
+      "artifactName": "${productName}-${version}-mac.${ext}",
+      "extraResources": [
+        {
+          "from": "node_modules/@steipete/peekaboo/peekaboo",
+          "to": "drivers/peekaboo/peekaboo"
+        }
+      ]
     },
     "win": {
       "target": [
@@ -205,5 +213,8 @@
         }
       ]
     }
+  },
+  "optionalDependencies": {
+    "@steipete/peekaboo": "3.8.0"
   }
 }

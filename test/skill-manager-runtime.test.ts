@@ -154,6 +154,53 @@ describe('SkillManager runtime base skills', () => {
     await waitForSubAgentStatus(explicitBaseSessionId, 'completed');
   });
 
+  test('spawn_subagent injects trusted parent session identity outside model arguments', async () => {
+    const tool = new SpawnSubagentTool();
+    const manager = SubAgentManager.getInstance();
+    const originalSpawn = manager.spawn;
+    let capturedOptions: any;
+
+    (manager as any).spawn = (...args: any[]) => {
+      capturedOptions = args[7];
+      return {
+        id: 'sub-trusted-parent',
+        taskDescription: 'trusted parent context smoke',
+        status: 'running',
+        createdAt: Date.now(),
+        progressLog: [],
+        outputFiles: [],
+      };
+    };
+
+    try {
+      const result = await tool.execute({
+        task_description: 'trusted parent context smoke',
+        user_message: 'verify trusted runtime context',
+      }, {
+        workingDirectory: process.cwd(),
+        conversationHistory: [],
+        sessionId: 'cli-parent-trusted',
+        subAgentServiceFactory: async () => ({
+          aiService: new ImmediateSubAgentAIService(),
+          skillManager: new EmptySubAgentSkillManager(),
+        }),
+      });
+
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(capturedOptions.parentSessionId, 'cli-parent-trusted');
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(tool.definition.parameters.properties, 'parentSessionId'),
+        false,
+      );
+      assert.strictEqual(
+        Object.prototype.hasOwnProperty.call(tool.definition.parameters.properties, 'parent_session_id'),
+        false,
+      );
+    } finally {
+      (manager as any).spawn = originalSpawn;
+    }
+  });
+
   test('default runtime tool schemas keep provider-compatible object roots', () => {
     const manager = new ToolManager();
 

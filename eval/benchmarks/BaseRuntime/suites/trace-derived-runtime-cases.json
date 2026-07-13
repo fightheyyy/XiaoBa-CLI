@@ -3,7 +3,7 @@
   "name": "BaseRuntime Trace-Derived IM Runtime Cases",
   "version": "0.1.0",
   "description": "Five live Pet/runtime benchmark cases promoted from real IM runtime archetypes. Each case is an explicit runnable replay of a high-value runtime behavior.",
-  "source": "eval/benchmarks/BaseRuntime/RUNTIME_BENCHMARK.md",
+  "source": "docs/evaluation/SPEC.md#minimum-live-case-shape",
   "decision_policy": {
     "fail_on_any_hard_failure": true,
     "fail_on_required_artifact_failure": true,

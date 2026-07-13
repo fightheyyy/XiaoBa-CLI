@@ -1,8 +1,6 @@
 import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { ToolExecutionContext } from '../../../types/tool';
 
-const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_BUFFER_BYTES = 1024 * 1024;
 const REDACTED = '[REDACTED]';
@@ -30,6 +28,21 @@ export interface LarkCliRunResult {
   exitCode: number;
 }
 
+export interface LarkCliExecOptions {
+  cwd?: string;
+  encoding: BufferEncoding;
+  timeout: number;
+  maxBuffer: number;
+  signal?: AbortSignal;
+  env: NodeJS.ProcessEnv;
+}
+
+export type LarkCliExecFile = (
+  command: string,
+  args: string[],
+  options: LarkCliExecOptions,
+) => Promise<{ stdout: string; stderr: string }>;
+
 export interface LarkCliRunner {
   run(args: string[], options?: LarkCliRunOptions): Promise<LarkCliRunResult>;
 }
@@ -49,16 +62,32 @@ export class SecretaryToolError extends Error {
 }
 
 export class DefaultLarkCliRunner implements LarkCliRunner {
-  constructor(private readonly command = 'lark-cli') {}
+  private surfaceProfile?: Promise<string | undefined>;
+
+  constructor(
+    private readonly command = 'lark-cli',
+    private readonly environment: NodeJS.ProcessEnv = process.env,
+    private readonly executor: LarkCliExecFile = defaultExecFile,
+  ) {}
 
   async run(args: string[], options: LarkCliRunOptions = {}): Promise<LarkCliRunResult> {
+    if (args.includes('--profile')) {
+      throw new SecretaryToolError(
+        'VALIDATION_ERROR',
+        'SecretaryCat owns lark-cli profile selection; tool commands cannot override --profile.',
+      );
+    }
+
     try {
-      const result = await execFileAsync(this.command, args, {
+      const profile = await this.resolveSurfaceProfile(options);
+      const commandArgs = profile ? ['--profile', profile, ...args] : args;
+      const result = await this.executor(this.command, commandArgs, {
         cwd: options.cwd,
         encoding: 'utf-8',
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
         maxBuffer: DEFAULT_MAX_BUFFER_BYTES,
         signal: options.abortSignal,
+        env: buildLarkCliEnvironment(this.environment),
       });
       return {
         stdout: String(result.stdout || ''),
@@ -69,7 +98,98 @@ export class DefaultLarkCliRunner implements LarkCliRunner {
       throw normalizeExecError(error);
     }
   }
+
+  private async resolveSurfaceProfile(options: LarkCliRunOptions): Promise<string | undefined> {
+    const surfaceAppId = String(this.environment.FEISHU_APP_ID || '').trim();
+    if (!surfaceAppId) return undefined;
+
+    if (!this.surfaceProfile) {
+      this.surfaceProfile = this.findSurfaceProfile(surfaceAppId, options).catch(error => {
+        this.surfaceProfile = undefined;
+        throw error;
+      });
+    }
+    return this.surfaceProfile;
+  }
+
+  private async findSurfaceProfile(surfaceAppId: string, options: LarkCliRunOptions): Promise<string> {
+    const result = await this.executor(this.command, ['profile', 'list'], {
+      cwd: options.cwd,
+      encoding: 'utf-8',
+      timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      maxBuffer: DEFAULT_MAX_BUFFER_BYTES,
+      signal: options.abortSignal,
+      env: buildLarkCliEnvironment(this.environment),
+    });
+    const profiles = parseProfileList(result.stdout);
+    const matched = profiles.find(profile => profile.appId === surfaceAppId);
+    if (!matched) {
+      throw new SecretaryToolError(
+        'CLI_NOT_CONFIGURED',
+        'No lark-cli profile matches the configured Feishu Surface application.',
+        {
+          nextAction: 'Configure an official lark-cli profile with the same Feishu App ID, then retry. XiaoBa will not change the global active profile.',
+        },
+      );
+    }
+    return matched.name;
+  }
 }
+
+export function buildLarkCliEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const result: NodeJS.ProcessEnv = {};
+  const exactKeys = new Set([
+    'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL',
+    'TMPDIR', 'TMP', 'TEMP', 'LANG',
+    'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT',
+    'APPDATA', 'LOCALAPPDATA', 'HOMEDRIVE', 'HOMEPATH',
+    'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY',
+    'http_proxy', 'https_proxy', 'no_proxy',
+    'SSL_CERT_FILE', 'SSL_CERT_DIR',
+    'LARKSUITE_CLI_CONFIG_DIR',
+  ]);
+  for (const [key, value] of Object.entries(environment)) {
+    if (value === undefined) continue;
+    if (exactKeys.has(key) || key.startsWith('LC_') || key.startsWith('XDG_')) {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+function parseProfileList(stdout: string): Array<{ name: string; appId: string }> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(stdout.trim());
+  } catch {
+    throw new SecretaryToolError(
+      'CLI_NOT_CONFIGURED',
+      'lark-cli profile list returned invalid JSON.',
+      { nextAction: 'Upgrade the official lark-cli and verify its profile configuration.' },
+    );
+  }
+  if (!Array.isArray(raw)) {
+    throw new SecretaryToolError('CLI_NOT_CONFIGURED', 'lark-cli profile list returned an invalid profile collection.');
+  }
+  return raw.flatMap(item => {
+    if (!item || typeof item !== 'object') return [];
+    const profile = item as Record<string, unknown>;
+    const name = typeof profile.name === 'string' ? profile.name.trim() : '';
+    const appId = typeof profile.appId === 'string' ? profile.appId.trim() : '';
+    return name && appId ? [{ name, appId }] : [];
+  });
+}
+
+const defaultExecFile: LarkCliExecFile = (command, args, options) => new Promise((resolve, reject) => {
+  execFile(command, args, options, (error, stdout, stderr) => {
+    if (error) {
+      Object.assign(error, { stdout, stderr });
+      reject(error);
+      return;
+    }
+    resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
+  });
+});
 
 export function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) {

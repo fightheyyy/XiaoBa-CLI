@@ -1,14 +1,10 @@
 # Arena SPEC
 
-状态：Draft
-最后更新：2026-07-01
-适用范围：`Arena` 能力审判场产品模块，包括外部 skill 导入、本地 role 快照、三种固定 review mode、隔离评测、UserCat 低质量终端用户端到端多轮使用、可配置目标 runtime 运行、InspectorCat 取证、ReviewerCat scorecard 和可选 promotion / benchmark admission 边界。
+状态：Active
+最后更新：2026-07-13
+适用范围：`Arena` 候选能力验收场，包括外部 skill 导入、本地 role 快照、三种固定 review mode、隔离评测、UserCat 低信息端到端使用、InspectorCat 取证、ReviewerCat scorecard 和显式 promotion 边界。
 
-`Arena` 的目标不是做一个更大的 skill 仓库，也不是把所有 role 都塞进 eval。它是 XiaoBa 的本地审判场：把可复用 agent 能力单元放到真实 runtime 里，逼它面对低信息用户、工具边界、证据要求和失败恢复，然后用 scorecard 决定它能不能被信任、复用或提升。
-
-三只评测角色本身的有效性由 [`CAT_EFFECTIVENESS_SPEC.md`](CAT_EFFECTIVENESS_SPEC.md) 单独定义：它使用 SkillsBench 这类外部已验证 task / skill / oracle / verifier 数据，把外部任务转成 Arena gold cases，用隐藏 verifier / oracle 证明 UserCat、InspectorCat、ReviewerCat 是否真的会用、会抓、会评价。
-
-Arena 作为评测器本身的有效性由 [`ARENA_EFFECTIVENESS_EXPERIMENT.md`](ARENA_EFFECTIVENESS_EXPERIMENT.md) 定义：它用 SkillsBench hidden verifier 作为外部真相源，证明 Arena scorecard 是否能和 task correctness、warning/risk、unsafe、replay instability 对齐，而不是简单把 `verifier pass` 等同于“不能报任何问题”。
+`Arena` 的目标不是做一个更大的 skill 仓库，也不是把所有 role 都塞进 eval。它把候选能力放进 clean runtime，经低信息用户压力、原生证据、问题提取和复跑验收后生成 scorecard。Arena 给出接纳证据，但不自动安装、启用或晋升能力。
 
 ## 需求来源
 
@@ -54,10 +50,10 @@ In scope:
   - `base_skill`：Base XiaoBa + subject skill，用来测评 skill 本身。
   - `role_skill`：specified role + subject skill，用来测评一个 skill 加入某个 role 后是否高可用。
   - `role`：specified role alone，用来测评 role 本身。
-- Subject metadata：被审判对象统一称为 `subject`，v1 类型只包括 `skill`、`role`。
+- Subject metadata：被验收对象统一称为 `subject`，v1 类型只包括 `skill`、`role`。
 - GitHub skill import source metadata：owner、repo、ref、commit、license、source URL。
 - Local role snapshot metadata：role id、source path、role docs、role-local skills、declared tools、last modified fingerprint。
-- 解析 `SKILL.md`、role `SPEC.md` / `PLAN.md` / README / prompt metadata，生成单文件 subject manifest。
+- 解析 `SKILL.md`、`role.json`、prompt 和 role-local skill metadata，生成单文件 subject manifest。
 - 安全扫描和 trust classification：默认外部 subject 是 `untrusted`，本地 subject 也可以是 `review_required`。
 - 临时 runtime overlay 加载待审 subject，而不是直接污染生产 `skills/` 或 role registry。
 - Arena execution sandbox：借鉴 Codex 的轻量本机执行沙箱，只约束 spawned command 的可写目录、环境变量、网络和超时；不要求 Docker / VM。
@@ -66,8 +62,7 @@ In scope:
 - 复用 InspectorCat issue extraction 输出，Arena 只记录引用和必要摘要。
 - 复用 ReviewerCat scorecard / report 输出，Arena 只记录引用、最终决策和关键摘要。
 - 将高价值 Arena run 人工重写成未来 `eval/benchmarks/<Subject>` live case 的 promotion path。
-- 用外部已验证 task / skill / oracle / verifier 数据构建 Arena Cat effectiveness gold cases，验证和调优 UserCat、InspectorCat、ReviewerCat；详细合同见 `docs/arena/CAT_EFFECTIVENESS_SPEC.md`。
-- 用 SkillsBench-derived gold cases 校准 Arena scorecard 本身：比较 Arena decision 与 hidden verifier truth，区分 blocking issue、warning、risk、unsafe 和 replay instability；详细实验见 `docs/arena/ARENA_EFFECTIVENESS_EXPERIMENT.md`。
+- 用外部已验证 task / skill / oracle / verifier 数据校准 UserCat、InspectorCat、ReviewerCat 和 Arena scorecard 本身。
 
 Out of scope:
 
@@ -208,13 +203,12 @@ Target runtime:
 - Active role: `base` / no role for `base_skill`; a specified `role_id` for `role_skill` and `role`.
 - Subject skill under review: one arena-mounted skill for `base_skill` or `role_skill`, not installed into production `skills/`.
 - Subject role under review: one local role snapshot for `role`, not mutated in production role state during review.
-- Base skills present in the default package: 5.
+- Base skills present in the default package: 4.
   - `remember`
   - `role-publish`
   - `self-evolution`
   - `skill-publish`
-  - `agent-browser`
-- Total skills visible in `base_skill`: the 5 base skills plus the 1 subject skill.
+- Total skills visible in `base_skill`: the 4 base skills plus the 1 subject skill.
 - In `role_skill`, role-local skills and role instructions may also be visible according to the selected role's normal loading rules. The run index must record this explicitly so the scorecard can distinguish skill quality from role-integration quality.
 - In `role`, the loaded skills are whatever the role normally exposes plus the default base skills; there is no extra subject skill overlay.
 - Development-only local skills are not part of the default Arena profile unless explicitly included.
@@ -545,13 +539,23 @@ InspectorCat proposes replay cases from trace evidence, but it does not close th
 
 Runner-owned unsafe prechecks must inspect structured behavior snippets rather than raw JSON trace text. Structural fields such as token counters, provider metadata or trace keys are not unsafe by themselves; credential-related words only count as unsafe when coupled with disclosure or exfiltration behavior such as printing, dumping, uploading, sending or leaking secrets.
 
+## Calibration Evidence
+
+Arena's evaluators and scorecard are calibrated against external verifier truth rather than self-judgment. The current evidence uses seven SkillsBench-derived live proofs:
+
+- Two baseline/holdout cases had hidden verifier `pass`; Arena retained warning or instability evidence instead of equating task correctness with perfect reliability.
+- Five broader holdout cases had hidden verifier `fail`; Arena classified them as `reopened`, `unstable`, or `unsafe` without false pass.
+- UserCat, InspectorCat and ReviewerCat were scored independently for pressure quality, issue extraction and replay/verifier alignment.
+
+This supports the narrow claim that the current review loop aligned with verifier truth on seven controlled cases. It does not prove every subject, provider, seed or future Arena version is reliable.
+
 ## Boundaries
 
 - `Arena` owns subject manifests, clean runtime overlay indexes and run indexes.
 - `Arena` does not own raw traces, UserCat run packages, Inspector raw output, Reviewer scorecards, or eval benchmark source; it references them.
 - `Arena` owns per-run clean runtime overlay preparation and execution sandbox selection; Agent Runtime enforces tool visibility, confirmation and transcript boundaries.
 - `SkillManager` owns production skill loading; it should not automatically trust Arena imports.
-- Role docs / role registry own production role behavior; Arena can review roles but should not silently rewrite role authority.
+- Role assets and role registry own production role behavior; Arena can review roles but should not silently rewrite role authority.
 - `Agent Runtime` owns tool visibility, confirmation gates, provider transcript legality and ToolResult structure.
 - `UserCat` owns low-quality end-user end-to-end multi-turn use and candidate packaging; it does not act as developer, reviewer or judge, and it does not decide subject quality.
 - `InspectorCat` owns issue extraction, failure taxonomy and candidate case proposal from trace evidence; it does not close the run.
