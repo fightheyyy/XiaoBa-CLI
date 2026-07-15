@@ -75,3 +75,6 @@ flowchart LR
 - Terminal child trace tests cover success, failure, stop, selected-skill, parent lineage and real tool/artifact results.
 - A real-provider nightly run produced a terminal InspectorCat child trace with parent `evolution:dag:1999-01-01`, returned typed `no_op`, created no Base trace and exited cleanly.
 - Evolution DAG focused tests cover direct role awaiting, strict contract validation, route-specific tool deny-lists, process supervision and terminal manifest persistence.
+- A real-provider Arena `base_skill` proof exposed and fixed Base aliases being resolved as missing Role packages; focused ToolManager/Arena tests now cover the Base tool set without a role package.
+- UserCat now hashes the overflow of long Arena run ids instead of truncating away scenario identity, so multi-case pressure keeps distinct native Pet sessions.
+- Isolated Arena Role profiles now reuse the production ToolManager with an explicit snapshot-derived role policy: registered tools, provider-visible tools, role-native adapters, allow/deny rules and surface delivery tools are computed rather than hard-coded, without mutating global role resolution state.

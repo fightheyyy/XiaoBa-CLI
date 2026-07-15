@@ -36,76 +36,18 @@ Out of scope:
 
 ## Current Architecture
 
-当前入口层已经收敛到共享 `AgentSession`，但各入口仍分别维护平台协议、文件语义和服务控制。CLI 提供跨平台的 `xiaoba evolution sleep`；macOS 另提供 per-project `evolution schedule install|status|remove`，其他平台当前需手动触发 sleep。定时入口在受监督的 worker 进程中直接运行固定 `EvolutionDAGRunner`，不进入 Base；worker timeout 会终止进程组并只清理自己拥有的锁。`--harvest-only` 是不调用模型的诊断入口。Channel delivery 的 canonical prompt 现在集中在 `prompts/surface.md`：`AgentSession` 用它注入 Feishu、Weixin、Pet 和 Dashboard 的 surface system message，role prompt 可通过 include 引用同一份交付规则。Pet/Dashboard 的 `pet:<petId>:role-<role>` session key，以及带附加隔离后缀的 `pet:<petId>:role-<role>:run-<run-id>` 这类 session key，已经绑定到 role-scoped `SkillManager` / `ToolManager`；同一个宠物在 Chat 页面和桌宠窗口之间按 session key 共享角色技能、历史和 SSE replay。Pet Chat visible events 写入 `data/chat/sessions/**`。PetChannel 现在也会为 session 注册 `SubAgentManager` 回调，后台子智能体完成通知会重新注入同一个 Pet `AgentSession`，并把后续 text/file/tool events 写入 Pet visible history。macOS Electron 构建会把 optional dependency `@steipete/peekaboo@3.8.0` 的 CLI 二进制复制到 `resources/drivers/peekaboo/peekaboo`，由 GuiCat 固定路径发现；其他平台不复制这颗 macOS-only driver。入口 runtime smoke 由 `test/contract-smoke/suites/surface-runtime-smoke.json` 和 `test/contract-smoke/suites/surface-runtime-file-smoke.json` 承担，当前维护中的 gate 覆盖 production FeishuBot event handler 和 Pet router，验证平台 parser / normalizer、入口 runtime、channel callback / SSE delivery 以及 runtime file delivery 的最小闭环。Feishu sender 现在会把 SDK message/file upload response 转成 `external_delivery_receipts`，Surface Runtime File gate 要求 Feishu runtime replay 具备 message/upload/file receipt 和 platform ids。更重的真实入口 E2E 不再放在 runtime harness 中扩张，后续应由 ReviewerCat 或 role-owned benchmark 明确拥有。
+当前入口层已经收敛到共享 `AgentSession`，但各入口仍分别维护平台协议、文件语义和服务控制。CLI 提供跨平台的 `xiaoba evolution sleep`，以及人工准入命令 `xiaoba evolution promote --date <date> --confirm <name>`；后者绕过 Base/Agent loop，只接受由该日 DAG 和 Arena 不可变 subject 共同证明的 Candidate，并写 promotion receipt。macOS 另提供 per-project `evolution schedule install|status|remove`，其他平台当前需手动触发 sleep。定时入口在受监督的 worker 进程中直接运行固定 `EvolutionDAGRunner`，不进入 Base；worker timeout 会终止进程组并只清理自己拥有的锁。`--harvest-only` 是不调用模型的诊断入口。Channel delivery 的 canonical prompt 现在集中在 `prompts/surface.md`：`AgentSession` 用它注入 Feishu、Weixin、Pet 和 Dashboard 的 surface system message，role prompt 可通过 include 引用同一份交付规则。Pet/Dashboard 的 `pet:<petId>:role-<role>` session key，以及带附加隔离后缀的 `pet:<petId>:role-<role>:run-<run-id>` 这类 session key，已经绑定到 role-scoped `SkillManager` / `ToolManager`；同一个宠物在 Chat 页面和桌宠窗口之间按 session key 共享角色技能、历史和 SSE replay。Pet Chat visible events 写入 `data/chat/sessions/**`。PetChannel 现在也会为 session 注册 `SubAgentManager` 回调，后台子智能体完成通知会重新注入同一个 Pet `AgentSession`，并把后续 text/file/tool events 写入 Pet visible history。macOS Electron 构建会把 optional dependency `@steipete/peekaboo@3.8.0` 的 CLI 二进制复制到 `resources/drivers/peekaboo/peekaboo`，由 GuiCat 固定路径发现；其他平台不复制这颗 macOS-only driver。入口 runtime smoke 由 `test/contract-smoke/suites/surface-runtime-smoke.json` 和 `test/contract-smoke/suites/surface-runtime-file-smoke.json` 承担，当前维护中的 gate 覆盖 production FeishuBot event handler 和 Pet router，验证平台 parser / normalizer、入口 runtime、channel callback / SSE delivery 以及 runtime file delivery 的最小闭环。Feishu sender 现在会把 SDK message/file upload response 转成 `external_delivery_receipts`，Surface Runtime File gate 要求 Feishu runtime replay 具备 message/upload/file receipt 和 platform ids。更重的真实入口 E2E 不再放在 runtime harness 中扩张，后续应由 ReviewerCat 或 role-owned benchmark 明确拥有。
 
 ```mermaid
 flowchart LR
-    subgraph Inputs["Inputs：用户入口"]
-        CLI["CLI commands"]
-        Feishu["Feishu events"]
-        Weixin["Weixin events"]
-        Pet["Pet widget / server"]
-        Dashboard["Dashboard UI / API"]
-        Electron["Electron shell"]
-    end
-
-    subgraph SurfaceAdapters["Surface adapters：平台适配"]
-        Commands["src/commands"]
-        Scheduler["evolution schedule / worker"]
-        FeishuAdapter["src/feishu"]
-        WeixinAdapter["src/weixin"]
-        PetChannel["src/pet/channel.ts"]
-        DashboardServer["src/dashboard"]
-        AdapterContract["surface adapter normalizers"]
-        RuntimeSmoke["surface runtime routes/events"]
-        RuntimeFile["runtime file delivery evidence"]
-    end
-
-    subgraph Harness["Shared harness"]
-        Session["AgentSession"]
-        EvolutionDAG["EvolutionDAGRunner<br/>Inspector-first"]
-        RoleScopedServices["role-scoped services<br/>skills / tools"]
-        SurfacePrompt["prompts/surface.md<br/>channel delivery prompt"]
-        SurfaceTools["surface tools<br/>send_text / send_file"]
-        DirectReply["CLI direct reply<br/>channel final text hidden by default"]
-    end
-
-    subgraph Outputs["Outputs：用户可见交付"]
-        Terminal["terminal reply"]
-        IMReply["IM text / file"]
-        PetSSE["Pet SSE events"]
-        DashboardView["Dashboard visible history"]
-    end
-
-    CLI --> Commands
-    Scheduler --> EvolutionDAG
-    EvolutionDAG --> RoleScopedServices
-    Feishu --> FeishuAdapter
-    Weixin --> WeixinAdapter
-    Pet --> PetChannel
-    Dashboard --> DashboardServer
-    Electron --> Dashboard
-    Commands --> Session
-    FeishuAdapter --> Session
-    WeixinAdapter --> Session
-    PetChannel --> Session
-    DashboardServer --> Session
-    PetChannel --> RoleScopedServices
-    RoleScopedServices --> Session
-    FeishuAdapter --> AdapterContract
-    PetChannel --> AdapterContract
-    DashboardServer --> AdapterContract
-    FeishuAdapter --> RuntimeSmoke
-    PetChannel --> RuntimeSmoke
-    DashboardServer --> RuntimeSmoke
-    RuntimeSmoke --> RuntimeFile
-    SurfacePrompt --> Session
-    Session --> DirectReply
-    Session --> SurfaceTools
-    DirectReply --> Terminal
-    SurfaceTools --> IMReply
-    SurfaceTools --> PetSSE
-    SurfaceTools --> DashboardView
+    CLI["CLI"] --> Adapters["Surface adapters<br/>commands / protocol / callbacks"]
+    Channels["Feishu / Weixin / Pet / Dashboard / Electron"] --> Adapters
+    Adapters --> Session["Shared AgentSession<br/>role-scoped services"]
+    Session --> Delivery["Terminal / IM / SSE<br/>visible delivery evidence"]
+    CLI --> Sleep["schedule / sleep<br/>EvolutionDAGRunner"]
+    Sleep --> Evidence["DAG evidence"]
+    CLI --> Promote["evolution promote<br/>human confirmation"]
+    Promote --> Production["Exact Arena snapshot<br/>active capability + receipt"]
 ```
 
 ## Target Architecture
@@ -114,52 +56,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Surfaces["Surface：入口"]
-        CLI["CLI"]
-        IM["Feishu / Weixin"]
-        Pet["Pet"]
-        Dashboard["Dashboard"]
-        Desktop["Electron"]
-    end
-
-    subgraph Contract["Surface contract"]
-        Auth["auth / command validation"]
-        AppIdentity["Feishu canonical App ID"]
-        SessionKey["session key"]
-        Callbacks["channel callbacks"]
-        FileIO["file upload / download"]
-        Prompt["shared surface prompt"]
-        VisibleOutput["visible output semantics"]
-        SurfaceTools["surface tool injection"]
-    end
-
-    subgraph Runtime["Downstream modules"]
-        Harness["harness runtime"]
-        Policy["roles / skills"]
-        Evidence["observability / evidence"]
-        EvolutionDAG["EvolutionDAGRunner<br/>Inspector-first"]
-    end
-
-    subgraph Feedback["Feedback"]
-        Logs["logs / visible history"]
-        Tests["surface contract tests"]
-    end
-
-    CLI --> Contract
-    IM --> Contract
-    Pet --> Contract
-    Dashboard --> Contract
-    Desktop --> Dashboard
-    Schedule["evolution schedule"] --> EvolutionDAG
-    Prompt --> VisibleOutput
-    IM --> AppIdentity
-    Contract --> Harness
-    EvolutionDAG --> Harness
-    Policy --> Harness
-    Harness --> Evidence
-    Evidence --> Logs
-    Logs --> Tests
-    Tests --> Contract
+    Entrypoints["CLI / IM / Pet / Dashboard / Electron"] --> Contract["One surface contract<br/>auth / session / files / callbacks"]
+    Contract --> Runtime["Shared agent runtime"]
+    Runtime --> Delivery["Visible delivery + evidence"]
+    Delivery --> Verify["Surface contract tests"]
+    Verify --> Contract
+    CLI["CLI control plane"] --> Sleep["Deterministic scheduled workflow"]
+    Sleep --> Evidence["Trace-derived DAG evidence"]
+    CLI --> Promote["Deterministic human Promote"]
+    Promote --> Production["Verified production capability + receipt"]
 ```
 
 ## Contracts
@@ -168,6 +73,7 @@ flowchart LR
 - Feishu Surface 配置的 App ID 是 XiaoBa 飞书能力的 canonical application identity。SecretaryCat 使用官方 `lark-cli` 时必须选择 App ID 相同的 profile；`bot` 和 `user` 是同一应用下的 actor identity。XiaoBa 不复制凭据存储，也不隐式切换 `lark-cli` 的全局 active profile。
 - 每个入口的 raw event / route payload 应能归一化为稳定 surface event：surface、event type、event id、session key、channel id、user id、user message、payload type 和必要 metadata。
 - Pet/Dashboard 的 `pet:<petId>:role-<role>` session key，以及 `pet:<petId>:role-<role>:<safe-suffix>` 这类带附加隔离后缀的 session key，必须创建或复用对应角色的 scoped services；`/skills`、skill 激活、tool allowlist、visible history 和 SSE replay 都必须按归一化后的 session key 隔离，`role-base` 归一到默认 `pet:<petId>`。
+- Arena 可在进程内构造 PetChannel 时设置不可由 HTTP body 覆盖的 `requiredActiveSkillName`；它必须在每条 queued Pet message 前重新激活同一个 subject Skill，缺失时 fail closed。普通 Pet / Dashboard / Base / CLI 不设置该字段，行为保持不变。
 - CLI 的正常用户可见输出是 direct final reply；CLI 不应向模型暴露 `send_text` / `send_file`。
 - Feishu、Weixin、Pet 和 Dashboard 这类 channel-backed surface 的正常用户可见输出是 `send_text` / `send_file` 或等价 channel callback；direct final reply 默认只进入 provider/session trace，不外发给用户。
 - Channel delivery prompt 的 canonical source 是 `prompts/surface.md`；surface system message 和 role prompt 只能读取或 include 这份规则，不应复制维护另一份完整文本。
@@ -181,6 +87,7 @@ flowchart LR
 - Platform-specific optional drivers 必须只进入对应平台的安装包，并落在 role adapter 已声明的固定资源路径；不得把 driver-side Agent/MCP 一并暴露给 runtime。
 - Dashboard/Pet 这类本地 HTTP surface 在扩大网络暴露前必须先有 auth、permission 和 command/path validation。
 - Dashboard 的 Skill / Role 生命周期动作必须显式遵守 `blocked → candidate → active`：解除阻塞只回到 Candidate，只有单独的人工 Promote 动作可以进入 Active；选择 Candidate Role 只表示显式试用，不改变其生命周期状态。
+- 自进化 Candidate 不走 Dashboard 的普通 status-only Promote。CLI 只接受 `date + exact candidate name confirmation`，不得让调用者替换 subject、scorecard、source、target 或强制覆盖；命令必须在成功后输出并持久化同一份 receipt。
 
 ## Interaction With Other Modules
 

@@ -4,9 +4,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { RoleManager } from '../roles/role-manager';
+import { getRoleSpecificToolsForResolvedRole } from '../roles/runtime-role-registry';
 import { DEFAULT_BUNDLED_BASE_SKILLS } from '../skills/skill-manager';
 import { SkillParser } from '../skills/skill-parser';
 import { RoleConfig } from '../types/role';
+import { ToolExecutionContext } from '../types/tool';
+import { ToolManager } from '../tools/tool-manager';
 import { PathResolver } from '../utils/path-resolver';
 import {
   ArenaAllowedRuntime,
@@ -50,11 +53,71 @@ export const SURFACE_TOOL_NAMES = ['send_text', 'send_file'];
 const CHANNEL_BACKED_SURFACES = new Set(['pet', 'dashboard', 'feishu', 'weixin']);
 const DEFAULT_SURFACE = 'pet';
 const DEFAULT_SANDBOX_TIMEOUT_MS = 120_000;
+const ARENA_PROFILE_CHANNEL: NonNullable<ToolExecutionContext['channel']> = {
+  chatId: 'arena-target-profile',
+  reply: async () => undefined,
+  sendFile: async () => undefined,
+};
 
 export interface ArenaManagerOptions {
   projectRoot?: string;
   now?: () => Date;
   createId?: (parts: string[]) => string;
+}
+
+export interface BuildArenaTargetProfileInput {
+  reviewMode: ArenaReviewMode;
+  subject: ArenaSubjectManifest;
+  targetRoleId?: string;
+  surface: string;
+  rolePath?: string;
+  workingDirectory: string;
+}
+
+export function buildArenaTargetProfile(
+  input: BuildArenaTargetProfileInput,
+): ArenaRunIndex['target_profile'] {
+  const subjectSkillId = input.subject.subject.type === 'skill' ? input.subject.subject.name : undefined;
+  const roleConfig = input.rolePath ? readRoleConfig(input.rolePath) : undefined;
+  const configuredRoleId = stringValue(roleConfig?.name);
+  const activeRoleId = input.reviewMode === 'base_skill'
+    ? 'base'
+    : configuredRoleId || input.targetRoleId;
+  const resolvedRoleId = activeRoleId && activeRoleId !== 'base' ? activeRoleId : undefined;
+  const roleLocalSkills = input.rolePath ? collectRoleLocalSkillNames(input.rolePath) : [];
+  const loadedSkills = Array.from(new Set([
+    ...DEFAULT_PACKAGED_BASE_SKILLS,
+    ...roleLocalSkills,
+    ...(subjectSkillId ? [subjectSkillId] : []),
+  ]));
+  const visibilityContext: Partial<ToolExecutionContext> = {
+    workingDirectory: input.workingDirectory,
+    conversationHistory: [],
+    surface: input.surface as ToolExecutionContext['surface'],
+    ...(resolvedRoleId && { roleName: resolvedRoleId }),
+    ...(subjectSkillId && { activeSkillName: subjectSkillId }),
+    ...(CHANNEL_BACKED_SURFACES.has(input.surface) && { channel: ARENA_PROFILE_CHANNEL }),
+  };
+  const toolManager = new ToolManager(
+    input.workingDirectory,
+    visibilityContext,
+    getRoleSpecificToolsForResolvedRole(resolvedRoleId),
+    { roleConfig },
+  );
+
+  return {
+    ...(activeRoleId && { active_role_id: activeRoleId }),
+    ...(subjectSkillId && { subject_skill_id: subjectSkillId }),
+    loaded_skills: loadedSkills,
+    role_local_skills: roleLocalSkills,
+    registered_tools: uniqueToolNames(
+      toolManager.getAllTools().map(tool => tool.definition.name),
+    ),
+    provider_visible_tools: uniqueToolNames(
+      toolManager.getToolDefinitions(visibilityContext).map(tool => tool.name),
+    ),
+    surface: input.surface,
+  };
 }
 
 export interface ImportLocalSkillOptions {
@@ -82,6 +145,11 @@ export interface ImportLocalRoleOptions {
   allowedRuntime?: ArenaAllowedRuntime;
 }
 
+interface ResolvedArenaTargetRole {
+  name: string;
+  sourceDir: string;
+}
+
 export class ArenaManager {
   private readonly projectRoot: string;
   private readonly now: () => Date;
@@ -90,7 +158,7 @@ export class ArenaManager {
   constructor(options: ArenaManagerOptions = {}) {
     this.projectRoot = path.resolve(options.projectRoot || PathResolver.getProjectRoot());
     this.now = options.now || (() => new Date());
-    this.createId = options.createId || ((parts: string[]) => defaultId(parts));
+    this.createId = options.createId || deriveArenaId;
   }
 
   getArenaRoot(): string {
@@ -109,7 +177,7 @@ export class ArenaManager {
     const skillFile = resolveSkillFile(this.projectRoot, options.skillPath);
     const skill = SkillParser.parse(skillFile);
     const sourceRoot = path.dirname(skillFile);
-    const fingerprint = fingerprintDirectory(sourceRoot);
+    const fingerprint = fingerprintArenaDirectory(sourceRoot);
     const subjectId = this.createId(['skill', skill.metadata.name, fingerprint]);
     const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
     const snapshotRoot = path.join(subjectDir, 'source');
@@ -161,7 +229,7 @@ export class ArenaManager {
       }
       const skillFile = skillFiles[0];
       const skill = SkillParser.parse(skillFile);
-      const fingerprint = fingerprintDirectory(tmpDir);
+      const fingerprint = fingerprintArenaDirectory(tmpDir);
       const subjectId = this.createId(['skill', owner, repo, commit, skill.metadata.name, fingerprint]);
       const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
       const sourceDir = path.join(subjectDir, 'source');
@@ -248,7 +316,7 @@ export class ArenaManager {
     trustLevel?: ArenaTrustLevel;
     allowedRuntime?: ArenaAllowedRuntime;
   }): ArenaSubjectManifest {
-    const fingerprint = fingerprintDirectory(input.rolePath);
+    const fingerprint = fingerprintArenaDirectory(input.rolePath);
     const subjectId = this.createId(['role', input.roleName, fingerprint]);
     const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
     const snapshotRoot = path.join(subjectDir, 'source');
@@ -325,17 +393,20 @@ export class ArenaManager {
     this.validateEvidenceRefs(input, replayAttempts);
 
     const sandbox = this.buildSandboxPolicy(subject, input.sandbox);
+    const targetRole = this.resolveTargetRole(subject, input.reviewMode, input.targetRoleId);
     const runIndex: ArenaRunIndex = {
       version: 1,
       run_id: runId,
       review_mode: input.reviewMode,
       subject_id: subject.subject_id,
       subject_manifest_path: relativePath(this.projectRoot, this.resolveSubjectManifestPath(subject.subject_id)),
-      target_profile: this.buildTargetProfile({
+      target_profile: buildArenaTargetProfile({
         reviewMode: input.reviewMode,
         subject,
-        targetRoleId: input.targetRoleId,
+        targetRoleId: targetRole?.name,
         surface,
+        rolePath: targetRole?.sourceDir,
+        workingDirectory: this.projectRoot,
       }),
       usercat_run_ref: {
         ...input.usercatRunRef,
@@ -382,6 +453,7 @@ export class ArenaManager {
       roots.workspace_root,
       roots.tmp_root,
       path.join(runRoot, 'sandbox'),
+      path.join(runRoot, 'debug'),
     ]);
     Object.values(roots).forEach(ensureDir);
 
@@ -400,15 +472,16 @@ export class ArenaManager {
     const copiedSubjectSkill = subject.subject.type === 'skill'
       ? this.copySubjectSkill(subject, roots.skills_root)
       : undefined;
-    const copiedRole = input.reviewMode === 'base_skill'
-      ? undefined
-      : this.copyTargetRole(subject, input.reviewMode, input.targetRoleId, roots.roles_root);
+    const targetRole = this.resolveTargetRole(subject, input.reviewMode, input.targetRoleId);
+    const copiedRole = targetRole ? this.copyTargetRole(targetRole, roots.roles_root) : undefined;
     const surface = input.surface || DEFAULT_SURFACE;
-    const targetProfile = this.buildTargetProfile({
+    const targetProfile = buildArenaTargetProfile({
       reviewMode: input.reviewMode,
       subject,
-      targetRoleId: input.targetRoleId,
+      targetRoleId: targetRole?.name,
       surface,
+      rolePath: copiedRole ? path.join(runRoot, copiedRole) : undefined,
+      workingDirectory: roots.workspace_root,
     });
     const sandboxSubjectRoot = copiedSubjectSkill
       ? path.join(runRoot, copiedSubjectSkill)
@@ -550,29 +623,40 @@ export class ArenaManager {
   }
 
   private copyTargetRole(
+    targetRole: ResolvedArenaTargetRole,
+    rolesRoot: string,
+  ): string {
+    const destinationName = safeSegment(targetRole.name);
+    const destination = path.join(rolesRoot, destinationName);
+    copyDirectory(targetRole.sourceDir, destination);
+    return relativePath(path.dirname(rolesRoot), destination);
+  }
+
+  private resolveTargetRole(
     subject: ArenaSubjectManifest,
     reviewMode: ArenaReviewMode,
     targetRoleId: string | undefined,
-    rolesRoot: string,
-  ): string {
+  ): ResolvedArenaTargetRole | undefined {
+    if (reviewMode === 'base_skill') {
+      return undefined;
+    }
     const requestedRoleId = targetRoleId?.trim();
     if (!requestedRoleId) {
       throw new Error(`${reviewMode} requires targetRoleId`);
     }
-    const role = reviewMode === 'role'
-      ? undefined
-      : RoleManager.getRole(requestedRoleId);
+    const role = reviewMode === 'role' ? undefined : RoleManager.getRole(requestedRoleId);
     const sourceDir = reviewMode === 'role'
       ? resolveSubjectRoleSourceDir(this.projectRoot, subject)
       : role?.path;
     if (!sourceDir || !fs.existsSync(sourceDir)) {
       throw new Error(`Role not found: ${requestedRoleId}`);
     }
-
-    const destinationName = safeSegment(role?.name || requestedRoleId);
-    const destination = path.join(rolesRoot, destinationName);
-    copyDirectory(sourceDir, destination);
-    return relativePath(path.dirname(rolesRoot), destination);
+    return {
+      name: reviewMode === 'role'
+        ? safeSegment(subject.role?.id || subject.subject.name)
+        : role!.name,
+      sourceDir,
+    };
   }
 
   private resolveSubjectManifestPath(subjectIdOrPath: string): string {
@@ -603,6 +687,17 @@ export class ArenaManager {
     if ((reviewMode === 'role_skill' || reviewMode === 'role') && !targetRoleId?.trim()) {
       throw new Error(`${reviewMode} requires targetRoleId`);
     }
+    if (reviewMode === 'role_skill') {
+      const subjectSkillName = normalizeSkillIdentity(subject.subject.name);
+      const targetRolePath = RoleManager.getRole(targetRoleId!.trim())?.path;
+      const conflictingRoleSkill = (targetRolePath ? collectRoleLocalSkillNames(targetRolePath) : [])
+        .find(skillName => normalizeSkillIdentity(skillName) === subjectSkillName);
+      if (conflictingRoleSkill) {
+        throw new Error(
+          `role_skill subject Skill "${subject.subject.name}" conflicts with target role-local Skill "${conflictingRoleSkill}"; Arena cannot prove the mounted subject identity`,
+        );
+      }
+    }
   }
 
   private buildSandboxPolicy(
@@ -623,40 +718,6 @@ export class ArenaManager {
     };
   }
 
-  private buildTargetProfile(input: {
-    reviewMode: ArenaReviewMode;
-    subject: ArenaSubjectManifest;
-    targetRoleId?: string;
-    surface: string;
-  }): ArenaRunIndex['target_profile'] {
-    const activeRoleId = input.reviewMode === 'base_skill' ? 'base' : input.targetRoleId;
-    const subjectSkillId = input.subject.subject.type === 'skill' ? input.subject.subject.name : undefined;
-    const roleLocalSkills = input.reviewMode === 'role'
-      ? [...(input.subject.role?.local_skills || [])]
-      : activeRoleId && activeRoleId !== 'base'
-        ? collectRoleLocalSkillNames(activeRoleId)
-        : [];
-    const loadedSkills = Array.from(new Set([
-      ...DEFAULT_PACKAGED_BASE_SKILLS,
-      ...(roleLocalSkills || []),
-      ...(subjectSkillId ? [subjectSkillId] : []),
-    ]));
-    const registeredTools = Array.from(new Set([
-      ...BASE_TOOL_NAMES,
-      ...(CHANNEL_BACKED_SURFACES.has(input.surface) ? SURFACE_TOOL_NAMES : []),
-    ]));
-
-    return {
-      ...(activeRoleId && { active_role_id: activeRoleId }),
-      ...(subjectSkillId && { subject_skill_id: subjectSkillId }),
-      loaded_skills: loadedSkills,
-      role_local_skills: roleLocalSkills,
-      registered_tools: registeredTools,
-      provider_visible_tools: registeredTools,
-      surface: input.surface,
-    };
-  }
-
   private validateEvidenceRefs(input: CreateArenaRunInput, replayAttempts: ArenaReplayAttempts): void {
     assertLocalRefExists(this.projectRoot, input.usercatRunRef.package_path, 'usercat_run_ref.package_path');
     for (const [index, traceRef] of input.traceRefs.entries()) {
@@ -670,6 +731,9 @@ export class ArenaManager {
     }
     for (const [index, replayTraceRef] of replayAttempts.trace_refs.entries()) {
       assertLocalRefExists(this.projectRoot, replayTraceRef, `replay_attempts.trace_refs[${index}]`);
+    }
+    for (const [index, sourceTraceRef] of (replayAttempts.source_trace_refs || []).entries()) {
+      assertLocalRefExists(this.projectRoot, sourceTraceRef, `replay_attempts.source_trace_refs[${index}]`);
     }
     if (input.reviewerRef) {
       assertLocalRefExists(this.projectRoot, input.reviewerRef.scorecard_path, 'reviewer_ref.scorecard_path');
@@ -980,14 +1044,18 @@ function defaultSandboxEngine(): ArenaSandboxPolicy['engine'] {
   return 'none';
 }
 
-function collectRoleLocalSkillNames(roleId: string): string[] {
-  const role = RoleManager.getRole(roleId);
-  if (!role) {
-    return [];
-  }
-  return PathResolver.findSkillFiles(path.join(role.path, 'skills'))
+function collectRoleLocalSkillNames(rolePath: string): string[] {
+  return PathResolver.findSkillFiles(path.join(rolePath, 'skills'))
     .map(file => SkillParser.parse(file).metadata.name)
     .sort();
+}
+
+function uniqueToolNames(toolNames: string[]): string[] {
+  return Array.from(new Set(toolNames));
+}
+
+function normalizeSkillIdentity(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function collectRoleFiles(rolePath: string): string[] {
@@ -1063,10 +1131,39 @@ function scanSafety(filePaths: string[]): ArenaSubjectManifest['safety'] {
   };
 }
 
-function fingerprintDirectory(rootPath: string): string {
+export function fingerprintArenaDirectory(rootPath: string): string {
+  const absoluteRoot = path.resolve(rootPath);
+  if (!fs.existsSync(absoluteRoot)) {
+    throw new Error(`Arena fingerprint directory does not exist: ${absoluteRoot}`);
+  }
+  const rootStat = fs.lstatSync(absoluteRoot);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error(`Arena fingerprint path must be a real directory: ${absoluteRoot}`);
+  }
+
+  const files: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === '.git') continue;
+      const entryPath = path.join(directory, entry.name);
+      const stat = fs.lstatSync(entryPath);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`Arena fingerprint rejects symbolic links: ${entryPath}`);
+      }
+      if (stat.isDirectory()) {
+        visit(entryPath);
+      } else if (stat.isFile()) {
+        files.push(entryPath);
+      } else {
+        throw new Error(`Arena fingerprint rejects unsupported filesystem entry: ${entryPath}`);
+      }
+    }
+  };
+  visit(absoluteRoot);
+
   const hash = crypto.createHash('sha256');
-  for (const filePath of collectSnapshotFiles(rootPath)) {
-    hash.update(path.relative(rootPath, filePath).replace(/\\/g, '/'));
+  for (const filePath of files.sort()) {
+    hash.update(path.relative(absoluteRoot, filePath).replace(/\\/g, '/'));
     hash.update('\0');
     hash.update(fs.readFileSync(filePath));
     hash.update('\0');
@@ -1076,7 +1173,7 @@ function fingerprintDirectory(rootPath: string): string {
 
 function ensureImmutableSnapshot(from: string, to: string, expectedFingerprint: string): void {
   if (fs.existsSync(to)) {
-    if (!fs.statSync(to).isDirectory() || fingerprintDirectory(to) !== expectedFingerprint) {
+    if (!fs.statSync(to).isDirectory() || fingerprintArenaDirectory(to) !== expectedFingerprint) {
       throw new Error(`Arena subject snapshot collision: ${to}`);
     }
     return;
@@ -1084,7 +1181,7 @@ function ensureImmutableSnapshot(from: string, to: string, expectedFingerprint: 
 
   try {
     copyDirectory(from, to);
-    const copiedFingerprint = fingerprintDirectory(to);
+    const copiedFingerprint = fingerprintArenaDirectory(to);
     if (copiedFingerprint === expectedFingerprint) return;
     throw new Error(`Arena subject snapshot verification failed: ${to}`);
   } catch (error) {
@@ -1106,6 +1203,8 @@ function normalizeReplayAttempts(value: Partial<ArenaReplayAttempts> | undefined
     fail_count: failCount,
     blocked_count: blockedCount,
     trace_refs: [...(value?.trace_refs || [])],
+    ...(value?.case_ids && { case_ids: [...value.case_ids] }),
+    ...(value?.source_trace_refs && { source_trace_refs: [...value.source_trace_refs] }),
   };
 }
 
@@ -1128,8 +1227,8 @@ function validateDecisionEvidence(
       throw new Error('pass with planned replay attempts requires completed replay attempts');
     }
   }
-  if (decision === 'unstable' && !(attempts.pass_count > 0 && attempts.fail_count + attempts.blocked_count > 0)) {
-    throw new Error('unstable requires mixed replay attempt results');
+  if (decision === 'unstable' && !(attempts.completed > 0 && attempts.pass_count > 0)) {
+    throw new Error('unstable requires at least one completed passing replay attempt');
   }
   if (decision === 'reopened' && attempts.fail_count <= 0) {
     throw new Error('reopened requires at least one failed replay attempt');
@@ -1182,7 +1281,15 @@ function safeSegment(value: string): string {
     || 'arena-item';
 }
 
-function defaultId(parts: string[]): string {
+export function deriveArenaSubjectId(
+  type: 'skill' | 'role',
+  name: string,
+  fingerprint: string,
+): string {
+  return deriveArenaId([type, name, fingerprint]);
+}
+
+function deriveArenaId(parts: string[]): string {
   const readable = safeSegment(parts.find(part => part && !part.includes('/')) || 'arena');
   const hash = crypto
     .createHash('sha256')

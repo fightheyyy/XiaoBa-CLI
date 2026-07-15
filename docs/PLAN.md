@@ -42,7 +42,7 @@ flowchart LR
 | M3 Surface integration | Partial | Maintained entrypoints share runtime; network auth/permission remains incomplete |
 | M4 Evidence system | Partial | Local trace/artifact/delivery facts exist; retention and durable recovery remain incomplete |
 | M5 Evaluation split | Completed | Test、Trace Replay and Live Agent Eval have distinct commands and meanings |
-| M6 Arena | Partial | Clean runtime, three review modes and scorecards exist; sandbox/promotion hardening remains |
+| M6 Arena | Partial | Clean runtime, three review modes, content-addressed subjects, all-turn contracts and evidence-bound manual promotion exist; sandbox hardening remains |
 | M7 Browser/GUI takeover | Partial | Typed adapters and pinned official role-local Skills exist; GuiCat's macOS driver package was built and inspected, while BrowserCat packaging, broader coverage and trusted approvals remain |
 | M8 EvolutionCat ownership | Completed | Eighth default role, zero bundled Base Skills, deterministic role-scoped `remember`, three EvolutionCat-local Skills and exact-hash desktop migration are implemented |
 | M9 Nightly evolution foundation | Completed | Structured child traces, deterministic harvest, cron management, worker supervision and PID-owned lock cleanup are implemented |
@@ -55,8 +55,8 @@ flowchart LR
 3. Persist in-flight subagent state, action receipts and cancellation evidence without introducing a general workflow framework.
 4. Make Trace Replay side-effect safe before replaying arbitrary historical tasks.
 5. Keep Live Agent Eval fresh-run only; add role cases only when they have task-specific hard verifiers.
-6. Harden Arena isolation and require explicit promotion before external skills or roles enter production assets.
-7. Add real-provider evidence for non-`no_op` evolution routes without weakening the deterministic contract or permitting same-run back edges.
+6. Harden Arena isolation while preserving the implemented evidence-bound, explicit human promotion gate for external skills and roles.
+7. Broaden the first real-provider `evolution`-route proof across providers, seeds and time windows without weakening the deterministic contract or permitting same-run back edges.
 8. Simplify SecretaryCat's typed-wrapper compatibility layer against official `lark-cli` skills without weakening Owner confirmation, delivery or evidence.
 
 ## Owners
@@ -97,16 +97,18 @@ flowchart LR
 ## Recent Verification
 
 - Documentation set check：14 architecture/plan files under `docs/`；post-change Git Markdown inventory is 61 files, consisting of 20 human docs, 38 runtime prompt/skill assets, and 3 test fixture reports。
-- Markdown local-link check：the new README links resolve to `requirement.txt`; the previous 60/60 Markdown link baseline remains unchanged otherwise。
-- Full repository tests：573/573 passed；the final Inspector-first DAG, lifecycle, Arena, Reviewer and subagent regressions are included。
+- Human-document local link/asset check：64/64 resolved across 20 maintained human-facing Markdown files, including README images and the `requirement.txt` links。
+- Full repository tests：632/632 passed across 96 suites；the Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, per-message subject mount, Inspector-rooted replay selection, source-task binding and semantic re-attestation, raw-evidence-bound promotion, Reviewer, Base-Arena alias, long Arena run-id isolation and subagent regressions are included。
 - `npm run build` passed；benchmark preflight passed for 1 manifest / 11 cases；BrowserCat and GuiCat Skill validation passed。
 - Roles & Skills current/target Mermaid diagrams rendered successfully after the target map was simplified to the eight-role ownership boundary。
+- Repository current/target Mermaid diagrams were simplified to six module-level columns, and both repository and Surface diagram pairs rendered successfully with the ordinary AgentSession, scheduled evolution DAG and explicit Promote control lanes kept distinct。
 - Feishu Surface 与 SecretaryCat 的 App ID 指纹一致；SecretaryCat 已显式绑定同应用 profile，真实状态为 bot ready / user missing。BrowserCat 当前缺少固定 driver。GuiCat 从项目 optional dependency 发现 Peekaboo 3.8.0，macOS/TCC/bridge 检查为 `ready=true`。
 - GuiCat real read-only smoke passed through its typed adapter and returned a non-empty application inventory without claiming the desktop lease.
 - GuiCat's role-local `SKILL.md` is an exact vendored copy of official `openclaw/Peekaboo` commit `ed1a7218` (SHA-256 `0bfe8b25ef9ac2ffc99c7135ddc3b7258abb0a41da0bbeeb9c27d1faa52f2d28`) with the upstream MIT LICENSE.
 - BrowserCat's role-local `core/SKILL.md` is an exact vendored copy of official `vercel-labs/agent-browser` tag `v0.31.1` / commit `ed2e1059` (SHA-256 `cc5ec94697530e750bcb9776479d71ef7966e7cf874b9a60b091a986b1ae5b9d`) with the upstream Apache-2.0 LICENSE; it loads through role-local SkillManager without exposing shell, raw CLI, Chat/Agent or MCP tools.
 - The duplicate Base `agent-browser` routing Skill and four legacy evolution Base Skills are retired; Base dispatches roles only for ordinary user conversations, and the default package contains zero Base Skills.
 - A real-provider nightly E2E ran runtime harvest → InspectorCat → `no_op` directly. Its child trace records `role_name=inspector-cat` and parent `evolution:dag:1999-01-02`; no Base session or EvolutionCat invocation was created.
+- A current-contract real-provider closed loop ran two independent failing Pet sessions (0/2) → InspectorCat `evolution` route → EvolutionCat Candidate Skill → Arena `pass` across 3 independent UserCat sessions / 7 turns (identity 3/3, contract 7/7, 0 violations) → explicit `xiaoba evolution promote` receipt with 7 exact raw-evidence hashes, including the Inspector cases and Arena runner config → two fresh Pet retests (2/2). Every Arena and post-promotion turn was bound to `evo-closeout-v2-formatter`; an earlier generated revision was correctly rejected as `unstable`, and a same-date nightly rerun preserved receipt and production hashes. The self-verifying proof is under `output/evolution/proofs/2026-07-15-evo-closeout-v3/` and remains outside tracked product assets.
 - Deterministic DAG tests cover all four routes, invalid-contract fail-closed behavior, isolated Candidate Skill/Role intake, Arena handoff, formal replay terminals and same-run back-edge rejection.
 - `electron-builder --mac --dir` passed；产物中不再包含 Base `skills/agent-browser`，BrowserCat role-local Skill / LICENSE hashes match the source copy；Peekaboo 位于 `Contents/Resources/drivers/peekaboo/peekaboo`，版本 3.8.0，使用 packaged resources 路径复检仍为 `ready=true`。
 - `npm audit --omit=dev` found 7 existing production-tree findings；none names `@steipete/peekaboo`。

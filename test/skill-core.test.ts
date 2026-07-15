@@ -96,6 +96,54 @@ Invalid content.
     );
   });
 
+  test('parses the optional Arena output line contract and rejects malformed declarations', () => {
+    const strictPath = path.join(testRoot, 'skills', 'strict-output', 'SKILL.md');
+    writeFile(strictPath, `---
+name: strict-output
+description: Strict Arena output
+arena-output-line-prefixes:
+  - "MEOW_RESULT::"
+  - "MEOW_EVIDENCE::"
+---
+
+Return two lines.
+`);
+    assert.deepStrictEqual(
+      SkillParser.parse(strictPath).metadata.arenaOutputLinePrefixes,
+      ['MEOW_RESULT::', 'MEOW_EVIDENCE::'],
+    );
+
+    const emptyPath = path.join(testRoot, 'skills', 'empty-output', 'SKILL.md');
+    writeFile(emptyPath, `---
+name: empty-output
+description: Invalid empty Arena output contract
+arena-output-line-prefixes: []
+---
+
+Invalid.
+`);
+    assert.throws(
+      () => SkillParser.parse(emptyPath),
+      /expected a non-empty string list/,
+    );
+
+    const duplicatePath = path.join(testRoot, 'skills', 'duplicate-output', 'SKILL.md');
+    writeFile(duplicatePath, `---
+name: duplicate-output
+description: Invalid duplicate Arena output contract
+arena-output-line-prefixes:
+  - "ROW::"
+  - "ROW::"
+---
+
+Invalid.
+`);
+    assert.throws(
+      () => SkillParser.parse(duplicatePath),
+      /prefixes must be unique/,
+    );
+  });
+
   test('updates lifecycle status without changing Skill metadata or instructions', () => {
     const skillPath = path.join(testRoot, 'skills', 'installed', 'SKILL.md');
     writeFile(skillPath, `---

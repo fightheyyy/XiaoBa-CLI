@@ -5,8 +5,11 @@ import * as os from 'os';
 import * as path from 'path';
 import {
   EvolutionArenaInput,
+  EvolutionArenaResult,
   EvolutionDagDependencies,
   EvolutionRoleStageInput,
+  buildEvolutionDagPrompt,
+  buildInspectorDagPrompt,
   runEvolutionDag,
 } from '../src/roles/evolution-cat/evolution-dag';
 import { BuildEvolutionDigestResult } from '../src/roles/evolution-cat/evolution-observer';
@@ -23,6 +26,32 @@ describe('Inspector-first evolution DAG', () => {
 
   afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('Inspector prompt routes reusable working-method gaps to evolution, not engineering repair', () => {
+    const prompt = buildInspectorDagPrompt(
+      'output/evolution/sleep/2026-07-14/digest.json',
+      '2026-07-14',
+    );
+
+    assert.match(prompt, /repeated task-level working method, output protocol, or reusable behavior gap/);
+    assert.match(prompt, /Repeated user corrections about how work should be performed or formatted belong here/);
+    assert.match(prompt, /Runtime, Tool, Session, permission, trace-collection, or repository-code defect/);
+    assert.match(prompt, /Do not choose repair merely because a prompt could be edited/);
+  });
+
+  test('Evolution prompt makes a declared fixed-line contract apply to every evaluated turn', () => {
+    const prompt = buildEvolutionDagPrompt(
+      'output/evolution/sleep/2026-07-14/inspector-route.json',
+      'output/evolution/sleep/2026-07-14/digest.json',
+      '2026-07-14',
+    );
+
+    assert.match(prompt, /exactly one successful send_text/);
+    assert.match(prompt, /any mention or meta-question/);
+    assert.match(prompt, /first and only text delivery/);
+    assert.match(prompt, /pure formatter/);
+    assert.match(prompt, /use no other tools/);
   });
 
   for (const candidateType of ['skill', 'role'] as const) {
@@ -62,11 +91,7 @@ describe('Inspector-first evolution DAG', () => {
           assert.ok(input.candidate.path.includes('/output/evolution/sleep/2026-07-14/candidates/'));
           const scorecardRef = 'arena/runs/arena-daily-brief/arena-scorecard.json';
           writeLocalEvidence(root, scorecardRef);
-          return {
-            run_id: 'arena-daily-brief',
-            decision: 'pass',
-            scorecard_ref: scorecardRef,
-          };
+          return fakeArenaResult('arena-daily-brief', 'pass', scorecardRef);
         },
       });
 
@@ -101,7 +126,7 @@ describe('Inspector-first evolution DAG', () => {
         candidatePath = input.candidate.path;
         const scorecardRef = 'arena/runs/unassessed/arena-scorecard.json';
         writeLocalEvidence(root, scorecardRef);
-        return { run_id: 'unassessed', decision: 'blocked', scorecard_ref: scorecardRef };
+        return fakeArenaResult('unassessed', 'blocked', scorecardRef);
       },
     });
 
@@ -598,11 +623,11 @@ describe('Inspector-first evolution DAG', () => {
           candidate: { type: 'skill', name: 'daily-brief', path: 'candidates/daily-brief' },
         });
       },
-      runArena: async () => ({
-        run_id: 'arena-missing',
-        decision: 'pass',
-        scorecard_ref: 'arena/runs/arena-missing/scorecard.json',
-      }),
+      runArena: async () => fakeArenaResult(
+        'arena-missing',
+        'pass',
+        'arena/runs/arena-missing/scorecard.json',
+      ),
     });
     assert.equal(result.status, 'blocked');
     assert.match(result.terminal?.summary || '', /does not exist/);
@@ -628,7 +653,7 @@ describe('Inspector-first evolution DAG', () => {
           candidatePath = input.candidate.path;
           const scorecardRef = 'arena/runs/rejected/arena-scorecard.json';
           writeLocalEvidence(root, scorecardRef);
-          return { run_id: 'rejected', decision: 'unsafe', scorecard_ref: scorecardRef };
+          return fakeArenaResult('rejected', 'unsafe', scorecardRef);
         },
       });
 
@@ -863,6 +888,21 @@ function writeLocalEvidence(root: string, ref: string): void {
   const filePath = path.join(root, ref);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '{}\n', 'utf-8');
+}
+
+function fakeArenaResult(
+  runId: string,
+  decision: EvolutionArenaResult['decision'],
+  scorecardRef: string,
+): EvolutionArenaResult {
+  return {
+    run_id: runId,
+    decision,
+    scorecard_ref: scorecardRef,
+    subject_id: `skill-${runId}`,
+    subject_manifest_ref: `arena/subjects/skill-${runId}/arena-manifest.json`,
+    subject_fingerprint: 'a'.repeat(64),
+  };
 }
 
 function writeReviewerEvidence(root: string, date: string, fileName: string): string {

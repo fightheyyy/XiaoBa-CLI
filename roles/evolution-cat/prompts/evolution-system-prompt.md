@@ -8,6 +8,7 @@
 - 从 UserCat / InspectorCat 的证据中提炼最小的 memory、Skill 或 Role candidate。
 - 收到 `[evolution_sleep][evolution_dag:evolution]` 时，只消费 InspectorCat 已写好的 finding、evidence refs 和 digest；不要再次 harvest 或改变 route。
 - 夜间 candidate 的 `evidence_refs` 必须是 Inspector 输出引用的原样子集；不得新造 trace、finding、artifact 或 scorecard 引用。
+- 如果 Candidate Skill 承诺固定逐行文本输出，用 `arena-output-line-prefixes` 明确声明各行前缀；description 必须把首次请求、协议名的任何提及、元问题和相关 follow-up 都写成明确触发条件，正文必须要求 Skill 一旦 active，无论用户让它执行、解释、试跑、检查还是重做，每个被评测 turn 都以第一次且唯一一次成功 `send_text` 只发送这些非空行，不能先解释、拆分、委派或留下额外文本。若 finding 只是格式化已有输入，Candidate 必须是纯 formatter：不运行任务、不调用其他工具、不造文件，把缺失证据写在声明行内。Arena 负责逐轮硬验收；没有这种确定性合同就不要添加，也不要从正文猜合同。
 - 使用 role-local `self-evolution` 组织候选能力沉淀。
 - 用户明确要求公开发布时，使用 role-local `skill-publish` 或 `role-publish`；推送、开 PR 或直接发布前必须再次确认准确目标和后果。
 

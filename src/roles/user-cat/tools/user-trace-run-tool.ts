@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import express from 'express';
 import { createRoleAwareToolManager } from '../../../bootstrap/tool-manager';
 import { AgentServices, AgentSession, SessionCallbacks } from '../../../core/agent-session';
@@ -46,6 +46,8 @@ export interface UserTraceRunToolOptions {
   createServices?: UserTraceRunServicesFactory;
   createUserPlanner?: UserTracePlannerFactory;
   createRunId?: () => string;
+  /** Arena-only subject mount; intentionally absent from the tool schema. */
+  arenaSubjectSkillId?: string;
 }
 
 interface TraceTurn {
@@ -220,12 +222,14 @@ export class UserTraceRunTool implements Tool {
   private readonly createUserPlanner: UserTracePlannerFactory;
   private readonly createRunId: () => string;
   private readonly hasCustomCreateServices: boolean;
+  private readonly arenaSubjectSkillId?: string;
 
   constructor(options: UserTraceRunToolOptions = {}) {
     this.createServices = options.createServices ?? defaultCreateServices;
     this.createUserPlanner = options.createUserPlanner ?? defaultCreateUserPlanner;
     this.createRunId = options.createRunId ?? createRunId;
     this.hasCustomCreateServices = Boolean(options.createServices);
+    this.arenaSubjectSkillId = options.arenaSubjectSkillId?.trim() || undefined;
   }
 
   async execute(args: any, context: ToolExecutionContext): Promise<string> {
@@ -233,6 +237,9 @@ export class UserTraceRunTool implements Tool {
     const targetRole = resolveTargetRole(args?.target_role);
     const runId = safeSegment(readString(args?.run_id, this.createRunId()));
     const entrypoint = resolveEntrypoint(args?.entrypoint);
+    if (this.arenaSubjectSkillId && entrypoint !== 'dashboard_chat') {
+      throw new Error('Arena subject Skill mounting requires the Dashboard Chat/Pet entrypoint');
+    }
     const interactionMode = resolveInteractionMode(args?.interaction_mode);
     const scenario = readString(args?.scenario, defaultScenario(targetRole));
     const plannedMessages = normalizePlannedMessages(args?.messages, scenario);
@@ -427,7 +434,14 @@ export class UserTraceRunTool implements Tool {
       });
     await services.skillManager.loadSkills();
 
-    const channel = new PetChannel({ services, sessionTtlMs: 60_000 });
+    if (this.arenaSubjectSkillId && !services.skillManager.getSkill(this.arenaSubjectSkillId)) {
+      throw new Error(`Arena subject skill unavailable: ${this.arenaSubjectSkillId}`);
+    }
+    const channel = new PetChannel({
+      services,
+      sessionTtlMs: 60_000,
+      ...(this.arenaSubjectSkillId && { requiredActiveSkillName: this.arenaSubjectSkillId }),
+    });
     app.use('/api', channel.router);
     const server = await listen(app);
     const turns: TraceTurn[] = [];
@@ -792,7 +806,11 @@ function resolveTargetRole(value: unknown): string {
 }
 
 function dashboardChatSessionKey(petId: string, targetRole: string, runId: string): string {
-  return `pet:${safeSegment(petId)}:role-${safeSegment(targetRole)}:usercat-simulation-${safeSegment(runId).slice(0, 48)}`;
+  const runSegment = safeSegment(runId);
+  const boundedRunSegment = runSegment.length <= 48
+    ? runSegment
+    : `${runSegment.slice(0, 31)}-${createHash('sha256').update(runSegment).digest('hex').slice(0, 16)}`;
+  return `pet:${safeSegment(petId)}:role-${safeSegment(targetRole)}:usercat-simulation-${boundedRunSegment}`;
 }
 
 function dashboardToolEvents(events: Record<string, unknown>[], turnIndex: number): TraceToolEvent[] {

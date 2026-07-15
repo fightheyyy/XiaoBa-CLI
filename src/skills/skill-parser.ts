@@ -66,6 +66,7 @@ export class SkillParser {
       toolsets: Array.isArray(data.toolsets)
         ? data.toolsets.filter((toolset: unknown): toolset is string => typeof toolset === 'string')
         : undefined,
+      arenaOutputLinePrefixes: this.parseArenaOutputLinePrefixes(data, filePath),
       status: parseCapabilityStatus(data.status, `skill ${data.name}`),
     };
 
@@ -101,6 +102,7 @@ export class SkillParser {
       toolsets: Array.isArray(data.toolsets)
         ? data.toolsets.filter((toolset: unknown): toolset is string => typeof toolset === 'string')
         : undefined,
+      arenaOutputLinePrefixes: this.parseArenaOutputLinePrefixes(data, filePath),
       status: parseCapabilityStatus(data.status, `skill ${data.name}`),
     };
 
@@ -120,5 +122,23 @@ export class SkillParser {
    */
   static validate(metadata: SkillMetadata): boolean {
     return !!(metadata.name && metadata.description);
+  }
+
+  private static parseArenaOutputLinePrefixes(data: any, filePath: string): string[] | undefined {
+    if (!Object.prototype.hasOwnProperty.call(data, 'arena-output-line-prefixes')) {
+      return undefined;
+    }
+    const raw = data['arena-output-line-prefixes'];
+    if (!Array.isArray(raw) || raw.length === 0) {
+      throw new Error(`Invalid arena-output-line-prefixes in ${filePath}: expected a non-empty string list.`);
+    }
+    const prefixes = raw.map((value: unknown) => typeof value === 'string' ? value.trim() : '');
+    if (prefixes.some(prefix => !prefix)) {
+      throw new Error(`Invalid arena-output-line-prefixes in ${filePath}: every prefix must be a non-empty string.`);
+    }
+    if (new Set(prefixes).size !== prefixes.length) {
+      throw new Error(`Invalid arena-output-line-prefixes in ${filePath}: prefixes must be unique.`);
+    }
+    return prefixes;
   }
 }

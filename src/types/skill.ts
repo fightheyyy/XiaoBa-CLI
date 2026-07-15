@@ -12,6 +12,7 @@ export interface SkillMetadata {
   autoInvocable?: boolean;         // 是否允许自动调用（默认 true）
   maxTurns?: number;               // 最大工具调用轮次（覆盖默认值）
   toolsets?: string[];             // 激活 skill 后请求暴露的 scoped toolsets
+  arenaOutputLinePrefixes?: string[]; // Arena 可选逐轮严格文本输出契约
   status?: CapabilityStatus;       // 生命周期状态（旧资产默认 active）
 }
 

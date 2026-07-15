@@ -51,6 +51,8 @@ export interface ToolManagerOptions {
   inheritBaseTools?: boolean;
   baseToolAllowlist?: string[];
   baseToolDenylist?: string[];
+  /** Explicit resolved role policy for isolated runtimes such as Arena overlays. */
+  roleConfig?: RoleConfig;
 }
 
 const CHANNEL_SURFACES = new Set(['feishu', 'weixin', 'pet', 'dashboard']);
@@ -1272,6 +1274,9 @@ export class ToolManager implements ToolExecutor {
   }
 
   private resolveRoleConfig(roleName?: string): RoleConfig | undefined {
+    if (this.options.roleConfig) {
+      return this.options.roleConfig;
+    }
     const normalizedRole = normalizeRoleName(roleName);
     const resolvedRole = normalizedRole
       ? RoleResolver.resolveRoleDirectoryName(normalizedRole)

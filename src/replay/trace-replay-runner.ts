@@ -21,6 +21,8 @@ export interface TraceReplayRunOptions {
   timeoutMs?: number;
   now?: Date;
   services?: AgentServices;
+  /** Internal evaluator pin. It is never sourced from the Pet HTTP request. */
+  requiredActiveSkillName?: string;
 }
 
 export interface TraceReplayInput {
@@ -131,6 +133,9 @@ export async function runTraceReplay(options: TraceReplayRunOptions): Promise<Tr
     channel = new PetChannel({
       services: options.services ?? createDefaultReplayServices(cwd),
       sessionTtlMs: 10_000,
+      ...(options.requiredActiveSkillName && {
+        requiredActiveSkillName: options.requiredActiveSkillName,
+      }),
     });
     const listening = await listenReplayRouter(channel.router);
     server = listening.server;
@@ -193,6 +198,10 @@ export async function runTraceReplay(options: TraceReplayRunOptions): Promise<Tr
     Logger.setSilentMode(previousSilentMode);
     process.chdir(previousCwd);
   }
+}
+
+export function extractTraceReplayInputs(tracePath: string, maxTurns?: number): TraceReplayInput[] {
+  return extractReplayInputs(readTraceJsonl(tracePath), maxTurns);
 }
 
 function createDefaultReplayServices(cwd: string): AgentServices {
@@ -383,6 +392,23 @@ function collectTraceFacts(entries: Array<Record<string, unknown>>): TraceFacts 
     finalVisibleCount,
     failedTools,
   };
+}
+
+export function collectTraceFactsFromFile(tracePath: string): TraceFacts {
+  return collectTraceFacts(readTraceJsonl(tracePath).map(item => item.entry));
+}
+
+export function traceReplayReportPassed(
+  report: Pick<TraceReplayReport, 'results' | 'comparison'>,
+): boolean {
+  const visibleEvidence = report.comparison.newTrace.finalVisibleCount > 0
+    || report.comparison.newTrace.visibleCompletedCount > 0
+    || report.comparison.newTrace.deliveryEvidenceCount > 0;
+  return report.comparison.userInputsReplayed
+    && report.results.length > 0
+    && report.results.every(result => result.ok)
+    && report.comparison.newTrace.failedTools.length === 0
+    && visibleEvidence;
 }
 
 function buildComparison(input: {

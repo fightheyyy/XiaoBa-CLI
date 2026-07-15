@@ -170,7 +170,59 @@ describe('TraceReplayRunner', () => {
     assert.ok(fs.existsSync(path.join(testRoot, 'output', 'replay-test', 'comparison.json')));
     assert.ok(fs.existsSync(path.join(testRoot, 'output', 'replay-test', 'report.md')));
   });
+
+  test('re-activates an internal evaluator Skill before every replayed Pet turn', async () => {
+    const tracePath = path.join(testRoot, 'logs', 'sessions', 'pet', '2026-06-23', 'pet_xiaoba_old-session', 'traces.jsonl');
+    writeTrace(tracePath);
+    writeSkill(testRoot, 'replay-pinned-skill');
+    const fakeAI = new ReplayFakeAIService();
+    const services: AgentServices = {
+      aiService: fakeAI as any,
+      toolManager: createRoleAwareToolManager(testRoot),
+      skillManager: new SkillManager(),
+    };
+
+    const report = await runTraceReplay({
+      tracePath,
+      cwd: testRoot,
+      outDir: path.join(testRoot, 'output', 'replay-pinned-test'),
+      now: new Date('2026-06-23T00:01:00.000Z'),
+      services,
+      requiredActiveSkillName: 'replay-pinned-skill',
+    });
+
+    assert.ok(fakeAI.requests.length >= 2);
+    assert.ok(fakeAI.requests.every(messages => messages.some(message => (
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.startsWith('[skill:replay-pinned-skill]')
+    ))));
+    const rows = fs.readFileSync(report.fresh_trace_path!, 'utf-8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line));
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every(row => {
+      const visibility = Array.isArray(row.tool_visibility) ? row.tool_visibility : [];
+      return visibility[visibility.length - 1]?.activeSkillName === 'replay-pinned-skill';
+    }));
+  });
 });
+
+function writeSkill(root: string, name: string): void {
+  const dir = path.join(root, 'skills', name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'SKILL.md'), [
+    '---',
+    `name: ${name}`,
+    `description: ${name} test skill`,
+    'status: candidate',
+    '---',
+    '',
+    `Follow ${name}.`,
+    '',
+  ].join('\n'), 'utf-8');
+}
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {

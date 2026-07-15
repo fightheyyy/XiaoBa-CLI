@@ -31,7 +31,7 @@ Out of scope:
 
 ## Current Architecture
 
-当前实现使用 Base Main Agent 作为唯一面向用户的主 Agent 和普通会话 dispatcher。跨角色工作通过共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。八个默认 Role 分为四个功能型 Role 和四个内部持续改进 Role，但仍运行在同一控制平面。定时自进化不经过 Base：scheduler 启动固定 `EvolutionDAGRunner`，runtime 只 harvest 一次，随后直接等待 InspectorCat，并按类型化 route 进入 EvolutionCat、EngineerCat、ReviewerCat 或终止。EvolutionCat 只能在 run-local 目录生成 Candidate Skill / Role；Arena 能直接导入隔离 candidate；ReviewerCat 不再拥有 Codex 实现控制工具。Skill / Role loader 已执行 `candidate | active | blocked` 三态，旧资产缺省为 `active`。
+当前实现使用 Base Main Agent 作为唯一面向用户的主 Agent 和普通会话 dispatcher。跨角色工作通过共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。八个默认 Role 分为四个功能型 Role 和四个内部持续改进 Role，但仍运行在同一控制平面。定时自进化不经过 Base：scheduler 启动固定 `EvolutionDAGRunner`，runtime 只 harvest 一次，随后直接等待 InspectorCat，并按类型化 route 进入 EvolutionCat、EngineerCat、ReviewerCat 或终止。EvolutionCat 只能在 run-local 目录生成 Candidate Skill / Role；固定逐行输出的 Skill 可用 `arena-output-line-prefixes` 声明一个窄的 Arena 硬合同。Arena 能直接导入隔离 candidate；ReviewerCat 不再拥有 Codex 实现控制工具。Skill / Role loader 已执行 `candidate | active | blocked` 三态，旧资产缺省为 `active`；自进化 Candidate 只有经 evidence-bound 人工 CLI Promote 才能从 Arena snapshot 进入生产目录。
 
 ```mermaid
 flowchart LR
@@ -43,6 +43,7 @@ flowchart LR
     Inspector --> Gate{"Route Gate"}
     Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
     Evolution --> Arena["Arena<br/>multi-case evaluation"]
+    Arena -.-> Promote["human Promote<br/>snapshot + receipt"]
     Gate -->|repair| Engineer["EngineerCat<br/>fix"]
     Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
     Gate -->|replay| Reviewer
@@ -63,6 +64,7 @@ flowchart LR
     Inspector --> Gate{"Route Gate"}
     Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
     Evolution --> Arena["Arena<br/>multi-case evaluation"]
+    Arena -.-> Promote["human Promote<br/>snapshot + receipt"]
     Gate -->|repair| Engineer["EngineerCat<br/>fix"]
     Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
     Gate -->|replay| Reviewer
@@ -82,11 +84,13 @@ flowchart LR
 - Route Gate 只接受 `evolution | repair | replay | no_op`，只验证并分发 Inspector 的结构化结果，不做模型判断，也不是 RouterCat。
 - EvolutionCat 承接 Inspector 的候选能力机会，独占确定性 `remember` role tool 和三个演化/发布 role-local Skills；它不写 runtime 代码、不自评通过、不派遣其他默认角色。
 - `evolution` 必须由至少两个独立根任务 lineage 的 source trace refs 支持。EvolutionCat 最多生成一个隔离的 callable Candidate Skill / Role，再交给 Arena，不负责 gate 或 promotion。
+- Candidate Skill 只有在确实承诺固定逐行文本输出时才声明 `arena-output-line-prefixes`；Arena 对所有被评测 turn 做唯一文本交付与逐行前缀硬验收。EvolutionCat 不执行或解释验收结果。
+- Candidate Role 的评测只从 Arena run-local snapshot 解析规范 role identity、role-local Skills 与 ToolManager policy；同名生产 Role 不得覆盖它。`role_skill` subject 与 role-local Skill 同名时必须拒绝，而不是猜加载优先级。
 - EngineerCat 接受 `repair` route 并完成工程修复；ReviewerCat 接受修复后的 replay case，或者直接接受 `replay` route，在干净 session 中输出 `closed | next_run | blocked`。同一次 DAG 不回跳。
 - 未解决的 `next_run` 在同日重跑时保持幂等，只有后续 run 的 `closed` 或新 `next_run` 才消费原 handoff。
 - `no_op` 是显式终态；非法合同、缺证据或 stage failure 必须 fail closed 为 `blocked`，不能伪装成 `no_op`。
 - Candidate / Active / Blocked 是 Skill 与 Role 的唯一资产状态；旧资产缺省为 Active，Blocked 不可调用，Candidate 只允许显式调用或 Arena 挂载。
-- 生命周期迁移固定为 `blocked → candidate → active`：解除阻塞不能直接恢复 Active，Candidate 只能通过单独、显式的 Promote 动作晋升；显式试用 Candidate Role 不等于晋升。
+- 生命周期迁移固定为 `blocked → candidate → active`：解除阻塞不能直接恢复 Active。自进化 Candidate 的 Promote 是 runtime 人工控制面命令，只能从已通过的 Arena 不可变 snapshot materialize 并写 receipt；它不是 EvolutionCat tool/Skill，也不是 Arena 自动动作。显式试用 Candidate Role 不等于晋升。
 - EngineerCat 属于电脑接管执行侧，负责代码与工程环境，同时承接 Inspector 路由和 Reviewer 返工。
 - BrowserCat 和 GuiCat 分别接管浏览器与桌面 GUI；底层 driver 只提供确定性 capability，不运行 Chat、Agent、MCP 或第二个模型 loop。
 - GuiCat 负责桌面 GUI 接管；生产操作仍只经过受限、可验证的 typed adapter。

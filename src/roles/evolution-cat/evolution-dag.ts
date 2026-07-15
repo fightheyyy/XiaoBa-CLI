@@ -1,8 +1,9 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ArenaManager } from '../../arena/arena-manager';
+import { ArenaManager, fingerprintArenaDirectory } from '../../arena/arena-manager';
 import { executeArenaRun } from '../../arena/arena-runner';
+import { verifyPromotionReceiptRawEvidence } from '../../arena/evolution-promotion';
 import { SubAgentSession } from '../../core/sub-agent-session';
 import { SkillManager } from '../../skills/skill-manager';
 import { SkillParser } from '../../skills/skill-parser';
@@ -89,6 +90,9 @@ export interface EvolutionArenaResult {
   run_id: string;
   decision: 'pass' | 'unstable' | 'reopened' | 'blocked' | 'unsafe';
   scorecard_ref: string;
+  subject_id: string;
+  subject_manifest_ref: string;
+  subject_fingerprint: string;
 }
 
 export interface EvolutionDagDependencies {
@@ -136,6 +140,7 @@ export interface EvolutionDagManifest {
     arena_run_ref?: string;
     arena_decision?: EvolutionArenaResult['decision'];
     promotion_recommendation?: 'promote' | 'reject';
+    promotion_ref?: string;
     next_run_seed_ref?: string;
   };
   started_at: string;
@@ -195,6 +200,10 @@ export async function runEvolutionDag(
   const runRoleStage = dependencies.runRoleStage || runDefaultEvolutionRoleStage;
   const runArena = dependencies.runArena || runDefaultEvolutionArena;
   const sleepRoot = path.dirname(runRoot);
+  const promotedSameDateRun = readPromotedSameDateRun(root, runRoot, manifestPath);
+  if (promotedSameDateRun) {
+    return promotedSameDateRun;
+  }
   const unresolvedSameDateRun = readUnresolvedSameDateRun(root, runRoot, manifestPath);
   if (unresolvedSameDateRun) {
     return unresolvedSameDateRun;
@@ -626,7 +635,7 @@ export async function runDefaultEvolutionArena(input: EvolutionArenaInput): Prom
     subjectId: subject.subject_id,
     ...(input.candidate.type === 'role' ? { targetRoleId: input.candidate.name } : {}),
     runId: `evolution-${input.targetDate}-${safeSegment(input.candidate.name)}`,
-    scenario: input.finding.summary,
+    // Inspector owns diagnosis; Arena's default openings exercise the subject as a user would.
     scenarioCount: 3,
     replayAttempts: 3,
   });
@@ -641,6 +650,12 @@ export async function runDefaultEvolutionArena(input: EvolutionArenaInput): Prom
     run_id: result.run_id,
     decision: decision as EvolutionArenaResult['decision'],
     scorecard_ref: displayPath(result.scorecard_path, input.workingDirectory),
+    subject_id: subject.subject_id,
+    subject_manifest_ref: displayPath(
+      path.join(manager.getSubjectsRoot(), subject.subject_id, 'arena-manifest.json'),
+      input.workingDirectory,
+    ),
+    subject_fingerprint: subject.fingerprint,
   };
 }
 
@@ -660,6 +675,9 @@ export function buildInspectorDagPrompt(
     'Return exactly one JSON object and no prose:',
     '{"version":1,"route":"evolution|repair|replay|no_op","summary":"...","finding_refs":["pattern/finding ref"],"evidence_refs":["source trace ref"],"reason":"optional","replay_case":{"id":"...","intent":"...","expected_outcome":"...","source_trace_refs":["..."]}}',
     'Use only digest-owned refs: finding_refs must be pattern:<pattern_id>, observation:<observation_id>, or handoff:<seed-ref>; evidence_refs and replay source refs must be copied exactly from the digest or pending handoff.',
+    'Route boundary: evolution means a repeated task-level working method, output protocol, or reusable behavior gap that a Candidate Skill/Role can solve without changing runtime code. Repeated user corrections about how work should be performed or formatted belong here.',
+    'Route boundary: repair means a concrete Runtime, Tool, Session, permission, trace-collection, or repository-code defect that requires an engineering change. Do not choose repair merely because a prompt could be edited when a reusable Candidate capability is sufficient.',
+    'Route boundary: replay means one frozen case needs independent reproduction or verification and no new capability or engineering change is yet justified. no_op means the evidence does not support any of the three actions.',
     'Rules: evolution requires source trace refs from at least two independent task lineages; repair/replay require replay_case; no_op requires an explicit reason. Never invent a ref or route by confidence alone.',
     'When a previous unresolved handoff is present, it is the mandatory subject of this run: include handoff:<seed-ref> in finding_refs, include the seed ref in evidence_refs, preserve its Replay Case exactly, and route only to repair or replay.',
   ].join('\n');
@@ -675,6 +693,7 @@ export function buildEvolutionDagPrompt(inspectorRef: string, digestRef: string,
     'Activate the preselected self-evolution workflow. Consume Inspector findings; do not harvest or diagnose again.',
     'At most one reusable Candidate Skill or Candidate Role may be created under candidates/<name>/. Never write outside this working directory.',
     'A Skill candidate must contain candidates/<name>/SKILL.md with status: candidate.',
+    'If a Skill promises fixed line-by-line output, it must declare arena-output-line-prefixes explicitly and make its description trigger on the initial request, any mention or meta-question about the named protocol, and every relevant follow-up. Its body must say that once active, every evaluated turn (execute, explain, test, inspect, redo, follow-up, or missing-input wording) makes its first and only text delivery exactly one successful send_text containing only those non-empty lines, with no preliminary explanation, split delivery, delegation, or extra assistant text. If the finding is only about formatting supplied input, keep the Candidate a pure formatter: use no other tools, run no task, create no file, and express missing evidence inside the declared lines. Never guess a deterministic contract from prose.',
     'A Role candidate must contain candidates/<name>/role.json and its prompt, with status: candidate.',
     'Do not run Arena, publish, promote, repair runtime code, or write memory.',
     'Return exactly one JSON object and no prose:',
@@ -1160,6 +1179,112 @@ function readUnresolvedSameDateRun(
   const realSeed = fs.realpathSync(seedPath);
   if (!isInsideRoot(realRoot, realSeed)) return undefined;
   return manifest as unknown as EvolutionDagManifest;
+}
+
+function readPromotedSameDateRun(
+  root: string,
+  runRoot: string,
+  manifestPath: string,
+): EvolutionDagManifest | undefined {
+  const receiptPath = path.join(runRoot, 'promotion.json');
+  const manifest = readJsonObject(manifestPath);
+  const terminal = manifest?.terminal && typeof manifest.terminal === 'object' && !Array.isArray(manifest.terminal)
+    ? manifest.terminal as Record<string, unknown>
+    : undefined;
+  const hasReceipt = fs.existsSync(receiptPath);
+  const hasPromotionLink = terminal?.promotion_ref !== undefined;
+  if (!hasReceipt && !hasPromotionLink) return undefined;
+
+  const reject = (reason: string): never => {
+    throw new Error(`EVOLUTION_SAME_DATE_PROMOTION_PROTECTED：${reason}`);
+  };
+  if (!manifest || !terminal || !hasReceipt) reject('promotion evidence is incomplete; rerun explicit promote before sleep');
+  const protectedManifest = manifest as Record<string, unknown>;
+  const protectedTerminal = terminal as Record<string, unknown>;
+  if (fs.lstatSync(receiptPath).isSymbolicLink()) reject('promotion receipt cannot be a symlink');
+  const realRoot = fs.realpathSync(root);
+  const realReceipt = fs.realpathSync(receiptPath);
+  if (!isInsideRoot(realRoot, realReceipt) || !fs.statSync(realReceipt).isFile()) {
+    reject('promotion receipt escapes the project');
+  }
+  try {
+    verifyPromotionReceiptRawEvidence({ projectRoot: root, receiptPath });
+  } catch (error) {
+    reject(`promotion raw evidence is no longer immutable: ${errorMessage(error)}`);
+  }
+  const receipt = readJsonObject(receiptPath);
+  const authority = receipt?.authority && typeof receipt.authority === 'object' && !Array.isArray(receipt.authority)
+    ? receipt.authority as Record<string, unknown>
+    : undefined;
+  const evidence = receipt?.evidence && typeof receipt.evidence === 'object' && !Array.isArray(receipt.evidence)
+    ? receipt.evidence as Record<string, unknown>
+    : undefined;
+  const production = receipt?.production && typeof receipt.production === 'object' && !Array.isArray(receipt.production)
+    ? receipt.production as Record<string, unknown>
+    : undefined;
+  const receiptRef = displayPath(receiptPath, root);
+  if (
+    protectedManifest.version !== 1
+    || protectedManifest.run_id !== `evolution-dag-${String(protectedManifest.target_date || '')}`
+    || protectedManifest.target_date !== path.basename(runRoot)
+    || protectedManifest.status !== 'completed'
+    || protectedManifest.route !== 'evolution'
+    || protectedTerminal.status !== 'arena_complete'
+    || protectedTerminal.arena_decision !== 'pass'
+    || protectedTerminal.promotion_recommendation !== 'promote'
+    || protectedTerminal.promotion_ref !== receiptRef
+    || receipt?.version !== 1
+    || receipt.state !== 'promoted'
+    || authority?.kind !== 'explicit_cli'
+    || evidence?.dag_ref !== displayPath(manifestPath, root)
+    || !production
+  ) {
+    reject('promotion receipt and DAG links are inconsistent');
+  }
+  const protectedProduction = production as Record<string, unknown>;
+  const productionRef = typeof protectedProduction.ref === 'string' ? protectedProduction.ref : '';
+  const productionPath = path.resolve(root, productionRef);
+  if (
+    !productionRef
+    || !isInsideRoot(root, productionPath)
+    || !fs.existsSync(productionPath)
+    || fs.lstatSync(productionPath).isSymbolicLink()
+    || !fs.statSync(productionPath).isDirectory()
+    || !isInsideRoot(realRoot, fs.realpathSync(productionPath))
+  ) {
+    reject('promoted production capability is missing or unsafe');
+  }
+  if (
+    typeof protectedProduction.fingerprint !== 'string'
+    || protectedProduction.fingerprint !== fingerprintArenaDirectory(productionPath)
+  ) {
+    reject('promoted production capability fingerprint no longer matches its receipt');
+  }
+  const arenaRunRef = typeof evidence?.arena_run_ref === 'string' ? evidence.arena_run_ref : '';
+  const arenaRunPath = path.resolve(root, arenaRunRef);
+  if (
+    !arenaRunRef
+    || !isInsideRoot(root, arenaRunPath)
+    || !fs.existsSync(arenaRunPath)
+    || fs.lstatSync(arenaRunPath).isSymbolicLink()
+    || !fs.statSync(arenaRunPath).isFile()
+    || !isInsideRoot(realRoot, fs.realpathSync(arenaRunPath))
+  ) {
+    reject('Arena run promotion evidence is missing or unsafe');
+  }
+  const arenaRun = readJsonObject(arenaRunPath);
+  const arenaPromotion = arenaRun?.promotion && typeof arenaRun.promotion === 'object' && !Array.isArray(arenaRun.promotion)
+    ? arenaRun.promotion as Record<string, unknown>
+    : undefined;
+  if (
+    !arenaPromotion
+    || arenaPromotion.status !== 'promoted'
+    || arenaPromotion.production_ref !== productionRef
+    || arenaPromotion.receipt_ref !== receiptRef
+  ) {
+    reject('Arena run promotion link is missing or inconsistent');
+  }
+  return protectedManifest as unknown as EvolutionDagManifest;
 }
 
 function markNextRunSeedConsumed(

@@ -1,7 +1,7 @@
 # XiaoBa-CLI SPEC
 
 状态：Active
-最后更新：2026-07-14
+最后更新：2026-07-15
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。项目只维护本文和六个模块 SPEC；角色、benchmark、desktop、test 和实验实现不再各自复制架构文档。
@@ -53,7 +53,7 @@ Harness is the runtime.
 - artifact 生成与发送必须有 evidence。
 - 日志必须可解析、可投影、可 replay。
 - 失败必须能归因到 runtime、skill、role 或外部系统。
-- self-evolution 产出的 skill / role 变更必须先被视为候选能力，通过 trace、replay、Arena scorecard 或明确人工验收后才能被信任。
+- self-evolution 产出的 skill / role 变更必须先被视为候选能力；只有绑定完整 trace/replay、Arena scorecard、全轮硬合同（若声明）、不可变 subject fingerprint 与人工确认的 runtime Promote，才能从 Arena snapshot 进入生产资产。
 
 ## Current Architecture
 
@@ -61,98 +61,46 @@ Harness is the runtime.
 
 ```mermaid
 flowchart LR
-    subgraph Entrypoints["Entrypoints：用户入口"]
-        Commands["src/commands"]
-        Feishu["src/feishu"]
-        Weixin["src/weixin"]
-        Pet["src/pet"]
-        Dashboard["src/dashboard"]
-        Desktop["desktop<br/>Dashboard static + Electron shell"]
+    subgraph Use["1) Use"]
+        direction TB
+        Surface["Surface<br/>CLI / IM / Pet / Dashboard"]
+    end
+    subgraph Run["2) Run"]
+        direction TB
+        Runtime["Agent Runtime<br/>session / model / tools"]
+        Policy["Roles & Skills<br/>Base + 8 Roles; zero default Base Skills"]
+    end
+    subgraph Facts["3) Record"]
+        direction TB
+        Evidence["Observability & Evidence<br/>trace / artifact / memory"]
+    end
+    subgraph Learn["4) Verify / improve"]
+        direction TB
+        Evaluation["Evaluation<br/>tests / replay / live eval"]
+        Improve["Scheduled workflow<br/>Inspector-first routes"]
+    end
+    subgraph Review["5) Review"]
+        direction TB
+        Arena["Arena<br/>immutable subject + scorecard"]
+    end
+    subgraph Release["6) Release"]
+        direction TB
+        Promote["Explicit CLI Promote<br/>human confirmation + receipt"]
+        Production["Production assets<br/>active Skill / Role"]
+        Promote --> Production
     end
 
-    subgraph Harness["Agent Runtime：会话与工具编排"]
-        Core["src/core"]
-        Providers["src/providers"]
-        Tools["src/tools<br/>base / role / surface tools"]
-        EvolutionDAG["EvolutionDAGRunner<br/>Inspector-first typed routes"]
-    end
-
-    subgraph Policy["Policy：角色和技能"]
-        Skills["role-local / explicitly mounted skills<br/>zero default Base skills"]
-        Roles["src/roles + roles<br/>Base + 4 functional + 4 internal roles"]
-    end
-
-    subgraph Observe["Observability & Evidence：观测证据"]
-        Data["data"]
-        Logs["logs"]
-        Memory["memory<br/>on-demand MD notes"]
-        Output["output"]
-        Obs["src/observability<br/>local summary / trace projection"]
-    end
-
-    subgraph TestHarness["Test Harness：工程验证"]
-        Test["test<br/>verification boundary"]
-    end
-
-    subgraph Evaluation["Evaluation：复跑与评测"]
-        Replay["src/replay<br/>trace replay"]
-        Eval["eval<br/>live agent eval"]
-        EvalBench["eval/benchmarks<br/>BaseRuntime live cases"]
-    end
-
-    subgraph ArenaModule["Arena：候选能力验收场"]
-        ArenaDocs["docs/arena<br/>module spec / plan"]
-        ArenaSite["arena<br/>review site / evidence"]
-        ArenaCtl["src/arena + xiaoba arena<br/>manifest / clean runtime / runner / scorecard"]
-        ExistingSkillCmd["existing skill install-github<br/>direct clone path"]
-        ExistingArenaInputs["existing UserCat / InspectorCat / ReviewerCat tools"]
-        ExistingRoleInputs["existing roles<br/>role docs / role tools"]
-    end
-
-    Commands --> Core
-    Commands --> EvolutionDAG
-    Feishu --> Core
-    Weixin --> Core
-    Pet --> Core
-    Dashboard --> Core
-    Desktop --> Dashboard
-
-    Core --> Providers
-    Core --> Tools
-    Core --> Skills
-    Core --> Roles
-    Logs --> EvolutionDAG
-    EvolutionDAG --> Roles
-    Core --> Data
-    Core --> Logs
-    Core --> Memory
-    Tools --> Output
-    Logs --> Obs
-    Output --> Obs
-
-    Logs --> Replay
-    Replay --> Logs
-    Replay --> Output
-    Eval --> EvalBench
-    Logs --> EvalBench
-    EvalBench --> Eval
-    Obs --> Eval
-    Skills --> ExistingSkillCmd
-    Skills --> ArenaCtl
-    Roles --> ArenaCtl
-    Roles --> ExistingArenaInputs
-    Roles --> ExistingRoleInputs
-    Logs --> ExistingArenaInputs
-    Logs --> ArenaCtl
-    ExistingSkillCmd --> ArenaCtl
-    ExistingArenaInputs --> ArenaCtl
-    ExistingRoleInputs --> ArenaCtl
-    EvolutionDAG --> ArenaCtl
-    ArenaCtl --> ArenaSite
-    ArenaCtl --> ArenaDocs
-    ExistingSkillCmd --> ArenaDocs
-    ExistingArenaInputs --> ArenaDocs
-    ExistingRoleInputs --> ArenaDocs
+    Surface --> Runtime
+    Policy --> Runtime
+    Runtime --> Evidence
+    Evidence --> Evaluation
+    Evidence --> Improve
+    Runtime --> Arena
+    Policy --> Arena
+    Evidence --> Arena
+    Improve --> Arena
+    Arena -. "passed snapshot" .-> Promote
+    Surface -. "human command" .-> Promote
 ```
 
 ## Target Architecture
@@ -161,92 +109,47 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Surfaces["Surface：入口模块"]
-        Commands["src/commands"]
-        Feishu["src/feishu"]
-        Weixin["src/weixin"]
-        Pet["src/pet"]
-        Dashboard["src/dashboard"]
+    subgraph Entry["1) Surface"]
+        direction TB
+        Surface["One surface contract<br/>CLI / IM / Pet / Dashboard"]
+    end
+    subgraph Harness["2) Harness"]
+        direction TB
+        Runtime["Agent Runtime<br/>one shared loop"]
+        Policy["Roles & Skills<br/>owned policy + typed adapters"]
+    end
+    subgraph State["3) Capability / facts"]
+        direction TB
+        Drivers["Deterministic drivers<br/>browser / GUI / lark-cli"]
+        Evidence["Observability & Evidence<br/>local source of truth"]
+    end
+    subgraph Improve["4) Verify / improve"]
+        direction TB
+        Evaluation["Evaluation<br/>replay + live gates"]
+        Workflow["Continuous improvement DAG<br/>Inspector diagnose + route"]
+    end
+    subgraph Review["5) Review"]
+        direction TB
+        Arena["Arena<br/>isolated candidate evaluation"]
+    end
+    subgraph Release["6) Release"]
+        direction TB
+        Gate["Human Promote gate<br/>exact snapshot + provenance"]
+        Production["Production capability"]
+        Gate --> Production
     end
 
-    subgraph Policy["Policy：角色和技能"]
-        Roles["Base + 4 functional + 4 internal roles<br/>roles + src/roles"]
-        Skills["role-local / explicitly mounted skills<br/>no default Base skills"]
-        Evolution["scheduled self-evolution DAG<br/>Inspector-first; no Base hop"]
-        DriverAdapters["role-scoped capability adapters<br/>browser / GUI / Feishu"]
-    end
-
-    subgraph DeviceDrivers["External Drivers：无模型能力层"]
-        BrowserDriver["version-pinned agent-browser CLI<br/>no Chat / MCP"]
-        GuiDriver["optional @steipete/peekaboo 3.8.0<br/>CLI only; no Agent / MCP"]
-        LarkDriver["official lark-cli<br/>no second Agent loop"]
-    end
-
-    subgraph Harness["Agent Runtime：会话与工具编排"]
-        Core["src/core"]
-        Providers["src/providers"]
-        Tools["src/tools<br/>layered tool registry"]
-    end
-
-    subgraph Observe["Observability & Evidence：状态和证据"]
-        Data["data"]
-        Memory["memory"]
-        Logs["logs"]
-        Output["output"]
-        Observability["src/observability<br/>local summary / trace projection"]
-    end
-
-    subgraph TestHarness["Test Harness：工程验证"]
-        Test["test<br/>code correctness / contract smoke"]
-    end
-
-    subgraph Evaluation["Evaluation：trace replay + live agent eval"]
-        Replay["src/replay<br/>historical trace rerun"]
-        Eval["eval<br/>live eval standards / gate"]
-        EvalBench["eval/benchmarks<br/>BaseRuntime / future role live benchmarks"]
-    end
-
-    subgraph ArenaModule["Arena：capability review arena"]
-        Importer["subject intake<br/>GitHub skill / local role"]
-        ArenaRunner["arena runner<br/>three review modes + sandbox + subject overlay"]
-        ArenaIndex["arena run index<br/>UserCat / trace / Reviewer refs"]
-    end
-
-    Surfaces --> Core
-    Roles --> Core
-    Skills --> Core
-    Evolution --> Roles
-    Core --> Providers
-    Core --> Tools
-    Tools --> DriverAdapters
-    DriverAdapters --> BrowserDriver
-    DriverAdapters --> GuiDriver
-    DriverAdapters --> LarkDriver
-    Core --> Data
-    Core --> Memory
-    Core --> Logs
-    Tools --> Output
-    Logs --> Observability
-    Observability --> Evolution
-    Output --> Observability
-    Logs --> Replay
-    Replay --> Output
-    Eval --> EvalBench
-    Logs --> EvalBench
-    Output --> EvalBench
-    Test --> Roles
-    Test --> Skills
-    Core --> Observability
-    Eval --> Observability
-    Importer --> Skills
-    Importer --> Roles
-    Skills --> ArenaRunner
-    Roles --> ArenaRunner
-    ArenaRunner --> Core
-    Core --> ArenaIndex
-    Observability --> ArenaIndex
-    ArenaIndex -. "human rewrite only" .-> EvalBench
-    Evolution --> ArenaRunner
+    Surface --> Runtime
+    Policy --> Runtime
+    Runtime --> Drivers
+    Runtime --> Evidence
+    Evidence --> Evaluation
+    Evidence --> Workflow
+    Policy --> Arena
+    Evidence --> Arena
+    Workflow --> Arena
+    Arena -. "pass only" .-> Gate
+    Surface -. "human command" .-> Gate
 ```
 
 ## 核心组件边界
@@ -261,7 +164,7 @@ flowchart LR
 | `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
-| `Arena` | 管 GitHub skill 导入、本地 role 验收、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、subject manifest、sandboxed runner、arena run index、scorecard、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion 边界 | 不自动信任外部 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
+| `Arena` | 管 GitHub skill 导入、本地 role 验收、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、subject manifest、sandboxed runner、arena run index、scorecard、声明式逐轮硬合同、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion receipt 边界 | 不自动信任或晋升 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
 | `test/*` | 定义代码正确性、集成测试和 deterministic runtime contract smoke | 不承载 live agent eval benchmark；不保存 eval scorecard policy |
 | `src/replay/*` | 定义历史 trace replay：从本地 `traces.jsonl` 抽用户输入，重新驱动当前 runtime，产生 fresh trace 和轻量对比 | 不打 benchmark 分；不自动接受 eval case；不上传或脱敏本地 trace |
 | `eval/*` | 只定义 live agent eval：curated benchmark input、setup、runtime replay、tool/result verifier 和 scorecard | 不保存原始私密 trace；不承载普通单测；不保存 schema/contract/rubric governance；不收静态 JSONL regression |

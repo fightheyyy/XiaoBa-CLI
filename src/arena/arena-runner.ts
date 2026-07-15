@@ -7,19 +7,34 @@ import { buildArenaShellCommand } from './arena-shell';
 import {
   ArenaCleanRuntimeIndex,
   ArenaDecision,
+  ArenaOutputContractCheck,
   ArenaReplayAttempts,
   ArenaReviewMode,
   ArenaSandboxPolicy,
 } from './types';
 import { UserTraceRunTool } from '../roles/user-cat/tools/user-trace-run-tool';
 import { AnalyzeLogTool } from '../roles/inspector-cat/tools/analyze-log-tool';
-import { runTraceReplay, TraceReplayReport } from '../replay/trace-replay-runner';
+import {
+  runTraceReplay,
+  traceReplayReportPassed,
+  TraceReplayReport,
+} from '../replay/trace-replay-runner';
 import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { AgentServices } from '../core/agent-session';
 import { SkillManager } from '../skills/skill-manager';
+import { SkillParser } from '../skills/skill-parser';
 import { AIService } from '../utils/ai-service';
 import { PathResolver } from '../utils/path-resolver';
 import { ToolExecutionContext } from '../types/tool';
+import {
+  ArenaTraceIdentityCheck,
+  ArenaTraceSessionAttestation,
+  attestArenaTrace,
+  attestArenaTraceRuns,
+  enforceGlobalTraceIdUniqueness,
+  summarizeArenaOutputContract,
+  summarizeArenaTraceIdentity,
+} from './trace-attestation';
 
 const DEFAULT_REPLAY_ATTEMPTS = 3;
 const DEFAULT_MAX_REPLAY_CASES = 2;
@@ -125,10 +140,12 @@ interface UserCatRunSummary {
   scenario: string;
   package_path: string;
   trace_path: string;
+  session_key?: string;
+  turn_count: number;
   error?: string;
 }
 
-interface ReplayTarget {
+export interface ArenaReplayTarget {
   caseId: string;
   tracePath: string;
   issueType: string;
@@ -139,7 +156,7 @@ interface StageStatus {
   error?: string;
 }
 
-interface InspectorCase {
+export interface ArenaInspectorCase {
   case_id: string;
   issue_type: string;
   severity: 'high' | 'medium' | 'low';
@@ -148,14 +165,52 @@ interface InspectorCase {
   replay_intent: string;
 }
 
+type InspectorCase = ArenaInspectorCase;
+
+export interface ArenaReplayConfig {
+  replayAttemptsPerCase: number;
+  maxReplayCases: number;
+}
+
+export function resolveArenaReplayConfig(input: {
+  replayAttempts?: unknown;
+  maxReplayCases?: unknown;
+}): ArenaReplayConfig {
+  return {
+    replayAttemptsPerCase: positiveInt(input.replayAttempts, DEFAULT_REPLAY_ATTEMPTS),
+    maxReplayCases: positiveInt(input.maxReplayCases, DEFAULT_MAX_REPLAY_CASES),
+  };
+}
+
 interface ReplayAttemptSummary {
   attempt: number;
   status: 'pass' | 'fail' | 'blocked';
+  case_id: string;
+  source_trace_ref: string;
   replay_run_id?: string;
+  session_key?: string;
+  turn_count?: number;
   fresh_trace_ref?: string;
   replay_results_ref?: string;
   error?: string;
   notes: string[];
+  trace_identity_check: ArenaTraceIdentityCheck;
+  output_contract_check: ArenaOutputContractCheck;
+}
+
+interface ArenaOutputContractDefinition {
+  declared: boolean;
+  sourceRef: string | null;
+  linePrefixes: string[];
+  subjectSkillId: string | null;
+  loadError?: string;
+}
+
+interface OutputContractRunAttestation {
+  check: ArenaOutputContractCheck;
+  identityCheck: ArenaTraceIdentityCheck;
+  sessions: ArenaTraceSessionAttestation[];
+  cases: ArenaInspectorCase[];
 }
 
 export async function executeArenaRun(input: ExecuteArenaRunInput): Promise<ExecuteArenaRunResult> {
@@ -276,6 +331,7 @@ export async function runArenaPipelineWorker(
   const runRoot = path.join(projectRoot, 'arena', 'runs', safeSegment(options.runId));
   const runtimePath = path.join(runRoot, 'clean-runtime.json');
   const runtime = readJson(runtimePath) as unknown as ArenaCleanRuntimeIndex;
+  const outputContract = loadArenaOutputContract(projectRoot, runtime);
   const workspaceRoot = runtime.roots.workspace_root;
   const targetRole = runtime.target_profile.active_role_id || 'base';
   const maxUserCatTurns = positiveInt(options.maxTurns, DEFAULT_MAX_TURNS);
@@ -286,8 +342,9 @@ export async function runArenaPipelineWorker(
     scenarioCount: positiveInt(options.scenarioCount, DEFAULT_SCENARIO_COUNT),
     maxTurns: maxUserCatTurns,
   });
-  const replayAttemptCount = positiveInt(options.replayAttempts, DEFAULT_REPLAY_ATTEMPTS);
-  const maxReplayCases = positiveInt(options.maxReplayCases, DEFAULT_MAX_REPLAY_CASES);
+  const replayConfig = resolveArenaReplayConfig(options);
+  const replayAttemptCount = replayConfig.replayAttemptsPerCase;
+  const maxReplayCases = replayConfig.maxReplayCases;
   const timeoutMs = positiveInt(options.timeoutMs, runtime.sandbox.timeout_ms || 180_000);
   const usercatStage: StageStatus = { status: 'blocked' };
   const inspectorStage: StageStatus = { status: 'blocked' };
@@ -334,6 +391,7 @@ export async function runArenaPipelineWorker(
       usercatFields = parseKeyValueLines(usercatResultText);
       usercatRawTracePath = resolveMaybeRelative(workspaceRoot, usercatFields.trace || path.join('data', 'user-cat', 'traces', plan.usercatRunId, 'trace.jsonl'));
       usercatPackagePath = resolveMaybeRelative(workspaceRoot, path.join(usercatFields.candidate_dir || path.join('output', 'user-cat', 'candidates', plan.usercatRunId), 'manifest.json'));
+      const sessionKey = usercatFields.session_key?.trim();
       usercatRuns.push({
         index: plan.index,
         status: 'pass',
@@ -341,6 +399,8 @@ export async function runArenaPipelineWorker(
         scenario: plan.scenario,
         package_path: usercatPackagePath,
         trace_path: usercatRawTracePath,
+        ...(sessionKey && { session_key: sessionKey }),
+        turn_count: nonNegativeInt(usercatFields.turn_count, 0),
       });
     } catch (error) {
       usercatError = errorMessage(error);
@@ -372,6 +432,7 @@ export async function runArenaPipelineWorker(
         scenario: plan.scenario,
         package_path: usercatPackagePath,
         trace_path: usercatRawTracePath,
+        turn_count: 0,
         error: usercatError,
       });
     } finally {
@@ -392,12 +453,26 @@ export async function runArenaPipelineWorker(
     : uniquePaths(usercatRuns.map(run => fs.existsSync(run.trace_path) ? run.trace_path : ''));
   const primaryTracePath = tracePaths[0] || usercatRuns[0]?.trace_path || path.join(debugRoot, 'usercat-controller.jsonl');
   const traceRefs = tracePaths.map(filePath => relativeRef(projectRoot, filePath));
+  const outputContractAttestation = buildInitialOutputContractAttestation({
+    projectRoot,
+    runtime,
+    contract: outputContract,
+    usercatRuns,
+    nativeTracePaths,
+  });
+  if (outputContractAttestation.identityCheck.status === 'blocked') {
+    usercatStage.status = blockedUserCatRuns.length === usercatRuns.length ? 'blocked' : 'fail';
+    usercatStage.error = outputContractAttestation.sessions
+      .filter(session => session.status === 'blocked')
+      .map(session => `${session.runId}: ${session.blockedReasons.join('; ')}`)
+      .join('; ');
+  }
   const usercatControllerTraceRefs = usercatRuns
     .map(run => fs.existsSync(run.trace_path) ? relativeRef(projectRoot, run.trace_path) : undefined)
     .filter((value): value is string => Boolean(value));
   const inspectorAnalysisPath = path.join(debugRoot, 'inspector-analysis.json');
   const inspectorCasesPath = path.join(debugRoot, 'inspector-cases.json');
-  let inspectorCases: InspectorCase[] = [];
+  let inspectorCases: ArenaInspectorCase[] = [...outputContractAttestation.cases];
   try {
     const inspectorAnalyses: Array<Record<string, unknown>> = [];
     for (const [traceIndex, tracePath] of tracePaths.entries()) {
@@ -444,13 +519,16 @@ export async function runArenaPipelineWorker(
   } catch (error) {
     inspectorStage.status = 'blocked';
     inspectorStage.error = errorMessage(error);
-    inspectorCases = buildInspectorCases({
-      runId: runtime.run_id,
-      traceRef: relativeRef(projectRoot, primaryTracePath),
-      analysis: {},
-      unsafeMatches: [],
-      usercatError: inspectorStage.error || usercatStage.error,
-    });
+    inspectorCases = [
+      ...outputContractAttestation.cases,
+      ...buildInspectorCases({
+        runId: runtime.run_id,
+        traceRef: relativeRef(projectRoot, primaryTracePath),
+        analysis: {},
+        unsafeMatches: [],
+        usercatError: inspectorStage.error || usercatStage.error,
+      }),
+    ];
     writeJson(inspectorCasesPath, {
       version: 1,
       run_id: runtime.run_id,
@@ -466,6 +544,7 @@ export async function runArenaPipelineWorker(
   const replaySelection = buildReplayTargets(projectRoot, inspectorCases, maxReplayCases);
   const replayTargets = replaySelection.targets;
   for (const [targetIndex, target] of replayTargets.entries()) {
+    const sourceTraceRef = canonicalReplaySourceRef(projectRoot, target.tracePath);
     for (let attemptIndex = 1; attemptIndex <= replayAttemptCount; attemptIndex++) {
       const globalAttemptIndex = replayAttempts.length + 1;
       try {
@@ -486,24 +565,65 @@ export async function runArenaPipelineWorker(
         const report = deps.runReplay
           ? await deps.runReplay(replayInput)
           : await runDefaultReplay(replayInput);
-        const passed = replayReportPassed(report);
+        const replayContractAttestation = buildReplayOutputContractAttestation({
+          projectRoot,
+          contract: outputContract,
+          report,
+        });
+        const contractStatus = replayContractAttestation.check.status;
+        const identityStatus = replayContractAttestation.identityCheck.status;
+        const status: ReplayAttemptSummary['status'] = identityStatus === 'blocked' || contractStatus === 'blocked'
+          ? 'blocked'
+          : traceReplayReportPassed(report) && (contractStatus === 'pass' || contractStatus === 'not_declared')
+            ? 'pass'
+            : 'fail';
         replayAttempts.push({
           attempt: globalAttemptIndex,
-          status: passed ? 'pass' : 'fail',
+          status,
+          case_id: target.caseId,
+          source_trace_ref: sourceTraceRef,
           replay_run_id: report.run_id,
+          session_key: report.session_key,
+          turn_count: report.replayed_turns,
           ...(report.fresh_trace_path && { fresh_trace_ref: relativeRef(projectRoot, report.fresh_trace_path) }),
           replay_results_ref: relativeRef(projectRoot, report.artifacts.replay_results_path),
-          notes: report.comparison.notes,
+          notes: [
+            ...report.comparison.notes,
+            ...renderOutputContractSessionNotes(replayContractAttestation.sessions),
+          ],
+          trace_identity_check: replayContractAttestation.identityCheck,
+          output_contract_check: replayContractAttestation.check,
         });
       } catch (error) {
         replayAttempts.push({
           attempt: globalAttemptIndex,
           status: 'blocked',
+          case_id: target.caseId,
+          source_trace_ref: sourceTraceRef,
           error: errorMessage(error),
           notes: [],
+          trace_identity_check: unavailableTraceIdentityCheck(),
+          output_contract_check: unavailableReplayOutputContractCheck(outputContract),
         });
       }
     }
+  }
+  reattestReplayAttempts(projectRoot, outputContract, replayAttempts, outputContractAttestation.sessions);
+  outputContractAttestation.identityCheck = summarizeArenaTraceIdentity(outputContractAttestation.sessions);
+  outputContractAttestation.check = outputContract.loadError
+    ? blockedOutputContractCheck(outputContract, {
+      expectedTurns: outputContractAttestation.sessions.reduce((sum, session) => sum + session.expectedTurns, 0),
+      totalSessions: outputContractAttestation.sessions.length,
+    })
+    : outputContract.declared
+      ? summarizeOutputContractSessions(outputContract, outputContractAttestation.sessions)
+      : notDeclaredOutputContractCheck(outputContractAttestation.sessions.length);
+  if (outputContractAttestation.identityCheck.status === 'blocked') {
+    usercatStage.status = 'fail';
+    usercatStage.error = outputContractAttestation.sessions
+      .filter(session => session.identityStatus === 'blocked')
+      .map(session => `${session.runId}: ${session.identityBlockedReasons.join('; ')}`)
+      .join('; ');
   }
 
   const attemptCounts = countReplayAttempts(replayAttempts);
@@ -512,7 +632,12 @@ export async function runArenaPipelineWorker(
     : attemptCounts.blocked_count === replayTargets.length * replayAttemptCount
       ? 'blocked'
       : attemptCounts.fail_count > 0 ? 'fail' : 'pass';
-  const decision = decideArenaRun(inspectorCases, attemptCounts);
+  const decision = decideArenaRun(
+    inspectorCases,
+    attemptCounts,
+    outputContractAttestation.identityCheck,
+    outputContractAttestation.check,
+  );
   const replayTraceRefs = replayAttempts
     .map(attempt => attempt.fresh_trace_ref)
     .filter((value): value is string => Boolean(value));
@@ -529,6 +654,8 @@ export async function runArenaPipelineWorker(
     fail_count: attemptCounts.fail_count,
     blocked_count: attemptCounts.blocked_count,
     trace_refs: replayTraceRefs,
+    case_ids: replayAttempts.map(attempt => attempt.case_id),
+    source_trace_refs: replayAttempts.map(attempt => attempt.source_trace_ref),
   };
   const reviewerScorecard = {
     version: 1,
@@ -540,6 +667,8 @@ export async function runArenaPipelineWorker(
     review_mode: runtime.review_mode,
     subject_id: runtime.subject_id,
     target_profile: runtime.target_profile,
+    trace_identity_check: outputContractAttestation.identityCheck,
+    output_contract_check: outputContractAttestation.check,
     stages: {
       usercat: usercatStage,
       inspector: inspectorStage,
@@ -566,6 +695,8 @@ export async function runArenaPipelineWorker(
       scenario: run.scenario,
       package_path: relativeRef(projectRoot, run.package_path),
       trace_path: relativeRef(projectRoot, run.trace_path),
+      turn_count: run.turn_count,
+      ...(run.session_key && { session_key: run.session_key }),
       ...(run.error && { error: run.error }),
     })),
     replay_results: replayAttempts,
@@ -641,7 +772,13 @@ export async function runArenaPipelineWorker(
 }
 
 async function runDefaultUserCat(input: ArenaUserCatStageInput): Promise<string> {
-  const tool = new UserTraceRunTool();
+  const subjectSkillId = input.runtime.review_mode === 'base_skill'
+    || input.runtime.review_mode === 'role_skill'
+    ? input.runtime.target_profile.subject_skill_id
+    : undefined;
+  const tool = new UserTraceRunTool({
+    ...(subjectSkillId && { arenaSubjectSkillId: subjectSkillId }),
+  });
   const context: ToolExecutionContext = {
     workingDirectory: input.workspaceRoot,
     conversationHistory: [],
@@ -728,6 +865,266 @@ function arenaUserCatRoleIntentMap(runtime: ArenaCleanRuntimeIndex): Record<stri
   };
 }
 
+function loadArenaOutputContract(
+  projectRoot: string,
+  runtime: ArenaCleanRuntimeIndex,
+): ArenaOutputContractDefinition {
+  const subjectSkillId = runtime.target_profile.subject_skill_id;
+  if (!subjectSkillId) {
+    return { declared: false, sourceRef: null, linePrefixes: [], subjectSkillId: null };
+  }
+
+  const subjectSkillRoot = runtime.copied.subject_skill
+    ? path.resolve(runtime.roots.run_root, runtime.copied.subject_skill)
+    : path.join(runtime.roots.skills_root, safeSegment(subjectSkillId));
+  try {
+    const matches = PathResolver.findSkillFiles(subjectSkillRoot)
+      .map(filePath => SkillParser.parse(filePath))
+      .filter(skill => skill.metadata.name === subjectSkillId);
+    if (matches.length !== 1) {
+      return {
+        declared: false,
+        sourceRef: null,
+        linePrefixes: [],
+        subjectSkillId,
+        loadError: `expected exactly one subject SKILL.md for ${subjectSkillId}; found ${matches.length}`,
+      };
+    }
+    const skill = matches[0];
+    const linePrefixes = skill.metadata.arenaOutputLinePrefixes;
+    if (!linePrefixes) {
+      return { declared: false, sourceRef: null, linePrefixes: [], subjectSkillId };
+    }
+    return {
+      declared: true,
+      sourceRef: relativeRef(projectRoot, skill.filePath),
+      linePrefixes: [...linePrefixes],
+      subjectSkillId,
+    };
+  } catch (error) {
+    return {
+      declared: false,
+      sourceRef: null,
+      linePrefixes: [],
+      subjectSkillId,
+      loadError: errorMessage(error),
+    };
+  }
+}
+
+function buildInitialOutputContractAttestation(input: {
+  projectRoot: string;
+  runtime: ArenaCleanRuntimeIndex;
+  contract: ArenaOutputContractDefinition;
+  usercatRuns: UserCatRunSummary[];
+  nativeTracePaths: string[];
+}): OutputContractRunAttestation {
+  const sessions = attestArenaTraceRuns({
+    projectRoot: input.projectRoot,
+    claims: input.usercatRuns.map(run => ({
+      runId: run.run_id,
+      sessionKey: run.session_key,
+      expectedTurns: run.turn_count,
+      ...(run.status === 'blocked' && {
+        blockedReason: run.error || 'UserCat run was blocked before native trace verification',
+      }),
+    })),
+    tracePaths: input.nativeTracePaths,
+    ...(input.contract.declared && !input.contract.loadError && {
+      outputContract: {
+        linePrefixes: input.contract.linePrefixes,
+        subjectSkillId: input.contract.subjectSkillId,
+      },
+    }),
+  });
+  const identityCheck = summarizeArenaTraceIdentity(sessions);
+  const check = input.contract.loadError
+    ? blockedOutputContractCheck(input.contract, {
+      expectedTurns: input.usercatRuns.reduce((sum, run) => sum + run.turn_count, 0),
+      totalSessions: input.usercatRuns.length,
+    })
+    : input.contract.declared
+      ? summarizeOutputContractSessions(input.contract, sessions)
+      : notDeclaredOutputContractCheck(input.usercatRuns.length);
+  const cases = sessions.flatMap((session, index) => {
+    const sessionCases: InspectorCase[] = [];
+    if (session.identityBlockedReasons.length > 0) {
+      sessionCases.push(traceIdentityBlockedCase({
+        caseId: `case.${input.runtime.run_id}.trace-identity.blocked.${index + 1}`,
+        evidenceRefs: uniquePaths([session.traceRef || '']),
+        reason: session.identityBlockedReasons.join('; '),
+      }));
+    }
+    if (session.contractBlockedReasons.length > 0) {
+      sessionCases.push(outputContractBlockedCase({
+        caseId: `case.${input.runtime.run_id}.output-contract.blocked.${index + 1}`,
+        evidenceRefs: uniquePaths([session.traceRef || '', input.contract.sourceRef || '']),
+        reason: session.contractBlockedReasons.join('; '),
+      }));
+    }
+    if (session.violations.length > 0) {
+      const violationSummary = session.violations
+        .map(item => `turn ${item.turn} (${item.traceId}): ${item.reasons.join('; ')}`)
+        .join(' | ');
+      sessionCases.push({
+        case_id: `case.${input.runtime.run_id}.output-contract.violation.${index + 1}`,
+        issue_type: 'output_contract_violation',
+        severity: 'high',
+        evidence_refs: session.traceRef ? [session.traceRef] : [],
+        suspected_root_cause: `declared Arena output contract failed: ${violationSummary}`,
+        replay_intent: 'Replay the same multi-turn interaction and require every fresh turn to satisfy the declared output contract.',
+      });
+    }
+    return sessionCases;
+  });
+  if (input.contract.loadError) {
+    cases.unshift(outputContractBlockedCase({
+      caseId: `case.${input.runtime.run_id}.output-contract.load`,
+      evidenceRefs: input.contract.sourceRef ? [input.contract.sourceRef] : [],
+      reason: input.contract.loadError,
+    }));
+  }
+  return { check, identityCheck, sessions, cases };
+}
+
+function buildReplayOutputContractAttestation(input: {
+  projectRoot: string;
+  contract: ArenaOutputContractDefinition;
+  report: TraceReplayReport;
+}): OutputContractRunAttestation {
+  const claim = {
+    runId: input.report.run_id,
+    sessionKey: input.report.session_key,
+    expectedTurns: input.report.replayed_turns,
+  };
+  const session = input.report.fresh_trace_path
+    ? attestArenaTrace({
+      projectRoot: input.projectRoot,
+      claim,
+      tracePath: input.report.fresh_trace_path,
+      ...(input.contract.declared && !input.contract.loadError && {
+        outputContract: {
+          linePrefixes: input.contract.linePrefixes,
+          subjectSkillId: input.contract.subjectSkillId,
+        },
+      }),
+    })
+    : attestArenaTraceRuns({
+      projectRoot: input.projectRoot,
+      claims: [{ ...claim, blockedReason: 'replay report did not include fresh_trace_path' }],
+      tracePaths: [],
+    })[0];
+  const identityCheck = summarizeArenaTraceIdentity([session]);
+  const check = input.contract.loadError
+    ? blockedOutputContractCheck(input.contract, {
+      expectedTurns: input.report.replayed_turns,
+      totalSessions: 1,
+    })
+    : input.contract.declared
+      ? summarizeOutputContractSessions(input.contract, [session])
+      : notDeclaredOutputContractCheck(1);
+  return {
+    check,
+    identityCheck,
+    sessions: [session],
+    cases: [],
+  };
+}
+
+function summarizeOutputContractSessions(
+  contract: ArenaOutputContractDefinition,
+  sessions: ArenaTraceSessionAttestation[],
+): ArenaOutputContractCheck {
+  return summarizeArenaOutputContract({
+    declared: true,
+    sourceRef: contract.sourceRef,
+    sessions,
+  });
+}
+
+function outputContractBlockedCase(input: {
+  caseId: string;
+  evidenceRefs: string[];
+  reason: string;
+}): InspectorCase {
+  return {
+    case_id: input.caseId,
+    issue_type: 'output_contract_blocked',
+    severity: 'high',
+    evidence_refs: input.evidenceRefs,
+    suspected_root_cause: `output contract verification blocked: ${input.reason}`,
+    replay_intent: 'Restore complete native trace evidence before evaluating or promoting this candidate.',
+  };
+}
+
+function traceIdentityBlockedCase(input: {
+  caseId: string;
+  evidenceRefs: string[];
+  reason: string;
+}): InspectorCase {
+  return {
+    case_id: input.caseId,
+    issue_type: 'trace_identity_blocked',
+    severity: 'high',
+    evidence_refs: input.evidenceRefs,
+    suspected_root_cause: `native trace identity verification blocked: ${input.reason}`,
+    replay_intent: 'Restore exact, session-bound native trace evidence before evaluating or promoting this candidate.',
+  };
+}
+
+function blockedOutputContractCheck(
+  contract: ArenaOutputContractDefinition,
+  input: { expectedTurns: number; totalSessions: number },
+): ArenaOutputContractCheck {
+  return {
+    declared: contract.declared,
+    source_ref: contract.sourceRef,
+    expected_turns: input.expectedTurns,
+    checked_turns: 0,
+    passed_turns: 0,
+    violation_count: 0,
+    fully_compliant_sessions: 0,
+    total_sessions: input.totalSessions,
+    status: 'blocked',
+  };
+}
+
+function notDeclaredOutputContractCheck(totalSessions: number): ArenaOutputContractCheck {
+  return summarizeArenaOutputContract({
+    declared: false,
+    sourceRef: null,
+    sessions: [],
+    totalSessions,
+  });
+}
+
+function unavailableReplayOutputContractCheck(
+  contract: ArenaOutputContractDefinition,
+): ArenaOutputContractCheck {
+  return contract.declared || contract.loadError
+    ? blockedOutputContractCheck(contract, { expectedTurns: 0, totalSessions: 1 })
+    : notDeclaredOutputContractCheck(1);
+}
+
+function unavailableTraceIdentityCheck(): ArenaTraceIdentityCheck {
+  return {
+    expected_sessions: 1,
+    verified_sessions: 0,
+    expected_turns: 0,
+    checked_turns: 0,
+    status: 'blocked',
+  };
+}
+
+function renderOutputContractSessionNotes(sessions: ArenaTraceSessionAttestation[]): string[] {
+  return sessions.flatMap(session => [
+    ...session.blockedReasons.map(reason => `trace identity or output contract blocked: ${reason}`),
+    ...session.violations.map(violation => (
+      `output contract violation at turn ${violation.turn} (${violation.traceId}): ${violation.reasons.join('; ')}`
+    )),
+  ]);
+}
+
 async function runDefaultInspector(input: ArenaInspectorStageInput): Promise<string> {
   const tool = new AnalyzeLogTool();
   const context: ToolExecutionContext = {
@@ -744,6 +1141,10 @@ async function runDefaultInspector(input: ArenaInspectorStageInput): Promise<str
 
 async function runDefaultReplay(input: ArenaReplayStageInput): Promise<TraceReplayReport> {
   const sessionKey = `pet:xiaoba:role-${safeSegment(input.targetRole)}:arena-${safeSegment(input.runtime.run_id)}-replay-${input.attemptIndex}`;
+  const subjectSkillId = input.runtime.review_mode === 'base_skill'
+    || input.runtime.review_mode === 'role_skill'
+    ? input.runtime.target_profile.subject_skill_id
+    : undefined;
   return runTraceReplay({
     tracePath: input.tracePath,
     cwd: input.workspaceRoot,
@@ -753,6 +1154,9 @@ async function runDefaultReplay(input: ArenaReplayStageInput): Promise<TraceRepl
     maxTurns: input.maxTurns,
     timeoutMs: input.timeoutMs,
     services: createReplayServices(input.workspaceRoot, input.targetRole, input.runtime.run_id, sessionKey),
+    ...(subjectSkillId && {
+      requiredActiveSkillName: subjectSkillId,
+    }),
   });
 }
 
@@ -944,18 +1348,6 @@ function validateFakeCitationsAnswer(answerPath: string): string | undefined {
   return undefined;
 }
 
-function replayReportPassed(report: TraceReplayReport): boolean {
-  const visibleEvidence = report.comparison.newTrace.finalVisibleCount > 0
-    || report.comparison.newTrace.visibleCompletedCount > 0
-    || report.comparison.newTrace.deliveryEvidenceCount > 0
-    || report.results.some(result => result.visibleToUser === true || result.textEventCount > 0);
-  return report.comparison.userInputsReplayed
-    && report.results.length > 0
-    && report.results.every(result => result.ok)
-    && report.comparison.newTrace.failedTools.length === 0
-    && visibleEvidence;
-}
-
 function assertArenaProviderConfigured(runtime: ArenaCleanRuntimeIndex, projectRoot: string): void {
   const env = collectArenaRuntimeProviderEnv(runtime);
   if (hasUsableProviderEnv(env)) {
@@ -1048,19 +1440,77 @@ function countReplayAttempts(attempts: ReplayAttemptSummary[]): Omit<ArenaReplay
   };
 }
 
-function decideArenaRun(
-  cases: InspectorCase[],
+function reattestReplayAttempts(
+  projectRoot: string,
+  contract: ArenaOutputContractDefinition,
+  attempts: ReplayAttemptSummary[],
+  nativeSessions: ArenaTraceSessionAttestation[] = [],
+): void {
+  if (attempts.length === 0) return;
+  let sessions = attestArenaTraceRuns({
+    projectRoot,
+    claims: attempts.map(attempt => ({
+      runId: attempt.replay_run_id || `replay-attempt-${attempt.attempt}`,
+      sessionKey: attempt.session_key,
+      expectedTurns: attempt.turn_count || 0,
+      ...(!attempt.fresh_trace_ref && {
+        blockedReason: attempt.error || 'replay attempt did not retain a fresh native trace',
+      }),
+    })),
+    tracePaths: attempts
+      .map(attempt => attempt.fresh_trace_ref ? path.resolve(projectRoot, attempt.fresh_trace_ref) : '')
+      .filter(Boolean),
+    ...(contract.declared && !contract.loadError && {
+      outputContract: {
+        linePrefixes: contract.linePrefixes,
+        subjectSkillId: contract.subjectSkillId,
+      },
+    }),
+  });
+  const globallyAttested = enforceGlobalTraceIdUniqueness([...nativeSessions, ...sessions]);
+  nativeSessions.splice(0, nativeSessions.length, ...globallyAttested.slice(0, nativeSessions.length));
+  sessions = globallyAttested.slice(nativeSessions.length);
+  for (const [index, session] of sessions.entries()) {
+    const attempt = attempts[index];
+    attempt.trace_identity_check = summarizeArenaTraceIdentity([session]);
+    attempt.output_contract_check = contract.loadError
+      ? blockedOutputContractCheck(contract, { expectedTurns: session.expectedTurns, totalSessions: 1 })
+      : contract.declared
+        ? summarizeOutputContractSessions(contract, [session])
+        : notDeclaredOutputContractCheck(1);
+    attempt.notes = [
+      ...attempt.notes.filter(note => !note.startsWith('trace identity or output contract blocked:')),
+      ...renderOutputContractSessionNotes([session]),
+    ];
+    if (session.identityStatus === 'blocked' || attempt.output_contract_check.status === 'blocked') {
+      attempt.status = 'blocked';
+    } else if (session.violations.length > 0 || attempt.output_contract_check.status === 'fail') {
+      attempt.status = 'fail';
+    }
+  }
+}
+
+export function decideArenaRun(
+  cases: ArenaInspectorCase[],
   attempts: Omit<ArenaReplayAttempts, 'planned' | 'completed' | 'trace_refs'>,
+  traceIdentityCheck: ArenaTraceIdentityCheck,
+  outputContractCheck: ArenaOutputContractCheck,
 ): ArenaDecision {
   if (cases.some(item => item.issue_type === 'unsafe_side_effect')) {
     return 'unsafe';
   }
-  if (cases.some(isBlockingCase)) {
+  if (
+    traceIdentityCheck.status === 'blocked'
+    || outputContractCheck.status === 'blocked'
+    || cases.some(isBlockingCase)
+  ) {
     return 'blocked';
   }
   const actionableCaseCount = cases.filter(isActionableCase).length;
   if (actionableCaseCount === 0) {
-    return 'pass';
+    return outputContractCheck.status === 'pass' || outputContractCheck.status === 'not_declared'
+      ? 'pass'
+      : 'blocked';
   }
   if (attempts.pass_count + attempts.fail_count + attempts.blocked_count === 0) {
     return 'blocked';
@@ -1089,8 +1539,8 @@ function isBlockingCase(item: InspectorCase): boolean {
   return /provider|auth|api key|api密钥|鉴权|credential|permission|权限|sandbox|seatbelt|listen eperm|blocked/.test(text);
 }
 
-function buildReplayTargets(projectRoot: string, cases: InspectorCase[], maxReplayCases: number): {
-  targets: ReplayTarget[];
+export function buildReplayTargets(projectRoot: string, cases: ArenaInspectorCase[], maxReplayCases: number): {
+  targets: ArenaReplayTarget[];
   candidate_count: number;
   skipped_count: number;
 } {
@@ -1193,6 +1643,14 @@ function renderReviewerReport(scorecard: any): string {
     `- Reviewer 跳过 replay case 数：${scorecard.arena_eval_profile?.skipped_replay_case_count ?? 0}`,
     `- 每个 case Reviewer replay 次数：${scorecard.arena_eval_profile?.replay_attempts_per_case ?? 'unknown'}`,
     `- 计划 replay 总数：${scorecard.arena_eval_profile?.planned_replay_attempts ?? scorecard.replay_attempts?.planned ?? 'unknown'}`,
+    '',
+    '## 输出契约',
+    '',
+    `- 状态：${scorecard.output_contract_check?.status ?? 'unknown'}`,
+    `- 轮次覆盖：${scorecard.output_contract_check?.checked_turns ?? 0}/${scorecard.output_contract_check?.expected_turns ?? 0}`,
+    `- 合格轮次：${scorecard.output_contract_check?.passed_turns ?? 0}`,
+    `- 违规轮次：${scorecard.output_contract_check?.violation_count ?? 0}`,
+    `- 全程合规会话：${scorecard.output_contract_check?.fully_compliant_sessions ?? 0}/${scorecard.output_contract_check?.total_sessions ?? 0}`,
     '',
     '## 证据',
     '',
@@ -1399,6 +1857,26 @@ function resolveMaybeRelative(root: string, value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(root, value);
 }
 
+export function canonicalReplaySourceRef(projectRoot: string, filePath: string): string {
+  const root = path.resolve(projectRoot);
+  const resolved = path.resolve(filePath);
+  const relative = path.relative(root, resolved);
+  if (
+    relative.startsWith('..')
+    || path.isAbsolute(relative)
+    || !fs.existsSync(resolved)
+    || fs.lstatSync(resolved).isSymbolicLink()
+    || !fs.statSync(resolved).isFile()
+  ) {
+    throw new Error('Arena replay source trace must be one regular project-local file.');
+  }
+  const realRelative = path.relative(fs.realpathSync(root), fs.realpathSync(resolved));
+  if (realRelative.startsWith('..') || path.isAbsolute(realRelative)) {
+    throw new Error('Arena replay source trace real path escapes the project root.');
+  }
+  return relative.replace(/\\/g, '/');
+}
+
 function relativeRef(projectRoot: string, filePath: string): string {
   const relative = path.relative(projectRoot, path.resolve(filePath)).replace(/\\/g, '/');
   return relative && !relative.startsWith('..') && !path.isAbsolute(relative)
@@ -1413,6 +1891,11 @@ function uniquePaths(values: string[]): string[] {
 function positiveInt(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function nonNegativeInt(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function errorMessage(error: unknown): string {

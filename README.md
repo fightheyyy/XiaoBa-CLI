@@ -125,9 +125,13 @@ xiaoba evolution sleep
 
 # 在隔离 Arena 中验收一个已安装或已导入的 skill
 xiaoba arena skill <skill-name>
+
+# Arena 通过后，显式晋升同日 DAG 绑定的不可变 Candidate
+xiaoba evolution promote --date YYYY-MM-DD --confirm <candidate-name>
 ```
 
 Arena 固定支持 `base + skill`、`role + skill` 和 `role` 三种 review mode。Candidate 可以保持候选或被阻断；生产晋升始终需要明确的人类动作。
+声明固定逐行合同的 Candidate，只有 native / replay 的每个 turn 都绑定同一 subject 且全轮通过，才可能得到 `pass`。
 
 ## 证据与验收
 

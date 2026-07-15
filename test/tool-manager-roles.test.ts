@@ -101,6 +101,14 @@ describe('ToolManager role-specific tools', () => {
     assert.strictEqual(manager.getTool('analyze_log'), undefined);
   });
 
+  test('Base aliases use the Base tool set without requiring a role package', () => {
+    for (const roleName of ['base', 'default', 'none']) {
+      const manager = createRoleAwareToolManager(testRoot, {}, roleName);
+      assert.ok(manager.getTool('read_file'));
+      assert.strictEqual(manager.getTool('analyze_log'), undefined);
+    }
+  });
+
   test('激活角色后基础 ToolManager 仍保持纯 runtime 工具集', () => {
     RoleResolver.activateRole('inspector-cat');
     const manager = new ToolManager();

@@ -14,6 +14,12 @@ const originalProjectRoot = process.env.XIAOBA_PROJECT_ROOT;
 const originalSkillsRoot = process.env.XIAOBA_SKILLS_ROOT;
 const originalRolesRoot = process.env.XIAOBA_ROLES_ROOT;
 const originalDotenvConfigPath = process.env.DOTENV_CONFIG_PATH;
+const STRICT_OUTPUT_PREFIXES = [
+  'MEOW_RESULT::',
+  'MEOW_EVIDENCE::',
+  'MEOW_RISK::',
+  'MEOW_NEXT::',
+];
 
 describe('Arena runner', () => {
   let testRoot = '';
@@ -108,6 +114,17 @@ describe('Arena runner', () => {
     assert.strictEqual((scorecard.stages as any).usercat.status, 'pass');
     assert.strictEqual((scorecard.stages as any).inspector.status, 'pass');
     assert.strictEqual((scorecard.stages as any).reviewer.status, 'pass');
+    assert.deepStrictEqual(scorecard.output_contract_check, {
+      declared: false,
+      source_ref: null,
+      expected_turns: 0,
+      checked_turns: 0,
+      passed_turns: 0,
+      violation_count: 0,
+      fully_compliant_sessions: 0,
+      total_sessions: 1,
+      status: 'not_declared',
+    });
     assert.strictEqual(userCatInput?.messages.length, 4);
     assert.strictEqual(userCatInput?.messages[0], '这个 skill 我不会用，你先帮我试一下。');
     assert.match(userCatInput?.messages[1] || '', /到底能用了吗/);
@@ -204,6 +221,719 @@ describe('Arena runner', () => {
     assert.strictEqual(replayInputs.length, 0);
   });
 
+  test('passes a declared output contract only when every native turn is covered and compliant', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-pass'), {
+        name: 'strict-pass',
+        description: 'Strict two-turn output skill',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-pass',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-pass',
+      scenarioCount: 1,
+      maxTurns: 2,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => writeStrictUserCatEvidence(input, [
+        [strictOutput('first')],
+        [strictOutput('second')],
+      ]),
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [
+        [strictOutput('replay first')],
+        [strictOutput('replay second')],
+      ]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'pass');
+    assert.deepStrictEqual(scorecard.output_contract_check, {
+      declared: true,
+      source_ref: 'arena/runs/pipeline-strict-pass/skills/strict-pass/SKILL.md',
+      expected_turns: 2,
+      checked_turns: 2,
+      passed_turns: 2,
+      violation_count: 0,
+      fully_compliant_sessions: 1,
+      total_sessions: 1,
+      status: 'pass',
+    });
+  });
+
+  test('blocks reused native sessions instead of counting one trace as multiple UserCat runs', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-independent-sessions'), {
+        name: 'strict-independent-sessions',
+        description: 'Strict output requires independent Arena sessions',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-independent-sessions',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const sharedSession = 'pet:xiaoba:role-base:shared-arena-session';
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-independent-sessions',
+      scenarioCount: 2,
+      maxTurns: 1,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(
+          input,
+          [[strictOutput(`scenario ${input.scenarioIndex}`)]],
+          1,
+          sharedSession,
+        );
+        if (input.scenarioIndex === 2) {
+          fs.rmSync(path.join(
+            input.workspaceRoot,
+            'logs',
+            'sessions',
+            'pet',
+            '2026-06-30',
+            input.usercatRunId,
+          ), { recursive: true, force: true });
+        }
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [[strictOutput('replay')]]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'blocked');
+    assert.strictEqual((scorecard.trace_identity_check as any).status, 'blocked');
+    assert.match(
+      (scorecard.cases as any[]).find(item => item.issue_type === 'trace_identity_blocked')
+        .suspected_root_cause,
+      /reused by multiple runs/,
+    );
+  });
+
+  test('blocks reused native sessions for a Role without a strict output contract', async () => {
+    const roleRoot = path.join(testRoot, 'fixtures', 'roles', 'identity-role');
+    writeJson(path.join(roleRoot, 'role.json'), {
+      name: 'identity-role',
+      displayName: 'IdentityRole',
+      description: 'Role candidate whose native traces must be independent.',
+      promptFile: 'identity-role-system-prompt.md',
+      status: 'candidate',
+    });
+    fs.mkdirSync(path.join(roleRoot, 'prompts'), { recursive: true });
+    fs.writeFileSync(path.join(roleRoot, 'prompts', 'identity-role-system-prompt.md'), '# IdentityRole\n', 'utf-8');
+    const manifest = manager.importLocalRole({ rolePath: roleRoot });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-role-independent-sessions',
+      reviewMode: 'role',
+      subjectId: manifest.subject_id,
+      targetRoleId: 'identity-role',
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const sharedSession = 'pet:xiaoba:role-identity-role:shared-arena-session';
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-role-independent-sessions',
+      scenarioCount: 2,
+      maxTurns: 1,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(
+          input,
+          [['ordinary role output']],
+          1,
+          sharedSession,
+        );
+        if (input.scenarioIndex === 2) {
+          fs.rmSync(path.join(
+            input.workspaceRoot,
+            'logs',
+            'sessions',
+            'pet',
+            '2026-06-30',
+            input.usercatRunId,
+          ), { recursive: true, force: true });
+        }
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplay(input),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'not_declared');
+    assert.strictEqual((scorecard.trace_identity_check as any).status, 'blocked');
+    assert.match(
+      (scorecard.cases as any[]).find(item => item.issue_type === 'trace_identity_blocked')
+        .suspected_root_cause,
+      /reused by multiple runs/,
+    );
+  });
+
+  test('blocks trace_id reuse across otherwise independent native sessions', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'global-trace-identity'), {
+        name: 'global-trace-identity',
+        description: 'Trace identities must be unique across the whole Arena batch',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-global-trace-identity',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    let sharedTraceId = '';
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-global-trace-identity',
+      scenarioCount: 2,
+      maxTurns: 1,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(
+          input,
+          [[strictOutput(`scenario ${input.scenarioIndex}`)]],
+          1,
+        );
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        const rows = fs.readFileSync(nativeTrace, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+        if (input.scenarioIndex === 1) sharedTraceId = rows[0].trace_id;
+        else rows[0].trace_id = sharedTraceId;
+        writeJsonl(nativeTrace, rows);
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [[strictOutput('replay')]]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.trace_identity_check as any).status, 'blocked');
+    assert.ok((scorecard.cases as any[]).some(item => (
+      item.issue_type === 'trace_identity_blocked'
+      && /trace_id .* reused across multiple claimed sessions/.test(item.suspected_root_cause)
+    )));
+  });
+
+  test('rejects hidden direct final text when the declared contract requires one send_text delivery', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-hidden-final'), {
+        name: 'strict-hidden-final',
+        description: 'Strict output must be delivered through Pet',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-hidden-final',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-hidden-final',
+      scenarioCount: 1,
+      maxTurns: 1,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(input, [[strictOutput('delivered only as final text')]]);
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        const rows = fs.readFileSync(nativeTrace, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+        rows[0].assistant = { text: strictOutput('hidden direct final'), tool_calls: [] };
+        writeJsonl(nativeTrace, rows);
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [[strictOutput('replay')]]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'unstable');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'fail');
+    assert.strictEqual((scorecard.output_contract_check as any).passed_turns, 0);
+    assert.match(
+      (scorecard.cases as any[]).find(item => item.issue_type === 'output_contract_violation').suspected_root_cause,
+      /expected exactly one send_text delivery; observed 0/,
+    );
+  });
+
+  test('rejects extra assistant text even when the single send_text delivery is compliant', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-extra-final'), {
+        name: 'strict-extra-final',
+        description: 'Strict output forbids extra assistant text',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-extra-final',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-extra-final',
+      scenarioCount: 1,
+      maxTurns: 1,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(input, [[strictOutput('delivered')]]);
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        const rows = fs.readFileSync(nativeTrace, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+        rows[0].assistant.text = 'extra direct final text';
+        writeJsonl(nativeTrace, rows);
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [[strictOutput('replay')]]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'unstable');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'fail');
+    assert.match(
+      (scorecard.cases as any[]).find(item => item.issue_type === 'output_contract_violation').suspected_root_cause,
+      /unexpected assistant text outside the send_text delivery/,
+    );
+  });
+
+  test('reclassifies the preserved v3-shaped six-turn evidence as two violations, not pass', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'evo-closeout-v1'), {
+        name: 'evo-closeout-v1',
+        description: 'Strict four-line evolution closeout',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-evo-v3-shaped',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-evo-v3-shaped',
+      replayAttempts: 1,
+      maxReplayCases: 2,
+    }, {
+      runUserCat: async input => {
+        if (input.scenarioIndex === 1) {
+          return writeStrictUserCatEvidence(input, [
+            [strictOutput('scenario one first')],
+            ['plain follow-up one', 'plain follow-up two', 'plain follow-up three'],
+          ]);
+        }
+        if (input.scenarioIndex === 2) {
+          return writeStrictUserCatEvidence(input, [
+            [strictOutput('scenario two first')],
+            [strictOutput('scenario two second')],
+          ]);
+        }
+        return writeStrictUserCatEvidence(input, [
+          [strictOutput('scenario three first')],
+          [strictOutput('scenario three second'), 'extra explanation after the four lines'],
+        ]);
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [
+        [strictOutput('replay first')],
+        [strictOutput('replay second')],
+      ]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'unstable');
+    assert.deepStrictEqual(scorecard.output_contract_check, {
+      declared: true,
+      source_ref: 'arena/runs/pipeline-evo-v3-shaped/skills/evo-closeout-v1/SKILL.md',
+      expected_turns: 6,
+      checked_turns: 6,
+      passed_turns: 4,
+      violation_count: 2,
+      fully_compliant_sessions: 1,
+      total_sessions: 3,
+      status: 'fail',
+    });
+    assert.strictEqual(
+      (scorecard.cases as any[]).filter(item => item.issue_type === 'output_contract_violation').length,
+      2,
+    );
+    assert.ok((scorecard.replay_results as any[]).every(item => item.output_contract_check.status === 'pass'));
+    assert.ok(fs.existsSync(path.join(testRoot, 'arena', 'runs', 'pipeline-evo-v3-shaped', 'arena-run.json')));
+  });
+
+  test('fails replay attempts whose fresh turns violate the declared output contract', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-replay'), {
+        name: 'strict-replay',
+        description: 'Strict output replay skill',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-replay-fail',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-replay-fail',
+      scenarioCount: 1,
+      maxTurns: 2,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => writeStrictUserCatEvidence(input, [
+        [strictOutput('initial first')],
+        [strictOutput('initial second')],
+      ]),
+      analyzeLog: async () => JSON.stringify({
+        issues: [{
+          type: 'tool_failure',
+          severity: 'high',
+          description: 'independent replay trigger',
+          context: 'replay the same input',
+        }],
+      }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [
+        [strictOutput('replay first')],
+        ['plain replay output'],
+      ]),
+    });
+
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'pass');
+    assert.strictEqual(scorecard.decision, 'reopened');
+    assert.strictEqual((scorecard.replay_attempts as any).fail_count, 1);
+    assert.strictEqual((scorecard.replay_results as any[])[0].output_contract_check.status, 'fail');
+    assert.strictEqual((scorecard.replay_results as any[])[0].output_contract_check.violation_count, 1);
+  });
+
+  test('blocks replay attempts that reuse one native session across fresh runs', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'replay-session-identity'), {
+        name: 'replay-session-identity',
+        description: 'Replay sessions must be independently traceable.',
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-replay-session-identity',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+    const sharedSession = 'pet:xiaoba:role-base:shared-replay-session';
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-replay-session-identity',
+      scenarioCount: 1,
+      maxTurns: 2,
+      replayAttempts: 2,
+      maxReplayCases: 1,
+    }, {
+      runUserCat: async input => writeFakeUserCatEvidence(input),
+      analyzeLog: async () => JSON.stringify({
+        issues: [{
+          type: 'tool_failure',
+          severity: 'medium',
+          description: 'one replayable issue',
+          context: 'retry the same task',
+        }],
+      }),
+      runReplay: async input => {
+        const report = await writeFakeReplay(input);
+        report.session_key = sharedSession;
+        const rows = fs.readFileSync(report.fresh_trace_path, 'utf-8')
+          .trim()
+          .split('\n')
+          .map(line => ({ ...JSON.parse(line), session_id: sharedSession }));
+        writeJsonl(report.fresh_trace_path, rows);
+        return report;
+      },
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.replay_attempts as any).blocked_count, 2);
+    assert.ok((scorecard.replay_results as any[]).every(result => (
+      result.trace_identity_check.status === 'blocked'
+      && result.notes.some((note: string) => /reused by multiple runs/.test(note))
+    )));
+  });
+
+  test('blocks trace_id reuse between UserCat and replay sessions in one Arena run', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'cross-phase-trace-identity'), {
+        name: 'cross-phase-trace-identity',
+        description: 'Trace identities must remain unique across UserCat and replay.',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-cross-phase-trace-identity',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+    let nativeTraceId = '';
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-cross-phase-trace-identity',
+      scenarioCount: 1,
+      maxTurns: 1,
+      replayAttempts: 1,
+      maxReplayCases: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(input, [[strictOutput('native')]], 1);
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        nativeTraceId = JSON.parse(fs.readFileSync(nativeTrace, 'utf-8').trim()).trace_id;
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({
+        issues: [{
+          type: 'tool_failure',
+          severity: 'medium',
+          description: 'cross-phase replay trigger',
+          context: 'retry the same task',
+        }],
+      }),
+      runReplay: async input => {
+        const report = await writeFakeReplayWithStrictOutput(input, [[strictOutput('replay')]]);
+        const rows = fs.readFileSync(report.fresh_trace_path, 'utf-8')
+          .trim()
+          .split('\n')
+          .map(line => JSON.parse(line));
+        rows[0].trace_id = nativeTraceId;
+        writeJsonl(report.fresh_trace_path, rows);
+        return report;
+      },
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.trace_identity_check as any).status, 'blocked');
+    assert.strictEqual((scorecard.replay_attempts as any).blocked_count, 1);
+    assert.match((scorecard.replay_results as any[])[0].notes.join('; '), /trace_id .* reused/);
+  });
+
+  test('blocks a declared contract when native trace coverage is incomplete', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-incomplete'), {
+        name: 'strict-incomplete',
+        description: 'Strict output with incomplete evidence',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-incomplete',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-incomplete',
+      scenarioCount: 1,
+      maxTurns: 2,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => writeStrictUserCatEvidence(input, [
+        [strictOutput('only persisted turn')],
+      ], 2),
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplay(input),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.deepStrictEqual(scorecard.output_contract_check, {
+      declared: true,
+      source_ref: 'arena/runs/pipeline-strict-incomplete/skills/strict-incomplete/SKILL.md',
+      expected_turns: 2,
+      checked_turns: 1,
+      passed_turns: 1,
+      violation_count: 0,
+      fully_compliant_sessions: 0,
+      total_sessions: 1,
+      status: 'blocked',
+    });
+  });
+
+  test('blocks duplicate trace ids and turn numbers that only imitate complete coverage', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-duplicate-coverage'), {
+        name: 'strict-duplicate-coverage',
+        description: 'Strict output with unique trace coverage',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-duplicate-coverage',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-duplicate-coverage',
+      scenarioCount: 1,
+      maxTurns: 2,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(input, [
+          [strictOutput('first')],
+          [strictOutput('second')],
+        ]);
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        const rows = fs.readFileSync(nativeTrace, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+        rows[1].trace_id = rows[0].trace_id;
+        rows[1].turn = rows[0].turn;
+        writeJsonl(nativeTrace, rows);
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplay(input),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'blocked');
+    const blockedCase = (scorecard.cases as any[]).find(item => item.issue_type === 'trace_identity_blocked');
+    assert.match(blockedCase.suspected_root_cause, /unique non-empty trace_id/);
+    assert.match(blockedCase.suspected_root_cause, /turn coverage must be exactly 1\.\.2/);
+  });
+
+  test('blocks a declared contract when checked turns lack or mismatch subject Skill visibility', async () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'strict-unbound'), {
+        name: 'strict-unbound',
+        description: 'Strict output without subject visibility evidence',
+        arenaOutputLinePrefixes: STRICT_OUTPUT_PREFIXES,
+      }),
+    });
+    manager.prepareCleanRuntime({
+      runId: 'pipeline-strict-unbound',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      sandbox: { engine: 'macos_seatbelt' },
+    });
+
+    const scorecard = await runArenaPipelineWorker({
+      projectRoot: testRoot,
+      runId: 'pipeline-strict-unbound',
+      scenarioCount: 2,
+      maxTurns: 2,
+      replayAttempts: 1,
+    }, {
+      runUserCat: async input => {
+        const result = await writeStrictUserCatEvidence(input, [
+          [strictOutput('first')],
+          [strictOutput('second')],
+        ]);
+        const nativeTrace = path.join(
+          input.workspaceRoot,
+          'logs',
+          'sessions',
+          'pet',
+          '2026-06-30',
+          input.usercatRunId,
+          'traces.jsonl',
+        );
+        const rows = fs.readFileSync(nativeTrace, 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+        if (input.scenarioIndex === 1) {
+          delete rows[0].tool_visibility;
+        } else {
+          rows[1].tool_visibility = [{
+            roleName: 'base',
+            activeSkillName: 'different-skill',
+            visibleTools: ['send_text'],
+            hiddenToolCount: 0,
+          }];
+        }
+        writeJsonl(nativeTrace, rows);
+        return result;
+      },
+      analyzeLog: async () => JSON.stringify({ issues: [] }),
+      runReplay: async input => writeFakeReplayWithStrictOutput(input, [
+        [strictOutput('replay first')],
+        [strictOutput('replay second')],
+      ]),
+    });
+
+    assert.strictEqual(scorecard.decision, 'blocked');
+    assert.strictEqual((scorecard.output_contract_check as any).status, 'blocked');
+    const blockedReasons = (scorecard.cases as any[])
+      .filter(item => item.issue_type === 'output_contract_blocked')
+      .map(item => item.suspected_root_cause)
+      .join('\n');
+    assert.match(blockedReasons, /missing final tool_visibility for subject skill strict-unbound/);
+    assert.match(blockedReasons, /activeSkillName must be strict-unbound; observed different-skill/);
+  });
+
   test('Reviewer replays only Inspector cases', async () => {
     const manifest = manager.importLocalSkill({
       skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'case-skill'), {
@@ -251,6 +981,21 @@ describe('Arena runner', () => {
     assert.strictEqual(replayInputs.length, 2);
     assert.ok(replayInputs.every(input => input.caseId?.includes('tool_failure')));
     assert.deepStrictEqual(replayInputs.map(input => input.scenarioAttemptIndex), [1, 2]);
+    const replayResults = scorecard.replay_results as any[];
+    assert.deepStrictEqual(replayResults.map(result => result.case_id), (scorecard.replay_attempts as any).case_ids);
+    assert.deepStrictEqual(
+      replayResults.map(result => result.source_trace_ref),
+      (scorecard.replay_attempts as any).source_trace_refs,
+    );
+    assert.ok(replayResults.every((result, index) => (
+      result.case_id === replayInputs[index].caseId
+      && path.resolve(testRoot, result.source_trace_ref) === path.resolve(replayInputs[index].tracePath)
+    )));
+    const runIndex = JSON.parse(fs.readFileSync(
+      path.join(testRoot, 'arena', 'runs', 'pipeline-case', 'arena-run.json'),
+      'utf-8',
+    ));
+    assert.deepStrictEqual(runIndex.replay_attempts, scorecard.replay_attempts);
   });
 
   test('Reviewer deduplicates slow-tool cases and caps selected replay cases', async () => {
@@ -476,41 +1221,145 @@ async function writeFakeUserCatEvidence(input: ArenaUserCatStageInput): Promise<
     target_role: input.targetRole,
     trace_path: path.relative(input.workspaceRoot, rawTrace),
   });
-  writeJsonl(nativeTrace, [
-    {
+  const sessionKey = `pet:xiaoba:role-${input.targetRole}:usercat-simulation-${input.usercatRunId}`;
+  writeJsonl(nativeTrace, input.messages.map((message, index) => ({
       entry_type: 'trace',
-      trace_id: 'trace-1',
-      trace_index: 1,
+      trace_id: `${input.usercatRunId}.trace.${index + 1}`,
+      trace_index: index + 1,
       timestamp: '2026-06-30T00:00:00.000Z',
-      session_id: 'pet:xiaoba',
+      session_id: sessionKey,
       session_type: 'pet',
-      turn: 1,
-      user: { text: input.messages[0] },
+      turn: index + 1,
+      user: { text: message },
       assistant: { text: 'done with evidence' },
       tokens: { prompt: 1, completion: 1 },
       metadata: { token: 'usage counter only' },
-    },
-    {
-      entry_type: 'trace',
-      trace_id: 'trace-2',
-      trace_index: 2,
-      timestamp: '2026-06-30T00:00:01.000Z',
-      session_id: 'pet:xiaoba',
-      session_type: 'pet',
-      turn: 2,
-      user: { text: input.messages[1] || '证据在哪' },
-      assistant: { text: 'arena/runs/pipeline-pass/workspace/output/result.txt' },
-      tokens: { prompt: 1, completion: 1 },
-    },
-  ]);
+    })));
   return [
     'user_trace_run: status=completed',
     `run_id=${input.usercatRunId}`,
     `target_role=${input.targetRole}`,
+    `session_key=${sessionKey}`,
     `turn_count=${input.messages.length}`,
     `trace=${path.relative(input.workspaceRoot, rawTrace)}`,
     `candidate_dir=${path.relative(input.workspaceRoot, candidateDir)}`,
     `candidate_case=${path.relative(input.workspaceRoot, path.join(candidateDir, 'candidate-case.json'))}`,
+  ].join('\n');
+}
+
+async function writeStrictUserCatEvidence(
+  input: ArenaUserCatStageInput,
+  turnDeliveries: string[][],
+  reportedTurnCount: number = turnDeliveries.length,
+  sessionKeyOverride?: string,
+): Promise<string> {
+  const rawTrace = path.join(input.workspaceRoot, 'data', 'user-cat', 'traces', input.usercatRunId, 'trace.jsonl');
+  const candidateDir = path.join(input.workspaceRoot, 'output', 'user-cat', 'candidates', input.usercatRunId);
+  const nativeTrace = path.join(input.workspaceRoot, 'logs', 'sessions', 'pet', '2026-06-30', input.usercatRunId, 'traces.jsonl');
+  const sessionKey = sessionKeyOverride
+    || `pet:xiaoba:role-${input.targetRole}:usercat-simulation-${input.usercatRunId}`;
+  writeJsonl(rawTrace, [
+    { type: 'run_start', run_id: input.usercatRunId },
+    ...turnDeliveries.flatMap((deliveries, index) => [
+      { type: 'user_turn', turn_index: index + 1, text: input.messages[index] || `message ${index + 1}` },
+      { type: 'assistant_turn', turn_index: index + 1, text: deliveries.join('') },
+    ]),
+  ]);
+  writeJson(path.join(candidateDir, 'manifest.json'), {
+    version: 1,
+    run_id: input.usercatRunId,
+    target_role: input.targetRole,
+    session_key: sessionKey,
+    turn_count: reportedTurnCount,
+    trace_path: path.relative(input.workspaceRoot, rawTrace),
+  });
+  writeJsonl(nativeTrace, turnDeliveries.map((deliveries, index) => strictNativeTraceRow({
+    traceId: `${input.usercatRunId}.trace.${index + 1}`,
+    sessionKey,
+    turn: index + 1,
+    userText: input.messages[index] || `message ${index + 1}`,
+    deliveries,
+    activeSkillName: input.runtime.target_profile.subject_skill_id,
+  })));
+  return [
+    'user_trace_run: status=completed',
+    `run_id=${input.usercatRunId}`,
+    `target_role=${input.targetRole}`,
+    `session_key=${sessionKey}`,
+    `turn_count=${reportedTurnCount}`,
+    `trace=${path.relative(input.workspaceRoot, rawTrace)}`,
+    `candidate_dir=${path.relative(input.workspaceRoot, candidateDir)}`,
+    `candidate_case=${path.relative(input.workspaceRoot, path.join(candidateDir, 'candidate-case.json'))}`,
+  ].join('\n');
+}
+
+async function writeFakeReplayWithStrictOutput(
+  input: ArenaReplayStageInput,
+  turnDeliveries: string[][],
+): Promise<TraceReplayReport> {
+  const report = await writeFakeReplay(input);
+  report.replayed_turns = turnDeliveries.length;
+  report.session_key = `pet:xiaoba:role-${input.targetRole}:strict-replay-${input.attemptIndex}`;
+  writeJsonl(report.fresh_trace_path, turnDeliveries.map((deliveries, index) => strictNativeTraceRow({
+    traceId: `strict-replay-${input.attemptIndex}.${index + 1}`,
+    sessionKey: report.session_key,
+    turn: index + 1,
+    userText: index === 0 ? '帮我看' : '证据在哪',
+    deliveries,
+    activeSkillName: input.runtime.target_profile.subject_skill_id,
+  })));
+  return report;
+}
+
+function strictNativeTraceRow(input: {
+  traceId: string;
+  sessionKey: string;
+  turn: number;
+  userText: string;
+  deliveries: string[];
+  activeSkillName?: string;
+}): Record<string, unknown> {
+  return {
+    entry_type: 'trace',
+    trace_id: input.traceId,
+    trace_index: input.turn,
+    timestamp: '2026-06-30T00:00:00.000Z',
+    session_id: input.sessionKey,
+    session_type: 'pet',
+    turn: input.turn,
+    user: { text: input.userText },
+    tool_visibility: [{
+      roleName: 'base',
+      ...(input.activeSkillName && { activeSkillName: input.activeSkillName }),
+      visibleTools: ['send_text'],
+      hiddenToolCount: 0,
+    }],
+    assistant: {
+      text: '',
+      tool_calls: input.deliveries.map((text, index) => ({
+        id: `${input.traceId}.send-${index + 1}`,
+        name: 'send_text',
+        arguments: { text },
+        result: '已发送',
+        status: 'success',
+        delivery_evidence: [{
+          surface: 'pet',
+          status: 'delivered',
+          delivery_type: 'text',
+          timestamp: '2026-06-30T00:00:00.000Z',
+          text_preview: text,
+        }],
+      })),
+    },
+  };
+}
+
+function strictOutput(label: string): string {
+  return [
+    `MEOW_RESULT::${label}`,
+    'MEOW_EVIDENCE::evidence',
+    'MEOW_RISK::risk',
+    'MEOW_NEXT::next',
   ].join('\n');
 }
 
@@ -520,19 +1369,18 @@ async function writeFakeReplay(input: ArenaReplayStageInput): Promise<TraceRepla
   const freshTracePath = path.join(outDir, 'fresh-trace.jsonl');
   writeJson(replayResultsPath, { status: 'pass', attempt: input.attemptIndex });
   writeJson(path.join(outDir, 'manifest.json'), { attempt: input.attemptIndex });
-  writeJsonl(freshTracePath, [
-    {
+  const sessionKey = `pet:xiaoba:role-${input.targetRole}:fake-${input.attemptIndex}`;
+  writeJsonl(freshTracePath, ['帮我看', '证据在哪'].map((text, index) => ({
       entry_type: 'trace',
-      trace_id: `replay-${input.attemptIndex}`,
-      trace_index: 1,
+      trace_id: `replay-${input.attemptIndex}.${index + 1}`,
+      trace_index: index + 1,
       timestamp: '2026-06-30T00:00:00.000Z',
-      session_id: `pet:xiaoba:fake-${input.attemptIndex}`,
+      session_id: sessionKey,
       session_type: 'pet',
-      turn: 1,
-      user: { text: '帮我看' },
+      turn: index + 1,
+      user: { text },
       assistant: { text: 'ok' },
-    },
-  ]);
+    })));
   return {
     replay_version: '0.1',
     run_id: `fake-replay-${input.attemptIndex}`,
@@ -540,7 +1388,7 @@ async function writeFakeReplay(input: ArenaReplayStageInput): Promise<TraceRepla
     input_trace_path: input.tracePath,
     out_dir: outDir,
     pet_id: 'xiaoba',
-    session_key: `pet:xiaoba:role-${input.targetRole}:fake-${input.attemptIndex}`,
+    session_key: sessionKey,
     replayed_turns: 2,
     fresh_trace_path: freshTracePath,
     artifacts: {
@@ -596,7 +1444,7 @@ function writeBaseSkills(root: string): void {
 
 function writeSkill(
   dirPath: string,
-  input: { name: string; description: string },
+  input: { name: string; description: string; arenaOutputLinePrefixes?: string[] },
 ): string {
   fs.mkdirSync(dirPath, { recursive: true });
   const skillPath = path.join(dirPath, 'SKILL.md');
@@ -604,6 +1452,10 @@ function writeSkill(
     '---',
     `name: ${input.name}`,
     `description: ${input.description}`,
+    ...(input.arenaOutputLinePrefixes ? [
+      'arena-output-line-prefixes:',
+      ...input.arenaOutputLinePrefixes.map(prefix => `  - ${JSON.stringify(prefix)}`),
+    ] : []),
     '---',
     '',
     'Use evidence.',

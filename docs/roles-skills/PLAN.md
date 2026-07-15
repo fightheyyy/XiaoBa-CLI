@@ -20,6 +20,7 @@ Owner：Policy maintainers
 - Nightly evolution is Inspector-first: deterministic harvest → InspectorCat → typed Route Gate → EvolutionCat / EngineerCat / ReviewerCat / `no_op`. It does not enter Base.
 - Skill and Role loaders enforce the single `candidate | active | blocked` lifecycle: legacy assets default to active, candidate assets require explicit selection or Arena mounting, and blocked assets cannot resolve.
 - Dashboard management follows the same ordered lifecycle: unblock returns Candidate, while Candidate-to-Active requires an explicit Promote action.
+- Fixed-line Candidate Skills may declare the single Arena-only `arena-output-line-prefixes` contract. EvolutionCat only writes the declaration; Arena checks every evaluated turn, and the runtime-owned explicit CLI alone may materialize a passed immutable snapshot as Active.
 
 ```mermaid
 flowchart LR
@@ -43,6 +44,7 @@ flowchart LR
 10. EvolutionCat ownership and Base zero-default-Skill migration：completed；including exact-hash Electron retirement of legacy bundled Base Skills。
 11. Evolution trace harvest and worker supervision foundation：completed。
 12. Inspector-first cross-role evolution DAG：completed；Base hop removal, typed routes, isolated Candidate handoff, Reviewer terminals and Arena intake are implemented。
+13. Candidate hard-contract and promotion boundary：completed；EvolutionCat declares but never evaluates fixed-line output, while evidence-bound promotion remains a deterministic human runtime action。
 
 ## Next Steps
 
@@ -53,7 +55,7 @@ flowchart LR
 - Complete SecretaryCat user OAuth login before claiming personal calendar/mail/drive workflows are operationally ready.
 - Measure the existing 36 typed wrappers against official CLI skills and remove compatibility code only after equivalent confirmation, delivery and evidence behavior is verified.
 - Keep candidate roles/skills outside the default trusted bundle until Arena evidence supports a separate explicit promotion.
-- Collect real-provider evidence for non-`no_op` routes before claiming broad self-evolution effectiveness.
+- Broaden the existing real-provider `evolution`-route proof across providers, seeds and time windows before claiming broad self-evolution effectiveness.
 - Maintain role behavior in role prompts, `role.json`, role-local skills and this module—not per-role SPEC/PLAN files.
 
 ## Owners
@@ -75,8 +77,10 @@ flowchart LR
 - EvolutionCat alone owns `remember`, `self-evolution`, `skill-publish` and `role-publish`; Base has zero bundled default Skills.
 - Runtime harvest is deterministic and role-free; InspectorCat alone diagnoses its digest and emits one of `evolution | repair | replay | no_op` with source evidence.
 - Evolution requires evidence from at least two independent root-task lineages. EvolutionCat may create at most one run-local Candidate Skill / Role from Inspector findings; it cannot evaluate, publish, promote or dispatch another role in that DAG stage.
+- A Candidate Skill that promises fixed line-oriented output declares only `arena-output-line-prefixes`; Arena, not EvolutionCat, owns complete-turn verification and fail-closed coverage.
+- Candidate Role evaluation resolves identity and tool visibility from the isolated snapshot; a production Role overlay or same-name role-local Skill cannot impersonate the reviewed subject.
 - Candidate assets are only explicitly callable or Arena-mountable; blocked assets are never callable; old assets without `status` remain active.
-- Blocked assets cannot transition directly to Active; unblock yields Candidate and only explicit promotion yields Active.
+- Blocked assets cannot transition directly to Active; unblock yields Candidate. Self-evolution Candidate-to-Active promotion must use the Arena-passed immutable snapshot and leave a durable runtime receipt; it is not a role tool or Skill.
 - ReviewerCat alone executes formal replay and returns `closed | next_run | blocked`; `next_run` is persisted for a future run, survives an idempotent same-date rerun, and cannot jump back to EngineerCat in the same run.
 - SecretaryCat delegates Feishu domain capability to official `lark-cli`; FeishuCat does not become a separate role or control plane.
 - When Feishu Surface credentials are configured, SecretaryCat commands use the same App ID profile; bot/user remain actor identities under that one application.
@@ -98,8 +102,9 @@ flowchart LR
 - BrowserCat/GuiCat/SecretaryCat focused tests：88/88 passed；the BrowserCat/GuiCat/package Skill subset passed 40/40 after adding the BrowserCat core Skill。
 - Base default Skill inventory is empty；Electron upgrade cleanup removes only exact retired XiaoBa copies of the four evolution Skills and preserves customized user Skills。
 - EvolutionCat/GuiCat/subagent focused subset：26/26 passed。
-- Full repository tests：573/573 passed after the Inspector-first DAG and lifecycle gates landed。
+- Full repository verification is maintained once at repository level in `docs/PLAN.md`; this module's focused lifecycle and DAG checks remain green.
 - A real-provider nightly E2E ran harvest → InspectorCat → `no_op` without creating a Base session or changing production `skills/`, `roles/` or long-term memory.
+- A real-provider `evolution` route closed from two independent failing Pet sessions through EvolutionCat Candidate generation, Arena 7/7 all-turn pass, explicit immutable-snapshot promotion receipt and two fresh passing Pet sessions; no Base hop or automatic promotion was introduced.
 - Focused lifecycle, role-tool, DAG and Arena tests verify the three asset states, Reviewer tool boundary, all four typed routes, isolated Candidate Role intake and no same-run back edge.
 - Focused DAG/replay/UserCat/eval regression tests：96/96 passed；including replay provenance, Role prompt validation and same-date `next_run` preservation。
 - `npm run build` passed。

@@ -3,7 +3,12 @@ import * as assert from 'node:assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ArenaManager, DEFAULT_PACKAGED_BASE_SKILLS } from '../src/arena/arena-manager';
+import {
+  ArenaManager,
+  DEFAULT_PACKAGED_BASE_SKILLS,
+  fingerprintArenaDirectory,
+} from '../src/arena/arena-manager';
+import { SkillManager } from '../src/skills/skill-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
 
 const originalCwd = process.cwd();
@@ -37,8 +42,10 @@ describe('ArenaManager', () => {
     writeRole(testRoot, 'engineer-cat', {
       name: 'engineer-cat',
       displayName: 'EngineerCat',
+      aliases: ['engineer'],
       description: 'Implementation role',
       baseToolAllowlist: ['read_file'],
+      baseToolDenylist: ['write_file'],
       metadata: { boundary: 'Implement changes with evidence.' },
     });
     writeSkill(path.join(testRoot, 'roles', 'engineer-cat', 'skills', 'engineer-helper'), {
@@ -134,6 +141,27 @@ describe('ArenaManager', () => {
     );
   });
 
+  test('exports a deterministic Arena directory fingerprint and rejects symbolic links', () => {
+    const sourceRoot = path.join(testRoot, 'fingerprint-source');
+    writeText(path.join(sourceRoot, 'SKILL.md'), 'alpha\n');
+    writeText(path.join(sourceRoot, 'nested', 'data.txt'), 'beta\n');
+    const first = fingerprintArenaDirectory(sourceRoot);
+    const second = fingerprintArenaDirectory(sourceRoot);
+    assert.match(first, /^[a-f0-9]{64}$/);
+    assert.strictEqual(second, first);
+
+    writeText(path.join(sourceRoot, 'nested', 'data.txt'), 'changed\n');
+    assert.notStrictEqual(fingerprintArenaDirectory(sourceRoot), first);
+
+    if (process.platform !== 'win32') {
+      fs.symlinkSync(path.join(sourceRoot, 'SKILL.md'), path.join(sourceRoot, 'linked-skill'));
+      assert.throws(
+        () => fingerprintArenaDirectory(sourceRoot),
+        /rejects symbolic links/,
+      );
+    }
+  });
+
   test('snapshots a role without mutating production role files', () => {
     const rolePath = path.join(testRoot, 'roles', 'engineer-cat');
     const before = fs.readdirSync(rolePath).sort();
@@ -187,6 +215,7 @@ describe('ArenaManager', () => {
       description: 'Review evidence without changing production assets.',
       promptFile: 'evidence-review-system-prompt.md',
       status: 'candidate',
+      inheritBaseTools: false,
       baseToolAllowlist: ['read_file'],
       metadata: { boundary: 'Arena-only candidate role.' },
     });
@@ -222,6 +251,29 @@ describe('ArenaManager', () => {
     assert.strictEqual(runtime.copied.role, 'roles/evidence-review-cat');
     assert.ok(fs.existsSync(path.join(runtime.roots.roles_root, 'evidence-review-cat', 'role.json')));
     assert.ok(runtime.launch.command.includes('evidence-review-cat'));
+    assert.ok(runtime.target_profile.registered_tools.includes('write_file'));
+    assert.ok(runtime.target_profile.registered_tools.includes('send_text'));
+    assert.deepStrictEqual(
+      runtime.target_profile.provider_visible_tools,
+      ['read_file', 'send_text', 'send_file'],
+    );
+    assert.ok(!runtime.target_profile.provider_visible_tools.includes('write_file'));
+
+    const previousProjectRoot = process.env.XIAOBA_PROJECT_ROOT;
+    const previousRolesRoot = process.env.XIAOBA_ROLES_ROOT;
+    process.env.XIAOBA_PROJECT_ROOT = runtime.launch.env.XIAOBA_PROJECT_ROOT;
+    process.env.XIAOBA_ROLES_ROOT = runtime.launch.env.XIAOBA_ROLES_ROOT;
+    try {
+      assert.strictEqual(RoleResolver.getRolesRoot(), runtime.roots.roles_root);
+      assert.strictEqual(RoleResolver.resolveRoleDirectoryName('evidence-review-cat'), 'evidence-review-cat');
+      assert.strictEqual(
+        RoleResolver.getRoleConfig('evidence-review-cat')?.description,
+        'Review evidence without changing production assets.',
+      );
+    } finally {
+      restoreEnv('XIAOBA_PROJECT_ROOT', previousProjectRoot);
+      restoreEnv('XIAOBA_ROLES_ROOT', previousRolesRoot);
+    }
     assert.strictEqual(fs.existsSync(path.join(productionRolesRoot, 'evidence-review-cat')), false);
     assert.deepStrictEqual(snapshotDirectory(productionRolesRoot), productionBefore);
   });
@@ -272,6 +324,15 @@ describe('ArenaManager', () => {
     assert.ok(run.target_profile.loaded_skills.includes('patch-helper'));
     assert.ok(run.target_profile.loaded_skills.includes('engineer-helper'));
     assert.ok(DEFAULT_PACKAGED_BASE_SKILLS.every(skill => run.target_profile.loaded_skills.includes(skill)));
+    assert.ok(run.target_profile.registered_tools.includes('write_file'));
+    assert.ok(run.target_profile.registered_tools.includes('engineer_task_run'));
+    assert.ok(run.target_profile.provider_visible_tools.includes('read_file'));
+    assert.ok(run.target_profile.provider_visible_tools.includes('engineer_task_run'));
+    assert.ok(run.target_profile.provider_visible_tools.includes('send_text'));
+    assert.ok(!run.target_profile.provider_visible_tools.includes('write_file'));
+    assert.ok(run.target_profile.provider_visible_tools.every(tool => (
+      run.target_profile.registered_tools.includes(tool)
+    )));
     assert.deepStrictEqual(run.replay_attempts, {
       planned: 3,
       completed: 3,
@@ -318,6 +379,27 @@ describe('ArenaManager', () => {
 
     const runtimeJson = fs.readFileSync(path.join(testRoot, 'arena', 'runs', 'clean-base-skill', 'clean-runtime.json'), 'utf-8');
     assert.ok(!runtimeJson.includes('super-secret-value'));
+  });
+
+  test('removes stale run-local debug artifacts when a run id is prepared again', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'debug-reset-skill'), {
+        name: 'debug-reset-skill',
+        description: 'Exercises clean Arena evidence roots',
+      }),
+    });
+    const input = {
+      runId: 'clean-debug-reset',
+      reviewMode: 'base_skill' as const,
+      subjectId: manifest.subject_id,
+    };
+    const first = manager.prepareCleanRuntime(input);
+    const staleDebug = path.join(first.roots.run_root, 'debug', 'stale-replay.json');
+    writeText(staleDebug, 'stale');
+
+    manager.prepareCleanRuntime(input);
+
+    assert.ok(!fs.existsSync(staleDebug));
   });
 
   test('clean runtime loads project .env without persisting secret values', () => {
@@ -376,7 +458,7 @@ describe('ArenaManager', () => {
     assert.strictEqual(runtimeJson.copied.workspace_seed.file_count, 2);
   });
 
-  test('prepares a clean role_skill runtime with copied target role and subject skill', () => {
+  test('prepares a clean role_skill runtime with the immutable subject as the uniquely loaded Skill', async () => {
     const manifest = manager.importLocalSkill({
       skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'patch-helper'), {
         name: 'patch-helper',
@@ -388,7 +470,7 @@ describe('ArenaManager', () => {
       runId: 'clean-role-skill',
       reviewMode: 'role_skill',
       subjectId: manifest.subject_id,
-      targetRoleId: 'engineer-cat',
+      targetRoleId: 'engineer',
     });
 
     assert.strictEqual(runtime.target_profile.active_role_id, 'engineer-cat');
@@ -400,6 +482,51 @@ describe('ArenaManager', () => {
     assert.strictEqual(runtime.copied.role, 'roles/engineer-cat');
     assert.strictEqual(runtime.copied.subject_skill, 'skills/patch-helper');
     assert.strictEqual(runtime.sandbox.subject_root, path.join(runtime.roots.run_root, 'skills', 'patch-helper'));
+
+    process.env.XIAOBA_PROJECT_ROOT = testRoot;
+    process.env.XIAOBA_SKILLS_ROOT = runtime.roots.skills_root;
+    process.env.XIAOBA_ROLES_ROOT = runtime.roots.roles_root;
+    const skillManager = new SkillManager('engineer-cat');
+    await skillManager.loadSkills();
+    const loadedSubject = skillManager.getSkill('patch-helper');
+    assert.ok(loadedSubject);
+    assert.strictEqual(
+      path.resolve(loadedSubject.filePath),
+      path.join(runtime.roots.skills_root, 'patch-helper', 'SKILL.md'),
+    );
+    assert.strictEqual(
+      fingerprintArenaDirectory(path.dirname(loadedSubject.filePath)),
+      manifest.fingerprint,
+    );
+  });
+
+  test('rejects role_skill when a same-name role-local Skill could impersonate the subject', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'identity-bound'), {
+        name: 'identity-bound',
+        description: 'Immutable Arena subject',
+        body: 'SUBJECT SNAPSHOT',
+      }),
+    });
+    writeSkill(path.join(testRoot, 'roles', 'engineer-cat', 'skills', 'imposter'), {
+      name: 'Identity-Bound',
+      description: 'Same-name role-local imposter',
+      body: 'ROLE LOCAL IMPOSTER',
+    });
+
+    assert.throws(
+      () => manager.prepareCleanRuntime({
+        runId: 'role-skill-name-collision',
+        reviewMode: 'role_skill',
+        subjectId: manifest.subject_id,
+        targetRoleId: 'engineer-cat',
+      }),
+      /conflicts with target role-local Skill "Identity-Bound"; Arena cannot prove the mounted subject identity/,
+    );
+    assert.strictEqual(
+      fs.existsSync(path.join(testRoot, 'arena', 'runs', 'role-skill-name-collision', 'clean-runtime.json')),
+      false,
+    );
   });
 
   test('prepares a clean role runtime from the role subject snapshot', () => {
@@ -460,6 +587,85 @@ describe('ArenaManager', () => {
 
     assert.strictEqual(run.decision, 'unstable');
     assert.strictEqual(run.target_profile.active_role_id, 'base');
+  });
+
+  test('allows unstable when an original case is not reproduced by all passing replays', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'not-reproduced-helper'), {
+        name: 'not-reproduced-helper',
+        description: 'Original failure with passing replays',
+      }),
+    });
+    const refs = writeEvidenceRefs(testRoot);
+
+    const run = manager.createRunIndex({
+      runId: 'not-reproduced-run',
+      reviewMode: 'base_skill',
+      subjectId: manifest.subject_id,
+      usercatRunRef: {
+        run_id: 'usercat-not-reproduced',
+        package_path: refs.usercatPackage,
+        trace_refs: [refs.nativeTrace],
+      },
+      traceRefs: [refs.nativeTrace],
+      inspectorRefs: [refs.inspectorCase],
+      reviewerRef: {
+        run_id: 'reviewer-not-reproduced',
+        scorecard_path: refs.scorecard,
+        report_path: refs.report,
+      },
+      replayAttempts: {
+        planned: 3,
+        completed: 3,
+        pass_count: 3,
+        fail_count: 0,
+        blocked_count: 0,
+        trace_refs: [refs.replayTrace],
+      },
+      decision: 'unstable',
+    });
+
+    assert.strictEqual(run.decision, 'unstable');
+  });
+
+  test('rejects unstable without a completed passing replay', () => {
+    const manifest = manager.importLocalSkill({
+      skillPath: writeSkill(path.join(testRoot, 'fixtures', 'skills', 'unsupported-unstable'), {
+        name: 'unsupported-unstable',
+        description: 'Unsupported unstable decision',
+      }),
+    });
+    const refs = writeEvidenceRefs(testRoot);
+
+    assert.throws(
+      () => manager.createRunIndex({
+        runId: 'unsupported-unstable-run',
+        reviewMode: 'base_skill',
+        subjectId: manifest.subject_id,
+        usercatRunRef: {
+          run_id: 'usercat-unsupported-unstable',
+          package_path: refs.usercatPackage,
+          trace_refs: [refs.nativeTrace],
+        },
+        traceRefs: [refs.nativeTrace],
+        inspectorRefs: [refs.inspectorCase],
+        reviewerRef: {
+          run_id: 'reviewer-unsupported-unstable',
+          scorecard_path: refs.scorecard,
+          report_path: refs.report,
+        },
+        replayAttempts: {
+          planned: 0,
+          completed: 0,
+          pass_count: 0,
+          fail_count: 0,
+          blocked_count: 0,
+          trace_refs: [],
+        },
+        decision: 'unstable',
+      }),
+      /at least one completed passing replay attempt/,
+    );
   });
 
   test('rejects pass with failed replay attempts', () => {

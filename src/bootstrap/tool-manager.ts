@@ -12,10 +12,14 @@ export function createRoleAwareToolManager(
     ? contextDefaults.roleName.trim()
     : undefined;
   const requestedRoleName = roleName || contextRoleName || RoleResolver.getActiveRoleName();
-  const effectiveRoleName = requestedRoleName
+  const normalizedRequestedRoleName = requestedRoleName
+    ? RoleResolver.normalizeRoleName(requestedRoleName)
+    : '';
+  const isBaseRole = ['', 'base', 'default', 'none'].includes(normalizedRequestedRoleName);
+  const effectiveRoleName = requestedRoleName && !isBaseRole
     ? RoleResolver.resolveRoleDirectoryName(requestedRoleName)
     : undefined;
-  if (requestedRoleName && !effectiveRoleName) {
+  if (requestedRoleName && !isBaseRole && !effectiveRoleName) {
     throw new Error(`Role "${requestedRoleName}" is unavailable or blocked.`);
   }
   const roleConfig = effectiveRoleName ? RoleResolver.getRoleConfig(effectiveRoleName) : undefined;

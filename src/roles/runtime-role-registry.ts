@@ -102,10 +102,6 @@ function normalizeRole(roleName?: string): string {
   return RoleResolver.normalizeRoleName(resolved || '');
 }
 
-function isInspectorRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'inspector-cat';
-}
-
 function isEngineerRole(roleName?: string): boolean {
   return normalizeRole(roleName) === 'engineer-cat';
 }
@@ -114,48 +110,32 @@ function isReviewerRole(roleName?: string): boolean {
   return normalizeRole(roleName) === 'reviewer-cat';
 }
 
-function isResearcherRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'researcher-cat';
-}
-
-function isSecretaryRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'secretary-cat';
-}
-
-function isUserRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'user-cat';
-}
-
-function isGuideRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'guide';
-}
-
-function isBrowserRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'browser-cat';
-}
-
-function isGuiRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'gui-cat';
-}
-
-function isEvolutionRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'evolution-cat';
-}
-
 export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
-  if (isEvolutionRole(roleName)) {
+  return getRoleSpecificToolsForNormalizedRole(normalizeRole(roleName));
+}
+
+/**
+ * Compose native tools for a role name that has already been resolved by an
+ * isolated runtime boundary (for example an Arena role overlay).
+ */
+export function getRoleSpecificToolsForResolvedRole(roleName?: string): Tool[] {
+  return getRoleSpecificToolsForNormalizedRole(RoleResolver.normalizeRoleName(roleName || ''));
+}
+
+function getRoleSpecificToolsForNormalizedRole(normalizedRole: string): Tool[] {
+  if (normalizedRole === 'evolution-cat') {
     return [new EvolutionRememberTool()];
   }
 
-  if (isBrowserRole(roleName)) {
+  if (normalizedRole === 'browser-cat') {
     return createBrowserCatTools();
   }
 
-  if (isGuiRole(roleName)) {
+  if (normalizedRole === 'gui-cat') {
     return createGuiCatTools();
   }
 
-  if (isGuideRole(roleName)) {
+  if (normalizedRole === 'guide') {
     return [
       new GuideTpcBaselineTool(),
       new GuideTpcEvalAnalysisTool(),
@@ -163,7 +143,7 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
     ];
   }
 
-  if (isUserRole(roleName)) {
+  if (normalizedRole === 'user-cat') {
     return [
       new UserTraceRunTool({
         createServices: ({ cwd, targetRole, runId }) => ({
@@ -179,17 +159,17 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
       }),
     ];
   }
-  if (isResearcherRole(roleName)) {
+  if (normalizedRole === 'researcher-cat') {
     return [
       new ResearchAutoResearchRunTool(),
       new ResearchBoardUpdateTool(),
       new ResearchBoardReadTool(),
     ];
   }
-  if (isInspectorRole(roleName)) {
+  if (normalizedRole === 'inspector-cat') {
     return [new AnalyzeLogTool()];
   }
-  if (isSecretaryRole(roleName)) {
+  if (normalizedRole === 'secretary-cat') {
     const surfaceAppId = String(
       process.env.FEISHU_APP_ID || ConfigManager.getConfig().feishu?.appId || '',
     ).trim();
@@ -236,7 +216,7 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
       new FeishuBaseRecordUpsertConfirmedTool(larkCli),
     ];
   }
-  if (isReviewerRole(roleName)) {
+  if (normalizedRole === 'reviewer-cat') {
     return [
       new ReviewerEvalPrepareTool(),
       new ReviewerTraceReplayTool(),
@@ -244,7 +224,7 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
       new ReviewerModuleTestTool(),
     ];
   }
-  if (isEngineerRole(roleName)) {
+  if (normalizedRole === 'engineer-cat') {
     return [
       new EngineerCodexSupervisorStartTool(),
       new EngineerCodexSupervisorStatusTool(),

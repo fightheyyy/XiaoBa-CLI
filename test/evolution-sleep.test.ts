@@ -152,6 +152,45 @@ describe('EvolutionCat nightly sleep', () => {
     assert.equal(request?.verbose, true);
   });
 
+  test('promote command exposes only date + explicit name confirmation and forwards canonical options', async () => {
+    process.chdir(testRoot);
+    let received: Record<string, unknown> | undefined;
+    const program = new Command();
+    program.exitOverride();
+    registerEvolutionCommand(program, {
+      promoteCandidate: options => {
+        received = options as unknown as Record<string, unknown>;
+        return {
+          status: 'promoted',
+          promotion_id: 'evolution-dag-2026-06-01:skill-demo',
+          candidate_type: 'skill',
+          candidate_name: 'demo',
+          subject_id: 'skill-demo',
+          subject_fingerprint: 'a'.repeat(64),
+          production_ref: 'skills/demo',
+          receipt_ref: 'output/evolution/sleep/2026-06-01/promotion.json',
+        };
+      },
+    });
+    const evolution = program.commands.find(command => command.name() === 'evolution');
+    const promote = evolution?.commands.find(command => command.name() === 'promote');
+    assert.deepEqual(promote?.options.map(option => option.long).sort(), ['--confirm', '--date']);
+
+    const originalLog = console.log;
+    console.log = () => undefined;
+    try {
+      await program.parseAsync([
+        'node', 'xiaoba', 'evolution', 'promote', '--date', '2026-06-01', '--confirm', 'demo',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+    assert.equal(fs.realpathSync(String(received?.workingDirectory)), fs.realpathSync(testRoot));
+    assert.equal(received?.targetDate, '2026-06-01');
+    assert.equal(received?.confirmName, 'demo');
+    assert.deepEqual(Object.keys(received || {}).sort(), ['confirmName', 'targetDate', 'workingDirectory']);
+  });
+
   test('worker supervisor terminates a hung process and removes only its owned lock', async () => {
     const lockPath = path.join(testRoot, 'output', 'evolution', 'sleep', '.run.lock');
     const script = [

@@ -125,9 +125,13 @@ xiaoba evolution sleep
 
 # Review an installed or imported skill in an isolated Arena
 xiaoba arena skill <skill-name>
+
+# After Arena passes, explicitly promote the immutable Candidate bound to that day's DAG
+xiaoba evolution promote --date YYYY-MM-DD --confirm <candidate-name>
 ```
 
 Arena supports exactly three review modes: `base + skill`, `role + skill`, and `role`. A candidate may remain a candidate or be blocked; production promotion always requires an explicit human action.
+A candidate declaring a fixed line contract can pass only when every native and replay turn is bound to the same subject and the full contract passes.
 
 ## Evidence and Verification
 

@@ -124,6 +124,8 @@ export function normalizePetMessageSurfaceEvent(
 export interface PetChannelOptions {
   services?: AgentServices;
   sessionTtlMs?: number;
+  /** Internal runtime pin. HTTP callers cannot select or override this Skill. */
+  requiredActiveSkillName?: string;
 }
 
 interface PetScopedServices {
@@ -146,8 +148,10 @@ export class PetChannel {
   private readonly chatHistory = new PetChatHistoryStore();
   private readonly events = new PetEventHub(this.chatHistory);
   private readonly messageQueues = new Map<string, Promise<void>>();
+  private readonly requiredActiveSkillName?: string;
 
   constructor(options: PetChannelOptions = {}) {
+    this.requiredActiveSkillName = options.requiredActiveSkillName?.trim() || undefined;
     this.useFixedServices = Boolean(options.services);
     const skillManager = options.services?.skillManager || new SkillManager();
     this.services = options.services || {
@@ -326,6 +330,7 @@ export class PetChannel {
       const sessionKey = normalized.sessionKey;
       const traceparent = normalized.traceparent;
       await this.ensureSkillsReadyForSessionKey(sessionKey);
+      this.assertRequiredSkillAvailable(sessionKey);
       const activeSession = this.sessionManager.getOrCreate(sessionKey, sessionKey);
       session = activeSession;
       this.registerSubAgentCallbacks(sessionKey, petId);
@@ -339,6 +344,7 @@ export class PetChannel {
 
       const result = await this.enqueueMessage(sessionKey, async () => {
         stream.state('waiting', 'processing');
+        await this.activateRequiredSkill(activeSession);
 
         let resultText = '';
         let visibleToUser = true;
@@ -405,6 +411,23 @@ export class PetChannel {
       });
     this.messageQueues.set(sessionKey, stored);
     return queued;
+  }
+
+  private assertRequiredSkillAvailable(sessionKey: string): void {
+    const skillName = this.requiredActiveSkillName;
+    if (!skillName) return;
+    const skillManager = this.resolveServicesForSessionKey(sessionKey).skillManager;
+    if (!skillManager.getSkill(skillName)) {
+      throw new Error(`required active skill unavailable: ${skillName}`);
+    }
+  }
+
+  private async activateRequiredSkill(session: AgentSession): Promise<void> {
+    const skillName = this.requiredActiveSkillName;
+    if (!skillName) return;
+    if (!await session.activateSkill(skillName)) {
+      throw new Error(`required active skill unavailable: ${skillName}`);
+    }
   }
 
   private registerSubAgentCallbacks(sessionKey: string, petId: string): void {

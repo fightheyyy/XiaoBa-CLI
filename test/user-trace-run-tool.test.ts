@@ -241,6 +241,129 @@ describe('UserTraceRunTool', () => {
     assert.equal(candidateCase.benchmark_acceptance, 'forbidden_until_curated');
   });
 
+  test('keeps long Arena run ids on distinct Dashboard Chat sessions', async () => {
+    const runIds = [
+      'evolution-2026-07-15-evo-closeout-v1-base-fix-usercat-1',
+      'evolution-2026-07-15-evo-closeout-v1-base-fix-usercat-2',
+    ];
+    const sessionKeys: string[] = [];
+
+    for (const runId of runIds) {
+      const fakeAI = new FakeTargetRoleAIService();
+      const tool = createToolWithFakeAI(fakeAI, () => runId);
+      const output = await tool.execute({
+        cwd: '.',
+        target_role: 'engineer-cat',
+        run_id: runId,
+        messages: ['请检查这个独立 Arena 场景。'],
+        max_turns: 1,
+      }, {
+        workingDirectory: testRoot,
+        conversationHistory: [],
+        roleName: 'user-cat',
+      });
+      const sessionKey = output.match(/^session_key=(.+)$/m)?.[1];
+      assert.ok(sessionKey);
+      sessionKeys.push(sessionKey);
+    }
+
+    assert.notEqual(sessionKeys[0], sessionKeys[1]);
+    assert.ok(sessionKeys.every(sessionKey => /-[a-f0-9]{16}$/.test(sessionKey)));
+  });
+
+  test('Arena-only subject mount injects the same Skill into every Dashboard Chat turn', async () => {
+    writeTestSkill(testRoot, 'arena-pinned-skill');
+    const fakeAI = new FakeTargetRoleAIService();
+    const tool = createToolWithFakeAI(
+      fakeAI,
+      () => 'trace-run-arena-pinned',
+      undefined,
+      'arena-pinned-skill',
+    );
+
+    await tool.execute({
+      cwd: '.',
+      target_role: 'base',
+      run_id: 'trace-run-arena-pinned',
+      messages: ['先按候选方法处理。', '再确认一次证据。'],
+      max_turns: 2,
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    });
+
+    assert.equal(fakeAI.requests.length, 2);
+    assert.ok(fakeAI.requests.every(messages => messages.some(message => (
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.startsWith('[skill:arena-pinned-skill]')
+    ))));
+
+    const traceFiles = collectFiles(path.join(testRoot, 'logs', 'sessions', 'pet'))
+      .filter(file => file.endsWith('traces.jsonl'));
+    const traces = traceFiles.flatMap(file => fs.readFileSync(file, 'utf-8')
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map(line => JSON.parse(line)))
+      .filter(entry => entry.entry_type === 'trace');
+    assert.equal(traces.length, 2);
+    assert.ok(traces.every(entry => {
+      const visibility = Array.isArray(entry.tool_visibility) ? entry.tool_visibility : [];
+      return visibility[visibility.length - 1]?.activeSkillName === 'arena-pinned-skill';
+    }));
+  });
+
+  test('Dashboard Chat does not activate a Skill without the internal Arena mount', async () => {
+    writeTestSkill(testRoot, 'arena-unmounted-skill');
+    const fakeAI = new FakeTargetRoleAIService();
+    const tool = createToolWithFakeAI(fakeAI, () => 'trace-run-arena-unmounted');
+
+    await tool.execute({
+      cwd: '.',
+      target_role: 'base',
+      run_id: 'trace-run-arena-unmounted',
+      messages: ['普通消息不应自动选择候选。'],
+      max_turns: 1,
+      arena_subject_skill_id: 'arena-unmounted-skill',
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    });
+
+    assert.equal(fakeAI.requests.length, 1);
+    assert.ok(!fakeAI.requests[0].some(message => (
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.startsWith('[skill:arena-unmounted-skill]')
+    )));
+  });
+
+  test('Arena-only subject mount fails closed when the configured Skill is missing', async () => {
+    const fakeAI = new FakeTargetRoleAIService();
+    const tool = createToolWithFakeAI(
+      fakeAI,
+      () => 'trace-run-arena-missing',
+      undefined,
+      'missing-arena-skill',
+    );
+
+    await assert.rejects(() => tool.execute({
+      cwd: '.',
+      target_role: 'base',
+      run_id: 'trace-run-arena-missing',
+      messages: ['不能回退到裸 Base。'],
+      max_turns: 1,
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'user-cat',
+    }), /Arena subject skill unavailable: missing-arena-skill/);
+    assert.equal(fakeAI.requests.length, 0);
+  });
+
   test('adaptive mode chooses each next user turn after observing the previous target turn', async () => {
     const fakeAI = new FakeTargetRoleAIService();
     const plannerInputs: any[] = [];
@@ -493,10 +616,12 @@ function createToolWithFakeAI(
   fakeAI: FakeTargetRoleAIService,
   createRunId: () => string,
   createUserPlanner?: any,
+  arenaSubjectSkillId?: string,
 ): UserTraceRunTool {
   return new UserTraceRunTool({
     createRunId,
     ...(createUserPlanner && { createUserPlanner }),
+    ...(arenaSubjectSkillId && { arenaSubjectSkillId }),
     createServices: ({ cwd, targetRole, runId }) => ({
       aiService: fakeAI as any,
       toolManager: new ToolManager(
@@ -508,6 +633,21 @@ function createToolWithFakeAI(
       roleName: targetRole,
     }),
   });
+}
+
+function writeTestSkill(root: string, name: string): void {
+  const skillDir = path.join(root, 'skills', name);
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), [
+    '---',
+    `name: ${name}`,
+    `description: ${name} test skill`,
+    'status: candidate',
+    '---',
+    '',
+    `Follow ${name} deterministically.`,
+    '',
+  ].join('\n'), 'utf-8');
 }
 
 function collectFiles(root: string): string[] {

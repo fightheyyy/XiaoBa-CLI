@@ -3,6 +3,11 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { Command, Option } from 'commander';
 import {
+  EvolutionPromotionResult,
+  PromoteEvolutionCandidateOptions,
+  promoteEvolutionCandidate,
+} from '../arena/evolution-promotion';
+import {
   buildEvolutionDigest,
   normalizeEvolutionDate,
 } from '../roles/evolution-cat/evolution-observer';
@@ -20,6 +25,9 @@ const WORKER_KILL_GRACE_MS = 5 * 1000;
 export interface EvolutionCommandDependencies {
   runDag?: (options: EvolutionDagOptions) => Promise<EvolutionDagManifest>;
   runWorker?: (request: EvolutionSleepWorkerRequest) => Promise<void>;
+  promoteCandidate?: (
+    options: PromoteEvolutionCandidateOptions,
+  ) => EvolutionPromotionResult | Promise<EvolutionPromotionResult>;
 }
 
 interface EvolutionSleepOptions {
@@ -28,6 +36,11 @@ interface EvolutionSleepOptions {
   harvestOnly?: boolean;
   verbose?: boolean;
   worker?: boolean;
+}
+
+interface EvolutionPromoteOptions {
+  date: string;
+  confirm: string;
 }
 
 export interface EvolutionSleepWorkerRequest {
@@ -115,6 +128,22 @@ export function registerEvolutionCommand(
           process.exitCode = 1;
         }
       });
+    });
+
+  evolution
+    .command('promote')
+    .description('Explicitly promote the immutable Arena-passed Candidate from one evolution DAG')
+    .requiredOption('--date <date>', 'canonical evolution DAG date (YYYY-MM-DD)')
+    .requiredOption('--confirm <name>', 'exact Candidate name being promoted')
+    .action(async (options: EvolutionPromoteOptions) => {
+      const targetDate = normalizeEvolutionDate(options.date);
+      const promote = dependencies.promoteCandidate || promoteEvolutionCandidate;
+      const result = await promote({
+        workingDirectory: process.cwd(),
+        targetDate,
+        confirmName: options.confirm,
+      });
+      printJson({ ok: true, mode: 'evolution_promotion', ...result });
     });
 
   const schedule = evolution

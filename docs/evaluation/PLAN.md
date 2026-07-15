@@ -30,8 +30,8 @@ flowchart LR
 4. Live-only eval gate and benchmark preflight：completed。
 5. Replay side-effect isolation：not started。
 6. Role-owned live eval：not started after legacy asset removal。
-7. Multi-run real-model effectiveness evidence：not started。
-8. Evolution formal-replay contract：completed for deterministic DAG coverage；real-provider non-`no_op` route evidence remains future work。
+7. Multi-run real-model effectiveness evidence：partial；one bounded positive loop exists, while cross-provider / cross-seed repetition remains future work。
+8. Evolution formal-replay contract：completed for deterministic DAG coverage and one real-provider `evolution`-route proof。
 
 ## Next Steps
 
@@ -63,3 +63,10 @@ flowchart LR
 - Replay can execute current real side effects and does not restore historical workspace state.
 - BaseRuntime uses scripted model decisions and does not prove broad real-model role effectiveness.
 - No default role benchmark currently provides fresh-run release evidence.
+- The single current-contract `evo-closeout-v2-formatter` closed loop proves one exact output-protocol contract and the promotion workflow, not broad autonomous improvement or cross-provider generalization.
+
+## Recent Verification
+
+- On 2026-07-15, two independent real-provider Pet sessions failed the same strict closeout verifier (0/2), InspectorCat routed the repeated finding to EvolutionCat, and Arena rejected one generated revision as `unstable` instead of manufacturing a positive result.
+- EvolutionCat generated the accepted `evo-closeout-v2-formatter` Candidate; current Arena code then passed 7/7 native turns across 3/3 independently bound UserCat sessions with 0 violations. Explicit CLI promotion re-read the raw traces, content-addressed 5 consumed evidence files, promoted only the immutable Arena snapshot, and two fresh production Pet sessions passed (2/2) with the Skill active.
+- The current source traces, typed route, immutable snapshot, Arena identity/output attestations, promotion receipt and post-promotion traces are preserved under `output/evolution/proofs/2026-07-15-evo-closeout-v3/` rather than committed as product runtime assets; its verifier recomputes the raw hashes and closure assertions.

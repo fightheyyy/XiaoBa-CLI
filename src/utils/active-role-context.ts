@@ -14,8 +14,10 @@ export class ActiveRoleContext {
 
   static getRolesRoot(): string {
     const candidates = [
+      process.env.XIAOBA_ROLES_ROOT
+        ? path.resolve(process.env.XIAOBA_ROLES_ROOT)
+        : undefined,
       path.join(this.getProjectRoot(), 'roles'),
-      process.env.XIAOBA_ROLES_ROOT,
       process.env.XIAOBA_APP_ROOT ? path.join(process.env.XIAOBA_APP_ROOT, 'roles') : undefined,
     ].filter((candidate): candidate is string => Boolean(candidate));
 

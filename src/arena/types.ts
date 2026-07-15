@@ -8,6 +8,20 @@ export type ArenaAllowedRuntime = 'arena_only' | 'production_candidate' | 'produ
 
 export type ArenaDecision = 'pass' | 'unstable' | 'reopened' | 'blocked' | 'unsafe';
 
+export type ArenaOutputContractStatus = 'pass' | 'not_declared' | 'blocked' | 'fail';
+
+export interface ArenaOutputContractCheck {
+  declared: boolean;
+  source_ref: string | null;
+  expected_turns: number;
+  checked_turns: number;
+  passed_turns: number;
+  violation_count: number;
+  fully_compliant_sessions: number;
+  total_sessions: number;
+  status: ArenaOutputContractStatus;
+}
+
 export type ArenaSandboxEngine =
   | 'macos_seatbelt'
   | 'linux_bubblewrap'
@@ -100,6 +114,8 @@ export interface ArenaReplayAttempts {
   fail_count: number;
   blocked_count: number;
   trace_refs: string[];
+  case_ids?: string[];
+  source_trace_refs?: string[];
 }
 
 export interface ArenaSandboxPolicy {
