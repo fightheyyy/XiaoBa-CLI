@@ -20,10 +20,10 @@ EngineerCat (engineer-cat)
   install: npm install --global @openai/codex
 
 ReviewerCat (reviewer-cat)
-  npm CLI: @openai/codex
-  command: codex
-  needed for: codex_job_* repair and resume flows; deterministic review can run without it
-  install: npm install --global @openai/codex
+  npm CLI: none
+
+EvolutionCat (evolution-cat)
+  npm CLI: none
 
 BrowserCat (browser-cat)
   npm CLI: agent-browser@0.31.1
