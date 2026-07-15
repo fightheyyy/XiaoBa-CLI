@@ -9,11 +9,13 @@ import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
-import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
+import { ConversationRunner, RunnerCallbacks, RunToolResult } from './conversation-runner';
 import { createRoleAwareToolManager } from '../bootstrap/tool-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
 import { buildCanonicalToolResult } from '../tools/tool-result';
+import { SessionTurnLogger } from '../utils/session-turn-logger';
+import { isWritePathWithinRoot } from '../utils/safety';
 
 // ─── 类型定义 ───────────────────────────────────────────
 
@@ -55,6 +57,10 @@ export interface SubAgentSpawnOptions {
   observabilityContext?: ObservabilitySpanContext;
   /** Trusted parent session identity inherited from the spawning runtime context. */
   parentSessionId?: string;
+  /** Runtime-owned hard denylist for narrow workflows such as formal replay. */
+  hiddenTools?: string[];
+  /** Optional runtime-owned write boundary. When omitted, normal role write semantics are unchanged. */
+  allowedWriteRoot?: string;
 }
 
 const SUB_AGENT_ALWAYS_HIDDEN_TOOLS = new Set([
@@ -66,11 +72,34 @@ const SUB_AGENT_ALWAYS_HIDDEN_TOOLS = new Set([
   'send_file',
 ]);
 
+const SUB_AGENT_TOOL_ALIASES: Record<string, string> = {
+  Bash: 'execute_shell',
+  bash: 'execute_shell',
+  Shell: 'execute_shell',
+  execute_bash: 'execute_shell',
+  Read: 'read_file',
+  Write: 'write_file',
+  Edit: 'edit_file',
+};
+
+const SUB_AGENT_WRITE_TOOLS = new Set(['write_file', 'edit_file']);
+
 export class SubAgentToolExecutor implements ToolExecutor {
+  private readonly hiddenTools: Set<string>;
+
   constructor(
     private readonly inner: ToolManager,
-    private readonly options: { allowSkillTool?: boolean } = {},
-  ) {}
+    private readonly options: {
+      allowSkillTool?: boolean;
+      hiddenTools?: Iterable<string>;
+      allowedWriteRoot?: string;
+      workingDirectory?: string;
+    } = {},
+  ) {
+    this.hiddenTools = new Set(
+      Array.from(options.hiddenTools || [], toolName => this.canonicalToolName(toolName)),
+    );
+  }
 
   getToolDefinitions(contextOverrides?: Partial<ToolExecutionContext>): ToolDefinition[] {
     return this.inner
@@ -83,10 +112,11 @@ export class SubAgentToolExecutor implements ToolExecutor {
     conversationHistory?: any[],
     contextOverrides?: Partial<ToolExecutionContext>,
   ): Promise<ToolResult> {
-    if (this.isHiddenTool(toolCall.function.name)) {
+    const canonicalName = this.canonicalToolName(toolCall.function.name);
+    if (this.isHiddenTool(canonicalName)) {
       return buildCanonicalToolResult({
         tool_call_id: toolCall.id,
-        name: toolCall.function.name,
+        name: canonicalName,
         content: `错误：${toolCall.function.name} 是主会话控制面或外发工具，子智能体内部不可调用。`,
         status: 'blocked',
         errorCode: 'TOOL_FORBIDDEN_IN_SUBAGENT',
@@ -95,14 +125,67 @@ export class SubAgentToolExecutor implements ToolExecutor {
       });
     }
 
+    const writeBoundaryResult = this.validateWriteBoundary(toolCall, canonicalName, contextOverrides);
+    if (writeBoundaryResult) return writeBoundaryResult;
+
     return this.inner.executeTool(toolCall, conversationHistory, contextOverrides);
   }
 
   private isHiddenTool(toolName: string): boolean {
-    if (SUB_AGENT_ALWAYS_HIDDEN_TOOLS.has(toolName)) {
+    const canonicalName = this.canonicalToolName(toolName);
+    if (SUB_AGENT_ALWAYS_HIDDEN_TOOLS.has(canonicalName)) {
       return true;
     }
-    return toolName === 'skill' && !this.options.allowSkillTool;
+    if (this.hiddenTools.has(canonicalName)) {
+      return true;
+    }
+    return canonicalName === 'skill' && !this.options.allowSkillTool;
+  }
+
+  private validateWriteBoundary(
+    toolCall: ToolCall,
+    canonicalName: string,
+    contextOverrides?: Partial<ToolExecutionContext>,
+  ): ToolResult | undefined {
+    if (!this.options.allowedWriteRoot || !SUB_AGENT_WRITE_TOOLS.has(canonicalName)) {
+      return undefined;
+    }
+
+    let args: unknown;
+    try {
+      args = JSON.parse(toolCall.function.arguments);
+    } catch {
+      return undefined;
+    }
+    if (!args || typeof args !== 'object' || typeof (args as Record<string, unknown>).file_path !== 'string') {
+      return undefined;
+    }
+
+    const filePath = (args as Record<string, unknown>).file_path as string;
+    const workingDirectory = contextOverrides?.workingDirectory
+      || this.options.workingDirectory
+      || this.options.allowedWriteRoot;
+    const permission = isWritePathWithinRoot(
+      filePath,
+      workingDirectory,
+      this.options.allowedWriteRoot,
+    );
+    if (permission.allowed) return undefined;
+
+    const reason = permission.reason || '写入路径超出隔离子会话允许目录。';
+    return buildCanonicalToolResult({
+      tool_call_id: toolCall.id,
+      name: canonicalName,
+      content: `执行被阻止: ${reason}`,
+      status: 'blocked',
+      errorCode: 'PATH_DENIED',
+      blockedReason: reason,
+      retryable: false,
+    });
+  }
+
+  private canonicalToolName(toolName: string): string {
+    return SUB_AGENT_TOOL_ALIASES[toolName] ?? toolName;
   }
 }
 
@@ -134,6 +217,8 @@ export function createSubAgentToolExecutor(
     allowSkillTool?: boolean;
     parentSessionId?: string;
     abortSignal?: AbortSignal;
+    hiddenTools?: string[];
+    allowedWriteRoot?: string;
   } = {},
 ): SubAgentToolExecutor {
   return new SubAgentToolExecutor(
@@ -141,7 +226,7 @@ export function createSubAgentToolExecutor(
       parentSessionId: options.parentSessionId,
       abortSignal: options.abortSignal,
     }),
-    options,
+    { ...options, workingDirectory },
   );
 }
 
@@ -174,6 +259,9 @@ export class SubAgentSession {
   private pendingQuestion: string | null = null;
   private pendingResolve: ((answer: string) => void) | null = null;
   private pendingWaitPromise: Promise<string> | null = null;
+  private readonly sessionTurnLogger: SessionTurnLogger;
+  private traceRecorded = false;
+  private runStartedAt = 0;
 
   // ─── 会话级重试配置 ──────────────────────────────────
   private static readonly SESSION_MAX_RETRIES = 2;
@@ -195,18 +283,28 @@ export class SubAgentSession {
     this.id = id;
     this.skillName = options.skillName;
     this.taskDescription = options.taskDescription;
+    this.sessionTurnLogger = new SessionTurnLogger('subagent', `subagent:${id}`);
   }
 
   /**
    * 后台执行（带会话级重试）。调用方不 await，fire-and-forget。
    */
   async run(): Promise<void> {
+    return Logger.withSessionContext(`subagent:${this.id}`, this.sessionTurnLogger, async () => {
+      await this.runWithTraceContext();
+    });
+  }
+
+  private async runWithTraceContext(): Promise<void> {
+    this.runStartedAt = Date.now();
+    this.sessionTurnLogger.logRuntimeEvent('session_started', this.lifecycleEvidence('started'));
     let lastError: any;
 
     for (let attempt = 0; attempt <= SubAgentSession.SESSION_MAX_RETRIES; attempt++) {
       if (this.stopped) {
         this.status = 'stopped';
         this.completedAt = Date.now();
+        this.recordStoppedTrace();
         return;
       }
 
@@ -219,6 +317,7 @@ export class SubAgentSession {
         if (!retryReady) {
           this.status = 'stopped';
           this.completedAt = this.completedAt ?? Date.now();
+          this.recordStoppedTrace();
           return;
         }
         this.messages = [];
@@ -243,6 +342,11 @@ export class SubAgentSession {
     this.completedAt = Date.now();
     this.resultSummary = `执行失败: ${lastError?.message}`;
     Logger.error(`[SubAgent ${this.id}] ${this.stopped ? '已停止' : '失败'}: ${lastError?.message}`);
+    if (this.stopped) {
+      this.recordStoppedTrace();
+    } else {
+      this.recordFailureTrace(lastError);
+    }
   }
 
   private waitForRetryDelay(delayMs: number): Promise<boolean> {
@@ -308,6 +412,8 @@ export class SubAgentSession {
         allowSkillTool: this.shouldAllowSkillSelection(),
         parentSessionId: this.options.parentSessionId,
         abortSignal: this.abortController.signal,
+        hiddenTools: this.options.hiddenTools,
+        allowedWriteRoot: this.options.allowedWriteRoot,
       },
     );
 
@@ -344,6 +450,7 @@ export class SubAgentSession {
     if (this.stopped) {
       this.status = 'stopped';
       this.completedAt = this.completedAt ?? Date.now();
+      this.recordStoppedTrace();
       return;
     }
 
@@ -351,6 +458,20 @@ export class SubAgentSession {
     this.status = 'completed';
     this.completedAt = Date.now();
     this.resultSummary = runResult.response;
+
+    this.sessionTurnLogger.logRuntimeEvent('session_completed', {
+      ...this.lifecycleEvidence('success'),
+      duration_ms: Math.max(0, this.completedAt - this.runStartedAt),
+      tool_call_count: runResult.toolResults.length,
+    });
+    this.sessionTurnLogger.logTurn(
+      this.options.userMessage,
+      runResult.response || '',
+      runResult.toolResults.map(record => this.toSessionToolCallLog(record)),
+      { prompt: 0, completion: 0 },
+      runResult.toolVisibility,
+    );
+    this.traceRecorded = true;
 
     Logger.success(`[SubAgent ${this.id}] 完成: ${this.taskDescription}`);
   }
@@ -465,10 +586,13 @@ export class SubAgentSession {
 
   private buildNoPreselectedSkillContext(allowSkillSelection: boolean): string {
     if (!allowSkillSelection) {
+      const canAskParent = !(this.options.hiddenTools || []).includes('ask_parent');
       return [
         '[subagent-no-skill]',
         '主会话没有为你预设 skill。请直接按 system prompt、用户消息和当前可见工具执行任务。',
-        '不要尝试切换 skill；如果任务范围、权限或验收不清楚，先用 ask_parent 请求主会话确认。',
+        canAskParent
+          ? '不要尝试切换 skill；如果任务范围、权限或验收不清楚，先用 ask_parent 请求主会话确认。'
+          : '不要尝试切换 skill；这是自治的固定工作流，无法安全完成时按任务合同 fail closed，不要等待或请求父会话。',
       ].join('\n');
     }
 
@@ -518,6 +642,97 @@ export class SubAgentSession {
     } else if (toolName === 'write_file' && result.includes('summary.md')) {
       this.reportProgress('全文总结完成');
     }
+  }
+
+  private lifecycleEvidence(status: string): Record<string, unknown> {
+    return {
+      source: 'subagent',
+      environment: process.env.NODE_TEST_CONTEXT ? 'test' : 'runtime',
+      surface: 'agent',
+      status,
+      subagent_id: this.id,
+      ...(this.options.parentSessionId ? { parent_session_id: this.options.parentSessionId } : {}),
+      ...(this.options.roleName ? { role_name: this.options.roleName } : {}),
+      ...(this.selectedSkillName || this.skillName
+        ? { skill_name: this.selectedSkillName || this.skillName }
+        : {}),
+    };
+  }
+
+  private recordStoppedTrace(): void {
+    if (this.traceRecorded) return;
+    this.sessionTurnLogger.logRuntimeEvent('session_completed', {
+      ...this.lifecycleEvidence('stopped'),
+      duration_ms: Math.max(0, (this.completedAt || Date.now()) - this.runStartedAt),
+      error_code: 'SUBAGENT_STOPPED',
+    });
+    this.sessionTurnLogger.logTurn(
+      this.options.userMessage,
+      this.resultSummary || 'Subagent stopped before completion.',
+      [],
+      { prompt: 0, completion: 0 },
+    );
+    this.traceRecorded = true;
+  }
+
+  private recordFailureTrace(error: unknown): void {
+    if (this.traceRecorded) return;
+    const message = error instanceof Error ? error.message : String(error || 'Unknown subagent failure');
+    this.sessionTurnLogger.logRuntimeEvent('provider_error', {
+      ...this.lifecycleEvidence('failure'),
+      duration_ms: Math.max(0, (this.completedAt || Date.now()) - this.runStartedAt),
+      error_code: 'SUBAGENT_RUN_FAILED',
+      retryable: false,
+      provider_error: {
+        error_code: 'SUBAGENT_RUN_FAILED',
+        message: message.slice(0, 500),
+      },
+    });
+    this.sessionTurnLogger.logTurn(
+      this.options.userMessage,
+      this.resultSummary || `执行失败: ${message}`,
+      [],
+      { prompt: 0, completion: 0 },
+    );
+    this.traceRecorded = true;
+  }
+
+  private toSessionToolCallLog(record: RunToolResult) {
+    const toolResult = record.result;
+    const errorCode = toolResult.error_code || toolResult.errorCode;
+    return {
+      id: record.toolCall.id,
+      tool_call_id: toolResult.tool_call_id || record.toolCall.id,
+      name: toolResult.name || record.toolName || record.toolCall.function.name,
+      arguments: this.parseToolArguments(record.toolCall.function.arguments),
+      result: this.toolResultContent(toolResult.content),
+      ...(toolResult.duration_ms !== undefined && { duration_ms: toolResult.duration_ms }),
+      ...(toolResult.status && { status: toolResult.status }),
+      ...(errorCode && { error_code: errorCode }),
+      ...(toolResult.retryable !== undefined && { retryable: toolResult.retryable }),
+      ...(toolResult.retry_count !== undefined && { retry_count: toolResult.retry_count }),
+      ...(toolResult.retry_budget !== undefined && { retry_budget: toolResult.retry_budget }),
+      ...(toolResult.retry_budget_exhausted !== undefined && { retry_budget_exhausted: toolResult.retry_budget_exhausted }),
+      ...(toolResult.blocked_reason && { blocked_reason: toolResult.blocked_reason }),
+      ...(toolResult.artifact_manifest?.length && { artifact_manifest: toolResult.artifact_manifest }),
+      ...(toolResult.delivery_evidence?.length && { delivery_evidence: toolResult.delivery_evidence }),
+      ...(toolResult.external_delivery_receipts?.length && { external_delivery_receipts: toolResult.external_delivery_receipts }),
+    };
+  }
+
+  private parseToolArguments(value: string): unknown {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  private toolResultContent(content: ToolResult['content']): string {
+    if (typeof content === 'string') return content;
+    return content
+      .map(block => block.type === 'text' ? block.text : '[image]')
+      .join('');
   }
 
   /** 从工具结果中提取文件路径 */

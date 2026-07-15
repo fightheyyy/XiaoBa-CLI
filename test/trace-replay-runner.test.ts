@@ -143,13 +143,15 @@ describe('TraceReplayRunner', () => {
       tracePath,
       cwd: testRoot,
       outDir: path.join(testRoot, 'output', 'replay-test'),
+      sessionKey: 'pet:xiaoba:role-base:custom-user-key',
       now: new Date('2026-06-23T00:00:00.000Z'),
       services,
     });
 
     assert.equal(report.replayed_turns, 2);
     assert.equal(report.pet_id, 'xiaoba');
-    assert.ok(report.session_key.startsWith('pet:xiaoba:'));
+    assert.ok(report.session_key.startsWith('pet:xiaoba:role-base:custom-user-key:'));
+    assert.match(report.session_key, /:trace-replay-/);
     assert.equal(report.inputs.map(input => input.text).join('|'), '第一轮：帮我收敛一下|第二轮：变成 checklist');
     assert.equal(report.results.length, 2);
     assert.deepEqual(report.results.map(result => result.tools), [['send_text'], ['send_text']]);

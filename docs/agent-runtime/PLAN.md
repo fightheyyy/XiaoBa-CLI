@@ -1,7 +1,7 @@
 # Agent Runtime PLAN
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-15
 Owner：Runtime maintainers
 
 ## Current Status
@@ -12,6 +12,9 @@ Owner：Runtime maintainers
 - OpenAI-compatible、Anthropic and Ollama adapters share normalized message/tool boundaries.
 - Subagent role dispatch works through shared sessions; in-flight state remains mainly memory-backed.
 - BrowserCat/GuiCat drivers are deterministic adapters and do not run a second Agent/Chat/MCP loop.
+- EvolutionCat `remember` is a deterministic role tool over the existing session-person memory contract.
+- Terminal SubAgentSession runs persist standard child `traces.jsonl` with parent, role, selected-skill, tool-result and artifact lineage for nightly evolution and debugging.
+- A narrow, fixed `EvolutionDAGRunner` is the accepted scheduled control path; it awaits the shared SubAgentSession loop directly and never enters Base or creates a second agent loop.
 - XiaoBa is a product runtime with a reusable harness core, not yet a public general-purpose Harness SDK.
 
 ```mermaid
@@ -30,6 +33,8 @@ flowchart LR
 6. Durable in-flight subagent recovery and action receipts：partial/not started。
 7. Provider/Shell end-to-end cancellation：partial。
 8. Public Harness SDK extraction：not a current product milestone。
+9. Standard `traces.jsonl` for terminal SubAgentSession runs：completed。
+10. Fixed Inspector-first evolution DAG runner：completed；it directly awaits shared SubAgentSession runs and never enters Base。
 
 ## Next Steps
 
@@ -53,7 +58,7 @@ flowchart LR
 - Failure, timeout, cancel and blocked states are structured and auditable.
 - Provider transcript, working trace and durable session remain distinct boundaries.
 - Confirmed tools are hidden or blocked unless confirmation matches actor and payload.
-- Base and all seven roles use the same runtime loop.
+- Base and all eight roles use the same runtime loop.
 - External drivers are fixed, bounded capability adapters with version, timeout and trust evidence.
 - Runtime architecture changes update this PLAN and [`SPEC.md`](SPEC.md) only.
 
@@ -62,4 +67,11 @@ flowchart LR
 - Process crashes can still lose in-flight child state.
 - A successful external side effect followed by a lost response can still be repeated.
 - Full provider/Shell cancellation is incomplete.
+- Tool processes that deliberately detach from the supervised worker group can still require tool-specific cancellation evidence.
 - Owner identity is not yet a first-class runtime authorization fact.
+
+## Recent Verification
+
+- Terminal child trace tests cover success, failure, stop, selected-skill, parent lineage and real tool/artifact results.
+- A real-provider nightly run produced a terminal InspectorCat child trace with parent `evolution:dag:1999-01-01`, returned typed `no_op`, created no Base trace and exited cleanly.
+- Evolution DAG focused tests cover direct role awaiting, strict contract validation, route-specific tool deny-lists, process supervision and terminal manifest persistence.

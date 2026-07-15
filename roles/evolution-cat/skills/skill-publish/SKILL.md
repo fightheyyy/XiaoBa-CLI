@@ -7,7 +7,7 @@ argument-hint: "<skill名称>"
 max-turns: 20
 ---
 
-# Skill Publish
+# EvolutionCat Skill Publish
 
 将本地已有的 skill 发布到 XiaoBa 官方 SkillHub，让所有 XiaoBa 用户都能通过 Dashboard Skill Store 安装。
 
@@ -49,7 +49,7 @@ SkillHub 发布规则：
 用户提供 skill 名称（即 `$ARGUMENTS`），你需要：
 
 1. 检查 `skills/$ARGUMENTS/SKILL.md` 是否存在
-2. 读取 `SKILL.md` 的 frontmatter，提取 `name`、`description`、`category` 等信息
+2. 读取 `SKILL.md` 的 frontmatter，提取 `name`、`description`、`category` 和 `status` 等信息。`blocked` 必须拒绝发布；`candidate` 必须先经过 Arena/人工验收并由独立 Promote 动作变为 `active`；旧资产未写 `status` 时按 `active` 兼容
 3. 如果缺少 category，询问用户选择：核心、工具、效率、科研、运维、其他
 4. 确认 skill 是否已经有独立公开 GitHub 仓库
 5. 获取或确认独立 skill 仓库 URL

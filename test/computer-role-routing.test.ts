@@ -5,7 +5,7 @@ import { SkillManager } from '../src/skills/skill-manager';
 import { PromptManager } from '../src/utils/prompt-manager';
 
 describe('Base computer-role routing', () => {
-  test('Base does not load a duplicate agent-browser router skill', async () => {
+  test('Base ships with zero default skills', async () => {
     const skillManager = new SkillManager();
     await skillManager.loadSkills();
 
@@ -14,14 +14,16 @@ describe('Base computer-role routing', () => {
       skillManager.getAllSkills().some(skill => skill.metadata.name === 'agent-browser'),
       false,
     );
+    assert.deepEqual(skillManager.getAllSkills(), []);
   });
 
-  test('Base prompt routes browser, macOS GUI, and Feishu work to execution roles', async () => {
+  test('Base prompt routes execution and evolution work to role owners', async () => {
     const prompt = await PromptManager.buildSystemPrompt();
 
     assert.match(prompt, /动态网页导航[\s\S]*`browser-cat`/);
     assert.match(prompt, /macOS 应用[\s\S]*`gui-cat`/);
     assert.match(prompt, /飞书日历[\s\S]*`secretary-cat`/);
+    assert.match(prompt, /长期记忆[\s\S]*`evolution-cat`/);
     assert.match(prompt, /跨角色派工时不要同时传 `skill_name`/);
     assert.match(prompt, /不可信外部内容/);
   });

@@ -350,6 +350,7 @@ export class AgentSession {
       this.sessionTurnLogger.logRuntimeEvent('session_started', {
         surface,
         status: 'started',
+        environment: process.env.NODE_TEST_CONTEXT ? 'test' : 'runtime',
       });
       observability.mirrorMetric('xiaoba.session.started', 1, baseObservabilityAttrs);
       observability.recordLog('xiaoba.session.started', baseObservabilityAttrs, 'INFO', sessionSpan.context);
@@ -423,6 +424,9 @@ export class AgentSession {
         // 动态注入当前可用 skills 列表（临时上下文，不持久化）
         // 每次处理消息时重新从磁盘加载 skills，确保 Dashboard 的禁用/启用/安装/删除立即生效
         await this.services.skillManager.loadSkills();
+        if (this.revokeUnavailableActiveSkill()) {
+          contextMessages = contextMessages.filter(message => !this.isSkillSystemMessage(message));
+        }
 
         const skills = this.services.skillManager.getUserInvocableSkills();
         if (skills.length > 0) {
@@ -1486,10 +1490,31 @@ ${conversationText}`;
     this.activeSkillToolsets = activation.toolsets;
   }
 
+  private revokeUnavailableActiveSkill(): boolean {
+    const skillName = this.activeSkillName ?? this.detectActiveSkillName();
+    if (!skillName || this.services.skillManager.getSkill(skillName)) {
+      return false;
+    }
+
+    this.messages = this.messages.filter(message => !this.isSkillSystemMessage(message));
+    this.activeSkillName = undefined;
+    this.activeSkillMaxTurns = undefined;
+    this.activeSkillToolsets = undefined;
+    Logger.warning(`[${this.key}] 已撤销不可用 skill: ${skillName}`);
+    return true;
+  }
+
+  private isSkillSystemMessage(message: Message): boolean {
+    return message.role === 'system'
+      && typeof message.content === 'string'
+      && /^\[skill:[^\]]+\]/.test(message.content);
+  }
+
   private shouldPersistActiveSkillForToolVisibility(): boolean {
     const roleName = this.services.roleName;
     if (!roleName) return false;
-    const resolvedRole = RoleResolver.resolveRoleDirectoryName(roleName) || roleName;
+    const resolvedRole = RoleResolver.resolveRoleDirectoryName(roleName);
+    if (!resolvedRole) return false;
     return RoleResolver.getRoleConfig(resolvedRole)?.toolVisibility?.mode === 'skill_scoped';
   }
 
@@ -1506,6 +1531,9 @@ ${conversationText}`;
     const skillName = markerMatch[1];
     const prompt = msg.content.slice(markerMatch[0].length).replace(/^\n/, '');
     const skill = this.services.skillManager.getSkill(skillName);
+    if (!skill) {
+      return null;
+    }
 
     return {
       __type__: 'skill_activation',

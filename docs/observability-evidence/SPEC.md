@@ -41,6 +41,7 @@ Out of scope:
 flowchart LR
     subgraph Runtime["Runtime：事实来源"]
         Session["AgentSession"]
+        Subagent["SubAgentSession"]
         Runner["ConversationRunner"]
         Tools["Tool calls/results"]
         Provider["Provider fallback/error"]
@@ -65,9 +66,12 @@ flowchart LR
         Review["/api/observability/review"]
         Replay["Trace Replay"]
         Maintainer["Human debug"]
+        SleepDigest["nightly evolution digest"]
+        Inspector["InspectorCat diagnosis"]
     end
 
     Session --> Logger
+    Subagent --> Logger
     Tools --> Logger
     Provider --> Logger
     Delivery --> Logger
@@ -80,6 +84,8 @@ flowchart LR
     Summary --> Api
     Summary --> Review
     JSONL --> Replay
+    JSONL --> SleepDigest
+    SleepDigest --> Inspector
     RuntimeLog -.-> Maintainer
 ```
 
@@ -94,6 +100,7 @@ Current implementation:
 - `GET /api/observability/summary` returns aggregate and local trace facts derived from local logs, with raw prompt/tool preview attributes removed and sensitive freeform values such as paths/tokens redacted at the Dashboard API boundary.
 - `GET /api/observability/review` returns readonly local observability state; it does not generate candidates, continuity reports, or benchmark source.
 - `check:benchmarks` guards active benchmark manifest references; observability has no eval source acceptance path.
+- `src/roles/evolution-cat/evolution-observer.ts` reads terminal rows from all local session/subagent `traces.jsonl`, filters by row timestamp, excludes self-run/test/replay evidence, and atomically derives `output/evolution/sleep/<date>/digest.json` with stable trace refs. Runtime builds it once and hands it to InspectorCat as the first model stage; the digest is a bounded projection, not a new truth source or evaluation result.
 
 ## Target Architecture
 
@@ -117,6 +124,8 @@ flowchart LR
     subgraph ProductUse["Product use"]
         Replay["Trace Replay"]
         Debug["Local debug"]
+        SleepDigest["nightly evolution digest<br/>derived refs only"]
+        Inspector["InspectorCat<br/>diagnosis input"]
         LiveEval["Live Agent Eval<br/>curated source only"]
     end
 
@@ -126,6 +135,8 @@ flowchart LR
     Projector --> Obs
     Artifacts --> Obs
     JSONL --> Replay
+    JSONL --> SleepDigest
+    SleepDigest --> Inspector
     Obs --> Debug
     RuntimeBench --> LiveEval
     RoleBench --> LiveEval
@@ -138,6 +149,8 @@ Target rules:
 - Context compression must leave a structured `context_compaction` event in `traces.jsonl`; successful compactions must store the compact-after messages as local snapshot evidence next to the owning session log. These snapshots are evidence/restoration anchors, not default prompt material for replay.
 - Direct runtime metric recording is allowed only for standalone runners or explicit local-summary helper paths.
 - A trace-derived benchmark asset must be created explicitly by a benchmark owner; observability does not propose, accept, score, or patch benchmark source.
+- A nightly evolution digest is a bounded, local, read-only projection over terminal trace rows. It keeps stable source refs and may summarize user/tool/artifact facts, but it is not a second trace truth and cannot create, accept, score, publish or promote a candidate.
+- Harvest filters by each trace row timestamp rather than only the enclosing date directory, so long-lived sessions crossing midnight remain correct. Evolution sleep traces, replay/eval traces and deterministic zero-model-call harness rows are excluded from future mining; Trace Replay always appends runtime-owned replay provenance even when its caller supplies a custom session key.
 - Runtime harness owns runtime/contract regression decisions.
 - Roles own role-specific replay, rubric and benchmark admission.
 - Dashboard stays read-only for observability summary/review state; network-facing summary responses default to a redacted projection even when the in-process local summary retains explicit local preview facts.

@@ -72,7 +72,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     skillManager,
     ...(roleName ? { roleName } : {}),
   };
-  const session = new AgentSession('cli', services, 'cli');
+  const session = new AgentSession(options.sessionKey || 'cli', services, options.sessionType || 'cli');
   const subAgentFeedback = registerCliSubAgentCallbacks(session);
   if (shouldRestoreCliSession(options)) {
     session.restoreFromStore();
@@ -101,7 +101,10 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
       await settleCliOneShotSubAgents(session, subAgentFeedback, existingSubAgentIds);
     } finally {
       cleanupCliOneShotSubAgents(session.key, subAgentFeedback, existingSubAgentIds);
-      await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
+      await session.cleanup({
+        finalizeMemory: options.finalizeMemory !== false,
+        finalizationReason: 'session_close',
+      });
       await stopCommandSupport();
       restoreLoggerMode();
     }

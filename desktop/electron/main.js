@@ -3,11 +3,26 @@ const path = require('path');
 const crypto = require('crypto');
 
 const DASHBOARD_PORT = 3800;
-const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat', 'browser-cat', 'gui-cat', 'secretary-cat'];
+const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat', 'browser-cat', 'gui-cat', 'secretary-cat', 'evolution-cat'];
 const RETIRED_AGENT_BROWSER_SKILL_SHA256S = new Set([
   '59bb1b5a07351f7b1940632695f3042afeef3268a06d03e1fbc3d85b91115648',
   '26f30428a5cff69f396e821cb51060db1f13c7ec66473268b3731001ea63cd93',
 ]);
+const RETIRED_BASE_SKILL_FILES = {
+  remember: {
+    'SKILL.md': '1d75e06fa8d340ae8600e1a352923ddc6c1bf009820a4bfd1f9527b2b822661d',
+    'remember.py': '5e8d8ef1a87a982650aa0bb048d8fffbd84ef8e6ad8a9f399118355b65eb2d8b',
+  },
+  'role-publish': {
+    'SKILL.md': '50ba049c22f3acc29f08ddba40c59ab28dda6eca52feb2f2f31187e15aaa5209',
+  },
+  'self-evolution': {
+    'SKILL.md': '6cf6c659c016eaac615e394f0cff3a889b89e28c01b10ecc2df78c468cb46dd1',
+  },
+  'skill-publish': {
+    'SKILL.md': 'df7eb5741a9bbc5f5ed89ac90f5aec041920985a3772f9d5c24cbc4e1ddaec4a',
+  },
+};
 const LEGACY_ROLE_CONFIG_SHA256 = {
   'browser-cat': '011fd179328b55cc375d3ef62794786369a05213d64e735be92ec4c56c7b2c46',
   'gui-cat': '507bb834c6814ee30a5f7e883e6bd622c40fd97dfc8119804683d9b309656b75',
@@ -81,6 +96,37 @@ function getNodeModulesPath() {
   return path.join(__dirname, '..', '..', 'node_modules');
 }
 
+function retireExactLegacyBaseSkills(fs, skillsPath, userDataPath) {
+  for (const [skillName, expectedFiles] of Object.entries(RETIRED_BASE_SKILL_FILES)) {
+    const skillDir = path.join(skillsPath, skillName);
+    if (!fs.existsSync(skillDir)) continue;
+
+    const entries = fs.readdirSync(skillDir, { withFileTypes: true });
+    const installedFileNames = entries
+      .filter(entry => entry.isFile())
+      .map(entry => entry.name)
+      .sort();
+    const expectedFileNames = Object.keys(expectedFiles).sort();
+    const hasOnlyExpectedFiles = entries.every(entry => entry.isFile())
+      && installedFileNames.length === expectedFileNames.length
+      && installedFileNames.every((fileName, index) => fileName === expectedFileNames[index]);
+    if (!hasOnlyExpectedFiles) continue;
+
+    const exactMatch = expectedFileNames.every(fileName => (
+      crypto.createHash('sha256')
+        .update(fs.readFileSync(path.join(skillDir, fileName)))
+        .digest('hex') === expectedFiles[fileName]
+    ));
+    if (!exactMatch) continue;
+
+    const backupRoot = path.join(userDataPath, 'migration-backups', 'base-skills', skillName);
+    const backupPath = path.join(backupRoot, `retired-${Date.now()}`);
+    fs.mkdirSync(backupRoot, { recursive: true });
+    fs.cpSync(skillDir, backupPath, { recursive: true });
+    fs.rmSync(skillDir, { recursive: true, force: true });
+  }
+}
+
 async function startServer() {
   const appRoot = getAppRoot();
 
@@ -101,6 +147,10 @@ async function startServer() {
   // 同步内置 skills 到 userData（保留用户安装的 skills）
   const skillsPath = path.join(userDataPath, 'skills');
   const bundledSkills = path.join(appRoot, 'skills');
+
+  // EvolutionCat now owns evolution workflows and deterministic memory. Retire
+  // only byte-identical legacy Base Skills; preserve any customized copy.
+  retireExactLegacyBaseSkills(fs, skillsPath, userDataPath);
 
   // BrowserCat now owns browser routing. Retire only exact XiaoBa-built copies of
   // the old Base agent-browser Skill; preserve any user-customized Skill.

@@ -15,7 +15,8 @@ Generate candidate trace data from a low-quality end-user perspective, not bench
 
 ```text
 UserCat creates candidate trace data.
-ReviewerCat curates and judges evidence.
+InspectorCat diagnoses, groups, extracts Replay Cases, and routes.
+ReviewerCat only executes a Replay Case after Inspector routing.
 Benchmark harness owns fixture, verifier, replay, baseline, and release gates.
 ```
 
@@ -30,10 +31,10 @@ Benchmark harness owns fixture, verifier, replay, baseline, and release gates.
    - risk tags
    - privacy review requirement
 2. Read the target role contract:
-   - `roles/<target-role>/SPEC.md`
-   - `roles/<target-role>/PLAN.md`
-   - `roles/<target-role>/README.md`
+   - `roles/<target-role>/role.json`
    - `roles/<target-role>/prompts/*`
+   - `roles/<target-role>/skills/*`
+   - shared `roles/README.md` and `docs/roles-skills/{SPEC,PLAN}.md`
    - relevant eval or benchmark evidence when available
 3. Write the role intent map before scenario design.
 4. Design a low-quality, low-information end-user persona.
@@ -129,7 +130,7 @@ trace_quality_self_check:
 - multi_turn_pressure:
 - observable_behavior:
 - privacy_safe:
-- worth_reviewer_curation:
+- worth_inspector_intake:
 
 recommended_next_owner:
 ```

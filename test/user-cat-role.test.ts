@@ -83,7 +83,8 @@ describe('UserCat role', () => {
     assert.equal(skill.metadata.userInvocable, true);
     assert.equal(skill.metadata.autoInvocable, true);
     assert.match(skill.content, /UserCat creates candidate trace data/);
-    assert.match(skill.content, /ReviewerCat curates and judges evidence/);
+    assert.match(skill.content, /InspectorCat diagnoses, groups, extracts Replay Cases, and routes/);
+    assert.match(skill.content, /ReviewerCat only executes a Replay Case after Inspector routing/);
 
     const productTestSkill = manager.getSkill('xiaoba-cli-product-test');
     assert.ok(productTestSkill);

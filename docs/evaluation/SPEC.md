@@ -76,6 +76,7 @@ flowchart LR
     subgraph Sources["Sources"]
         Historical["historical local trace"]
         Curated["curated benchmark case"]
+        InspectorCase["Inspector replay case"]
     end
 
     subgraph Evaluation["Evaluation module"]
@@ -87,10 +88,13 @@ flowchart LR
     subgraph Outputs["Outputs"]
         ReplayReport["local replay report"]
         Scorecard["benchmark scorecard"]
+        ReviewerDecision["Reviewer terminal evidence<br/>closed / next_run / blocked"]
     end
 
     Historical --> Replay
+    InspectorCase --> Replay
     Replay --> ReplayReport
+    ReplayReport --> ReviewerDecision
     ReplayReport -. "human curation only" .-> Curated
     Curated --> LiveEval
     LiveEval --> Verifier
@@ -100,6 +104,7 @@ flowchart LR
 ## Stable Boundaries
 
 - Trace Replay 不属于 `eval:*` 命令面，不输出 benchmark pass/fail。
+- Trace Replay 的 fresh session 必须由 runtime 追加 replay provenance；呼叫者的自定义 session key 不能将派生 trace 伪装成生产交互。
 - Live Agent Eval case 必须 fresh-run 当前 runtime；只读旧 trace 或旧 artifact 的检查不是 live eval。
 - Replay、Observability 和 Arena 都不能自动写入 accepted benchmark source。
 - `test/` 是独立工程验证边界；它可以验证 Evaluation 的代码，但不属于 Evaluation gate。

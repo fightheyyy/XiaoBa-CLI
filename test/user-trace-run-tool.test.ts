@@ -109,7 +109,7 @@ describe('UserTraceRunTool', () => {
     assert.match(output, /user_trace_run: status=completed/);
     assert.match(output, /target_role=engineer-cat/);
     assert.match(output, /entrypoint=dashboard_chat/);
-    assert.match(output, /session_key=pet:xiaoba:role-engineer-cat:run-trace-run-001/);
+    assert.match(output, /session_key=pet:xiaoba:role-engineer-cat:usercat-simulation-trace-run-001/);
     assert.match(output, /turn_count=3/);
     assert.equal(fakeAI.requests.length, 3);
 
@@ -120,7 +120,7 @@ describe('UserTraceRunTool', () => {
     }) ?? [];
     assert.deepEqual(artifactManifest.map(item => [item.path, item.action, item.metadata?.artifact_role]), [
       ['data/user-cat/traces/trace-run-001/trace.jsonl', 'captured', 'raw_trace'],
-      ['data/chat/sessions/pet_xiaoba_role-engineer-cat_run-trace-run-001.jsonl', 'captured', 'native_visible_history'],
+      ['data/chat/sessions/pet_xiaoba_role-engineer-cat_usercat-simulation-trace-run-001.jsonl', 'captured', 'native_visible_history'],
       ['output/user-cat/candidates/trace-run-001/seed.json', 'created', 'seed_metadata'],
       ['output/user-cat/candidates/trace-run-001/role-intent-map.json', 'created', 'role_intent_map'],
       ['output/user-cat/candidates/trace-run-001/persona.json', 'created', 'persona_metadata'],
@@ -155,11 +155,11 @@ describe('UserTraceRunTool', () => {
     const candidateCase = JSON.parse(fs.readFileSync(candidateCasePath, 'utf-8'));
     assert.equal(candidateCase.target_role, 'engineer-cat');
     assert.equal(candidateCase.entrypoint, 'dashboard_chat');
-    assert.equal(candidateCase.native_session_key, 'pet:xiaoba:role-engineer-cat:run-trace-run-001');
-    assert.equal(candidateCase.native_visible_history_path, 'data/chat/sessions/pet_xiaoba_role-engineer-cat_run-trace-run-001.jsonl');
+    assert.equal(candidateCase.native_session_key, 'pet:xiaoba:role-engineer-cat:usercat-simulation-trace-run-001');
+    assert.equal(candidateCase.native_visible_history_path, 'data/chat/sessions/pet_xiaoba_role-engineer-cat_usercat-simulation-trace-run-001.jsonl');
     assert.equal(candidateCase.source_seed_id, 'seed.engineer.low-info.001');
     assert.equal(candidateCase.turn_count, 3);
-    assert.equal(candidateCase.recommended_next_owner, 'reviewer-cat');
+    assert.equal(candidateCase.recommended_next_owner, 'inspector-cat');
     assert.equal(candidateCase.replay_readiness, 'needs_verifier');
     assert.equal(candidateCase.curation_status, 'not_curated');
     assert.equal(candidateCase.benchmark_acceptance, 'forbidden_until_curated');
@@ -171,19 +171,19 @@ describe('UserTraceRunTool', () => {
     assert.equal(selfCheck.evidence_pressure, true);
     assert.equal(selfCheck.curation_required, true);
     assert.equal(selfCheck.benchmark_acceptance, 'forbidden_until_curated');
-    assert.equal(selfCheck.worth_reviewer_curation, true);
+    assert.equal(selfCheck.worth_inspector_intake, true);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(candidateDir, 'manifest.json'), 'utf-8'));
     assert.equal(manifest.curation_status, 'not_curated');
     assert.equal(manifest.benchmark_acceptance, 'forbidden_until_curated');
     assert.ok(!path.isAbsolute(manifest.trace_path));
     assert.equal(manifest.entrypoint, 'dashboard_chat');
-    assert.equal(manifest.session_key, 'pet:xiaoba:role-engineer-cat:run-trace-run-001');
-    assert.equal(manifest.visible_history_path, 'data/chat/sessions/pet_xiaoba_role-engineer-cat_run-trace-run-001.jsonl');
+    assert.equal(manifest.session_key, 'pet:xiaoba:role-engineer-cat:usercat-simulation-trace-run-001');
+    assert.equal(manifest.visible_history_path, 'data/chat/sessions/pet_xiaoba_role-engineer-cat_usercat-simulation-trace-run-001.jsonl');
     assert.ok(!('cwd' in manifest));
     assert.ok(manifest.artifacts.some((item: { path: string }) => item.path === 'candidate-case.json'));
 
-    const visibleHistoryPath = path.join(testRoot, 'data', 'chat', 'sessions', 'pet_xiaoba_role-engineer-cat_run-trace-run-001.jsonl');
+    const visibleHistoryPath = path.join(testRoot, 'data', 'chat', 'sessions', 'pet_xiaoba_role-engineer-cat_usercat-simulation-trace-run-001.jsonl');
     assert.ok(fs.existsSync(visibleHistoryPath), 'dashboard chat visible history should be written by native surface');
     const visibleEvents = fs.readFileSync(visibleHistoryPath, 'utf-8')
       .trim()
@@ -191,7 +191,7 @@ describe('UserTraceRunTool', () => {
       .filter(Boolean)
       .map(line => JSON.parse(line));
     assert.equal(visibleEvents.filter(event => event.type === 'user_message').length, 3);
-    assert.ok(visibleEvents.every(event => event.sessionKey === 'pet:xiaoba:role-engineer-cat:run-trace-run-001'));
+    assert.ok(visibleEvents.every(event => event.sessionKey === 'pet:xiaoba:role-engineer-cat:usercat-simulation-trace-run-001'));
     assert.ok(visibleEvents.some(event => event.source === 'dashboard'));
 
     const petTraceFiles = collectFiles(path.join(testRoot, 'logs', 'sessions', 'pet'))
@@ -204,7 +204,7 @@ describe('UserTraceRunTool', () => {
       .map(line => JSON.parse(line)));
     assert.equal(nativeTraceEntries.filter(entry => entry.entry_type === 'trace').length, 3);
     assert.ok(nativeTraceEntries.every(entry => entry.session_type === 'pet'));
-    assert.ok(nativeTraceEntries.every(entry => entry.session_id === 'pet:xiaoba:role-engineer-cat:run-trace-run-001'));
+    assert.ok(nativeTraceEntries.every(entry => entry.session_id === 'pet:xiaoba:role-engineer-cat:usercat-simulation-trace-run-001'));
     assert.ok(!fs.existsSync(path.join(testRoot, 'logs', 'sessions', 'user-cat')), 'target run should not create user-cat native session logs');
   });
 
@@ -236,7 +236,7 @@ describe('UserTraceRunTool', () => {
     const candidateCasePath = path.join(testRoot, 'output', 'user-cat', 'candidates', 'trace-run-sanitized', 'candidate-case.json');
     const candidateCase = JSON.parse(fs.readFileSync(candidateCasePath, 'utf-8'));
     assert.equal(candidateCase.replay_readiness, 'needs_verifier');
-    assert.equal(candidateCase.recommended_next_owner, 'reviewer-cat');
+    assert.equal(candidateCase.recommended_next_owner, 'inspector-cat');
     assert.equal(candidateCase.curation_status, 'not_curated');
     assert.equal(candidateCase.benchmark_acceptance, 'forbidden_until_curated');
   });

@@ -1,6 +1,6 @@
 ---
 name: extract-skill
-description: 从日志中识别重复操作模式，自动生成新 Skill 定义
+description: 从日志中识别重复操作模式，生成证据化 Candidate Skill 草稿与 EvolutionCat handoff
 version: 1.0.0
 author: InspectorCat Team
 user_invocable: true
@@ -11,7 +11,7 @@ max-turns: 20
 
 # Extract Skill
 
-从 XiaoBa 使用日志中识别重复的操作序列，自动生成新 Skill 定义并创建。
+从 XiaoBa 使用日志中识别重复操作序列，只输出 Candidate Skill 草稿和证据化路由；不创建文件。
 
 ## 触发条件
 
@@ -34,7 +34,7 @@ max-turns: 20
 3. **先排除 runtime 问题**。如果重复是由超时、限流、路径权限、平台命令不兼容等异常导致，不要误判成 Skill
 4. **先排除已有 skill 问题**。如果根因是某个 skill 触发条件太宽、步骤缺失或调用错工具，先建议修 skill，不要直接新建 skill
 5. **生成的 Skill 必须包含**：触发条件、工作流程、参数说明、使用示例
-6. **最后调用 self-evolution skill** 创建 Skill 文件，不要自己写文件
+6. **最后输出 EvolutionCat handoff**，由 Base 派给 `evolution-cat` 使用 role-local `self-evolution` 创建 Skill；InspectorCat 不自己写文件
 
 ## 执行流程
 
@@ -133,10 +133,10 @@ user_invocable: true
    - 操作序列：glob → read_file(循环) → write_file
    - 建议 Skill 名：batch-file-processor
 
-是否创建这些 Skill？可以选择：
-- 全部创建
-- 只创建某几个（告诉我编号）
-- 修改后再创建
+是否把这些候选交给 EvolutionCat？可以选择：
+- 全部形成 handoff
+- 只交付某几个（告诉我编号）
+- 修改草稿后再交付
 ```
 
 如果没有满足条件的候选，要明确说明原因，例如：
@@ -146,25 +146,27 @@ user_invocable: true
 - 重复次数不够
 - 流程不稳定，暂时不适合沉淀
 
-### Step 5: 调用 self-evolution 创建 Skill
+### Step 5: 交给 EvolutionCat 创建 Skill
 
-用户确认后，对每个 Skill 调用 `self-evolution` skill：
+用户确认后，为每个 Skill 输出结构化 handoff；普通会话由 Base 显式派给 `evolution-cat`，定时 DAG 由确定性 Route Gate 直接交付：
 
 ```
-调用 self-evolution skill，参数：
+recommended_next_owner: evolution-cat
+requested_skill: self-evolution
+参数：
 - 类型：skill
 - 名称：<skill-name>
 - 完整内容：<生成的 Skill 草稿>
 ```
 
-`self-evolution` 会负责创建目录、写入文件、验证。
+EvolutionCat 的 role-local `self-evolution` 会负责创建目录、写入文件、验证。InspectorCat 不直接调用不可见的跨角色 Skill。
 
-### Step 6: 报告结果
+### Step 6: 报告 handoff
 
 告知用户：
-- 创建了哪些 Skill
-- 如何使用（触发条件）
-- 文件位置（`skills/<name>/SKILL.md`）
+- 识别了哪些 Candidate Skill 草稿
+- 每个草稿的触发条件、证据 refs 与泛化理由
+- 下一 owner 是 EvolutionCat；InspectorCat 尚未创建任何文件
 
 ## 输出格式
 
@@ -185,14 +187,14 @@ user_invocable: true
    序列：连接数据库 → 执行查询 → 导出CSV
 ```
 
-**创建阶段**：
+**handoff 阶段**：
 ```
-✓ 已创建 Skill: remote-log-viewer
-  位置: skills/remote-log-viewer/SKILL.md
+→ Candidate Skill handoff: remote-log-viewer
+  next_owner: evolution-cat
   触发: "查看远程日志"、"ssh 看日志"
   
-✓ 已创建 Skill: batch-file-processor
-  位置: skills/batch-file-processor/SKILL.md
+→ Candidate Skill handoff: batch-file-processor
+  next_owner: evolution-cat
   触发: "批量处理文件"
 ```
 
@@ -209,5 +211,5 @@ user_invocable: true
 ## 与其他 Skill 的配合
 
 - **log-review**: 先用 log-review 发现问题，再用 extract-skill 提炼解决方案
-- **self-evolution**: extract-skill 生成草稿，self-evolution 负责创建文件
-- **skill-quality-scan**: 创建后可用 skill-quality-scan 检查质量
+- **EvolutionCat / self-evolution**: 普通会话可由 Base 显式派遣；夜间 DAG 则由 Inspector finding 经确定性 `evolution` route 交给 EvolutionCat 创建隔离 Candidate
+- **Arena**: EvolutionCat 生成隔离 candidate 后，由独立 Arena 做多 case 评测

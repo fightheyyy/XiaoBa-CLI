@@ -159,7 +159,7 @@ interface ResearchReviewerHandoffPacket {
   status: 'blocked_until_reviewer_verification';
   requested_reviewer: {
     target_role: 'reviewer-cat';
-    decision_needed: 'closed_reopened_or_blocked';
+    decision_needed: 'closed_next_run_or_blocked';
     review_scope: string[];
   };
   evidence_bundle: {
@@ -756,7 +756,7 @@ function buildBoardUpdateInput(input: {
         type: 'reviewer_handoff_packet',
         status: 'needs_review',
         evidence: [input.phaseExecutionRel, input.manifestRel],
-        note: 'Structured ReviewerCat review packet; requires ReviewerCat closed/reopened/blocked decision and is not final acceptance.',
+        note: 'Structured ReviewerCat review packet; requires ReviewerCat closed/next_run/blocked decision and is not final acceptance.',
       },
       {
         path: input.reviewerHandoffPacketMarkdownRel,
@@ -809,7 +809,7 @@ function buildBoardUpdateInput(input: {
         evidence: phaseExecutionEvidence,
       },
       {
-        text: 'Reviewer handoff packet is a review input only; ResearcherCat has not produced a closed/reopened/blocked decision.',
+        text: 'Reviewer handoff packet is a review input only; ResearcherCat has not produced a closed/next_run/blocked decision.',
         status: 'weakly_supported',
         evidence: reviewerHandoffEvidence,
       },
@@ -1003,7 +1003,7 @@ function buildResearchPhasePlan(input: {
     phase_id: 'phase_reviewer_handoff',
     title: 'ReviewerCat verification handoff',
     status: 'planned',
-    reason: 'ResearcherCat can organize evidence and next actions, but ReviewerCat owns acceptance/reopened decisions.',
+    reason: 'ResearcherCat can organize evidence and next actions, but ReviewerCat owns closed/next_run/blocked decisions.',
     recommended_skill: 'research-case-orchestrator',
     evidence: uniqueStrings([input.manifestRel, input.reportRel, input.phasePlanRel]),
     blocked_by: ['ReviewerCat verification has not run yet.'],
@@ -1262,7 +1262,7 @@ function buildReviewerHandoffPacket(input: {
     {
       id: 'reviewer_not_run',
       severity: 'high',
-      text: 'ReviewerCat has not run an independent closed/reopened/blocked review.',
+      text: 'ReviewerCat has not run an independent closed/next_run/blocked review.',
       evidence: [input.reviewerHandoffPacketRel, input.phaseExecutionRel],
     },
     {
@@ -1315,7 +1315,7 @@ function buildReviewerHandoffPacket(input: {
     status: 'blocked_until_reviewer_verification',
     requested_reviewer: {
       target_role: 'reviewer-cat',
-      decision_needed: 'closed_reopened_or_blocked',
+      decision_needed: 'closed_next_run_or_blocked',
       review_scope: [
         'Research Board state and event evidence',
         'Claim-to-evidence discipline',

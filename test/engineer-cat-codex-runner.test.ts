@@ -91,9 +91,10 @@ describe('EngineerCat Codex runner role contract', () => {
     }
 
     const spec = fs.readFileSync('docs/roles-skills/SPEC.md', 'utf-8');
-    assert.match(spec, /EngineerCat.*代码与工程接管/);
-    assert.match(spec, /UserCat --> Inspector/);
-    assert.match(spec, /Inspector --> Engineer/);
+    assert.match(spec, /EngineerCat.*代码.*工程/);
+    assert.match(spec, /Inspector --> Gate/);
+    assert.match(spec, /Gate -->\|repair\| Engineer/);
+    assert.match(spec, /Engineer --> Reviewer/);
 
     const plan = fs.readFileSync('docs/roles-skills/PLAN.md', 'utf-8');
     assert.match(plan, /EngineerCat Codex\/coding takeover/);

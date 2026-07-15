@@ -1854,7 +1854,7 @@ function verifyUserTraceCandidate(context: EvalVerifierContext, config: Record<s
       ...stringList(config.forbidden_replay_readiness),
     ]);
     const recommendedOwner = asString(candidateCase.recommended_next_owner);
-    const ownerSet = new Set(['reviewer-cat', 'benchmark-maintainer', 'inspector-cat', 'discard']);
+    const ownerSet = new Set(['benchmark-maintainer', 'inspector-cat', 'discard']);
     const tracePathValue = asString(candidateCase.trace_path);
     const manifestTracePath = asString(manifestRecord.trace_path);
     const curationStatus = asString(candidateCase.curation_status).toLowerCase();
@@ -1887,7 +1887,7 @@ function verifyUserTraceCandidate(context: EvalVerifierContext, config: Record<s
       ...(!ownerSet.has(recommendedOwner) ? [`invalid recommended_next_owner: ${recommendedOwner || '[missing]'}`] : []),
       ...(selfCheckRecord.curation_required !== true ? ['self-check must require curation'] : []),
       ...(selfCheckRecord.benchmark_acceptance !== 'forbidden_until_curated' ? ['self-check must forbid benchmark acceptance until curation'] : []),
-      ...(selfCheckRecord.worth_reviewer_curation !== true ? ['self-check must mark this smoke candidate worth ReviewerCat curation'] : []),
+      ...(selfCheckRecord.worth_inspector_intake !== true ? ['self-check must mark this smoke candidate worth InspectorCat intake'] : []),
       ...(hasFinalJudgement(candidateCase) ? ['candidate case contains final judgement language'] : []),
       ...(hasFinalJudgement(selfCheckRecord) ? ['self-check contains final judgement language'] : []),
     );
@@ -2281,8 +2281,8 @@ function verifyResearcherReviewPacket(context: EvalVerifierContext, config: Reco
   if (normalizeRoleId(asString(requestedReviewer.target_role)) !== expectedReviewerRole) {
     failures.push(`requested reviewer must be ${expectedReviewerRole}`);
   }
-  if (asString(requestedReviewer.decision_needed) !== 'closed_reopened_or_blocked') {
-    failures.push('requested reviewer decision_needed must be closed_reopened_or_blocked');
+  if (asString(requestedReviewer.decision_needed) !== 'closed_next_run_or_blocked') {
+    failures.push('requested reviewer decision_needed must be closed_next_run_or_blocked');
   }
   if (acceptanceBoundary.reviewer_decision_required !== true) {
     failures.push('acceptance boundary must require reviewer_decision_required=true');

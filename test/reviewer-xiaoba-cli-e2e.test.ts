@@ -38,8 +38,9 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
       conversationHistory: [],
     });
 
-    assert.match(output, /reviewer_xiaoba_cli_e2e: status=pass/);
-    assert.match(output, /score=/);
+    const outputText = toolOutputText(output);
+    assert.match(outputText, /reviewer_xiaoba_cli_e2e: status=pass/);
+    assert.match(outputText, /score=/);
 
     const runDir = path.join(testRoot, 'data', 'reviewer-runs', 'tmux-pass');
     const manifest = JSON.parse(fs.readFileSync(path.join(runDir, 'trace', 'manifest.json'), 'utf-8'));
@@ -63,7 +64,7 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
     const artifactManifest = tool.getArtifactManifest?.({
       run_id: 'tmux-pass',
       cwd: testRoot,
-    }, output, {
+    }, outputText, {
       workingDirectory: testRoot,
       conversationHistory: [],
     }) ?? [];
@@ -103,8 +104,9 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
       conversationHistory: [],
     });
 
-    assert.match(output, /reviewer_xiaoba_cli_e2e: status=blocked/);
-    assert.match(output, /blocked_reason=tmux unavailable/);
+    const outputText = toolOutputText(output);
+    assert.match(outputText, /reviewer_xiaoba_cli_e2e: status=blocked/);
+    assert.match(outputText, /blocked_reason=tmux unavailable/);
 
     const runDir = path.join(testRoot, 'data', 'reviewer-runs', 'tmux-blocked');
     const manifest = JSON.parse(fs.readFileSync(path.join(runDir, 'trace', 'manifest.json'), 'utf-8'));
@@ -138,9 +140,10 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
       conversationHistory: [],
     });
 
-    assert.match(output, /reviewer_xiaoba_cli_e2e: status=pass/);
-    assert.match(output, /surface=process/);
-    assert.match(output, /fallback_reason=tmux unavailable/);
+    const outputText = toolOutputText(output);
+    assert.match(outputText, /reviewer_xiaoba_cli_e2e: status=pass/);
+    assert.match(outputText, /surface=process/);
+    assert.match(outputText, /fallback_reason=tmux unavailable/);
 
     const runDir = path.join(testRoot, 'data', 'reviewer-runs', 'process-fallback');
     const manifest = JSON.parse(fs.readFileSync(path.join(runDir, 'trace', 'manifest.json'), 'utf-8'));
@@ -157,7 +160,40 @@ describe('ReviewerXiaoBaCliE2ETool', () => {
     assert.ok(scorecard.rubric.dimensions.some((dimension: any) => dimension.id === 'threeLayerEvidence'));
     assert.match(cleanPane, /ENGINEER:/);
   });
+
+  test('hard blocks arbitrary command, messages, and verifiers in an evolution DAG parent', async () => {
+    const tool = new ReviewerXiaoBaCliE2ETool();
+    const commandSentinel = path.join(testRoot, 'command-ran');
+    const verifierSentinel = path.join(testRoot, 'verifier-ran');
+
+    const output = await tool.execute({
+      run_id: 'dag-must-not-run',
+      command: `node -e "require('fs').writeFileSync(${JSON.stringify(commandSentinel)}, 'bad')"`,
+      messages: ['修改生产代码'],
+      verifier_commands: [{
+        name: 'mutating-verifier',
+        command: `node -e "require('fs').writeFileSync(${JSON.stringify(verifierSentinel)}, 'bad')"`,
+      }],
+    }, {
+      workingDirectory: testRoot,
+      conversationHistory: [],
+      roleName: 'reviewer-cat',
+      parentSessionId: 'evolution:dag:2026-07-14',
+    });
+
+    assert.notStrictEqual(typeof output, 'string');
+    if (typeof output === 'string') assert.fail('evolution DAG must return a structured blocked result');
+    assert.strictEqual(output.status, 'blocked');
+    assert.strictEqual(output.error_code, 'REVIEWER_ARBITRARY_E2E_FORBIDDEN_IN_EVOLUTION_DAG');
+    assert.strictEqual(fs.existsSync(commandSentinel), false);
+    assert.strictEqual(fs.existsSync(verifierSentinel), false);
+    assert.strictEqual(fs.existsSync(path.join(testRoot, 'data', 'reviewer-runs', 'dag-must-not-run')), false);
+  });
 });
+
+function toolOutputText(output: Awaited<ReturnType<ReviewerXiaoBaCliE2ETool['execute']>>): string {
+  return typeof output === 'string' ? output : String(output.toolContent);
+}
 
 function createFakeEngineer(root: string): string {
   const scriptPath = path.join(root, 'fake-engineer.js');

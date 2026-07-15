@@ -5,6 +5,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { RoleManager } from '../src/roles/role-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
+import { createRoleAwareToolManager } from '../src/bootstrap/tool-manager';
+import { getRoleSpecificToolsForRole } from '../src/roles/runtime-role-registry';
 
 const originalCwd = process.cwd();
 const originalRole = process.env.XIAOBA_ROLE;
@@ -83,6 +85,56 @@ describe('RoleManager', () => {
       () => RoleManager.removeRole('base'),
       /Base role cannot be removed/,
     );
+  });
+
+  test('discovers only active roles while allowing exact candidate selection', () => {
+    writeRole(testRoot, 'candidate-cat', {
+      name: 'candidate-cat',
+      displayName: 'CandidateCat',
+      aliases: ['candidate-alias'],
+      status: 'candidate',
+    });
+    writeRole(testRoot, 'blocked-cat', {
+      name: 'blocked-cat',
+      displayName: 'BlockedCat',
+      aliases: ['blocked-alias'],
+      status: 'blocked',
+    });
+
+    assert.deepStrictEqual(RoleResolver.listAvailableRoles(), ['engineer-cat', 'reviewer-cat']);
+    assert.deepStrictEqual(
+      RoleResolver.listManagedRoles(),
+      ['blocked-cat', 'candidate-cat', 'engineer-cat', 'reviewer-cat'],
+    );
+    assert.strictEqual(RoleResolver.resolveRoleDirectoryName('candidate-cat'), 'candidate-cat');
+    assert.strictEqual(RoleResolver.resolveRoleDirectoryName('candidate-alias'), undefined);
+    assert.strictEqual(RoleResolver.resolveRoleDirectoryName('blocked-cat'), undefined);
+    assert.strictEqual(RoleResolver.resolveRoleDirectoryName('blocked-alias'), undefined);
+
+    RoleResolver.activateRole('candidate-cat');
+    assert.strictEqual(RoleResolver.getActiveRoleName(), 'candidate-cat');
+    assert.throws(() => RoleResolver.activateRole('blocked-cat'), /未找到角色/);
+
+    const summaries = RoleManager.listRoles();
+    assert.strictEqual(summaries.find(role => role.name === 'engineer-cat')?.status, 'active');
+    assert.strictEqual(summaries.find(role => role.name === 'candidate-cat')?.status, 'candidate');
+    assert.strictEqual(summaries.find(role => role.name === 'blocked-cat')?.status, 'blocked');
+    assert.strictEqual(RoleManager.getRole('blocked-alias')?.name, 'blocked-cat');
+  });
+
+  test('does not let raw role names bypass blocked resolution', () => {
+    writeRole(testRoot, 'engineer-cat', {
+      name: 'engineer-cat',
+      displayName: 'EngineerCat',
+      status: 'blocked',
+    });
+
+    assert.strictEqual(RoleResolver.resolveRoleDirectoryName('engineer-cat'), undefined);
+    assert.throws(
+      () => createRoleAwareToolManager(testRoot, { roleName: 'engineer-cat' }, 'engineer-cat'),
+      /unavailable or blocked/,
+    );
+    assert.deepStrictEqual(getRoleSpecificToolsForRole('engineer-cat'), []);
   });
 });
 

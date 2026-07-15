@@ -7,6 +7,7 @@ import { configCommand } from './commands/config';
 import { registerSkillCommand } from './commands/skill';
 import { registerRoleCommand } from './commands/role';
 import { registerArenaCommand } from './commands/arena';
+import { registerEvolutionCommand } from './commands/evolution';
 import { feishuCommand } from './commands/feishu';
 import { APP_VERSION } from './version';
 import { RoleResolver } from './utils/role-resolver';
@@ -112,7 +113,7 @@ async function main() {
     .option('--out <dir>', '输出目录')
     .option('--cwd <dir>', '工作目录，默认当前目录')
     .option('--pet-id <id>', 'Pet id，默认从 trace session_id 推断')
-    .option('--session-key <key>', '新的 replay session key')
+    .option('--session-key <key>', 'replay session key 前缀（runtime 会追加 replay provenance）')
     .option('--max-turns <n>', '只复跑前 n 个用户输入')
     .option('--timeout-ms <n>', '单轮超时时间，默认 180000'))
     .action(async (options) => {
@@ -128,6 +129,9 @@ async function main() {
 
   // Arena 能力审判场命令
   registerArenaCommand(program);
+
+  // EvolutionCat 夜间演化入口
+  registerEvolutionCommand(program);
 
   // 默认命令 - 进入交互模式
   program

@@ -44,16 +44,6 @@ benchmarks/BioBench/
 # Generated or local skill content
 /skills/*
 !/skills/README.md
-!/skills/agent-browser/
-!/skills/agent-browser/**
-!/skills/self-evolution/
-!/skills/self-evolution/**
-!/skills/role-publish/
-!/skills/role-publish/**
-!/skills/skill-publish/
-!/skills/skill-publish/**
-!/skills/remember/
-!/skills/remember/**
 skills/_crafted/
 skills/_learned/
 skills/bio-skills/
@@ -61,8 +51,6 @@ skills/bio-skills/
 # Default tracked roles
 /roles/*
 !/roles/README.md
-!/roles/SPEC.md
-!/roles/PLAN.md
 !/roles/user-cat/
 !/roles/user-cat/**
 !/roles/inspector-cat/
@@ -81,6 +69,8 @@ skills/bio-skills/
 !/roles/secretary-cat/prompts/**
 !/roles/secretary-cat/skills/
 !/roles/secretary-cat/skills/**
+!/roles/evolution-cat/
+!/roles/evolution-cat/**
 
 # Python caches
 __pycache__/

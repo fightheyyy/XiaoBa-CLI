@@ -15,6 +15,7 @@ import { RoleResolver } from '../../utils/role-resolver';
 import { RoleManager } from '../../roles/role-manager';
 import { SkillParser } from '../../skills/skill-parser';
 import type { Skill } from '../../types/skill';
+import { CapabilityStatus, parseCapabilityStatus } from '../../types/capability-status';
 import matter from 'gray-matter';
 import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
@@ -230,7 +231,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const activeRole = getDashboardActiveRole();
       const roles = [
         getBaseRoleSummary(activeRole),
-        ...RoleResolver.listAvailableRoles().map(roleName => getRoleSummary(roleName, activeRole)),
+        ...RoleManager.listRoles().map(role => getRoleSummary(role.name, activeRole)),
       ];
       res.json({
         active: activeRole || null,
@@ -265,6 +266,50 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     }
   });
 
+  router.post('/roles/:name/block', (req, res) => {
+    try {
+      const role = RoleManager.getRole(req.params.name);
+      if (!role) throw new Error(`Role not found: ${req.params.name}`);
+      const transition = transitionRoleStatus(req.params.name, ['active', 'candidate'], 'blocked');
+      if (role.active) {
+        RoleResolver.clearActiveRole();
+      }
+      const runningServices = serviceManager.getAll().filter(service => service.status === 'running');
+      res.json({
+        ok: true,
+        ...transition,
+        active: getDashboardActiveRole(),
+        requiresRestart: runningServices.length > 0,
+      });
+    } catch (e: any) {
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
+    }
+  });
+
+  router.post('/roles/:name/unblock', (req, res) => {
+    try {
+      res.json({
+        ok: true,
+        ...transitionRoleStatus(req.params.name, ['blocked'], 'candidate'),
+        active: getDashboardActiveRole(),
+      });
+    } catch (e: any) {
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
+    }
+  });
+
+  router.post('/roles/:name/promote', (req, res) => {
+    try {
+      res.json({
+        ok: true,
+        ...transitionRoleStatus(req.params.name, ['candidate'], 'active'),
+        active: getDashboardActiveRole(),
+      });
+    } catch (e: any) {
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
+    }
+  });
+
   router.delete('/roles/:name', (req, res) => {
     try {
       const result = RoleManager.removeRole(req.params.name);
@@ -289,7 +334,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const skills = await withTemporaryRole(roleName, async () => {
         const manager = new SkillManager();
         await manager.loadSkills();
-        return manager.getAllSkills().map(s => ({
+        return manager.getAllManagedSkills().map(s => ({
           name: s.metadata.name,
           aliases: s.metadata.aliases || [],
           description: s.metadata.description,
@@ -297,6 +342,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
           userInvocable: s.metadata.userInvocable !== false,
           autoInvocable: s.metadata.autoInvocable !== false,
           maxTurns: s.metadata.maxTurns || null,
+          status: s.metadata.status || 'active',
           path: s.filePath,
           roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
         }));
@@ -403,7 +449,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
         if (isDashboardHiddenSkill(summary)) return;
         summaries.set(normalizeSkillLookupName(summary.name), summary);
       };
-      manager.getAllSkills().map(s => toDashboardSkillSummary(s, true)).forEach(addSummary);
+      manager.getAllManagedSkills().map(s => toDashboardSkillSummary(s)).forEach(addSummary);
       findEnabledBaseSkillsForDashboard().forEach(addSummary);
       findDisabledSkillsForDashboard().forEach(addSummary);
       res.json([...summaries.values()]);
@@ -416,7 +462,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      res.json(manager.getAllSkills().map(s => ({
+      res.json(manager.getAllManagedSkills().map(s => ({
         name: s.metadata.name,
         aliases: s.metadata.aliases || [],
         description: s.metadata.description,
@@ -424,6 +470,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
         userInvocable: s.metadata.userInvocable !== false,
         autoInvocable: s.metadata.autoInvocable !== false,
         maxTurns: s.metadata.maxTurns || null,
+        status: s.metadata.status || 'active',
         path: s.filePath,
         roleOwned: s.filePath.includes(`${path.sep}roles${path.sep}`),
         files: getSkillFiles(s.filePath),
@@ -437,12 +484,13 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      const skill = manager.getSkill(req.params.name);
+      const skill = manager.getManagedSkill(req.params.name);
       if (!skill) return res.status(404).json({ error: 'Skill not found' });
       res.json({
         name: skill.metadata.name,
         aliases: skill.metadata.aliases || [],
         description: skill.metadata.description,
+        status: skill.metadata.status || 'active',
         content: skill.content,
         path: skill.filePath,
         roleOwned: skill.filePath.includes(`${path.sep}roles${path.sep}`),
@@ -457,7 +505,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      const skill = manager.getSkill(req.params.name);
+      const skill = manager.getManagedSkill(req.params.name);
       if (!skill) {
         const disabled = findDisabledSkillForDashboard(req.params.name);
         if (disabled) {
@@ -480,25 +528,47 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
 
   router.post('/skills/:name/disable', async (req, res) => {
     try {
-      const manager = new SkillManager();
-      await manager.loadSkills();
-      const skill = manager.getSkill(req.params.name);
-      if (!skill) return res.status(404).json({ error: 'Skill not found' });
-      fs.renameSync(skill.filePath, skill.filePath + '.disabled');
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        ...await transitionSkillStatus(req.params.name, ['active', 'candidate'], 'blocked'),
+      });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
     }
   });
 
+  // Legacy endpoint retained for callers that still say "enable". Its lifecycle
+  // meaning is intentionally only unblock -> candidate, never promotion.
   router.post('/skills/:name/enable', async (req, res) => {
     try {
-      const f = findDisabledSkillForDashboard(req.params.name);
-      if (!f) return res.status(404).json({ error: 'Disabled skill not found' });
-      fs.renameSync(f, f.slice(0, -DISABLED_SKILL_SUFFIX.length));
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        ...await transitionSkillStatus(req.params.name, ['blocked'], 'candidate'),
+      });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
+    }
+  });
+
+  router.post('/skills/:name/unblock', async (req, res) => {
+    try {
+      res.json({
+        ok: true,
+        ...await transitionSkillStatus(req.params.name, ['blocked'], 'candidate'),
+      });
+    } catch (e: any) {
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
+    }
+  });
+
+  router.post('/skills/:name/promote', async (req, res) => {
+    try {
+      res.json({
+        ok: true,
+        ...await transitionSkillStatus(req.params.name, ['candidate'], 'active'),
+      });
+    } catch (e: any) {
+      res.status(lifecycleErrorStatus(e)).json({ error: e.message });
     }
   });
 
@@ -517,7 +587,7 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
       const registry = mergeRegistries(local, remote);
       const manager = new SkillManager();
       await manager.loadSkills();
-      const installed = new Set(manager.getAllSkills().map(s => s.metadata.name));
+      const installed = new Set(manager.getAllManagedSkills().map(s => s.metadata.name));
       // 也算上disabled的
       const disabled = findDisabledSkillsForDashboard();
       disabled.forEach(s => installed.add(s.name));
@@ -563,11 +633,18 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
         return res.status(500).json({ error: 'Skill 安装失败，请检查 URL 是否正确' });
       }
 
+      const installedSkills = markInstalledSkillsCandidate(targetDir);
+
       // 安装依赖
       installPythonDeps(targetDir, warnings);
       installSkillNpmDeps(targetDir);
 
-      res.json({ ok: true, warnings: warnings.length > 0 ? warnings : undefined });
+      res.json({
+        ok: true,
+        status: 'candidate',
+        skills: installedSkills,
+        warnings: warnings.length > 0 ? warnings : undefined,
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -603,11 +680,19 @@ export function createApiRouter(serviceManager: ServiceManager, options: Dashboa
         return res.status(500).json({ error: 'Skill 安装失败，请检查 URL 是否正确' });
       }
 
+      const installedSkills = markInstalledSkillsCandidate(targetDir);
+
       // 安装依赖
       installPythonDeps(targetDir, warnings);
       installSkillNpmDeps(targetDir);
 
-      res.json({ ok: true, name: repoName, warnings: warnings.length > 0 ? warnings : undefined });
+      res.json({
+        ok: true,
+        name: repoName,
+        status: 'candidate',
+        skills: installedSkills,
+        warnings: warnings.length > 0 ? warnings : undefined,
+      });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -917,6 +1002,7 @@ function getBaseRoleSummary(activeRole?: string | null): any {
     aliases: ['default', 'none'],
     promptFile: 'system-prompt.md',
     active: !activeRole,
+    status: 'active',
     path: null,
     roleSkillCount: 0,
     roleSkills: [],
@@ -929,7 +1015,10 @@ function getRoleSummary(roleName: string, activeRole?: string | null): any {
     return getBaseRoleSummary(activeRole);
   }
 
-  const resolvedRoleName = RoleResolver.resolveRoleDirectoryName(roleName) || roleName;
+  const resolvedRoleName = RoleResolver.resolveManagedRoleDirectoryName(roleName);
+  if (!resolvedRoleName) {
+    throw new Error(`Role not found: ${roleName}`);
+  }
   const config = RoleResolver.getRoleConfig(resolvedRoleName);
   const rolePath = path.join(RoleResolver.getRolesRoot(), resolvedRoleName);
   const roleSkills = listRoleOwnedSkills(rolePath);
@@ -943,6 +1032,7 @@ function getRoleSummary(roleName: string, activeRole?: string | null): any {
     inheritBaseSkills: config?.inheritBaseSkills !== false,
     excludeBaseSkills: config?.excludeBaseSkills || [],
     active: !!activeRole && RoleResolver.normalizeRoleName(activeRole) === RoleResolver.normalizeRoleName(resolvedRoleName),
+    status: config?.status || 'active',
     path: fs.existsSync(rolePath) ? rolePath : null,
     roleSkillCount: roleSkills.length,
     roleSkills,
@@ -1035,9 +1125,14 @@ interface DashboardSkillSummary {
   roleOwned: boolean;
   files: string[];
   enabled: boolean;
+  status: CapabilityStatus;
 }
 
-function toDashboardSkillSummary(skill: Skill, enabled: boolean): DashboardSkillSummary {
+function toDashboardSkillSummary(
+  skill: Skill,
+  enabled: boolean = skill.metadata.status !== 'blocked',
+): DashboardSkillSummary {
+  const status: CapabilityStatus = enabled ? (skill.metadata.status || 'active') : 'blocked';
   return {
     name: skill.metadata.name,
     aliases: skill.metadata.aliases || [],
@@ -1050,6 +1145,7 @@ function toDashboardSkillSummary(skill: Skill, enabled: boolean): DashboardSkill
     roleOwned: skill.filePath.includes(`${path.sep}roles${path.sep}`),
     files: getSkillFiles(skill.filePath),
     enabled,
+    status,
   };
 }
 
@@ -1090,7 +1186,7 @@ function findEnabledBaseSkillsForDashboard(): DashboardSkillSummary[] {
   return PathResolver.findSkillFiles(PathResolver.getBaseSkillsPath())
     .map(skillFile => {
       try {
-        return toDashboardSkillSummary(SkillParser.parse(skillFile), true);
+        return toDashboardSkillSummary(SkillParser.parse(skillFile));
       } catch {
         return null;
       }
@@ -1192,6 +1288,9 @@ function parseSkillFrontmatterSummary(skillFile: string, fallbackName: string, e
   const content = fs.readFileSync(skillFile, 'utf-8');
   const { data } = matter(content);
   const name = asNonEmptyString(data.name) || fallbackName;
+  const status: CapabilityStatus = enabled
+    ? parseCapabilityStatus(data.status, `skill ${name}`)
+    : 'blocked';
   return {
     name,
     aliases: Array.isArray(data.aliases) ? data.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
@@ -1204,7 +1303,111 @@ function parseSkillFrontmatterSummary(skillFile: string, fallbackName: string, e
     roleOwned: skillFile.includes(`${path.sep}roles${path.sep}`),
     files: getSkillFiles(skillFile),
     enabled,
+    status,
   };
+}
+
+interface CapabilityStatusTransition {
+  name: string;
+  previous_status: CapabilityStatus;
+  status: CapabilityStatus;
+}
+
+async function transitionSkillStatus(
+  name: string,
+  expectedStatuses: CapabilityStatus[],
+  nextStatus: CapabilityStatus,
+): Promise<CapabilityStatusTransition> {
+  const manager = new SkillManager();
+  await manager.loadSkills();
+  const skill = manager.getManagedSkill(name);
+  if (skill) {
+    const currentStatus = skill.metadata.status || 'active';
+    assertLifecycleTransition('Skill', skill.metadata.name, currentStatus, expectedStatuses, nextStatus);
+    updateSkillStatus(skill.filePath, nextStatus);
+    return {
+      name: skill.metadata.name,
+      previous_status: currentStatus,
+      status: nextStatus,
+    };
+  }
+
+  const disabledFile = findDisabledSkillForDashboard(name);
+  if (!disabledFile) {
+    throw new Error(`Skill not found: ${name}`);
+  }
+  const disabled = parseDisabledSkill(disabledFile, path.basename(path.dirname(disabledFile)));
+  const currentStatus: CapabilityStatus = 'blocked';
+  assertLifecycleTransition('Skill', disabled.name, currentStatus, expectedStatuses, nextStatus);
+  const enabledPath = disabledFile.slice(0, -DISABLED_SKILL_SUFFIX.length);
+  fs.renameSync(disabledFile, enabledPath);
+  updateSkillStatus(enabledPath, nextStatus);
+  return {
+    name: disabled.name,
+    previous_status: currentStatus,
+    status: nextStatus,
+  };
+}
+
+function transitionRoleStatus(
+  name: string,
+  expectedStatuses: CapabilityStatus[],
+  nextStatus: CapabilityStatus,
+): CapabilityStatusTransition {
+  const resolved = RoleResolver.resolveManagedRoleDirectoryName(name);
+  if (!resolved) {
+    throw new Error(`Role not found: ${name}`);
+  }
+  const configPath = path.join(RoleResolver.getRolesRoot(), resolved, 'role.json');
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Role not found: ${name}`);
+  }
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+  const currentStatus = parseCapabilityStatus(config.status, `role ${resolved}`);
+  assertLifecycleTransition('Role', resolved, currentStatus, expectedStatuses, nextStatus);
+  fs.writeFileSync(configPath, `${JSON.stringify({ ...config, status: nextStatus }, null, 2)}\n`, 'utf-8');
+  return {
+    name: resolved,
+    previous_status: currentStatus,
+    status: nextStatus,
+  };
+}
+
+function assertLifecycleTransition(
+  kind: 'Skill' | 'Role',
+  name: string,
+  currentStatus: CapabilityStatus,
+  expectedStatuses: CapabilityStatus[],
+  nextStatus: CapabilityStatus,
+): void {
+  if (expectedStatuses.includes(currentStatus)) return;
+  throw new Error(
+    `${kind} "${name}" is ${currentStatus}; ${nextStatus} requires status ${expectedStatuses.join(' or ')}.`,
+  );
+}
+
+function lifecycleErrorStatus(error: unknown): number {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/not found/i.test(message)) return 404;
+  if (/requires status/i.test(message)) return 409;
+  return 400;
+}
+
+function updateSkillStatus(skillFile: string, status: CapabilityStatus): void {
+  SkillParser.updateStatus(skillFile, status);
+}
+
+function markInstalledSkillsCandidate(skillRoot: string): string[] {
+  const skillFiles = PathResolver.findSkillFiles(skillRoot);
+  if (skillFiles.length === 0) {
+    fs.rmSync(skillRoot, { recursive: true, force: true });
+    throw new Error('安装包中没有找到有效的 SKILL.md');
+  }
+  const skills = skillFiles.map(filePath => SkillParser.parse(filePath));
+  for (const skill of skills) {
+    SkillParser.updateStatus(skill.filePath, 'candidate');
+  }
+  return skills.map(skill => skill.metadata.name);
 }
 
 function asNonEmptyString(value: unknown): string | null {

@@ -18,10 +18,11 @@ export type LongTermMemoryKind = 'preference' | 'habit' | 'instruction' | 'fact'
 export type LongTermMemoryConfidence = 'high' | 'medium';
 
 export interface MemorySourceRef {
-  kind: 'compact_message' | 'transcript' | 'markdown';
+  kind: 'compact_message' | 'transcript' | 'markdown' | 'tool';
   prefix?: string;
   messageIndex?: number;
   role?: Message['role'];
+  toolName?: string;
 }
 
 export interface LongTermMemoryRecord {
@@ -61,6 +62,22 @@ export interface FinalizeSessionOptions {
   now?: Date;
 }
 
+export interface RememberMemoryOptions {
+  kind?: LongTermMemoryKind;
+  now?: Date;
+  rootDir?: string;
+}
+
+export interface RememberMemoryResult {
+  version: 1;
+  sessionKeyHash: string;
+  updatedAt: string;
+  memoryPath: string;
+  action: 'created' | 'updated';
+  record: LongTermMemoryRecord;
+  totalRecords: number;
+}
+
 interface IndexedText {
   text: string;
   source: MemorySourceRef;
@@ -89,16 +106,17 @@ export class MemoryFinalizer {
     return createHash('sha256').update(sessionKey).digest('hex').slice(0, 24);
   }
 
-  static getSessionDir(sessionKey: string): string {
-    return path.join(MEMORY_ROOT, 'sessions', this.hashSessionKey(sessionKey));
+  static getSessionDir(sessionKey: string, rootDir?: string): string {
+    const memoryRoot = rootDir ? path.resolve(rootDir, 'memory') : MEMORY_ROOT;
+    return path.join(memoryRoot, 'sessions', this.hashSessionKey(sessionKey));
   }
 
-  static getMemoryPath(sessionKey: string): string {
-    return path.join(this.getSessionDir(sessionKey), 'MEMORY.md');
+  static getMemoryPath(sessionKey: string, rootDir?: string): string {
+    return path.join(this.getSessionDir(sessionKey, rootDir), 'MEMORY.md');
   }
 
-  static loadSessionMemory(sessionKey: string): SessionLongTermMemory | null {
-    const memoryPath = this.getMemoryPath(sessionKey);
+  static loadSessionMemory(sessionKey: string, rootDir?: string): SessionLongTermMemory | null {
+    const memoryPath = this.getMemoryPath(sessionKey, rootDir);
     if (!fs.existsSync(memoryPath)) {
       return null;
     }
@@ -155,6 +173,70 @@ export class MemoryFinalizer {
       memoryPath,
       added,
       records,
+      totalRecords: records.length,
+    };
+  }
+
+  static remember(
+    sessionKey: string,
+    value: string,
+    options: RememberMemoryOptions = {},
+  ): RememberMemoryResult {
+    const normalizedSessionKey = sessionKey.trim();
+    if (!normalizedSessionKey) {
+      throw new Error('session key is required');
+    }
+
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      throw new Error('memory content is required');
+    }
+
+    const now = options.now ?? new Date();
+    const timestamp = now.toISOString();
+    const memoryPath = this.getMemoryPath(normalizedSessionKey, options.rootDir);
+    const existing = fs.existsSync(memoryPath) ? readMemoryRecords(memoryPath) : [];
+    const text = normalizeMemoryText(normalizedValue);
+    const kind = options.kind ?? classifyMemoryKind(text);
+    const candidate = makeRecord(
+      kind,
+      text,
+      { kind: 'tool', toolName: 'remember' },
+      timestamp,
+      'high',
+    );
+    const previous = existing.find(record => record.id === candidate.id);
+    const record: LongTermMemoryRecord = previous
+      ? {
+          ...previous,
+          source: candidate.source,
+          confidence: 'high',
+          updatedAt: timestamp,
+        }
+      : candidate;
+    const otherKinds = existing.filter(item => item.kind !== record.kind);
+    const sameKind = existing
+      .filter(item => item.kind === record.kind && item.id !== record.id)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .slice(0, MAX_RECORDS_PER_KIND - 1);
+    const records = sortRecords([...otherKinds, ...sameKind, record]);
+
+    writeMemoryMarkdown(memoryPath, {
+      version: 1,
+      scope: 'session-person',
+      sessionKeyHash: this.hashSessionKey(normalizedSessionKey),
+      loadPolicy: 'on_demand',
+      updatedAt: timestamp,
+      records,
+    });
+
+    return {
+      version: 1,
+      sessionKeyHash: this.hashSessionKey(normalizedSessionKey),
+      updatedAt: timestamp,
+      memoryPath,
+      action: previous ? 'updated' : 'created',
+      record,
       totalRecords: records.length,
     };
   }
@@ -420,6 +502,7 @@ function stableId(kind: string, value: string): string {
 function sourceLabel(source: MemorySourceRef): string {
   if (source.kind === 'compact_message') return 'compact_session_memory';
   if (source.kind === 'transcript' && source.role === 'user') return 'user_message';
+  if (source.kind === 'tool') return source.toolName || 'runtime_tool';
   return source.kind;
 }
 

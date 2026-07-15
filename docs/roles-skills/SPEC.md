@@ -1,7 +1,7 @@
 # Roles & Skills SPEC
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-15
 适用范围：`roles/`、`src/roles/`、`skills/`、`src/skills/` 和 Base Main Agent 使用的角色/技能策略。
 
 本文是 XiaoBa-CLI 六个顶层模块之一 `Roles & Skills` 的唯一架构真相源。角色实现直接由 `role.json`、prompt、role-local `SKILL.md`、`src/roles/**` 和测试表达；不再为每个角色复制 SPEC/PLAN/README。用户用法统一维护在 [`../../roles/README.md`](../../roles/README.md) 和 [`../../skills/README.md`](../../skills/README.md)。
@@ -10,7 +10,7 @@
 
 XiaoBa 需要让一个面向用户的 Base Main Agent 把专业工作交给角色 Subagent，同时避免出现第二套控制平面、第二套 agent loop 或把外部 capability driver 误当成 Agent。
 
-稳定结构已经实现为一个 Base Main Agent 加七个默认角色 Subagent。三个角色负责自进化审查，EngineerCat、BrowserCat、GuiCat 和 SecretaryCat 负责代码、浏览器、桌面与飞书工作流接管；EngineerCat 是审查侧与执行侧之间的修复执行连接点。
+稳定结构已经实现为一个 Base Main Agent 加八个默认角色 Subagent。四个功能型 Role——EngineerCat、BrowserCat、GuiCat、SecretaryCat——直接接管用户任务；四个内部持续改进 Role——UserCat、InspectorCat、EvolutionCat、ReviewerCat——按需参与评测、自进化和正式回放。两组复用同一 Agent loop，不是两套控制平面；EngineerCat 仍是代码实现与返工的唯一 owner。
 
 ## Scope
 
@@ -18,7 +18,7 @@ In scope:
 
 - Base Main Agent 与默认角色的责任边界。
 - 默认角色的拓扑、prompt、role-local skills 和 role-scoped tools。
-- shared skills、role-local skills、加载、激活和可见性策略。
+- 显式安装的 standalone skills、role-local skills、加载、激活和可见性策略。
 - role-only subagent dispatch、默认角色打包和角色生命周期。
 - EngineerCat、BrowserCat、GuiCat 使用的确定性执行 adapter 边界。
 
@@ -31,121 +31,87 @@ Out of scope:
 
 ## Current Architecture
 
-当前实现已经使用 Base Main Agent 作为唯一面向用户的主 Agent 和调度入口。跨角色工作通过 `spawn_subagent(role_name=...)` 进入共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。
+当前实现使用 Base Main Agent 作为唯一面向用户的主 Agent 和普通会话 dispatcher。跨角色工作通过共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。八个默认 Role 分为四个功能型 Role 和四个内部持续改进 Role，但仍运行在同一控制平面。定时自进化不经过 Base：scheduler 启动固定 `EvolutionDAGRunner`，runtime 只 harvest 一次，随后直接等待 InspectorCat，并按类型化 route 进入 EvolutionCat、EngineerCat、ReviewerCat 或终止。EvolutionCat 只能在 run-local 目录生成 Candidate Skill / Role；Arena 能直接导入隔离 candidate；ReviewerCat 不再拥有 Codex 实现控制工具。Skill / Role loader 已执行 `candidate | active | blocked` 三态，旧资产缺省为 `active`。
 
 ```mermaid
 flowchart LR
-    Surface["CLI / IM / Dashboard / Pet"] --> Base["Base Main Agent<br/>沟通 / 判断 / 派遣 / 回收"]
-    Base --> Dispatch["role-only subagent dispatch"]
+    Surface["CLI / IM / Dashboard / Pet"] --> Base["Base Main Agent<br/>user-facing dispatch"]
+    Base --> Functional["4 Functional Roles<br/>Engineer / Browser / Gui / Secretary"]
+    Base --> Internal["4 Internal Improvement Roles<br/>User / Inspector / Evolution / Reviewer"]
 
-    subgraph Review["自进化审查侧"]
-        UserCat["UserCat"]
-        Inspector["InspectorCat"]
-        Reviewer["ReviewerCat"]
-    end
-
-    subgraph Execution["执行接管侧"]
-        Engineer["EngineerCat<br/>Codex / coding"]
-        Browser["BrowserCat<br/>official core Skill + typed tools"]
-        GUI["GuiCat<br/>official Peekaboo Skill + typed tools"]
-        Secretary["SecretaryCat / FeishuCat<br/>official lark-cli"]
-    end
-
-    Dispatch --> UserCat
-    Dispatch --> Inspector
-    Dispatch --> Reviewer
-    Dispatch --> Engineer
-    Dispatch --> Browser
-    Dispatch --> GUI
-    Dispatch --> Secretary
-
-    UserCat --> SharedLoop["XiaoBa Agent loop"]
-    Inspector --> SharedLoop
-    Reviewer --> SharedLoop
-    Engineer --> SharedLoop
-    Browser --> SharedLoop
-    GUI --> SharedLoop
-    Secretary --> SharedLoop
-
-    SharedSkills["shared / role-local skills"] --> SharedLoop
-    SharedLoop --> Tools["role-scoped tools / adapters"]
+    Traces["Session Traces"] --> Inspector["InspectorCat<br/>diagnose + route"]
+    Inspector --> Gate{"Route Gate"}
+    Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
+    Evolution --> Arena["Arena<br/>multi-case evaluation"]
+    Gate -->|repair| Engineer["EngineerCat<br/>fix"]
+    Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
+    Gate -->|replay| Reviewer
+    Gate -->|no_op| NoOp["terminal no-op"]
 ```
 
 ## Target Architecture
 
-目标拓扑已经实现，不引入 RouterCat、Recovery Role 或 driver-side Agent。BrowserCat 原样 vendoring 与固定 `agent-browser` 版本匹配的官方完整 `core` Skill 并携带 Apache-2.0 LICENSE；GuiCat 原样 vendoring 官方 Peekaboo Skill 并携带 MIT LICENSE。Skill 是 instruction asset，即使正文描述 raw CLI、Agent 或 MCP，也不能扩大角色的 ToolManager 权限。生产执行仍只经过 XiaoBa 的类型化 `browser_*` / `gui_*` 工具，driver package 只提供 CLI 二进制。SecretaryCat 负责飞书工作流接管，但不复制官方 CLI 的 Agent loop、API client 或通用领域能力。Feishu Surface 配置的 App ID 是 XiaoBa 的 canonical application identity；SecretaryCat 显式选择官方 `lark-cli` 中 App ID 相同的 profile，`bot` 与 `user` 只是同一应用下的两种 actor identity。
+目标拓扑是 Base Main Agent 加八个默认 Role Subagents：四个功能型 Role 直接承接用户任务，四个内部持续改进 Role 按 workflow 场景参与，不引入 RouterCat、Recovery Role 或 driver-side Agent。Base 只负责用户沟通、判断和普通会话中的 role dispatch，不参与定时自进化链路，也不常驻 default base Skill。定时器直接启动一个固定、确定性的自进化 DAG：runtime 只采集 trace、验证类型化合同并按 `evolution | repair | replay | no_op` 路由；InspectorCat 是第一个模型角色。EvolutionCat 只处理 Inspector 交付的跨任务、可泛化模式，并在隔离目录生成 Candidate Skill / Role；EngineerCat 只处理工程修复；ReviewerCat 只做正式回放与关闭判断；候选能力统一交给独立 Arena 多 case 评测。`remember` 仍是 EvolutionCat 独占的确定性 role tool，`self-evolution`、`skill-publish`、`role-publish` 仍是它的 role-local Skills。BrowserCat、GuiCat 和 SecretaryCat 的 driver/Skill 权限边界保持不变。
 
 ```mermaid
 flowchart LR
-    User["用户"] --> Base["Base Main Agent<br/>沟通 / 判断 / 派遣 / 回收"]
+    User["用户"] --> Base["Base Main Agent<br/>沟通 / 判断 / role dispatch<br/>0 default Skills"]
+    Base --> Functional["4 Functional Roles<br/>Engineer / Browser / Gui / Secretary"]
+    Base --> Internal["4 Internal Improvement Roles<br/>User / Inspector / Evolution / Reviewer"]
 
-    subgraph Review["自进化审查侧"]
-        UserCat["UserCat<br/>用户压力 / 候选 Trace"]
-        Inspector["InspectorCat<br/>发现问题 / 路由"]
-        Reviewer["ReviewerCat<br/>复跑 / 验收 / reopen"]
-    end
-
-    subgraph Execution["执行接管侧"]
-        Engineer["EngineerCat<br/>代码与工程接管"]
-        Browser["BrowserCat<br/>浏览器接管"]
-        GUI["GuiCat<br/>桌面 GUI 接管"]
-        Secretary["SecretaryCat / FeishuCat<br/>飞书工作流接管"]
-    end
-
-    Base --> UserCat
-    Base --> Inspector
-    Base --> Reviewer
-    Base --> Engineer
-    Base --> Browser
-    Base --> GUI
-    Base --> Secretary
-
-    SurfaceApp["Feishu Surface<br/>canonical App ID"] --> Secretary
-    Secretary --> LarkProfile["official lark-cli profile<br/>same App ID"]
-
-    Browser --> BrowserSkill["official agent-browser core Skill<br/>v0.31.1 vendored + Apache-2.0"]
-    BrowserSkill --> BrowserAdapter["typed browser_* adapter"]
-    BrowserAdapter --> AgentBrowserPackage["required agent-browser 0.31.1<br/>CLI only"]
-
-    GUI --> GuiSkill["official Peekaboo Skill<br/>vendored + MIT LICENSE"]
-    GuiSkill --> GuiAdapter["typed gui_* adapter"]
-    GuiAdapter --> PeekabooPackage["optional @steipete/peekaboo 3.8.0<br/>CLI only"]
-
-    UserCat --> Inspector
-    Inspector --> Engineer
-    Engineer --> Reviewer
-    Reviewer -. "reopened / 返工" .-> Engineer
+    Traces["Session Traces<br/>nightly"] --> Inspector["InspectorCat<br/>diagnose + evidence"]
+    Inspector --> Gate{"Route Gate"}
+    Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
+    Evolution --> Arena["Arena<br/>multi-case evaluation"]
+    Gate -->|repair| Engineer["EngineerCat<br/>fix"]
+    Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
+    Gate -->|replay| Reviewer
+    Gate -->|no_op| NoOp["terminal no-op"]
 ```
 
 ## Stable Boundaries
 
 - Base Main Agent 是唯一用户入口和调度中心；不再增加 Router 角色。
+- 八个默认 Role 固定分为四个功能型 Role 与四个内部持续改进 Role；分组只表达责任和启动方式，不建立第二套 Runtime 或控制平面。
+- 功能型 Role 直接接管用户任务；内部持续改进 Role 按评测、自进化或正式回放场景启动，并不构成每次全部执行的线性链。
+- Base 的默认 Skill inventory 为 0；显式安装 Skill 与 Arena 临时挂载仍是受支持的独立路径。
 - Base 直接通过 role dispatch 派遣 BrowserCat，不额外保留 agent-browser 路由 Skill。
 - Role 是专业 Subagent 的可复用定义；所有默认角色复用同一套 XiaoBa Agent loop。
-- `UserCat -> InspectorCat -> EngineerCat -> ReviewerCat` 是自进化 review/repair 闭环。
+- UserCat 负责生产真实 E2E trace，并作为 Arena 内部 evaluator；它不是夜间生产 trace 的上游替身。
+- 定时自进化固定从本地 session traces 开始，由 InspectorCat 先诊断，再经过确定性 Route Gate；Base 不参与这条链路。
+- Route Gate 只接受 `evolution | repair | replay | no_op`，只验证并分发 Inspector 的结构化结果，不做模型判断，也不是 RouterCat。
+- EvolutionCat 承接 Inspector 的候选能力机会，独占确定性 `remember` role tool 和三个演化/发布 role-local Skills；它不写 runtime 代码、不自评通过、不派遣其他默认角色。
+- `evolution` 必须由至少两个独立根任务 lineage 的 source trace refs 支持。EvolutionCat 最多生成一个隔离的 callable Candidate Skill / Role，再交给 Arena，不负责 gate 或 promotion。
+- EngineerCat 接受 `repair` route 并完成工程修复；ReviewerCat 接受修复后的 replay case，或者直接接受 `replay` route，在干净 session 中输出 `closed | next_run | blocked`。同一次 DAG 不回跳。
+- 未解决的 `next_run` 在同日重跑时保持幂等，只有后续 run 的 `closed` 或新 `next_run` 才消费原 handoff。
+- `no_op` 是显式终态；非法合同、缺证据或 stage failure 必须 fail closed 为 `blocked`，不能伪装成 `no_op`。
+- Candidate / Active / Blocked 是 Skill 与 Role 的唯一资产状态；旧资产缺省为 Active，Blocked 不可调用，Candidate 只允许显式调用或 Arena 挂载。
+- 生命周期迁移固定为 `blocked → candidate → active`：解除阻塞不能直接恢复 Active，Candidate 只能通过单独、显式的 Promote 动作晋升；显式试用 Candidate Role 不等于晋升。
 - EngineerCat 属于电脑接管执行侧，负责代码与工程环境，同时承接 Inspector 路由和 Reviewer 返工。
 - BrowserCat 和 GuiCat 分别接管浏览器与桌面 GUI；底层 driver 只提供确定性 capability，不运行 Chat、Agent、MCP 或第二个模型 loop。
+- GuiCat 负责桌面 GUI 接管；生产操作仍只经过受限、可验证的 typed adapter。
 - BrowserCat 的 `core` role-local Skill 原样来自与 `agent-browser@0.31.1` 对齐的官方仓库固定 commit；不复制只负责发现的顶层 stub，也不在 vendored 文件内维护 XiaoBa fork。BrowserCat prompt、`role.json`、ToolManager 和 typed adapter 独立负责权限，因此官方 Skill 中提到的 raw CLI、Shell、MCP、auth、upload 或 download 不会自动成为可调用工具。
 - GuiCat 的 `peekaboo` role-local Skill 原样来自官方仓库固定 commit；不在 vendored 文件内维护 XiaoBa fork。GuiCat prompt、`role.json`、ToolManager 和 typed adapter 独立负责权限，因此官方 Skill 中提到的 raw CLI、坐标、Agent、MCP、run、config 或 AI analysis 不会自动成为可调用工具。
 - SecretaryCat 是默认飞书工作流角色，`FeishuCat` 只是它的调用别名；底层能力来自官方 `lark-cli`，不再建立第二套飞书 API client 或 Agent loop。
 - Feishu Surface 与 SecretaryCat 必须共享同一个飞书应用身份：Surface 的 App ID 是 canonical identity；SecretaryCat 按 App ID 选择 `lark-cli` profile，不切换或覆盖用户的全局 active profile。`bot` / `user` 表示该应用下的 actor identity，不是两个 XiaoBa 智能体。
 - 官方 `lark-cli` 负责飞书命令、领域能力、身份登录和凭据；XiaoBa 只负责角色派遣、Owner 绑定的后果动作确认、有限工具暴露、交付和 evidence。当前 typed wrappers 是迁移期兼容层，不作为继续横向扩张的目标架构。
 - Skill 是 Base 或 Role 使用的工作方法；文件、Shell、Codex、浏览器、飞书和系统操作是 Tool / Adapter，不再包装成平行 Capability Agent。
-- 自进化产生的 role / skill 变更默认只是 candidate；是否进入默认可信资产由 Arena、Reviewer 或人工证据决定。
+- 自进化产生的 role / skill 变更默认只是 candidate；Arena 负责候选能力评测，进入默认可信资产仍需显式 promotion。
 
 ## Default Inventory
 
 | 分类 | 默认资产 | 责任 |
 | --- | --- | --- |
 | Main | Base Main Agent | 用户沟通、任务判断、派遣、状态回收和最终交付 |
-| Review | `user-cat` | 低信息用户压力和候选 trace |
-| Review | `inspector-cat` | 问题发现、证据取证和路由 |
-| Review | `reviewer-cat` | replay、验收、closed/reopened/blocked 判断 |
-| Computer | `engineer-cat` | 代码仓库、Codex runner、构建和工程任务接管 |
-| Computer | `browser-cat` | 浏览器接管和页面证据验证 |
-| Computer | `gui-cat` | 本地桌面 GUI 接管和操作证据 |
-| Workplace | `secretary-cat` | 飞书日历、消息、任务、文档和协同工作流接管；`feishu-cat` 为别名 |
-| Skills | 4 个 default base skills | Base/Role 可复用工作方法，不拥有 runtime loop；浏览器路由由 Base 直接进入 BrowserCat |
+| Functional | `engineer-cat` | 代码仓库、Codex runner、构建和工程任务接管 |
+| Functional | `browser-cat` | 浏览器接管和页面证据验证 |
+| Functional | `gui-cat` | 本地桌面 GUI 接管和操作证据 |
+| Functional | `secretary-cat` | 飞书日历、消息、任务、文档和协同工作流接管；`feishu-cat` 为别名 |
+| Internal improvement | `user-cat` | 内部 evaluation actor、低信息用户压力和候选 trace |
+| Internal improvement | `inspector-cat` | 问题发现、证据取证和路由 |
+| Internal improvement | `evolution-cat` | 长期记忆、候选 Skill/Role 沉淀与显式发布工作流 |
+| Internal improvement | `reviewer-cat` | replay、验收、`closed / next_run / blocked` 判断 |
+| Skills | 0 个 default base skills | 默认工作方法归 role-local Skill；独立 Skill 只通过显式安装或 Arena 挂载进入 |
 
 ## Role Package Contract
 

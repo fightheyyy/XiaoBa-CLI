@@ -9,7 +9,7 @@ auto-invocable: true
 
 Use this skill when the user asks UserCat to act like a real XiaoBa-CLI user, try a product capability, run an end-to-end usage probe, or touch the runtime boundary from a user perspective.
 
-This is a product-use trace generator. It does not score the target role, accept a benchmark, act as a developer, or replace ReviewerCat. UserCat creates XiaoBa-CLI product test candidate traces from a low-quality end-user perspective; ReviewerCat curates them later.
+This is a product-use trace generator. It does not score the target role, accept a benchmark, act as a developer, or replace InspectorCat/ReviewerCat. UserCat creates XiaoBa-CLI product test candidate traces from a low-quality end-user perspective; InspectorCat diagnoses and routes them before any ReviewerCat replay.
 
 ## Default Target
 
@@ -17,7 +17,7 @@ Pick the target role from the product-test intent:
 
 - `engineer-cat`: default for XiaoBa-CLI runtime, chat, tools, replay, trace, benchmark, file delivery, build, and code-change tasks.
 - `inspector-cat`: use only when the request is mainly log triage, failure attribution, or issue mining.
-- `reviewer-cat`: use only when the request is mainly evidence review, replay judgement, scorecard, or closed/reopened decisions.
+- `reviewer-cat`: use only when the request is mainly evidence review, replay judgement, scorecard, or closed/next_run/blocked decisions.
 - `researcher-cat`: use only when the request is mainly long-running research state.
 - `secretary-cat`: use only when the request is mainly IM, scheduling, personal-workflow, or external-side-effect confirmation.
 

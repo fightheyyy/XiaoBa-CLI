@@ -1,7 +1,7 @@
 # Agent Runtime SPEC
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-14
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
 本文是顶层架构模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据、评测和 Arena 分别由各自模块 spec 维护。
@@ -42,10 +42,15 @@ Current addendum：Contract Boundary now also fixes deterministic cross-adapter 
 
 Current addendum：context compression now emits structured runtime evidence. `AgentSession` records restore / pre-message compaction, and `ConversationRunner` records pre-request compaction inside tool loops. Each successful compaction writes a `context_compaction` event plus a compact-after snapshot in the owning session log directory, so replay/debug consumers can anchor later behavior to the post-compact working memory without storing full pre-compact context by default.
 
+Current addendum：EvolutionCat 的 `remember` 是 role-scoped deterministic tool。它复用 `MemoryFinalizer` 的 session-person Markdown 合同，优先按可信 `parentSessionId`、否则按当前 `sessionId` 哈希写入 `memory/sessions/<hash>/MEMORY.md`，返回 canonical ToolResult 和 tool-owned artifact evidence；它不是 Skill，也不会对 Base 或其他角色注册。
+
+Current addendum：每个 `SubAgentSession` 现在写入独立的标准 `logs/sessions/subagent/**/traces.jsonl`。terminal row 保留可信 `parent_session_id`、`subagent_id`、`role_name`、最终选择的 `skill_name`、实际 ToolResult 和 artifact manifest；测试运行显式标记 `environment=test`，使下游夜间采集可以排除 harness evidence。`EvolutionDAGRunner` 直接 `await` 同一套 SubAgentSession，按 Inspector → typed switch 执行，不创建 Base 会话、第二套 Agent loop 或通用 workflow framework。外层 CLI worker 监督整个进程组并保留 PID-owned lock 语义。
+
 ```mermaid
 flowchart LR
     subgraph Inputs["Inputs"]
         SurfaceTurn["surface user turn"]
+        EvolutionTrigger["scheduled evolution trigger"]
         RolePolicy["role prompt / tool policy"]
         SurfaceContext["surface context"]
         SkillPolicy["active skills"]
@@ -54,6 +59,7 @@ flowchart LR
 
     subgraph Runtime["Runtime"]
         Session["AgentSession"]
+        Subagent["SubAgentSession"]
         PromptManager["PromptManager<br/>prompts + includes"]
         Compressor["ContextCompressor"]
         Runner["ConversationRunner"]
@@ -63,6 +69,7 @@ flowchart LR
         Tools["src/tools"]
         Observability["Observability<br/>local summary"]
         CompactEvidence["compact evidence<br/>event + after snapshot"]
+        EvolutionDAG["EvolutionDAGRunner<br/>fixed route switch"]
     end
 
     subgraph Outputs["Outputs"]
@@ -73,6 +80,9 @@ flowchart LR
     end
 
     SurfaceTurn --> Session
+    EvolutionTrigger --> EvolutionDAG
+    EvolutionDAG --> Subagent
+    Session --> Subagent
     RolePolicy --> PromptManager
     SurfaceContext --> PromptManager
     PromptManager --> Session
@@ -92,6 +102,7 @@ flowchart LR
     ToolResults --> Runner
     Runner --> Reply
     Session --> SessionLog
+    Subagent --> SessionLog
     Tools --> Artifacts
     Session --> Observability
     Runner --> Observability
@@ -109,10 +120,12 @@ flowchart LR
         Policy["role / skill policy"]
         SurfacePolicy["surface delivery policy"]
         Durable["durable session state"]
+        Scheduled["scheduled evolution trigger"]
     end
 
     subgraph Harness["Harness runtime"]
         Session["AgentSession lifecycle"]
+        Subagent["SubAgentSession lifecycle"]
         Trace["trace"]
         Transcript["provider transcript"]
         Runner["ConversationRunner"]
@@ -120,6 +133,7 @@ flowchart LR
         Resolver["ToolVisibilityResolver<br/>role policy + active skill"]
         VisibleTools["provider-visible tool set"]
         Providers["provider adapters<br/>OpenAI / Anthropic / Ollama native"]
+        EvolutionDAG["EvolutionDAGRunner<br/>fixed typed route gate"]
     end
 
     subgraph Facts["Structured facts"]
@@ -140,7 +154,12 @@ flowchart LR
     Policy --> Session
     SurfacePolicy --> Session
     Durable --> Session
+    Scheduled --> EvolutionDAG
+    EvolutionDAG --> Subagent
+    EvolutionDAG --> Trace
     Session --> Trace
+    Session --> Subagent
+    Subagent --> Trace
     Session --> Transcript
     Transcript --> Runner
     Runner --> Providers
@@ -165,6 +184,7 @@ flowchart LR
 ## Core Contracts
 
 - 每个 assistant tool call 必须有 matching tool result，不能把 dangling tool call 送入下一次 provider request。
+- Base 与 SubAgentSession 都必须把每次 terminal run 写成标准 `traces.jsonl`；子会话 trace 通过 embedded lifecycle event 保留 `subagent_id`、`parent_session_id` 和 `role_name`，不能只依赖进程内摘要或 `runtime.log`。
 - Tool call 必须进入 success、failure、timeout、cancelled 或 blocked 之一，失败要有可观测 `status/error_code`；runner interrupt 时未执行的 pending tool calls 必须生成 `cancelled` ToolResult，而不是从 evidence 中消失。
 - External observability export is not part of the current runtime implementation. Runtime evidence stays local-first in session JSONL, local summary, ToolResult, runtime_event, delivery evidence and artifact manifest.
 - Release-grade runtime evidence can use `tool_result_contract` to require every tool call fact to carry a canonical terminal `status`, require `error_code` on non-success states, require `blocked_reason` for blocked calls, and check `ok` / retry-budget consistency. Curated `session-log-v2` cases that declare `tool_transcript_completeness` should keep this verifier in their owning `test/contract-smoke` or benchmark source, so promoted session fixtures cannot rely on transcript text alone. This is stricter than `runtime_observability`, which remains a compatibility verifier for failure visibility.

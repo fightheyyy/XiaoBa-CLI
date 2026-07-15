@@ -1,7 +1,7 @@
 {
   "name": "reviewer-cat",
   "displayName": "Aoi Hachi",
-  "description": "Owner/Test 型角色，负责真实端到端验收、边界发现、驱动 Codex/Claude 返工，并独立判断 closed/reopened。",
+  "description": "正式回放与独立关闭角色，负责在干净 session 中验收 Inspector Replay Case，并输出 closed/next_run/blocked；工程返工归 EngineerCat。",
   "promptFile": "reviewer-system-prompt.md",
   "aliases": [
     "reviewer",

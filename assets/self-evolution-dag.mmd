@@ -1,0 +1,9 @@
+flowchart LR
+    Traces["Session Traces<br/>nightly"] --> Inspector["InspectorCat<br/>diagnose + route"]
+    Inspector --> Gate{"Route Gate"}
+    Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
+    Evolution --> Arena["Arena<br/>multi-case evaluation"]
+    Gate -->|repair| Engineer["EngineerCat<br/>Fix"]
+    Engineer --> Reviewer["ReviewerCat<br/>Formal Replay"]
+    Gate -->|replay| Reviewer
+    Gate -->|no_op| NoOp["Terminal<br/>no-op"]

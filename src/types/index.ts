@@ -75,10 +75,17 @@ export interface CommandOptions {
   role?: string;
   resume?: boolean;
   verbose?: boolean;
+  /** Internal one-shot session identity; normal CLI callers should omit it. */
+  sessionKey?: string;
+  /** Internal one-shot durable session bucket; normal CLI callers should omit it. */
+  sessionType?: string;
+  /** Internal jobs can disable transcript-derived long-term memory finalization. */
+  finalizeMemory?: boolean;
 }
 
 // 导出 Agent 相关类型
 export * from './agent';
+export * from './capability-status';
 export * from './role';
 export * from './tool';
 export * from './skill';

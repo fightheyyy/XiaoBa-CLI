@@ -42,6 +42,7 @@ class EmptyToolExecutor implements ToolExecutor {
 
 class FakeSkillManager {
   loadCount = 0;
+  available = true;
 
   constructor(private readonly skill: Skill) {}
 
@@ -50,15 +51,15 @@ class FakeSkillManager {
   }
 
   getSkill(name: string): Skill | undefined {
-    return name === this.skill.metadata.name ? this.skill : undefined;
+    return this.available && name === this.skill.metadata.name ? this.skill : undefined;
   }
 
   getUserInvocableSkills(): Skill[] {
-    return [this.skill];
+    return this.available ? [this.skill] : [];
   }
 
   findAutoInvocableSkillByText(text: string): Skill | undefined {
-    return text.includes(this.skill.metadata.name) ? this.skill : undefined;
+    return this.available && text.includes(this.skill.metadata.name) ? this.skill : undefined;
   }
 }
 
@@ -118,5 +119,41 @@ describe('AgentSession skill integration', () => {
       message.role === 'user'
       && message.content === 'please use audit-skill on this runtime case',
     ));
+  });
+
+  test('revokes an activated skill when reload makes it blocked or missing', async () => {
+    const skill: Skill = {
+      metadata: {
+        name: 'revoked-skill',
+        description: 'Skill that becomes unavailable',
+        maxTurns: 9,
+        toolsets: ['revoked-tools'],
+      },
+      content: 'This prompt must not survive revocation.',
+      filePath: path.join(testRoot, 'skills', 'revoked-skill', 'SKILL.md'),
+    };
+    const aiService = new RecordingAIService();
+    const skillManager = new FakeSkillManager(skill);
+    const session = new AgentSession('chat:revoked-skill', {
+      aiService: aiService as any,
+      toolManager: new EmptyToolExecutor() as any,
+      skillManager: skillManager as any,
+    });
+
+    assert.strictEqual(await session.activateSkill('revoked-skill'), true);
+    skillManager.available = false;
+
+    await session.handleMessage('continue after the lifecycle change');
+
+    assert.strictEqual(skillManager.loadCount, 1);
+    assert.strictEqual(aiService.requests.length, 1);
+    assert.strictEqual(aiService.requests[0].messages.some(message => (
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.startsWith('[skill:revoked-skill]')
+    )), false);
+    assert.strictEqual((session as any).activeSkillName, undefined);
+    assert.strictEqual((session as any).activeSkillMaxTurns, undefined);
+    assert.strictEqual((session as any).activeSkillToolsets, undefined);
   });
 });

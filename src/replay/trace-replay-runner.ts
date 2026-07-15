@@ -113,7 +113,11 @@ export async function runTraceReplay(options: TraceReplayRunOptions): Promise<Tr
   }
 
   const petId = normalizePetId(options.petId || inferPetId(inputs) || 'xiaoba');
-  const sessionKey = options.sessionKey || `pet:${petId}:role-base:${safePetSessionId(runId)}`;
+  const requestedSessionKey = (options.sessionKey || `pet:${petId}:role-base`).trim().replace(/:+$/, '')
+    || `pet:${petId}:role-base`;
+  // Provenance is runtime-owned: even callers that supply a custom key cannot
+  // make replay output look like production traffic to the nightly observer.
+  const sessionKey = `${requestedSessionKey}:${safePetSessionId(runId)}`;
   const source = options.source || 'trace-replay';
   fs.mkdirSync(outDir, { recursive: true });
 

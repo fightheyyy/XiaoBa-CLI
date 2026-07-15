@@ -117,6 +117,19 @@ describe('Dashboard pet page wiring', () => {
     assert.ok(renderedNameFragments.length >= 2);
   });
 
+  test('capability cards separate unblock, candidate trial, and explicit promotion actions', () => {
+    const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
+
+    assert.match(index, /unblockToCandidate: '解除阻塞 → Candidate'/);
+    assert.match(index, /promoteToActive: '明确晋升 → Active'/);
+    assert.match(index, /changeSkillLifecycle\([^\n]*unblock/);
+    assert.match(index, /changeSkillLifecycle\([^\n]*promote/);
+    assert.match(index, /changeRoleLifecycle\([^\n]*unblock/);
+    assert.match(index, /changeRoleLifecycle\([^\n]*promote/);
+    assert.match(index, /status === 'candidate' \? t\('tryCandidate'\) : t\('selectRole'\)/);
+    assert.doesNotMatch(index, /const action = blocked \? 'enable' : 'disable'/);
+  });
+
   test('config page does not expose legacy Inspector settings', () => {
     const index = fs.readFileSync(path.join(process.cwd(), 'desktop', 'dashboard', 'index.html'), 'utf-8');
 

@@ -28,7 +28,6 @@ const ALLOWED_REPLAY_READINESS = new Set([
   'blocked',
 ]);
 const ALLOWED_NEXT_OWNERS = new Set([
-  'reviewer-cat',
   'benchmark-maintainer',
   'inspector-cat',
   'discard',
@@ -145,7 +144,7 @@ export class UserTraceRunTool implements Tool {
     name: 'user_trace_run',
     description: [
       'UserCat 专属工具：默认通过 Dashboard Chat/Pet 原生入口发送低信息用户消息，真实驱动目标 role 多轮交互。',
-      '它不是评测裁决工具；只生成 raw trace 和 candidate trace package，后续交给 ReviewerCat curation。',
+      '它不是评测裁决工具；只生成 raw trace 和 candidate trace package，后续先交给 InspectorCat 诊断、提取 Replay Case 并路由。',
       '每一轮都会走产品入口、目标 role 的真实 prompt、skills 和 runtime tool boundary；直接 AgentSession 仅是显式 legacy fallback。'
     ].join('\n'),
     parameters: {
@@ -161,7 +160,7 @@ export class UserTraceRunTool implements Tool {
         },
         target_role: {
           type: 'string',
-          description: '要真实交互的目标 role，例如 engineer-cat、reviewer-cat、inspector-cat、researcher-cat、secretary-cat。'
+          description: '要真实交互的目标 role，例如 engineer-cat、reviewer-cat、inspector-cat、researcher-cat、secretary-cat、evolution-cat。'
         },
         seed: {
           type: 'object',
@@ -212,10 +211,6 @@ export class UserTraceRunTool implements Tool {
         pet_id: {
           type: 'string',
           description: 'dashboard_chat 入口使用的 pet id；不填使用 Dashboard Chat 默认 pet。'
-        },
-        session_key: {
-          type: 'string',
-          description: 'dashboard_chat 入口使用的 sessionKey；不填自动生成 pet:<petId>:role-<target_role>:run-<run_id>。'
         }
       }
     }
@@ -421,10 +416,7 @@ export class UserTraceRunTool implements Tool {
     app.use(express.json({ limit: '1mb' }));
 
     const petId = await this.resolveDashboardChatPetId(input.args?.pet_id);
-    const sessionKey = readString(
-      input.args?.session_key,
-      dashboardChatSessionKey(petId, input.targetRole, input.runId),
-    );
+    const sessionKey = dashboardChatSessionKey(petId, input.targetRole, input.runId);
     const services = this.hasCustomCreateServices
       ? await this.createServices({ cwd: input.cwd, targetRole: input.targetRole, runId: input.runId })
       : createDashboardChatServices({
@@ -800,7 +792,7 @@ function resolveTargetRole(value: unknown): string {
 }
 
 function dashboardChatSessionKey(petId: string, targetRole: string, runId: string): string {
-  return `pet:${safeSegment(petId)}:role-${safeSegment(targetRole)}:run-${safeSegment(runId).slice(0, 48)}`;
+  return `pet:${safeSegment(petId)}:role-${safeSegment(targetRole)}:usercat-simulation-${safeSegment(runId).slice(0, 48)}`;
 }
 
 function dashboardToolEvents(events: Record<string, unknown>[], turnIndex: number): TraceToolEvent[] {
@@ -1170,7 +1162,7 @@ function buildSelfCheck(input: {
     || (turn.surfaceEvents?.length ?? 0) > 0
   );
   const ownerReviewRequired = isPlainObject(input.seed) && input.seed.owner_review_required === true;
-  const worthReviewerCuration = input.messages.length >= 3 && hasEvidencePressure && hasObservableBehavior && !ownerReviewRequired;
+  const worthInspectorIntake = input.messages.length >= 3 && hasEvidencePressure && hasObservableBehavior && !ownerReviewRequired;
   return {
     version: 1,
     covers_role_intent: input.roleIntentMapProvided || input.messages.length >= 2,
@@ -1183,10 +1175,10 @@ function buildSelfCheck(input: {
     local_trace_only: !ownerReviewRequired,
     curation_required: true,
     benchmark_acceptance: 'forbidden_until_curated',
-    worth_reviewer_curation: worthReviewerCuration,
+    worth_inspector_intake: worthInspectorIntake,
     limits: [
       'UserCat self-check is not pass/fail judgement.',
-      'ReviewerCat must curate before benchmark acceptance.',
+      'InspectorCat must diagnose and route before any ReviewerCat replay or benchmark acceptance.',
     ],
   };
 }
@@ -1223,7 +1215,7 @@ function buildCandidateCase(input: {
   );
   const knownGaps = sanitizeStringList(
     overrides.known_gaps,
-    ['not curated by ReviewerCat', 'hard verifier not bound yet'],
+    ['not diagnosed by InspectorCat', 'hard verifier not bound yet'],
   );
   const candidateId = readString(overrides.candidate_id, `candidate.${input.targetRole}.${input.runId}`);
   const replayReadiness = normalizeReplayReadiness(overrides.replay_readiness);
@@ -1280,7 +1272,7 @@ function renderDialogueSummary(input: {
       lines.push(`Tool events: ${turn.toolEvents.map(event => `${event.type}:${event.name}`).join(', ')}`, '');
     }
   }
-  lines.push('## Next', '', 'Hand this candidate package to ReviewerCat for curation. Do not mark it as an accepted benchmark case yet.', '');
+  lines.push('## Next', '', 'Hand this candidate package to InspectorCat for diagnosis and routing. Do not send raw UserCat output directly to ReviewerCat or mark it as an accepted benchmark case.', '');
   return lines.join('\n');
 }
 
@@ -1320,15 +1312,15 @@ function formatResult(input: {
     `interaction_mode=${input.interactionMode}`,
     ...(input.sessionKey ? [`session_key=${input.sessionKey}`] : []),
     `turn_count=${input.turns.length}`,
-    `worth_reviewer_curation=${String(input.selfCheck.worth_reviewer_curation)}`,
+    `worth_inspector_intake=${String(input.selfCheck.worth_inspector_intake)}`,
     `trace=${relativeDisplayPath(input.tracePath, displayRoot)}`,
     ...(input.visibleHistoryPath ? [`visible_history=${relativeDisplayPath(input.visibleHistoryPath, displayRoot)}`] : []),
     `candidate_dir=${relativeDisplayPath(input.candidateDir, displayRoot)}`,
     `candidate_case=${relativeDisplayPath(input.candidateCasePath, displayRoot)}`,
     '',
     'next:',
-    '- 给 ReviewerCat 做 curation；UserCat 不判 pass/fail。',
-    '- 如果 ReviewerCat 接受，再补 fixture、hard verifier 和 baseline。',
+    '- 先交给 InspectorCat 诊断、聚类并提取 Replay Case；UserCat 不判 pass/fail。',
+    '- 只有 Inspector 路由为 replay/repair 后，ReviewerCat 才执行正式回放。',
   ].join('\n');
 }
 
@@ -1490,6 +1482,6 @@ function normalizeReplayReadiness(value: unknown): string {
 }
 
 function normalizeNextOwner(value: unknown): string {
-  const text = readString(value, 'reviewer-cat');
-  return ALLOWED_NEXT_OWNERS.has(text) ? text : 'reviewer-cat';
+  const text = readString(value, 'inspector-cat');
+  return ALLOWED_NEXT_OWNERS.has(text) ? text : 'inspector-cat';
 }

@@ -284,7 +284,7 @@ describe('ResearcherCat Research Board tools', () => {
     const reviewerHandoffPacket = JSON.parse(fs.readFileSync(reviewerHandoffPacketPath, 'utf-8'));
     assert.equal(reviewerHandoffPacket.status, 'blocked_until_reviewer_verification');
     assert.equal(reviewerHandoffPacket.requested_reviewer.target_role, 'reviewer-cat');
-    assert.equal(reviewerHandoffPacket.requested_reviewer.decision_needed, 'closed_reopened_or_blocked');
+    assert.equal(reviewerHandoffPacket.requested_reviewer.decision_needed, 'closed_next_run_or_blocked');
     assert.equal(reviewerHandoffPacket.acceptance_boundary.researcher_decision, 'no_final_acceptance');
     assert.equal(reviewerHandoffPacket.acceptance_boundary.reviewer_decision_required, true);
     assert.ok(reviewerHandoffPacket.evidence_bundle.board_json_path.endsWith('/board.json'));
@@ -324,7 +324,7 @@ describe('ResearcherCat Research Board tools', () => {
     assert.ok(board.evidence_board.some((item: any) => item.text.includes('Bounded phase execution generated')));
     assert.ok(board.evidence_board.some((item: any) => item.text.includes('ReviewerCat handoff packet generated')));
     assert.ok(board.risk_board.some((item: any) => item.text.includes('no manuscript edit, script run, compile/export, or final acceptance occurred')));
-    assert.ok(board.risk_board.some((item: any) => item.text.includes('ResearcherCat has not produced a closed/reopened/blocked decision')));
+    assert.ok(board.risk_board.some((item: any) => item.text.includes('ResearcherCat has not produced a closed/next_run/blocked decision')));
   });
 
   test('auto research run restores existing board state before workspace intake', async () => {

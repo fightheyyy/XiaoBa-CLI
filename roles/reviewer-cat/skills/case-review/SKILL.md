@@ -1,102 +1,98 @@
 ---
 name: case-review
-description: 根据 case artifact 的 assessment 与 implementation 结果，驱动 Codex job 返工或实现，最终判断是否关单，并补齐 artifact 回写策略与指标。
+description: 根据 Inspector Replay Case 与 Engineer evidence，在干净 session 中执行正式回放，并返回 DAG 唯一 Reviewer v1 合同。
 version: 1.0.0
 author: ReviewerCat Team
 user_invocable: true
 invocable: both
-argument-hint: "<case 路径或 review 目录>"
-max-turns: 40
+argument-hint: "<Inspector route 或 Replay Case 路径>"
+max-turns: 24
 ---
 
 # Case Review
 
-这个 skill 用来处理 `ReviewerCat` 接到的 case review artifact。ReviewerCat 现在是真人端测 Owner：它不只是被动验收，也可以持续调用 Codex job 工具，把工程任务交给 Codex CLI，并根据真实用户路径继续追问、返工、验收。
+这个 Skill 只负责单 Replay Case 的正式回放与关闭判断。InspectorCat 写用例，EngineerCat 修复，ReviewerCat 独立回放；Candidate Skill / Role 的多 case 评测属于 Arena。
 
-## 触发条件
+## Replay Case 输入合同
 
-- “验收这个 case artifact”
-- “判断要不要关单”
-- “这个修复到底算不算完成”
-- “补回写策略和指标”
-- “让 codex/claude code 继续修这个 case”
-- “和 codex cli 多轮交互，把这个问题修到能关单”
+只接受 DAG 已定义的四个字段，不另造 schema：
 
-## 硬规则
+```json
+{
+  "id": "retry-case",
+  "intent": "在干净 session 中重复原失败行为",
+  "expected_outcome": "用户可见结果稳定交付",
+  "source_trace_refs": ["trace:a"]
+}
+```
 
-1. 必须先读 assessment 和 implementation artifacts
-2. 必须落盘 `review.md` 和 `reviewer-output.json`
-3. 只有验证通过时才能 `closed`
-4. `closed` 时应补齐 writeback 和 metrics
-5. 主要实现和返工应交给 `codex_job_start` / `codex_job_resume`，ReviewerCat 自己保持验收视角
-6. 不能把 coding agent 的自评当作通过依据，必须看真实入口行为、trace、日志或 artifacts
-7. 单元测试、集成测试、红绿测试和常规 CI 属于 EngineerCat / 工程流水线；ReviewerCat 只读取这些结果作为辅助证据
-8. 验收 agent harness 时必须检查 Durable Session、Working Trace、Provider Transcript 三层证据
-9. 评测 XiaoBa-CLI roles 时必须按 role effectiveness rubric 记录 scorecard 或 blocked reason
-10. 面向人阅读的 Markdown 报告默认中文输出；`reviewer-output.json` / `scorecard.json` 的 key 和状态枚举保持机器可读 contract
+- `id`：稳定 case id
+- `intent`：要重放的原始用户意图和最小动作
+- `expected_outcome`：冻结后的用户可观察结果
+- `source_trace_refs`：至少一个可追溯原始 Trace 引用
 
-## Coding Agent 交互流程
+ReviewerCat 可以从 source Trace 恢复具体输入与观察点，但不能修改 `intent` 或 `expected_outcome` 来迎合候选结果。四个字段不足以用当前确定性工具安全重放时，返回 `blocked`，不要要求 Inspector 再发明一套扩展合同。
 
-1. 选择稳定 `job_id` 前缀，建议 `case-<caseId>-round-1`
-2. 第一轮调用 `codex_job_start`，说明 case 摘要、验收标准、仓库根目录、关键 artifact 路径
-3. 用 `codex_job_status` 读取状态；运行中时传 `wait_ms=30000`、`poll_interval_ms=5000` 做 compact 间隔等待，只看是否 still running 和最新 output
-4. Codex completed 后读取实现、验证摘要和 artifacts，再按 Review Eval Plan 运行真人端测
-5. 如果低层测试结果缺失或失败，把它作为端测前置风险反馈给 Codex / EngineerCat；不要自己接管低层测试实现
-6. 如果真人端测不满足验收标准，继续调用 `codex_job_resume`，只传用户路径、失败证据和具体返工要求
-7. 对 agent runtime 改动，确认三层状态证据是否足够；缺失时记录 missing evidence、blocked reason 或 reopened reason
-8. 对 XiaoBa-CLI role 有效性验收，使用 `reviewer_xiaoba_cli_e2e` 生成 per-role trace、three-layer evidence、role effectiveness scorecard 和 report
-9. 直到可以写出明确的 `closed` 或 `reopened`
-10. 不要无间隔刷状态；同一轮最多做 3 次带等待的 status，仍未完成就把 `job_id` 和当前状态告诉用户
-11. 不要因为 Codex 正在运行就取消并改由 ReviewerCat 自己实现，除非用户明确要求停止或 Codex 已失败/超时/无进展
-12. 轮询时不要传 `verbose=true`；只有 completed/failed 后需要查 JSONL 事件细节时才开启
-13. GUI / Dashboard / Pet / IM / CLI 项目优先通过真实入口或短时 E2E harness 模拟真人使用
-14. `reviewer_module_test` 仅作为历史/辅助证据入口保留，不是默认验收步骤
+## 唯一输出合同
 
-## 输出模板
+正式 DAG 只返回下面一个 version 1 JSON 对象，不返回 prose，也不使用其他状态字段：
 
 ```json
 {
   "version": 1,
-  "summary": "一句话总结",
-  "overview": "给平台的结论摘要",
-  "decision": "closed",
-  "decisionReason": "为什么关单",
-  "nextState": "closed",
-  "regressionStatus": "passed",
-  "riskLevel": "low"
+  "status": "closed|next_run|blocked",
+  "summary": "一句话结果",
+  "evidence_refs": ["fresh replay or verification ref"],
+  "reason": "blocked 时必填；其他状态可省略"
 }
 ```
 
-如果触发过 coding agent，建议额外写入：
+- `closed`：干净 session 的正式回放通过；`evidence_refs` 至少包含一个本轮新证据
+- `next_run`：问题已复现或修复未通过；`evidence_refs` 至少包含一个本轮失败证据。DAG runtime 负责生成下一轮 seed
+- `blocked`：缺环境、权限、可执行入口或安全回放能力；`reason` 必填，`evidence_refs` 可以为空
+- 不输出 `decision`、`nextState`、`recommendedNextOwner`、`replayStatus` 或第二套 evidence 字段
 
-```json
-{
-  "codingAgent": {
-    "agent": "codex",
-    "sessionId": "Codex 官方 session id",
-    "jobIds": ["case-xxx-round-1", "case-xxx-round-2"],
-    "turns": 2,
-    "status": "implemented | blocked | needs_human"
-  }
-}
-```
+## 定时 DAG 的工具边界
 
-如果触发过 XiaoBa-CLI role effectiveness 验收，建议额外写入：
+当父 session 是 `evolution:dag:*` 时：
 
-```json
-{
-  "roleEffectiveness": {
-    "targets": ["engineer-cat", "reviewer-cat"],
-    "scorecards": ["data/reviewer-runs/<run-id>/scorecard.json"],
-    "missingEvidence": [],
-    "threeLayerIssues": []
-  }
-}
-```
+- 先且只调用一次 `reviewer_trace_replay({})`；它从可信 parent date 唯一推导 Inspector route 和固定 `reviewer-replay/` 输出目录
+- `reviewer_xiaoba_cli_e2e` 被 runtime 硬阻止，因为它允许自定义 command、messages 和 verifier commands
+- `reviewer_module_test` 也被 runtime 硬阻止，因为自定义或项目测试命令可能修改工作区
+- `reviewer_trace_replay` 只接受空参数；不得传 cwd、路径、命令、消息或 verifier
+- 可用 `read_file`、`grep`、`glob` 读取它生成的 fresh report/comparison
+- `closed/next_run` 的 `evidence_refs` 只能引用本轮固定 `reviewer-replay/` 下的 manifest、replay-results、comparison 或 report
+- 不能把已有 Engineer/CI 自评直接算作 fresh replay evidence
+- 工具 blocked 或没有安全、独立、可重复的正式回放证据时返回 `blocked`；不能为追求 `closed` 绕过 runtime 边界
+- 最小 replay 会在只读 runtime 中恢复原 Trace 的 Base 或可调用 Role；写文件、Shell、subagent、外发、slash command、缺失 Role 或其他副作用任务必须 fail closed 为 `blocked`
 
-## 收尾
+普通 Reviewer 会话仍可按用户明确要求使用通用 E2E 或模块测试工具；上述限制只由可信的 DAG parent session 触发。
 
-- 检查 `reviewer-output.json` 是否是合法 JSON
-- `closed` 时确认 writeback plan 是否合理
-- `reopened` 时确认 reason 是否足够指导返工
-- 如果 coding agent 无法完成，记录 job 文件路径，方便人类接手
+## 正式回放流程
+
+1. 读取 Inspector route、Replay Case、source Trace，以及可选 Engineer result
+2. 校验四字段输入合同并冻结 `expected_outcome`
+3. 定时 DAG 调用 `reviewer_trace_replay({})`；普通会话确认允许的工具能否安全完成独立回放
+4. 在与原 session 隔离的只读干净 session 中重放，隔离历史消息、memory、缓存和登录态
+5. 按 `intent` 重放冻结 source Trace 中的原始输入与观察点
+6. 记录 expected、actual、状态、Trace、日志和 artifact 引用
+7. 按 test-engineer、code-quality、security、runtime-e2e、debugging-recovery lens 合并判断
+8. Agent harness 证据区分 Durable Session、Working Trace、Provider Transcript 三层
+9. 返回唯一 Reviewer v1 JSON；同一次 DAG 不回跳 EngineerCat
+
+## 普通 Case Artifact
+
+非定时 DAG 任务若指定 `review.md` 或 `reviewer-output.json`：
+
+- `review.md` 可写中文回放说明、lens 判断和残余风险
+- `reviewer-output.json` 必须仍使用同一个 version 1 `status/evidence_refs` 合同
+- 不创建第二套机器状态或兼容字段
+
+## 收尾检查
+
+- Replay Case 只有 `id / intent / expected_outcome / source_trace_refs` 四个合同字段
+- 输出只有 `version / status / summary / evidence_refs / reason?`
+- `closed` 与 `next_run` 有本轮 fresh evidence
+- `blocked` 有明确 reason
+- 定时 DAG 没有调用任意命令 runner，也没有修改生产代码
+- 同一次 DAG 没有 ReviewerCat → EngineerCat 回跳

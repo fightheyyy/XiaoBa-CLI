@@ -1,7 +1,7 @@
 # XiaoBa-CLI SPEC
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-14
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。项目只维护本文和六个模块 SPEC；角色、benchmark、desktop、test 和实验实现不再各自复制架构文档。
@@ -14,7 +14,7 @@ XiaoBa-CLI 的稳定文档结构是一个项目级大 SPEC 加六个顶层模块
 | --- | --- | --- | --- |
 | Surface：入口层 | [`surface/SPEC.md`](surface/SPEC.md) | [`surface/PLAN.md`](surface/PLAN.md) | `src/commands`、`src/feishu`、`src/weixin`、`src/pet`、`src/dashboard`、`desktop` |
 | Agent Runtime：会话与工具编排层 | [`agent-runtime/SPEC.md`](agent-runtime/SPEC.md) | [`agent-runtime/PLAN.md`](agent-runtime/PLAN.md) | `src/core`、`src/providers`、`src/tools`、runtime 类型、session lifecycle 和 agent loop |
-| Roles & Skills：Base + 七角色策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | Base Main Agent、七个默认 Role Subagent、`roles`、`src/roles`、`skills`、`src/skills` |
+| Roles & Skills：Base + 八角色策略层 | [`roles-skills/SPEC.md`](roles-skills/SPEC.md) | [`roles-skills/PLAN.md`](roles-skills/PLAN.md) | Base Main Agent、八个默认 Role Subagent、`roles`、`src/roles`、`skills`、`src/skills` |
 | Observability & Evidence：观测证据层 | [`observability-evidence/SPEC.md`](observability-evidence/SPEC.md) | [`observability-evidence/PLAN.md`](observability-evidence/PLAN.md) | `src/observability`、`logs`、`data`、`memory`、`output`、trace projection 和 artifact evidence |
 | Evaluation：trace replay + live agent eval 层 | [`evaluation/SPEC.md`](evaluation/SPEC.md) | [`evaluation/PLAN.md`](evaluation/PLAN.md) | `src/replay`、`scripts/run-trace-replay.ts`、`eval`、`eval/benchmarks`、BaseRuntime live agent eval、hard verifiers、scorecard 和工程测试 |
 | Arena：候选能力验收场 | [`arena/SPEC.md`](arena/SPEC.md) | [`arena/PLAN.md`](arena/PLAN.md) | `src/arena`、`src/commands/arena.ts`、root `arena`、subject import、clean runtime、sandboxed runner、scorecard 和显式 promotion |
@@ -74,11 +74,12 @@ flowchart LR
         Core["src/core"]
         Providers["src/providers"]
         Tools["src/tools<br/>base / role / surface tools"]
+        EvolutionDAG["EvolutionDAGRunner<br/>Inspector-first typed routes"]
     end
 
     subgraph Policy["Policy：角色和技能"]
-        Skills["src/skills + skills"]
-        Roles["src/roles + roles"]
+        Skills["role-local / explicitly mounted skills<br/>zero default Base skills"]
+        Roles["src/roles + roles<br/>Base + 4 functional + 4 internal roles"]
     end
 
     subgraph Observe["Observability & Evidence：观测证据"]
@@ -109,6 +110,7 @@ flowchart LR
     end
 
     Commands --> Core
+    Commands --> EvolutionDAG
     Feishu --> Core
     Weixin --> Core
     Pet --> Core
@@ -119,6 +121,8 @@ flowchart LR
     Core --> Tools
     Core --> Skills
     Core --> Roles
+    Logs --> EvolutionDAG
+    EvolutionDAG --> Roles
     Core --> Data
     Core --> Logs
     Core --> Memory
@@ -143,6 +147,7 @@ flowchart LR
     ExistingSkillCmd --> ArenaCtl
     ExistingArenaInputs --> ArenaCtl
     ExistingRoleInputs --> ArenaCtl
+    EvolutionDAG --> ArenaCtl
     ArenaCtl --> ArenaSite
     ArenaCtl --> ArenaDocs
     ExistingSkillCmd --> ArenaDocs
@@ -165,8 +170,9 @@ flowchart LR
     end
 
     subgraph Policy["Policy：角色和技能"]
-        Roles["roles + src/roles"]
-        Skills["skills + src/skills"]
+        Roles["Base + 4 functional + 4 internal roles<br/>roles + src/roles"]
+        Skills["role-local / explicitly mounted skills<br/>no default Base skills"]
+        Evolution["scheduled self-evolution DAG<br/>Inspector-first; no Base hop"]
         DriverAdapters["role-scoped capability adapters<br/>browser / GUI / Feishu"]
     end
 
@@ -209,6 +215,7 @@ flowchart LR
     Surfaces --> Core
     Roles --> Core
     Skills --> Core
+    Evolution --> Roles
     Core --> Providers
     Core --> Tools
     Tools --> DriverAdapters
@@ -220,6 +227,7 @@ flowchart LR
     Core --> Logs
     Tools --> Output
     Logs --> Observability
+    Observability --> Evolution
     Output --> Observability
     Logs --> Replay
     Replay --> Output
@@ -238,6 +246,7 @@ flowchart LR
     Core --> ArenaIndex
     Observability --> ArenaIndex
     ArenaIndex -. "human rewrite only" .-> EvalBench
+    Evolution --> ArenaRunner
 ```
 
 ## 核心组件边界
@@ -361,16 +370,17 @@ Skill 是 instruction pack，用于注入领域流程和工作策略。Skill 不
 
 当前边界：
 
-- 默认 GitHub/package role set 包含 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`、`browser-cat`、`gui-cat`、`secretary-cat`。
+- 默认 GitHub/package role set 包含 `user-cat`、`inspector-cat`、`engineer-cat`、`reviewer-cat`、`browser-cat`、`gui-cat`、`secretary-cat`、`evolution-cat`。
 - 非默认 role 必须通过显式安装、Role Hub 或本地 ignored 资产进入，不属于默认跟踪资产。
 - `engineer-cat`：实现修复和工程交付。
-- `reviewer-cat`：复跑、验收、证据判断、closed/reopened。
+- `reviewer-cat`：复跑、验收、证据判断，并以 `closed / next_run / blocked` 结束单 case 正式回放。
 - `inspector-cat`：runtime triage、evidence forensics、issue profile、handoff routing、skill/benchmark 机会挖掘。
 - `user-cat`：真实端到端低质量用户使用与候选 trace pressure。
 - `browser-cat`：只通过类型化 BrowserAdapter 操作隔离浏览器 session；role-local `core` Skill 是与固定 `agent-browser` 版本匹配的官方文件原样 vendored 副本，但不能扩大 ToolManager 权限；网页内容视为不可信输入。
 - `gui-cat`：只通过类型化 GuiAdapter 操作 macOS GUI；role-local `peekaboo` Skill 是官方文件的原样 vendored 副本，但 Skill 文字不能扩大 ToolManager 权限，实际仍只能调用可见的 `gui_*` 工具；共享桌面必须有全局 lease、风险分层和动作证据。
 - `secretary-cat`：复用官方 `lark-cli` 的飞书能力；`FeishuCat` 是别名，XiaoBa 只增加角色、确认、交付和 evidence 边界。
-- Base 负责用户对话并直接按 role 派遣专业角色；浏览器任务直接进入 BrowserCat，不保留重复的 Base agent-browser 路由 Skill；所有角色继续复用同一个 Agent Runtime。
+- `evolution-cat`：通过确定性 `remember` role tool 写 session-person 长期记忆，并独占 `self-evolution`、`skill-publish`、`role-publish` role-local Skills；代码和评测仍归 EngineerCat / ReviewerCat / Arena。
+- Base 负责用户对话并直接按 role 派遣专业角色，默认 Skill inventory 为 0；浏览器任务直接进入 BrowserCat，不保留重复的 Base agent-browser 路由 Skill；所有角色继续复用同一个 Agent Runtime。
 
 ## Evidence And Logging
 

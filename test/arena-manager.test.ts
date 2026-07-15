@@ -81,7 +81,8 @@ describe('ArenaManager', () => {
     assert.strictEqual(manifest.subject.name, 'report-writer');
     assert.strictEqual(manifest.trust_level, 'review_required');
     assert.strictEqual(manifest.allowed_runtime, 'arena_only');
-    assert.ok(manifest.parsed.skill_files.includes('fixtures/skills/report-writer/SKILL.md'));
+    assert.strictEqual(manifest.source.path, `arena/subjects/${manifest.subject_id}/source`);
+    assert.ok(manifest.parsed.skill_files.includes(`arena/subjects/${manifest.subject_id}/source/SKILL.md`));
     assert.match(manifest.fingerprint, /^[a-f0-9]{64}$/);
     assert.ok(fs.existsSync(path.join(
       testRoot,
@@ -90,6 +91,47 @@ describe('ArenaManager', () => {
       manifest.subject_id,
       'arena-manifest.json',
     )));
+  });
+
+  test('content-addresses local Skill subjects and keeps earlier source snapshots immutable', () => {
+    const skillDir = path.join(testRoot, 'fixtures', 'skills', 'snapshot-skill');
+    writeSkill(skillDir, {
+      name: 'snapshot-skill',
+      description: 'Uses a versioned helper.',
+    });
+    writeText(path.join(skillDir, 'scripts', 'helper.js'), 'module.exports = "v1";\n');
+
+    const first = manager.importLocalSkill({ skillPath: skillDir });
+    const firstSnapshotRoot = path.resolve(testRoot, first.source.path || '');
+    assert.strictEqual(
+      fs.readFileSync(path.join(firstSnapshotRoot, 'scripts', 'helper.js'), 'utf-8'),
+      'module.exports = "v1";\n',
+    );
+
+    writeText(path.join(skillDir, 'scripts', 'helper.js'), 'module.exports = "v2";\n');
+    const second = manager.importLocalSkill({ skillPath: skillDir });
+    const secondSnapshotRoot = path.resolve(testRoot, second.source.path || '');
+
+    assert.notStrictEqual(second.fingerprint, first.fingerprint);
+    assert.notStrictEqual(second.subject_id, first.subject_id);
+    assert.strictEqual(
+      fs.readFileSync(path.join(firstSnapshotRoot, 'scripts', 'helper.js'), 'utf-8'),
+      'module.exports = "v1";\n',
+    );
+    assert.strictEqual(
+      fs.readFileSync(path.join(secondSnapshotRoot, 'scripts', 'helper.js'), 'utf-8'),
+      'module.exports = "v2";\n',
+    );
+
+    const runtime = manager.prepareCleanRuntime({
+      runId: 'immutable-first-skill',
+      reviewMode: 'base_skill',
+      subjectId: first.subject_id,
+    });
+    assert.strictEqual(
+      fs.readFileSync(path.join(runtime.roots.skills_root, 'snapshot-skill', 'scripts', 'helper.js'), 'utf-8'),
+      'module.exports = "v1";\n',
+    );
   });
 
   test('snapshots a role without mutating production role files', () => {
@@ -103,7 +145,85 @@ describe('ArenaManager', () => {
     assert.strictEqual(manifest.role?.id, 'engineer-cat');
     assert.deepStrictEqual(manifest.role?.local_skills, ['engineer-helper']);
     assert.ok(manifest.role?.declared_boundaries.includes('Implement changes with evidence.'));
+    assert.strictEqual(manifest.source.path, `arena/subjects/${manifest.subject_id}/source`);
     assert.deepStrictEqual(fs.readdirSync(rolePath).sort(), before);
+  });
+
+  test('content-addresses Role subjects and keeps earlier source snapshots immutable', () => {
+    const rolePath = path.join(testRoot, 'roles', 'engineer-cat');
+    const promptPath = path.join(rolePath, 'prompts', 'system.md');
+    const first = manager.snapshotRole({ roleId: 'engineer-cat' });
+    const firstSnapshotRoot = path.resolve(testRoot, first.source.path || '');
+
+    fs.writeFileSync(promptPath, 'Changed role prompt.\n', 'utf-8');
+    const second = manager.snapshotRole({ roleId: 'engineer-cat' });
+    const secondSnapshotRoot = path.resolve(testRoot, second.source.path || '');
+
+    assert.notStrictEqual(second.fingerprint, first.fingerprint);
+    assert.notStrictEqual(second.subject_id, first.subject_id);
+    assert.strictEqual(
+      fs.readFileSync(path.join(firstSnapshotRoot, 'prompts', 'system.md'), 'utf-8'),
+      'Role prompt.',
+    );
+    assert.strictEqual(
+      fs.readFileSync(path.join(secondSnapshotRoot, 'prompts', 'system.md'), 'utf-8'),
+      'Changed role prompt.\n',
+    );
+  });
+
+  test('imports an isolated candidate role and prepares role mode without touching production roles', () => {
+    const candidateRolePath = path.join(
+      testRoot,
+      'output',
+      'evolution',
+      'sleep',
+      '2026-06-29',
+      'candidates',
+      'evidence-review-cat',
+    );
+    writeJson(path.join(candidateRolePath, 'role.json'), {
+      name: 'evidence-review-cat',
+      displayName: 'EvidenceReviewCat',
+      description: 'Review evidence without changing production assets.',
+      promptFile: 'evidence-review-system-prompt.md',
+      status: 'candidate',
+      baseToolAllowlist: ['read_file'],
+      metadata: { boundary: 'Arena-only candidate role.' },
+    });
+    writeText(
+      path.join(candidateRolePath, 'prompts', 'evidence-review-system-prompt.md'),
+      'Review the supplied evidence and leave production roles unchanged.\n',
+    );
+    writeSkill(path.join(candidateRolePath, 'skills', 'evidence-helper'), {
+      name: 'evidence-helper',
+      description: 'Inspect evidence references.',
+    });
+    const productionRolesRoot = path.join(testRoot, 'roles');
+    const productionBefore = snapshotDirectory(productionRolesRoot);
+
+    const manifest = manager.importLocalRole({ rolePath: candidateRolePath });
+    const runtime = manager.prepareCleanRuntime({
+      runId: 'isolated-candidate-role',
+      reviewMode: 'role',
+      subjectId: manifest.subject_id,
+      targetRoleId: 'evidence-review-cat',
+    });
+
+    assert.strictEqual(manifest.subject.type, 'role');
+    assert.strictEqual(manifest.subject.name, 'evidence-review-cat');
+    assert.strictEqual(manifest.trust_level, 'review_required');
+    assert.strictEqual(manifest.allowed_runtime, 'arena_only');
+    assert.strictEqual(manifest.source.path, `arena/subjects/${manifest.subject_id}/source`);
+    assert.deepStrictEqual(manifest.role?.local_skills, ['evidence-helper']);
+    assert.strictEqual(runtime.review_mode, 'role');
+    assert.strictEqual(runtime.target_profile.active_role_id, 'evidence-review-cat');
+    assert.deepStrictEqual(runtime.target_profile.role_local_skills, ['evidence-helper']);
+    assert.ok(runtime.target_profile.loaded_skills.includes('evidence-helper'));
+    assert.strictEqual(runtime.copied.role, 'roles/evidence-review-cat');
+    assert.ok(fs.existsSync(path.join(runtime.roots.roles_root, 'evidence-review-cat', 'role.json')));
+    assert.ok(runtime.launch.command.includes('evidence-review-cat'));
+    assert.strictEqual(fs.existsSync(path.join(productionRolesRoot, 'evidence-review-cat')), false);
+    assert.deepStrictEqual(snapshotDirectory(productionRolesRoot), productionBefore);
   });
 
   test('creates role_skill run index from real UserCat, trace, Inspector and Reviewer refs', () => {
@@ -487,6 +607,23 @@ function writeJson(filePath: string, value: unknown): void {
 function writeText(filePath: string, value: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, value, 'utf-8');
+}
+
+function snapshotDirectory(root: string): Record<string, string> {
+  const snapshot: Record<string, string> = {};
+  const visit = (directory: string): void => {
+    if (!fs.existsSync(directory)) return;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const fullPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.isFile()) {
+        snapshot[path.relative(root, fullPath).replace(/\\/g, '/')] = fs.readFileSync(fullPath).toString('base64');
+      }
+    }
+  };
+  visit(root);
+  return snapshot;
 }
 
 function restoreEnv(key: string, value: string | undefined): void {

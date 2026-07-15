@@ -25,7 +25,7 @@ max-turns: 40
 1. 必须先读 assessment / handoff / case detail，再动手
 2. 必须把结果落盘成 `implementation.md` 和 `engineer-output.json`
 3. 有实际变更时，优先产出 `implementation.patch`
-4. `new_skill_candidate` 必须优先考虑调用 `self-evolution`
+4. `new_skill_candidate` 必须把实现证据和候选草稿交给 EvolutionCat；EngineerCat 不调用不可见的 `self-evolution`
 5. 不能 self-close，只能交给 `reviewing` 或 `blocked`
 
 ## 分类执行
@@ -46,8 +46,8 @@ max-turns: 40
 ### 3. `new_skill_candidate`
 
 - 先确认模式稳定
-- 调用 `self-evolution`
-- 把生成的新 skill 路径写进 `changedFiles`
+- 输出 `recommended_next_owner: evolution-cat` 和可直接使用的 candidate handoff
+- 如果 EvolutionCat 已回传新 skill，再把路径写进 `changedFiles`
 
 ## `engineer-output.json` 模板
 

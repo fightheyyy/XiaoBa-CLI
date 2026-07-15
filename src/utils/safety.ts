@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 
 const DANGEROUS_TOOL_ALLOW_ENV = 'XIAOBA_TOOL_ALLOW';
@@ -87,4 +88,70 @@ export function isReadPathAllowed(targetPath: string, workingDirectory: string):
 
 export function isPathAllowed(targetPath: string, workingDirectory: string): { allowed: boolean; reason?: string } {
   return { allowed: true };
+}
+
+/**
+ * Opt-in write boundary used by narrow runtime workflows such as EvolutionCat.
+ * Normal roles keep the existing workspace policy unless their runtime supplies
+ * an explicit allowedWriteRoot.
+ */
+export function isWritePathWithinRoot(
+  targetPath: string,
+  workingDirectory: string,
+  allowedWriteRoot: string,
+): { allowed: boolean; reason?: string } {
+  if (!targetPath.trim()) {
+    return { allowed: false, reason: '写入路径不能为空。' };
+  }
+  if (path.isAbsolute(targetPath) || path.win32.isAbsolute(targetPath)) {
+    return { allowed: false, reason: '隔离子会话只允许相对于工作目录的写入路径。' };
+  }
+  if (targetPath.split(/[\\/]+/).includes('..')) {
+    return { allowed: false, reason: '隔离子会话不允许包含 .. 的写入路径。' };
+  }
+
+  const lexicalRoot = path.resolve(allowedWriteRoot);
+  const lexicalTarget = path.resolve(workingDirectory, targetPath);
+  if (!isPathInside(lexicalTarget, lexicalRoot)) {
+    return { allowed: false, reason: `写入路径超出允许目录: ${allowedWriteRoot}` };
+  }
+
+  try {
+    const realRoot = fs.realpathSync(lexicalRoot);
+    const existingAncestor = findExistingAncestor(lexicalTarget);
+    const realAncestor = fs.realpathSync(existingAncestor);
+    if (!isPathInside(realAncestor, realRoot)) {
+      return { allowed: false, reason: `写入路径通过符号链接逃逸允许目录: ${allowedWriteRoot}` };
+    }
+  } catch (error: any) {
+    return {
+      allowed: false,
+      reason: `无法验证隔离写入路径: ${error?.message || String(error)}`,
+    };
+  }
+
+  return { allowed: true };
+}
+
+function findExistingAncestor(targetPath: string): string {
+  let current = targetPath;
+  while (true) {
+    try {
+      fs.lstatSync(current);
+      return current;
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      throw new Error(`没有可验证的父目录: ${targetPath}`);
+    }
+    current = parent;
+  }
+}
+
+function isPathInside(targetPath: string, rootPath: string): boolean {
+  const relative = path.relative(rootPath, targetPath);
+  return relative === ''
+    || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }

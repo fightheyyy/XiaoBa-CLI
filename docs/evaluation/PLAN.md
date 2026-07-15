@@ -1,17 +1,19 @@
 # Evaluation PLAN
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-15
 Owner：Runtime / Evaluation maintainers
 
 ## Current Status
 
 - Engineering tests, Trace Replay and Live Agent Eval have separate commands and meanings.
 - Trace Replay reads historical Pet/Chat input, drives the current runtime and writes fresh evidence plus lightweight comparison.
+- Trace Replay appends runtime-owned replay provenance to every fresh session, including calls with a custom session key.
 - Live Agent Eval currently contains one BaseRuntime manifest with 11 fresh-run cases.
 - `eval:gate` aggregates live eval only; `check:benchmarks` performs source preflight only.
 - Legacy static/mixed role benchmarks are removed.
 - Trace Replay is not yet side-effect safe and role live eval has not been rebuilt.
+- The evolution DAG uses Inspector-authored replay cases and Reviewer terminal evidence (`closed | next_run | blocked`); same-run repair back-edges are forbidden.
 
 ```mermaid
 flowchart LR
@@ -29,6 +31,7 @@ flowchart LR
 5. Replay side-effect isolation：not started。
 6. Role-owned live eval：not started after legacy asset removal。
 7. Multi-run real-model effectiveness evidence：not started。
+8. Evolution formal-replay contract：completed for deterministic DAG coverage；real-provider non-`no_op` route evidence remains future work。
 
 ## Next Steps
 
@@ -49,6 +52,7 @@ flowchart LR
 
 - `test:*`, `replay:*`, `eval:*` and `check:*` remain semantically distinct.
 - Trace Replay does not output benchmark pass/fail or auto-author accepted cases.
+- Trace Replay output remains identifiable as replay evidence regardless of caller-supplied session naming.
 - Every Live Agent Eval case fresh-runs the current runtime.
 - `eval:gate` contains only live behavior evaluation.
 - Benchmark preflight does not claim behavior correctness.

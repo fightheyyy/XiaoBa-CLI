@@ -1274,7 +1274,7 @@ export class ToolManager implements ToolExecutor {
   private resolveRoleConfig(roleName?: string): RoleConfig | undefined {
     const normalizedRole = normalizeRoleName(roleName);
     const resolvedRole = normalizedRole
-      ? RoleResolver.resolveRoleDirectoryName(normalizedRole) ?? normalizedRole
+      ? RoleResolver.resolveRoleDirectoryName(normalizedRole)
       : undefined;
     return resolvedRole ? RoleResolver.getRoleConfig(resolvedRole) : undefined;
   }

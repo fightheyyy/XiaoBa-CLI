@@ -161,17 +161,65 @@ describe('ToolManager role-specific tools', () => {
     assert.ok(!result.artifact_manifest?.some(item => item.metadata?.inferred === true));
   });
 
-  test('reviewer-cat 角色通过组合层注册 Codex 和模块测试工具', () => {
+  test('reviewer-cat 只注册正式回放工具，不暴露 Codex 实现控制', () => {
     RoleResolver.activateRole('reviewer-cat');
     const manager = createRoleAwareToolManager();
     assert.ok(manager.getTool('reviewer_eval_prepare'));
+    assert.ok(manager.getTool('reviewer_trace_replay'));
     assert.ok(manager.getTool('reviewer_xiaoba_cli_e2e'));
-    assert.ok(manager.getTool('codex_session_list'));
-    assert.ok(manager.getTool('codex_job_start'));
-    assert.ok(manager.getTool('codex_job_status'));
-    assert.ok(manager.getTool('codex_job_resume'));
-    assert.ok(manager.getTool('codex_job_cancel'));
     assert.ok(manager.getTool('reviewer_module_test'));
+    for (const toolName of [
+      'codex_session_list',
+      'codex_job_start',
+      'codex_job_status',
+      'codex_job_resume',
+      'codex_job_cancel',
+    ]) {
+      assert.strictEqual(manager.getTool(toolName), undefined, `${toolName} must remain EngineerCat-only`);
+    }
+  });
+
+  test('evolution DAG runtime hard-blocks Reviewer command runners', async () => {
+    RoleResolver.activateRole('reviewer-cat');
+    const e2eSentinel = path.join(testRoot, 'dag-e2e-mutated');
+    const moduleSentinel = path.join(testRoot, 'dag-module-mutated');
+    const manager = createRoleAwareToolManager(testRoot, {
+      roleName: 'reviewer-cat',
+      parentSessionId: 'evolution:dag:2026-07-14',
+    });
+
+    const e2e = await manager.executeTool({
+      id: 'dag-e2e-denied',
+      type: 'function',
+      function: {
+        name: 'reviewer_xiaoba_cli_e2e',
+        arguments: JSON.stringify({
+          command: `node -e "require('fs').writeFileSync(${JSON.stringify(e2eSentinel)}, 'bad')"`,
+          messages: ['修改代码'],
+          verifier_commands: [{ command: 'exit 0' }],
+        }),
+      },
+    });
+    const module = await manager.executeTool({
+      id: 'dag-module-denied',
+      type: 'function',
+      function: {
+        name: 'reviewer_module_test',
+        arguments: JSON.stringify({
+          module: 'custom',
+          tests: [{
+            command: `node -e "require('fs').writeFileSync(${JSON.stringify(moduleSentinel)}, 'bad')"`,
+          }],
+        }),
+      },
+    });
+
+    assert.strictEqual(e2e.status, 'blocked');
+    assert.strictEqual(e2e.error_code, 'REVIEWER_ARBITRARY_E2E_FORBIDDEN_IN_EVOLUTION_DAG');
+    assert.strictEqual(module.status, 'blocked');
+    assert.strictEqual(module.error_code, 'REVIEWER_COMMAND_RUNNER_FORBIDDEN_IN_EVOLUTION_DAG');
+    assert.strictEqual(fs.existsSync(e2eSentinel), false);
+    assert.strictEqual(fs.existsSync(moduleSentinel), false);
   });
 
   test('engineer-cat 角色通过组合层注册 Codex session 和 job 工具', () => {

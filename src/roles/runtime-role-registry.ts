@@ -29,6 +29,7 @@ import { GuideTpcBaselineTool } from './guide/tools/tpc-baseline-tool';
 import { ReviewerEvalPrepareTool } from './reviewer-cat/tools/reviewer-eval-tool';
 import { ReviewerXiaoBaCliE2ETool } from './reviewer-cat/tools/xiaoba-cli-e2e-tool';
 import { ReviewerModuleTestTool } from './reviewer-cat/tools/module-test-tool';
+import { ReviewerTraceReplayTool } from './reviewer-cat/tools/trace-replay-tool';
 import { ResearchBoardReadTool, ResearchBoardUpdateTool } from './researcher-cat/tools/research-board-tools';
 import { ResearchAutoResearchRunTool } from './researcher-cat/tools/research-auto-run-tool';
 import { FeishuAuthLoginCompleteTool, FeishuAuthLoginStartTool, FeishuAuthStatusTool } from './secretary-cat/tools/feishu-auth-tools';
@@ -85,6 +86,7 @@ import {
 import { UserTraceRunTool } from './user-cat/tools/user-trace-run-tool';
 import { createBrowserCatTools } from './browser-cat';
 import { createGuiCatTools } from './gui-cat';
+import { EvolutionRememberTool } from './evolution-cat/tools/remember-tool';
 
 export interface RoleRuntimeSupport {
   stop(): Promise<void>;
@@ -95,55 +97,56 @@ export interface RoleRuntimeServiceOptions {
 }
 
 function normalizeRole(roleName?: string): string {
-  return RoleResolver.normalizeRoleName(roleName || '');
+  const requested = roleName || RoleResolver.getActiveRoleName();
+  const resolved = requested ? RoleResolver.resolveRoleDirectoryName(requested) : undefined;
+  return RoleResolver.normalizeRoleName(resolved || '');
 }
 
 function isInspectorRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'inspector-cat';
+  return normalizeRole(roleName) === 'inspector-cat';
 }
 
 function isEngineerRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'engineer-cat';
+  return normalizeRole(roleName) === 'engineer-cat';
 }
 
 function isReviewerRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'reviewer-cat';
+  return normalizeRole(roleName) === 'reviewer-cat';
 }
 
 function isResearcherRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'researcher-cat';
+  return normalizeRole(roleName) === 'researcher-cat';
 }
 
 function isSecretaryRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'secretary-cat';
+  return normalizeRole(roleName) === 'secretary-cat';
 }
 
 function isUserRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'user-cat';
+  return normalizeRole(roleName) === 'user-cat';
 }
 
 function isGuideRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'guide';
+  return normalizeRole(roleName) === 'guide';
 }
 
 function isBrowserRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'browser-cat';
+  return normalizeRole(roleName) === 'browser-cat';
 }
 
 function isGuiRole(roleName?: string): boolean {
-  const activeRole = roleName || RoleResolver.getActiveRoleName();
-  return !!activeRole && normalizeRole(activeRole) === 'gui-cat';
+  return normalizeRole(roleName) === 'gui-cat';
+}
+
+function isEvolutionRole(roleName?: string): boolean {
+  return normalizeRole(roleName) === 'evolution-cat';
 }
 
 export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
+  if (isEvolutionRole(roleName)) {
+    return [new EvolutionRememberTool()];
+  }
+
   if (isBrowserRole(roleName)) {
     return createBrowserCatTools();
   }
@@ -236,12 +239,8 @@ export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
   if (isReviewerRole(roleName)) {
     return [
       new ReviewerEvalPrepareTool(),
+      new ReviewerTraceReplayTool(),
       new ReviewerXiaoBaCliE2ETool(),
-      new CodexSessionListTool(),
-      new CodexJobStartTool(),
-      new CodexJobStatusTool(),
-      new CodexJobResumeTool(),
-      new CodexJobCancelTool(),
       new ReviewerModuleTestTool(),
     ];
   }

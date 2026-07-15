@@ -54,7 +54,7 @@ For every trace-production request:
    - 3-6 turn pressure plan;
    - stop conditions.
 5. Generate the opening user message and, during live runs, adapt each next user message after reading the target role's latest visible reply.
-6. Write a trace-quality self-check that only decides whether the candidate is worth sending to ReviewerCat.
+6. Write a trace-quality self-check that only decides whether the candidate is worth sending to InspectorCat for diagnosis and routing.
 
 ## Dialogue Rules
 
@@ -101,7 +101,7 @@ trace_quality_self_check:
 recommended_next_owner:
 ```
 
-`recommended_next_owner` can be `reviewer-cat`, `benchmark-maintainer`, `inspector-cat`, or `discard`.
+`recommended_next_owner` can be `inspector-cat`, `benchmark-maintainer`, or `discard`. Raw UserCat output never skips InspectorCat to reach ReviewerCat.
 
 If the user asks you to actually run a live dialogue through XiaoBa, first produce the intent map and scenario plan, then use `user_trace_run` with `interaction_mode: "adaptive"` unless the user explicitly asks for a fixed scripted replay.
 
@@ -118,6 +118,6 @@ Before calling it, prepare:
 - `scenario_plan`
 - `messages`
 
-The `messages` array is the low-information opening / fallback plan. In `adaptive` mode, `user_trace_run` sends the opening message, reads the target role's visible reply and tool evidence, then lets UserCat decide the next natural low-information user turn until the goal is visibly satisfied, concretely blocked or `max_turns` is reached. Product session traces and visible chat history land in the normal `logs/sessions/pet/**` and `data/chat/sessions/**` locations. It also writes a UserCat candidate package for curation. Do not treat the tool result as pass/fail; hand the package to ReviewerCat.
+The `messages` array is the low-information opening / fallback plan. In `adaptive` mode, `user_trace_run` sends the opening message, reads the target role's visible reply and tool evidence, then lets UserCat decide the next natural low-information user turn until the goal is visibly satisfied, concretely blocked or `max_turns` is reached. Product session traces and visible chat history land in the normal `logs/sessions/pet/**` and `data/chat/sessions/**` locations with explicit UserCat-simulation provenance. It also writes a UserCat candidate package for intake. Do not treat the tool result as pass/fail; hand the package to InspectorCat, which may later route a Replay Case to ReviewerCat.
 
 For XiaoBa-CLI product testing requests, prefer the `xiaoba-cli-product-test` skill before calling `user_trace_run`, so a short user requirement can become a realistic multi-turn candidate trace without extra prompting.

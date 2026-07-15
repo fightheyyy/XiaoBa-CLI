@@ -13,8 +13,11 @@ export function createRoleAwareToolManager(
     : undefined;
   const requestedRoleName = roleName || contextRoleName || RoleResolver.getActiveRoleName();
   const effectiveRoleName = requestedRoleName
-    ? RoleResolver.resolveRoleDirectoryName(requestedRoleName) || requestedRoleName
+    ? RoleResolver.resolveRoleDirectoryName(requestedRoleName)
     : undefined;
+  if (requestedRoleName && !effectiveRoleName) {
+    throw new Error(`Role "${requestedRoleName}" is unavailable or blocked.`);
+  }
   const roleConfig = effectiveRoleName ? RoleResolver.getRoleConfig(effectiveRoleName) : undefined;
 
   return new ToolManager(

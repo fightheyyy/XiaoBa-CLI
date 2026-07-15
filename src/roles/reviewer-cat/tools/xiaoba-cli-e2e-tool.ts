@@ -3,7 +3,13 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import {
+  ArtifactManifestItem,
+  Tool,
+  ToolDefinition,
+  ToolExecutionContext,
+  ToolExecutionOutput,
+} from '../../../types/tool';
 import { prepareReviewEval } from '../utils/review-eval-profile';
 
 const execAsync = promisify(exec);
@@ -68,7 +74,8 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
     description: [
       '让 ReviewerCat 像真人测试人员一样，通过真实 CLI 入口黑盒交互端到端测试 XiaoBa-CLI 的目标角色。',
       '默认目标是 engineer-cat：启动真实 CLI interactive session，发送需求，capture 终端 trace，跑独立 verifier，并写 scorecard/report。',
-      '默认优先 tmux；tmux 不可用时可在 auto 模式降级到子进程 stdin/stdout，并把降级事实写入 trace/scorecard。'
+      '默认优先 tmux；tmux 不可用时可在 auto 模式降级到子进程 stdin/stdout，并把降级事实写入 trace/scorecard。',
+      '此通用工具允许自定义 command/messages/verifier_commands，因此在定时 evolution DAG 的正式回放 stage 中由 runtime 硬阻止；普通 Reviewer 会话不受影响。'
     ].join('\n'),
     parameters: {
       type: 'object',
@@ -153,7 +160,22 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<string | ToolExecutionOutput> {
+    if (isFormalEvolutionDagContext(context)) {
+      const blockedReason = '定时 evolution DAG 禁止 ReviewerCat 通过通用 E2E 的 command/messages/verifier_commands 启动可变子进程；请使用确定性只读证据，无法正式回放时返回 blocked。';
+      return {
+        toolContent: [
+          'reviewer_xiaoba_cli_e2e: status=blocked',
+          'error_code=REVIEWER_ARBITRARY_E2E_FORBIDDEN_IN_EVOLUTION_DAG',
+          `blocked_reason=${blockedReason}`,
+        ].join('\n'),
+        status: 'blocked',
+        error_code: 'REVIEWER_ARBITRARY_E2E_FORBIDDEN_IN_EVOLUTION_DAG',
+        blocked_reason: blockedReason,
+        retryable: false,
+      };
+    }
+
     const cwd = resolveCwd(context.workingDirectory, args?.cwd);
     const targetRole = readString(args?.target_role, 'engineer-cat');
     const runId = safeSegment(readString(args?.run_id, createRunId()));
@@ -472,7 +494,12 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
     }, context.workingDirectory), maxChars);
   }
 
-  getArtifactManifest(args: any, result: string, context: ToolExecutionContext): ArtifactManifestItem[] {
+  getArtifactManifest(
+    args: any,
+    result: string | ToolExecutionOutput,
+    context: ToolExecutionContext,
+  ): ArtifactManifestItem[] {
+    if (typeof result !== 'string') return [];
     const runDir = inferE2ERunDir(args, result, context.workingDirectory);
     if (!runDir) return [];
 
@@ -522,6 +549,11 @@ export class ReviewerXiaoBaCliE2ETool implements Tool {
 
     return uniqueArtifacts(artifacts.filter((item): item is ArtifactManifestItem => Boolean(item)));
   }
+}
+
+function isFormalEvolutionDagContext(context: ToolExecutionContext): boolean {
+  return typeof context.parentSessionId === 'string'
+    && context.parentSessionId.startsWith('evolution:dag:');
 }
 
 function defaultScenario(targetRole: string): string {

@@ -3,7 +3,13 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { ArtifactManifestItem, Tool, ToolDefinition, ToolExecutionContext } from '../../../types/tool';
+import {
+  ArtifactManifestItem,
+  Tool,
+  ToolDefinition,
+  ToolExecutionContext,
+  ToolExecutionOutput,
+} from '../../../types/tool';
 
 const execAsync = promisify(exec);
 
@@ -41,7 +47,8 @@ export class ReviewerModuleTestTool implements Tool {
     description: [
       '历史/辅助入口：运行低层模块检查并生成可供 ReviewerCat 读取的辅助证据。',
       '默认只返回低 token 的通过/失败摘要；完整 stdout/stderr 会写入 data/reviewer-module-test/<run_id>/。',
-      '它不是 ReviewerCat 默认端测步骤；失败时把摘要作为前置风险交给 EngineerCat / Codex。'
+      '它不是 ReviewerCat 默认端测步骤；失败时把摘要作为前置风险交给 EngineerCat / Codex。',
+      '该工具可接收自定义命令，因此定时 evolution DAG 的 Reviewer stage 会被 runtime 硬阻止；普通 Reviewer 会话不受影响。'
     ].join('\n'),
     parameters: {
       type: 'object',
@@ -93,7 +100,22 @@ export class ReviewerModuleTestTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<string | ToolExecutionOutput> {
+    if (isFormalEvolutionDagContext(context)) {
+      const blockedReason = '定时 evolution DAG 禁止 ReviewerCat 通过模块测试入口运行任意或项目自定义命令；请使用确定性只读证据，无法正式回放时返回 blocked。';
+      return {
+        toolContent: [
+          'reviewer_module_test: status=blocked',
+          'error_code=REVIEWER_COMMAND_RUNNER_FORBIDDEN_IN_EVOLUTION_DAG',
+          `blocked_reason=${blockedReason}`,
+        ].join('\n'),
+        status: 'blocked',
+        error_code: 'REVIEWER_COMMAND_RUNNER_FORBIDDEN_IN_EVOLUTION_DAG',
+        blocked_reason: blockedReason,
+        retryable: false,
+      };
+    }
+
     const baseCwd = resolveTestCwd(context.workingDirectory, args.cwd);
     const runId = safeSegment(String(args.run_id || createRunId()));
     const runDir = path.resolve(context.workingDirectory, TEST_ROOT, runId);
@@ -150,6 +172,11 @@ export class ReviewerModuleTestTool implements Tool {
     ];
     return uniqueArtifacts(artifacts.filter((item): item is ArtifactManifestItem => Boolean(item)));
   }
+}
+
+function isFormalEvolutionDagContext(context: ToolExecutionContext): boolean {
+  return typeof context.parentSessionId === 'string'
+    && context.parentSessionId.startsWith('evolution:dag:');
 }
 
 async function runOneTest(test: TestSpec, baseCwd: string, runDir: string, index: number): Promise<TestResult> {

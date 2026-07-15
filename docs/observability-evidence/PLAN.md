@@ -1,7 +1,7 @@
 # Observability & Evidence PLAN
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-15
 Owner：Runtime / evidence maintainers
 
 ## Current Status
@@ -12,6 +12,8 @@ Owner：Runtime / evidence maintainers
 - Tool, artifact, delivery, provider failure and external receipt facts are represented in runtime evidence.
 - Dashboard observability endpoints are read-only and return redacted projections.
 - Observability does not accept benchmark source or decide pass/fail.
+- Nightly evolution derives an atomic local digest from terminal trace rows with stable source refs; the digest is evidence projection only and never scores or promotes assets.
+- The digest is built once by runtime and handed to InspectorCat as the first model stage; Observability still owns neither diagnosis nor routing.
 - Retention, encryption, durable in-flight state and user-controlled deletion remain incomplete.
 
 ```mermaid
@@ -31,6 +33,7 @@ flowchart LR
 5. Redacted Dashboard read boundary：completed for current API。
 6. Retention/delete/encryption policy：not started。
 7. Durable in-flight task/action evidence：partial/not started。
+8. Read-only nightly evolution digest over terminal traces：completed。
 
 ## Next Steps
 
@@ -61,3 +64,8 @@ flowchart LR
 - Faithful local traces may retain sensitive content longer than users expect.
 - Crash recovery lacks a complete durable child/action journal.
 - Historical v2/v3 logs still contain mixed naming and evidence shapes.
+
+## Recent Verification
+
+- Deterministic harvest tests cover timestamp windows across date directories, malformed/non-terminal rows, test/replay/self-run exclusion, runtime-stamped custom replay provenance, stable observation ids and atomic reruns.
+- Real harvest for `2026-07-13` scanned 124 trace files, excluded 44 synthetic/replay rows and correctly returned 0 production observations / 0 patterns.

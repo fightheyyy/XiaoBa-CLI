@@ -82,13 +82,15 @@ After substantial code changes:
 ## Stable Role Architecture
 
 - Base Main Agent is the only user-facing main agent and dispatcher.
-- The seven default Role Subagents are UserCat, InspectorCat, ReviewerCat, EngineerCat, BrowserCat, GuiCat, and SecretaryCat.
+- The eight default Role Subagents are UserCat, InspectorCat, ReviewerCat, EngineerCat, BrowserCat, GuiCat, SecretaryCat, and EvolutionCat.
 - UserCat, InspectorCat, and ReviewerCat form the self-evolution review side.
 - EngineerCat, BrowserCat, GuiCat, and SecretaryCat form the execution-takeover side.
 - EngineerCat owns coding and implements Inspector/Reviewer repair work.
 - BrowserCat owns browser takeover; GuiCat owns desktop GUI takeover.
 - SecretaryCat owns Feishu workplace workflows and delegates domain capabilities to the official `lark-cli`; `FeishuCat` is an alias, not a second role.
-- All seven roles reuse the XiaoBa Agent loop. Drivers provide deterministic capabilities and do not run a second Chat/Agent/MCP loop.
+- EvolutionCat owns deterministic long-term memory through the role-scoped `remember` tool plus role-local `self-evolution`, `skill-publish`, and `role-publish` workflows. It does not own coding, evaluation, or cross-role dispatch.
+- Base ships with zero default Skills; explicit standalone Skill installation and Arena subject mounting remain supported.
+- All eight roles reuse the XiaoBa Agent loop. Drivers provide deterministic capabilities and do not run a second Chat/Agent/MCP loop.
 - Do not add RouterCat, Recovery Role, or a general task framework unless the stable architecture is explicitly changed first.
 
 ## Working Rule

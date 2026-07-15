@@ -19,7 +19,7 @@
   ],
   "metadata": {
     "toolPolicy": "user_trace_run-candidate-trace-production-only",
-    "curationOwner": "reviewer-cat",
+    "intakeOwner": "inspector-cat",
     "benchmarkAcceptance": "forbidden"
   }
 }

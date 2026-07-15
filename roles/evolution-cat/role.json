@@ -1,0 +1,18 @@
+{
+  "name": "evolution-cat",
+  "displayName": "EvolutionCat",
+  "description": "负责确定性长期记忆、候选能力沉淀，以及 Skill/Role 的显式发布工作流。",
+  "promptFile": "evolution-system-prompt.md",
+  "aliases": [
+    "evolution",
+    "evolutioncat",
+    "进化猫"
+  ],
+  "inheritBaseSkills": false,
+  "baseToolDenylist": [
+    "spawn_subagent",
+    "check_subagent",
+    "stop_subagent",
+    "resume_subagent"
+  ]
+}

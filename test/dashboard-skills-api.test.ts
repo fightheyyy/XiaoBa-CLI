@@ -137,15 +137,18 @@ Legacy sub-agent wrapper.
 
     const enableResponse = await fetch(`${baseUrl}/api/skills/officecli-docx/enable`, { method: 'POST' });
     assert.strictEqual(enableResponse.status, 200);
+    assert.strictEqual((await enableResponse.json() as { status: string }).status, 'candidate');
     assert.strictEqual(fs.existsSync(disabledPath), false);
     assert.strictEqual(fs.existsSync(enabledPath), true);
+    assert.match(fs.readFileSync(enabledPath, 'utf-8'), /status: candidate/);
 
     const restoredResponse = await fetch(`${baseUrl}/api/skills-all`);
     assert.strictEqual(restoredResponse.status, 200);
-    const restoredSkills = await restoredResponse.json() as Array<{ name: string; enabled: boolean }>;
+    const restoredSkills = await restoredResponse.json() as Array<{ name: string; enabled: boolean; status: string }>;
     const restored = restoredSkills.find(skill => skill.name === 'officecli-docx');
     assert.ok(restored);
     assert.strictEqual(restored.enabled, true);
+    assert.strictEqual(restored.status, 'candidate');
   });
 
   test('hides migrated sub-agent skill wrappers but allows direct cleanup', async () => {
@@ -159,6 +162,127 @@ Legacy sub-agent wrapper.
     const deleteResponse = await fetch(`${baseUrl}/api/skills/sub-agent`, { method: 'DELETE' });
     assert.strictEqual(deleteResponse.status, 200);
     assert.strictEqual(fs.existsSync(legacyPath), false);
+  });
+
+  test('shows capability status and changes Skill status without renaming the source file', async () => {
+    const candidatePath = path.join(testRoot, 'skills', 'candidate-skill', 'SKILL.md');
+    const blockedPath = path.join(testRoot, 'skills', 'blocked-skill', 'SKILL.md');
+    writeFile(candidatePath, `---
+name: candidate-skill
+description: Candidate skill
+status: candidate
+---
+
+Candidate.
+`);
+    writeFile(blockedPath, `---
+name: blocked-skill
+description: Blocked skill
+status: blocked
+---
+
+Blocked.
+`);
+
+    const listResponse = await fetch(`${baseUrl}/api/skills-all`);
+    assert.strictEqual(listResponse.status, 200);
+    const skills = await listResponse.json() as Array<{ name: string; status: string; enabled: boolean }>;
+    assert.deepStrictEqual(
+      skills.filter(skill => ['candidate-skill', 'blocked-skill'].includes(skill.name))
+        .map(skill => [skill.name, skill.status, skill.enabled])
+        .sort(),
+      [
+        ['blocked-skill', 'blocked', false],
+        ['candidate-skill', 'candidate', true],
+      ],
+    );
+
+    const disable = await fetch(`${baseUrl}/api/skills/candidate-skill/disable`, { method: 'POST' });
+    assert.strictEqual(disable.status, 200);
+    assert.strictEqual(fs.existsSync(candidatePath), true);
+    assert.match(fs.readFileSync(candidatePath, 'utf-8'), /status: blocked/);
+    assert.strictEqual(fs.existsSync(`${candidatePath}.disabled`), false);
+
+    const rejectedPromotion = await fetch(`${baseUrl}/api/skills/candidate-skill/promote`, { method: 'POST' });
+    assert.strictEqual(rejectedPromotion.status, 409);
+    assert.match(fs.readFileSync(candidatePath, 'utf-8'), /status: blocked/);
+
+    const enable = await fetch(`${baseUrl}/api/skills/candidate-skill/enable`, { method: 'POST' });
+    assert.strictEqual(enable.status, 200);
+    assert.strictEqual((await enable.json() as { status: string }).status, 'candidate');
+    assert.match(fs.readFileSync(candidatePath, 'utf-8'), /status: candidate/);
+
+    const promote = await fetch(`${baseUrl}/api/skills/candidate-skill/promote`, { method: 'POST' });
+    assert.strictEqual(promote.status, 200);
+    assert.strictEqual((await promote.json() as { status: string }).status, 'active');
+    assert.match(fs.readFileSync(candidatePath, 'utf-8'), /status: active/);
+
+    const unblock = await fetch(`${baseUrl}/api/skills/blocked-skill/unblock`, { method: 'POST' });
+    assert.strictEqual(unblock.status, 200);
+    assert.strictEqual((await unblock.json() as { status: string }).status, 'candidate');
+    assert.match(fs.readFileSync(blockedPath, 'utf-8'), /status: candidate/);
+  });
+
+  test('shows candidate and blocked roles in management while refusing blocked activation', async () => {
+    writeFile(path.join(testRoot, 'roles', 'candidate-cat', 'role.json'), JSON.stringify({
+      name: 'candidate-cat',
+      displayName: 'CandidateCat',
+      status: 'candidate',
+    }, null, 2));
+    writeFile(path.join(testRoot, 'roles', 'blocked-cat', 'role.json'), JSON.stringify({
+      name: 'blocked-cat',
+      displayName: 'BlockedCat',
+      status: 'blocked',
+    }, null, 2));
+
+    const listResponse = await fetch(`${baseUrl}/api/roles`);
+    assert.strictEqual(listResponse.status, 200);
+    const roles = await listResponse.json() as { roles: Array<{ name: string; status: string }> };
+    assert.strictEqual(roles.roles.find(role => role.name === 'candidate-cat')?.status, 'candidate');
+    assert.strictEqual(roles.roles.find(role => role.name === 'blocked-cat')?.status, 'blocked');
+
+    const blocked = await fetch(`${baseUrl}/api/roles/active`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'blocked-cat' }),
+    });
+    assert.strictEqual(blocked.status, 400);
+
+    const rejectedPromotion = await fetch(`${baseUrl}/api/roles/blocked-cat/promote`, { method: 'POST' });
+    assert.strictEqual(rejectedPromotion.status, 409);
+
+    const unblock = await fetch(`${baseUrl}/api/roles/blocked-cat/unblock`, { method: 'POST' });
+    assert.strictEqual(unblock.status, 200);
+    assert.strictEqual((await unblock.json() as { status: string }).status, 'candidate');
+    assert.strictEqual(
+      JSON.parse(fs.readFileSync(path.join(testRoot, 'roles', 'blocked-cat', 'role.json'), 'utf-8')).status,
+      'candidate',
+    );
+
+    const candidate = await fetch(`${baseUrl}/api/roles/active`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'candidate-cat' }),
+    });
+    assert.strictEqual(candidate.status, 200);
+    assert.strictEqual(RoleResolver.getActiveRoleName(), 'candidate-cat');
+
+    const blockCandidate = await fetch(`${baseUrl}/api/roles/candidate-cat/block`, { method: 'POST' });
+    assert.strictEqual(blockCandidate.status, 200);
+    assert.strictEqual((await blockCandidate.json() as { status: string }).status, 'blocked');
+    assert.strictEqual(RoleResolver.getActiveRoleName(), undefined);
+
+    const restoreCandidate = await fetch(`${baseUrl}/api/roles/candidate-cat/unblock`, { method: 'POST' });
+    assert.strictEqual(restoreCandidate.status, 200);
+    assert.strictEqual((await restoreCandidate.json() as { status: string }).status, 'candidate');
+
+    const promoteCandidate = await fetch(`${baseUrl}/api/roles/candidate-cat/promote`, { method: 'POST' });
+    assert.strictEqual(promoteCandidate.status, 200);
+    assert.strictEqual((await promoteCandidate.json() as { status: string }).status, 'active');
+    assert.strictEqual(
+      JSON.parse(fs.readFileSync(path.join(testRoot, 'roles', 'candidate-cat', 'role.json'), 'utf-8')).status,
+      'active',
+    );
   });
 
   test('deletes an installed role and clears the active role', async () => {

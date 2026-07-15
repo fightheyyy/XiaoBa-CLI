@@ -14,7 +14,7 @@
   [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18-green.svg)](package.json)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-  [Download macOS Preview](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Evidence & Evaluation](#evidence--evaluation) · [简体中文](README.md)
+  [Download macOS Preview](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.1.1) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Self-Evolution](#self-evolution-workflow) · [Evidence & Evaluation](#evidence--evaluation) · [简体中文](README.md)
 
   <sub>The current desktop package is an Apple Silicon technical preview. It is ad-hoc signed and not yet Apple-notarized.</sub>
 </div>
@@ -31,7 +31,7 @@ XiaoBa-CLI is not another chatbot that only produces more text. It is an **AI co
 | Browse sites, collect research, verify a page | BrowserCat works through a bounded browser driver | Structured results, sources, and page evidence |
 | Operate a desktop application | GuiCat works through a macOS GUI driver | Action results and GUI evidence |
 | Work with Feishu calendars, messages, tasks, and docs | SecretaryCat delegates workflows to the official `lark-cli` | Feishu results, files, and delivery evidence |
-| Review a new skill or role | UserCat applies pressure, InspectorCat investigates, ReviewerCat replays | An Arena scorecard and an explicit decision |
+| Review a new skill or role | The independent Arena runs UserCat scenarios, Inspector evidence extraction, and multi-attempt replay/compare | An Arena scorecard and an explicit decision |
 
 Runtime state, traces, and artifact evidence stay local by default. Model providers can be configured through OpenAI-compatible, Anthropic, Ollama, or other compatible endpoints.
 
@@ -53,8 +53,8 @@ CLI / Feishu / WeChat / Pet / Dashboard
       Deliverables + Trace + Replay + Scorecard
 ```
 
-- **One control plane**: Base is the only user-facing main agent; all seven roles reuse the XiaoBa Agent loop.
-- **Background dispatch**: role subagents take long-running work while the main conversation remains interactive.
+- **One control plane**: Base is the only user-facing main agent; four functional Roles and four internal continuous-improvement Roles reuse the same XiaoBa Agent loop.
+- **Two role groups**: functional Roles take over user work; internal continuous-improvement Roles participate on demand in trace production, diagnosis, capability generation, and independent replay rather than forming a second always-on system.
 - **Deterministic capability boundaries**: browser, GUI, and Feishu drivers provide capabilities without starting another Chat, Agent, or MCP loop.
 - **Deliverable-first completion**: files, messages, and tool results become structured evidence; “the model said it finished” is not completion.
 - **Local replayability**: traces, artifacts, deliveries, replay, and scorecards form an inspectable evidence chain.
@@ -67,19 +67,43 @@ CLI / Feishu / WeChat / Pet / Dashboard
 
 <p align="center"><sub>The Electron Dashboard brings runtime services, roles, skills, configuration, the store, and Chat into one local entry point.</sub></p>
 
-## Seven Default Roles
+## Eight Default Roles: 4 Functional + 4 Internal Continuous-Improvement
 
-The Base Main Agent owns user communication, judgment, and dispatch. Roles are specialist background subagents, not seven independent agent frameworks.
+The Base Main Agent owns user communication, judgment, and dispatch. The eight Roles are specialist profiles on one shared Runtime, not eight independent agent frameworks. Base ships with zero persistent default Skills.
+
+### Four Functional Roles
+
+These Roles directly take over user work and own the tools, permissions, and delivery boundary for their domain.
 
 | Role | Responsibility |
 | --- | --- |
-| UserCat | Pressures candidate capabilities with low-information, realistic user behavior and produces candidate traces |
-| InspectorCat | Finds problems in traces, tool facts, and artifacts; preserves evidence and routes repairs |
-| ReviewerCat | Runs multi-attempt replay and returns `pass / unstable / reopened / blocked / unsafe` |
-| EngineerCat | Owns code, repositories, builds, and Inspector/Reviewer repair work |
+| EngineerCat | Owns code, repositories, and builds; it can also implement explicitly handed-off Inspector/Reviewer repairs |
 | BrowserCat | Takes over browser tasks through bounded, verifiable page operations |
 | GuiCat | Takes over macOS desktop GUI tasks |
 | SecretaryCat | Takes over Feishu workflows; `FeishuCat` is an alias and official `lark-cli` supplies domain capabilities |
+
+### Four Internal Continuous-Improvement Roles
+
+These Roles serve evaluation and self-evolution workflows. They start only when needed and do not run together as four always-on agents.
+
+| Role | Responsibility |
+| --- | --- |
+| UserCat | Acts as an internal evaluation actor, pressures candidates with low-information realistic behavior, and produces candidate traces; it is not the fixed upstream source for nightly traces |
+| InspectorCat | Finds problems across real session traces, tool facts, and artifacts; preserves evidence and emits a typed route |
+| EvolutionCat | Turns Inspector-identified reusable patterns into candidate Skills/Roles and owns explicit publishing workflows; `remember` is its deterministic runtime tool |
+| ReviewerCat | Formally replays one Replay Case in a clean session and returns `closed / next_run / blocked`; Arena independently aggregates capability scorecards |
+
+This is a responsibility split, not two Runtimes. The four internal Roles do not form a linear chain that always runs end to end: nightly processing starts with InspectorCat, EvolutionCat and ReviewerCat participate by route, UserCat is mainly used for on-demand testing and Arena scenarios, and `repair` may call the functional EngineerCat.
+
+## Self-Evolution Workflow
+
+XiaoBa does not evolve by asking Base to improvise a reflection inside a conversation. It uses a deterministic cross-role DAG started nightly by the runtime. InspectorCat is always the first internal role: it scans session traces and produces evidence-backed findings with typed routes. Internal continuous-improvement Roles participate by route rather than all starting every night.
+
+<p align="center">
+  <img src="assets/self-evolution-dag.png" alt="XiaoBa Self-Evolution DAG: InspectorCat routes session traces to evolution, repair, replay, or a no-op terminal" width="100%">
+</p>
+
+The `evolution` route lets EvolutionCat produce candidate Skills/Roles for multi-case evaluation in the independent Arena. The `repair` route goes through EngineerCat and then formal replay by ReviewerCat, `replay` goes directly to ReviewerCat, and `no_op` terminates explicitly when there is no sufficient signal. Candidates never mutate the default bundle automatically; publishing remains explicit.
 
 ## Quick Start
 
@@ -156,7 +180,7 @@ See the [Evaluation SPEC](docs/evaluation/SPEC.md) and [Arena Calibration Eviden
 
 ## Arena: Review Capabilities Before Trusting Them
 
-Arena does not trust a skill because its instructions look convincing. A candidate enters an isolated clean runtime, goes through realistic UserCat use, InspectorCat evidence extraction, and ReviewerCat multi-attempt replay, then receives a `pass`, `unstable`, `reopened`, `blocked`, or `unsafe` decision.
+Arena does not trust a skill because its instructions look convincing. A candidate enters an isolated clean runtime and goes through UserCat scenarios, Inspector evidence extraction, and Arena-owned multi-attempt replay/compare before receiving a `pass`, `unstable`, `reopened`, `blocked`, or `unsafe` decision. ReviewerCat is reserved for formal replay of one DAG Replay Case.
 
 ```bash
 xiaoba arena skill <skill-name>
@@ -179,6 +203,8 @@ Arena supports exactly three review modes: `base + skill`, `role + skill`, and `
 | Single message | `npm run dev -- chat -m "summarize this repo"` | `xiaoba chat -m "summarize this repo"` |
 | Role chat | `npm run dev -- chat -r engineer-cat -i` | `xiaoba chat -r engineer-cat -i` |
 | Review a skill | `npm run dev -- arena skill <skill-name>` | `xiaoba arena skill <skill-name>` |
+| Run nightly evolution | `npm run dev -- evolution sleep` | `xiaoba evolution sleep` |
+| Install the macOS 03:17 schedule | `npm run dev -- evolution schedule install` | `xiaoba evolution schedule install` |
 | Dashboard | `npm run electron:dev` | - |
 | Build | `npm run build` | - |
 | Test | `npm test` | - |

@@ -6,6 +6,7 @@ import { execFileSync } from 'child_process';
 import { RoleManager } from '../roles/role-manager';
 import { DEFAULT_BUNDLED_BASE_SKILLS } from '../skills/skill-manager';
 import { SkillParser } from '../skills/skill-parser';
+import { RoleConfig } from '../types/role';
 import { PathResolver } from '../utils/path-resolver';
 import {
   ArenaAllowedRuntime,
@@ -75,6 +76,12 @@ export interface SnapshotRoleOptions {
   allowedRuntime?: ArenaAllowedRuntime;
 }
 
+export interface ImportLocalRoleOptions {
+  rolePath: string;
+  trustLevel?: ArenaTrustLevel;
+  allowedRuntime?: ArenaAllowedRuntime;
+}
+
 export class ArenaManager {
   private readonly projectRoot: string;
   private readonly now: () => Date;
@@ -101,30 +108,35 @@ export class ArenaManager {
   importLocalSkill(options: ImportLocalSkillOptions): ArenaSubjectManifest {
     const skillFile = resolveSkillFile(this.projectRoot, options.skillPath);
     const skill = SkillParser.parse(skillFile);
-    const subjectId = this.createId(['skill', skill.metadata.name, skillFile]);
+    const sourceRoot = path.dirname(skillFile);
+    const fingerprint = fingerprintDirectory(sourceRoot);
+    const subjectId = this.createId(['skill', skill.metadata.name, fingerprint]);
     const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
+    const snapshotRoot = path.join(subjectDir, 'source');
     ensureDir(subjectDir);
+    ensureImmutableSnapshot(sourceRoot, snapshotRoot, fingerprint);
+
+    const snapshotSkillFile = path.join(snapshotRoot, path.relative(sourceRoot, skillFile));
 
     const parsed = {
-      docs: relativeExistingFiles(this.projectRoot, [skillFile]),
+      docs: relativeExistingFiles(this.projectRoot, [snapshotSkillFile]),
       prompt_files: [] as string[],
-      skill_files: relativeExistingFiles(this.projectRoot, [skillFile]),
+      skill_files: relativeExistingFiles(this.projectRoot, [snapshotSkillFile]),
       declared_tools: [...(skill.metadata.toolsets || [])],
     };
-    const fingerprint = fingerprintFiles([skillFile]);
     const manifest = this.buildManifest({
       subjectId,
       type: 'skill',
       source: {
         type: 'local_skill',
-        path: relativePath(this.projectRoot, skillFile),
+        path: relativePath(this.projectRoot, snapshotRoot),
       },
       name: skill.metadata.name,
       description: skill.metadata.description,
       capabilities: [skill.metadata.description],
       requiredTools: parsed.declared_tools,
       parsed,
-      safety: scanSafety([skillFile]),
+      safety: scanSafety(collectSnapshotFiles(snapshotRoot)),
       trustLevel: options.trustLevel || 'review_required',
       allowedRuntime: options.allowedRuntime || 'arena_only',
       fingerprint,
@@ -149,11 +161,12 @@ export class ArenaManager {
       }
       const skillFile = skillFiles[0];
       const skill = SkillParser.parse(skillFile);
-      const subjectId = this.createId(['skill', owner, repo, commit, skill.metadata.name]);
+      const fingerprint = fingerprintDirectory(tmpDir);
+      const subjectId = this.createId(['skill', owner, repo, commit, skill.metadata.name, fingerprint]);
       const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
       const sourceDir = path.join(subjectDir, 'source');
       ensureDir(subjectDir);
-      copyDirectory(tmpDir, sourceDir);
+      ensureImmutableSnapshot(tmpDir, sourceDir, fingerprint);
 
       const persistedSkillFile = path.join(sourceDir, path.relative(tmpDir, skillFile));
       const parsed = {
@@ -182,7 +195,7 @@ export class ArenaManager {
         safety: scanSafety([persistedSkillFile]),
         trustLevel: options.trustLevel || 'untrusted',
         allowedRuntime: options.allowedRuntime || 'arena_only',
-        fingerprint: fingerprintFiles([persistedSkillFile]),
+        fingerprint,
       });
 
       return this.writeSubjectManifest(subjectDir, manifest);
@@ -197,8 +210,53 @@ export class ArenaManager {
       throw new Error(`Role not found: ${options.roleId}`);
     }
 
-    const roleFiles = collectRoleFiles(role.path);
-    const localSkillFiles = PathResolver.findSkillFiles(path.join(role.path, 'skills'));
+    return this.importRolePath({
+      rolePath: role.path,
+      roleName: role.name,
+      displayName: role.displayName,
+      description: role.description,
+      config: role.config || {},
+      trustLevel: options.trustLevel,
+      allowedRuntime: options.allowedRuntime,
+    });
+  }
+
+  importLocalRole(options: ImportLocalRoleOptions): ArenaSubjectManifest {
+    const rolePath = resolveRoleDirectory(this.projectRoot, options.rolePath);
+    const config = readRoleConfig(rolePath);
+    const roleName = stringValue(config.name) || path.basename(rolePath);
+    const displayName = stringValue(config.displayName) || roleName;
+    const description = stringValue(config.description) || displayName;
+
+    return this.importRolePath({
+      rolePath,
+      roleName,
+      displayName,
+      description,
+      config,
+      trustLevel: options.trustLevel,
+      allowedRuntime: options.allowedRuntime,
+    });
+  }
+
+  private importRolePath(input: {
+    rolePath: string;
+    roleName: string;
+    displayName: string;
+    description: string;
+    config: RoleConfig;
+    trustLevel?: ArenaTrustLevel;
+    allowedRuntime?: ArenaAllowedRuntime;
+  }): ArenaSubjectManifest {
+    const fingerprint = fingerprintDirectory(input.rolePath);
+    const subjectId = this.createId(['role', input.roleName, fingerprint]);
+    const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
+    const snapshotRoot = path.join(subjectDir, 'source');
+    ensureDir(subjectDir);
+    ensureImmutableSnapshot(input.rolePath, snapshotRoot, fingerprint);
+
+    const roleFiles = collectRoleFiles(snapshotRoot);
+    const localSkillFiles = PathResolver.findSkillFiles(path.join(snapshotRoot, 'skills'));
     const localSkills = localSkillFiles.map(file => SkillParser.parse(file).metadata.name).sort();
     const docs = roleFiles
       .filter(file => isDocFile(file))
@@ -207,30 +265,26 @@ export class ArenaManager {
       .filter(file => file.includes(`${path.sep}prompts${path.sep}`))
       .map(file => relativePath(this.projectRoot, file));
     const declaredBoundaries = [
-      role.description,
-      role.config?.metadata?.boundary,
-      role.config?.metadata?.responsibility,
+      input.description,
+      input.config.metadata?.boundary,
+      input.config.metadata?.responsibility,
     ]
       .map(value => typeof value === 'string' ? value.trim() : '')
       .filter(Boolean);
     const declaredTools = [
-      ...(role.config?.baseToolAllowlist || []),
-      ...(role.config?.toolVisibility?.defaultTools || []),
+      ...(input.config.baseToolAllowlist || []),
+      ...(input.config.toolVisibility?.defaultTools || []),
     ].map(String).filter(Boolean);
-    const subjectId = this.createId(['role', role.name, fingerprintFiles(roleFiles)]);
-    const subjectDir = path.join(this.getSubjectsRoot(), subjectId);
-    ensureDir(subjectDir);
-
     const manifest = this.buildManifest({
       subjectId,
       type: 'role',
       source: {
         type: 'local_role',
-        path: relativePath(this.projectRoot, role.path),
+        path: relativePath(this.projectRoot, snapshotRoot),
       },
-      name: role.name,
-      description: role.description || role.displayName,
-      capabilities: [role.description || role.displayName],
+      name: input.roleName,
+      description: input.description || input.displayName,
+      capabilities: [input.description || input.displayName],
       requiredTools: declaredTools,
       parsed: {
         docs,
@@ -239,15 +293,15 @@ export class ArenaManager {
         declared_tools: declaredTools,
       },
       safety: scanSafety(roleFiles),
-      trustLevel: options.trustLevel || 'review_required',
-      allowedRuntime: options.allowedRuntime || 'arena_only',
-      fingerprint: fingerprintFiles(roleFiles),
+      trustLevel: input.trustLevel || 'review_required',
+      allowedRuntime: input.allowedRuntime || 'arena_only',
+      fingerprint,
       role: {
-        id: role.name,
+        id: input.roleName,
         docs,
         local_skills: localSkills,
         declared_boundaries: declaredBoundaries,
-        fingerprint: fingerprintFiles(roleFiles),
+        fingerprint,
       },
     });
 
@@ -577,9 +631,11 @@ export class ArenaManager {
   }): ArenaRunIndex['target_profile'] {
     const activeRoleId = input.reviewMode === 'base_skill' ? 'base' : input.targetRoleId;
     const subjectSkillId = input.subject.subject.type === 'skill' ? input.subject.subject.name : undefined;
-    const roleLocalSkills = activeRoleId && activeRoleId !== 'base'
-      ? collectRoleLocalSkillNames(activeRoleId)
-      : [];
+    const roleLocalSkills = input.reviewMode === 'role'
+      ? [...(input.subject.role?.local_skills || [])]
+      : activeRoleId && activeRoleId !== 'base'
+        ? collectRoleLocalSkillNames(activeRoleId)
+        : [];
     const loadedSkills = Array.from(new Set([
       ...DEFAULT_PACKAGED_BASE_SKILLS,
       ...(roleLocalSkills || []),
@@ -869,6 +925,36 @@ function resolveSkillFile(projectRoot: string, value: string): string {
   throw new Error(`Skill path must point to SKILL.md or a skill directory: ${value}`);
 }
 
+function resolveRoleDirectory(projectRoot: string, value: string): string {
+  const resolved = path.resolve(projectRoot, value);
+  const rolePath = fs.existsSync(resolved) && fs.statSync(resolved).isFile()
+    && path.basename(resolved) === 'role.json'
+    ? path.dirname(resolved)
+    : resolved;
+  const configPath = path.join(rolePath, 'role.json');
+  if (fs.existsSync(rolePath) && fs.statSync(rolePath).isDirectory() && fs.existsSync(configPath)) {
+    return rolePath;
+  }
+  throw new Error(`Role path must point to role.json or a role directory: ${value}`);
+}
+
+function readRoleConfig(rolePath: string): RoleConfig {
+  const configPath = path.join(rolePath, 'role.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('expected a JSON object');
+    }
+    return parsed as RoleConfig;
+  } catch (error: any) {
+    throw new Error(`Role config parse failed (${configPath}): ${error?.message || error}`);
+  }
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function parseGithubRepo(repo: string): { owner: string; repo: string } {
   const match = repo.trim().match(/^([^/]+)\/([^/]+)$/);
   if (!match) {
@@ -907,6 +993,24 @@ function collectRoleLocalSkillNames(roleId: string): string[] {
 function collectRoleFiles(rolePath: string): string[] {
   const files: string[] = [];
   walk(rolePath, files);
+  return files.sort();
+}
+
+function collectSnapshotFiles(rootPath: string): string[] {
+  const files: string[] = [];
+  const visit = (directory: string): void => {
+    if (!fs.existsSync(directory)) return;
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === '.git') continue;
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(entryPath);
+      } else if (entry.isFile()) {
+        files.push(entryPath);
+      }
+    }
+  };
+  visit(rootPath);
   return files.sort();
 }
 
@@ -959,18 +1063,34 @@ function scanSafety(filePaths: string[]): ArenaSubjectManifest['safety'] {
   };
 }
 
-function fingerprintFiles(filePaths: string[]): string {
+function fingerprintDirectory(rootPath: string): string {
   const hash = crypto.createHash('sha256');
-  for (const filePath of [...filePaths].sort()) {
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      continue;
-    }
-    hash.update(path.basename(filePath));
+  for (const filePath of collectSnapshotFiles(rootPath)) {
+    hash.update(path.relative(rootPath, filePath).replace(/\\/g, '/'));
     hash.update('\0');
     hash.update(fs.readFileSync(filePath));
     hash.update('\0');
   }
   return hash.digest('hex');
+}
+
+function ensureImmutableSnapshot(from: string, to: string, expectedFingerprint: string): void {
+  if (fs.existsSync(to)) {
+    if (!fs.statSync(to).isDirectory() || fingerprintDirectory(to) !== expectedFingerprint) {
+      throw new Error(`Arena subject snapshot collision: ${to}`);
+    }
+    return;
+  }
+
+  try {
+    copyDirectory(from, to);
+    const copiedFingerprint = fingerprintDirectory(to);
+    if (copiedFingerprint === expectedFingerprint) return;
+    throw new Error(`Arena subject snapshot verification failed: ${to}`);
+  } catch (error) {
+    fs.rmSync(to, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function normalizeReplayAttempts(value: Partial<ArenaReplayAttempts> | undefined): ArenaReplayAttempts {

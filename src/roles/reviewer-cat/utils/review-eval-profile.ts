@@ -1093,7 +1093,7 @@ function roleResponsibilities(role: string): string[] {
     case 'engineer-cat':
       return ['implement or repair authorized code paths', 'run focused verification', 'return concrete diff/test evidence'];
     case 'reviewer-cat':
-      return ['build eval standards', 'run independent acceptance and E2E checks', 'decide closed/reopened/blocked with evidence'];
+      return ['build eval standards', 'run independent acceptance and E2E checks', 'decide closed/next_run/blocked with evidence'];
     case 'researcher-cat':
       return ['maintain long-running research workflow state', 'collect and audit evidence', 'synchronize research artifacts'];
     case 'secretary-cat':

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { RoleConfig } from '../types/role';
+import { parseCapabilityStatus } from '../types/capability-status';
 
 const DEFAULT_ROLE_NAMES = new Set(['', 'base', 'default', 'none']);
 
@@ -37,13 +38,29 @@ export class ActiveRoleContext {
     }
 
     try {
-      return JSON.parse(fs.readFileSync(configPath, 'utf-8')) as RoleConfig;
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as RoleConfig;
+      return {
+        ...config,
+        status: parseCapabilityStatus(config.status, `role ${roleDirName}`),
+      };
     } catch (error: any) {
       throw new Error(`角色配置解析失败 (${configPath}): ${error.message}`);
     }
   }
 
+  /** Runtime discovery only exposes evaluated active roles. */
   static listAvailableRoles(): string[] {
+    return this.listManagedRoles().filter(roleName => {
+      try {
+        return this.getRoleConfig(roleName)?.status === 'active';
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  /** Management surfaces retain visibility of candidate and blocked role packages. */
+  static listManagedRoles(): string[] {
     const rolesRoot = this.getRolesRoot();
     if (!fs.existsSync(rolesRoot)) {
       return [];
@@ -55,45 +72,52 @@ export class ActiveRoleContext {
       .sort((a, b) => a.localeCompare(b));
   }
 
+  /**
+   * Runtime resolution permits active aliases and exact candidate package names.
+   * Candidate aliases are intentionally not discoverable; blocked roles never resolve.
+   */
   static resolveRoleDirectoryName(roleName: string): string | undefined {
     const normalized = this.normalizeRoleName(roleName);
     if (DEFAULT_ROLE_NAMES.has(normalized)) {
       return undefined;
     }
 
-    const rolesRoot = this.getRolesRoot();
-    if (!fs.existsSync(rolesRoot)) {
+    const direct = this.listManagedRoles()
+      .find(candidate => this.normalizeRoleName(candidate) === normalized);
+    if (direct) {
+      try {
+        const status = this.getRoleConfig(direct)?.status || 'active';
+        return status === 'blocked' ? undefined : direct;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return this.listAvailableRoles().find(candidate => this.roleAliases(candidate)
+      .some(alias => this.normalizeRoleName(alias) === normalized));
+  }
+
+  /** Management resolution is status-agnostic and may use aliases. */
+  static resolveManagedRoleDirectoryName(roleName: string): string | undefined {
+    const normalized = this.normalizeRoleName(roleName);
+    if (DEFAULT_ROLE_NAMES.has(normalized)) {
       return undefined;
     }
 
-    const exactPath = path.join(rolesRoot, roleName);
-    if (fs.existsSync(exactPath) && fs.statSync(exactPath).isDirectory()) {
-      return path.basename(exactPath);
+    const direct = this.listManagedRoles()
+      .find(candidate => this.normalizeRoleName(candidate) === normalized);
+    if (direct) {
+      return direct;
     }
 
-    return this.listAvailableRoles()
-      .find(candidate => {
-        if (this.normalizeRoleName(candidate) === normalized) {
-          return true;
-        }
-
-        const config = this.getRoleConfig(candidate);
-        if (!config) {
-          return false;
-        }
-
-        const metadataAliases = Array.isArray(config.metadata?.aliases)
-          ? config.metadata.aliases.filter((alias): alias is string => typeof alias === 'string')
-          : [];
-        const aliases = [
-          config.name,
-          config.displayName,
-          ...(config.aliases || []),
-          ...metadataAliases,
-        ].filter((alias): alias is string => typeof alias === 'string');
-
-        return aliases.some(alias => this.normalizeRoleName(alias) === normalized);
-      });
+    return this.listManagedRoles().find(candidate => {
+      try {
+        return this.roleAliases(candidate)
+          .some(alias => this.normalizeRoleName(alias) === normalized);
+      } catch {
+        return false;
+      }
+    });
   }
 
   static getActiveRoleName(): string | undefined {
@@ -129,5 +153,21 @@ export class ActiveRoleContext {
     return process.env.CURRENT_ROLE_DISPLAY_NAME
       || this.getActiveRoleConfig()?.displayName
       || roleName;
+  }
+
+  private static roleAliases(roleDirName: string): string[] {
+    const config = this.getRoleConfig(roleDirName);
+    if (!config) {
+      return [];
+    }
+    const metadataAliases = Array.isArray(config.metadata?.aliases)
+      ? config.metadata.aliases.filter((alias): alias is string => typeof alias === 'string')
+      : [];
+    return [
+      config.name,
+      config.displayName,
+      ...(config.aliases || []),
+      ...metadataAliases,
+    ].filter((alias): alias is string => typeof alias === 'string');
   }
 }

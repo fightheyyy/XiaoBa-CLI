@@ -207,6 +207,45 @@ describe('ReviewerCat eval profile preparation', () => {
       assert.match(content, /role effectiveness/i);
     }
   });
+
+  test('ReviewerCat prompt and case-review Skill enforce the formal replay DAG boundary', () => {
+    const prompt = fs.readFileSync(
+      path.join(originalCwd, 'roles', 'reviewer-cat', 'prompts', 'reviewer-system-prompt.md'),
+      'utf-8',
+    );
+    const skill = fs.readFileSync(
+      path.join(originalCwd, 'roles', 'reviewer-cat', 'skills', 'case-review', 'SKILL.md'),
+      'utf-8',
+    );
+    const role = JSON.parse(fs.readFileSync(path.join(originalCwd, 'roles', 'reviewer-cat', 'role.json'), 'utf-8'));
+
+    for (const content of [prompt, skill]) {
+      assert.match(content, /正式回放/);
+      assert.match(content, /干净 session/);
+      assert.match(content, /EngineerCat/);
+      assert.match(content, /closed\s*\|\s*next_run\s*\|\s*blocked/);
+      assert.match(content, /同一次 DAG 不回跳/);
+      assert.match(content, /"id"/);
+      assert.match(content, /"intent"/);
+      assert.match(content, /"expected_outcome"/);
+      assert.match(content, /"source_trace_refs"/);
+      assert.match(content, /"version":\s*1/);
+      assert.match(content, /"status"/);
+      assert.match(content, /"evidence_refs"/);
+      assert.match(content, /reviewer_trace_replay\(\{\}\)/);
+      assert.doesNotMatch(content, /codex_job_/);
+      assert.doesNotMatch(content, /"version":\s*2/);
+      assert.doesNotMatch(content, /"decision"\s*:/);
+      assert.doesNotMatch(content, /"nextState"\s*:/);
+      assert.doesNotMatch(content, /"recommendedNextOwner"\s*:/);
+    }
+
+    assert.match(skill, /^version: 1\.0\.0$/m);
+    assert.match(skill, /只接受 DAG 已定义的四个字段/);
+    assert.match(skill, /输出只有 `version \/ status \/ summary \/ evidence_refs \/ reason\?`/);
+    assert.match(role.description, /正式回放/);
+    assert.match(role.description, /工程返工归 EngineerCat/);
+  });
 });
 
 function restoreEnv(key: string, value: string | undefined): void {

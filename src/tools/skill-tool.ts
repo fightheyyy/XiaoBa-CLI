@@ -47,7 +47,7 @@ export class SkillTool implements Tool {
       const skill = skillManager.getSkill(skillName);
 
       if (!skill) {
-        const availableSkills = skillManager.getAllSkills()
+        const availableSkills = skillManager.getUserInvocableSkills()
           .map(s => s.metadata.name)
           .join(', ');
 

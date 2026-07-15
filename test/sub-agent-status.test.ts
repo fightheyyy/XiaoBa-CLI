@@ -203,6 +203,52 @@ function createSession(aiService: unknown, id = `sub-status-${Math.random().toSt
 }
 
 describe('SubAgentSession status lifecycle', () => {
+  test('writes a terminal child trace with parent and role lineage', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-subagent-trace-'));
+    const originalCwd = process.cwd();
+    const originalAppRoot = process.env.XIAOBA_APP_ROOT;
+    try {
+      process.env.XIAOBA_APP_ROOT = originalCwd;
+      process.chdir(root);
+      const session = new SubAgentSession(
+        'sub-trace-lineage',
+        new ImmediateAIService() as any,
+        new FakeSkillManager() as any,
+        {
+          skillName: statusSkill.metadata.name,
+          taskDescription: 'trace lineage task',
+          userMessage: 'run trace lineage task',
+          workingDirectory: root,
+          roleName: 'evolution-cat',
+          parentSessionId: 'pet:xiaoba',
+          notifyParent: async () => undefined,
+        },
+      );
+
+      await session.run();
+      const traceFiles = listFiles(path.join(root, 'logs')).filter(file => file.endsWith('traces.jsonl'));
+      assert.equal(traceFiles.length, 1);
+      const [entry] = fs.readFileSync(traceFiles[0], 'utf-8').trim().split('\n').map(line => JSON.parse(line));
+      assert.equal(entry.session_type, 'subagent');
+      assert.equal(entry.session_id, 'subagent:sub-trace-lineage');
+      assert.equal(entry.user.text, 'run trace lineage task');
+      const started = entry.events.find((event: any) => event.event_type === 'session_started');
+      const completed = entry.events.find((event: any) => event.event_type === 'session_completed');
+      assert.equal(started.parent_session_id, 'pet:xiaoba');
+      assert.equal(started.role_name, 'evolution-cat');
+      assert.equal(started.subagent_id, 'sub-trace-lineage');
+      assert.equal(completed.status, 'success');
+    } finally {
+      process.chdir(originalCwd);
+      if (originalAppRoot === undefined) {
+        delete process.env.XIAOBA_APP_ROOT;
+      } else {
+        process.env.XIAOBA_APP_ROOT = originalAppRoot;
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('starts in running while background execution is in flight', async () => {
     const ai = new DeferredAIService();
     const session = createSession(ai);
@@ -541,6 +587,14 @@ describe('SubAgentSession status lifecycle', () => {
     }
   });
 });
+
+function listFiles(root: string): string[] {
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root, { withFileTypes: true }).flatMap(entry => {
+    const entryPath = path.join(root, entry.name);
+    return entry.isDirectory() ? listFiles(entryPath) : [entryPath];
+  });
+}
 
 async function waitForStatus(
   manager: SubAgentManager,
