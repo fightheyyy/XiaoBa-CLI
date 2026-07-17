@@ -8,6 +8,7 @@ import { registerSkillCommand } from './commands/skill';
 import { registerRoleCommand } from './commands/role';
 import { registerArenaCommand } from './commands/arena';
 import { registerEvolutionCommand } from './commands/evolution';
+import { registerDoctorCommand } from './commands/doctor';
 import { feishuCommand } from './commands/feishu';
 import { APP_VERSION } from './version';
 import { RoleResolver } from './utils/role-resolver';
@@ -30,9 +31,6 @@ function addRoleOption(command: Command): Command {
 async function main() {
   const program = new Command();
 
-  // 显示品牌标识
-  Logger.brand();
-
   addRoleOption(program)
     .name('xiaoba')
     .description('XiaoBa - 您的智能AI命令行助手')
@@ -42,6 +40,12 @@ async function main() {
     .option('--verbose', '默认聊天入口显示 CLI 运行时日志');
 
   program.hook('preAction', (_thisCommand, actionCommand) => {
+    const isDoctor = actionCommand.name() === 'doctor';
+    const isStrictDoctorJson = isDoctor && actionCommand.opts().json === true;
+    if (!isStrictDoctorJson) {
+      Logger.brand();
+    }
+    if (isDoctor) return;
     try {
       const options = actionCommand.optsWithGlobals() as { role?: string };
       RoleResolver.activateRole(options.role);
@@ -132,6 +136,9 @@ async function main() {
 
   // EvolutionCat 夜间演化入口
   registerEvolutionCommand(program);
+
+  // 本机环境与能力诊断
+  registerDoctorCommand(program);
 
   // 默认命令 - 进入交互模式
   program

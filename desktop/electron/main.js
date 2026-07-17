@@ -1,6 +1,8 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, dialog } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
+const { execFileSync } = require('child_process');
 
 const DASHBOARD_PORT = 3800;
 const DEFAULT_BUNDLED_ROLES = ['user-cat', 'inspector-cat', 'engineer-cat', 'reviewer-cat', 'browser-cat', 'gui-cat', 'secretary-cat', 'evolution-cat'];
@@ -45,15 +47,6 @@ if (!gotSingleInstanceLock) {
   });
 }
 
-// 尝试加载 electron-updater（可选）
-try {
-  autoUpdater = require('electron-updater').autoUpdater;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
-} catch (err) {
-  console.log('electron-updater not available, auto-update disabled');
-}
-
 function getAppRoot() {
   // asar 已关闭
   // 打包后: Resources/app/desktop/electron/main.js -> Resources/app/
@@ -65,25 +58,47 @@ function getAppRoot() {
 }
 
 /**
- * 获取内嵌的 node.exe 路径（打包版）或系统 node（开发版）
+ * Desktop Preview resolves an absolute system Node path because Finder does not load shell PATH setup.
  */
 function getNodeExePath() {
-  if (app.isPackaged) {
-    // extraFiles 将 desktop/build-resources/node/ 复制到 Contents/node/
-    const nodeFileName = process.platform === 'win32' ? 'node.exe' : 'node';
-    // macOS: process.execPath = Contents/MacOS/XiaoBa, 需要 ../node/node
-    // Windows: process.execPath = XiaoBa.exe, 需要 ./node/node.exe
-    const contentsDir = process.platform === 'darwin'
-      ? path.join(path.dirname(process.execPath), '..')
-      : path.dirname(process.execPath);
-    const embeddedNode = path.join(contentsDir, 'node', nodeFileName);
-    const fs = require('fs');
-    if (fs.existsSync(embeddedNode)) {
-      return embeddedNode;
-    }
-    console.warn('Embedded node not found at', embeddedNode, ', falling back to system node');
+  const explicit = String(process.env.XIAOBA_NODE_EXE || '').trim();
+  const pathCandidates = String(process.env.PATH || '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map(directory => path.join(directory, process.platform === 'win32' ? 'node.exe' : 'node'));
+  const candidates = [
+    explicit,
+    ...pathCandidates,
+    ...(process.platform === 'darwin' ? ['/opt/homebrew/bin/node', '/usr/local/bin/node'] : []),
+  ].filter(Boolean);
+  const requiredMajor = getRequiredNodeMajor();
+
+  for (const candidate of [...new Set(candidates)]) {
+    const resolved = path.resolve(candidate);
+    try {
+      fs.accessSync(resolved, fs.constants.X_OK);
+      const version = String(execFileSync(resolved, ['--version'], {
+        encoding: 'utf8',
+        timeout: 3000,
+      })).trim();
+      const major = Number.parseInt(version.replace(/^v/, '').split('.')[0] || '', 10);
+      if (Number.isFinite(major) && major >= requiredMajor) {
+        return resolved;
+      }
+    } catch {}
   }
+
+  console.warn(`Node.js ${requiredMajor}+ was not resolved for desktop child services. Set XIAOBA_NODE_EXE to an absolute executable path.`);
   return 'node';
+}
+
+function getRequiredNodeMajor() {
+  try {
+    const engine = require(path.join(getAppRoot(), 'package.json')).engines?.node || '>=18.0.0';
+    return Number.parseInt(String(engine).match(/\d+/)?.[0] || '18', 10);
+  } catch {
+    return 18;
+  }
 }
 
 /**
@@ -135,7 +150,6 @@ async function startServer() {
   process.chdir(userDataPath);
 
   // 如果userData里没有.env，从app里复制.env.example
-  const fs = require('fs');
   const envPath = path.join(userDataPath, '.env');
   if (!fs.existsSync(envPath)) {
     const examplePath = path.join(appRoot, '.env.example');
@@ -268,11 +282,9 @@ async function startServer() {
     require('module').Module._initPaths();
   }
 
-  // 设置内嵌 node.exe 路径供 service-manager 使用
-  process.env.XIAOBA_NODE_EXE = getNodeExePath();
-
-  // 直接在主进程启动dashboard server
+  // ConfigManager reloads the same .env while the Dashboard module is imported.
   const { startDashboard } = require(path.join(appRoot, 'dist', 'dashboard', 'server'));
+  process.env.XIAOBA_NODE_EXE = getNodeExePath();
   await startDashboard(DASHBOARD_PORT, undefined, { onNavigate: openDashboardPage });
 }
 
@@ -355,29 +367,44 @@ function createTray() {
   });
 }
 
-// 更新事件监听
-if (autoUpdater) {
-  autoUpdater.on('update-available', (info) => {
-    dialog.showMessageBox({
-      type: 'info',
-      title: '发现新版本',
-      message: `发现新版本 ${info.version}，是否下载？`,
-      buttons: ['下载', '稍后'],
-    }).then((result) => {
-      if (result.response === 0) autoUpdater.downloadUpdate();
-    });
-  });
+function initializeAutoUpdater() {
+  if (!app.isPackaged || process.env.XIAOBA_ENABLE_AUTO_UPDATE !== 'true') {
+    return null;
+  }
 
-  autoUpdater.on('update-downloaded', () => {
-    dialog.showMessageBox({
-      type: 'info',
-      title: '更新已下载',
-      message: '更新已下载完成，重启应用后生效',
-      buttons: ['立即重启', '稍后'],
-    }).then((result) => {
-      if (result.response === 0) autoUpdater.quitAndInstall();
+  try {
+    const updater = require('electron-updater').autoUpdater;
+    updater.autoDownload = false;
+    updater.autoInstallOnAppQuit = true;
+    updater.on('error', error => console.error('Auto-update error:', error));
+    updater.on('update-available', (info) => {
+      dialog.showMessageBox({
+        type: 'info',
+        title: '发现新版本',
+        message: `发现新版本 ${info.version}，是否下载？`,
+        buttons: ['下载', '稍后'],
+      }).then((result) => {
+        if (result.response === 0) {
+          Promise.resolve(updater.downloadUpdate())
+            .catch(error => console.error('Auto-update download failed:', error));
+        }
+      });
     });
-  });
+    updater.on('update-downloaded', () => {
+      dialog.showMessageBox({
+        type: 'info',
+        title: '更新已下载',
+        message: '更新已下载完成，重启应用后生效',
+        buttons: ['立即重启', '稍后'],
+      }).then((result) => {
+        if (result.response === 0) updater.quitAndInstall();
+      });
+    });
+    return updater;
+  } catch (error) {
+    console.error('electron-updater unavailable:', error);
+    return null;
+  }
 }
 
 app.whenReady().then(async () => {
@@ -385,12 +412,15 @@ app.whenReady().then(async () => {
 
   try {
     await startServer();
+    autoUpdater = initializeAutoUpdater();
     createWindow();
     createTray();
-    
-    // 启动后检查更新
-    if (app.isPackaged && autoUpdater) {
-      setTimeout(() => autoUpdater.checkForUpdates(), 3000);
+
+    if (autoUpdater) {
+      setTimeout(() => {
+        Promise.resolve(autoUpdater.checkForUpdates())
+          .catch(error => console.error('Auto-update check failed:', error));
+      }, 3000);
     }
   } catch (err) {
     console.error('启动失败:', err);

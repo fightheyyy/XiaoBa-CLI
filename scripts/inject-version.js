@@ -1,12 +1,3 @@
-/**
- * Build-time version injection.
- *
- * Priority:
- * 1. CLI argument
- * 2. GitHub tag ref in CI
- * 3. Latest git tag in CI
- * 4. package.json version
- */
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -19,7 +10,7 @@ function resolveVersion() {
   }
 
   const ref = process.env.GITHUB_REF || '';
-  const tagMatch = ref.match(/refs\/tags\/v?([\d.]+)/);
+  const tagMatch = ref.match(/refs\/tags\/v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/);
   if (tagMatch) {
     return tagMatch[1];
   }
@@ -34,9 +25,7 @@ function resolveVersion() {
       if (localTag) {
         return localTag;
       }
-    } catch {
-      // Fall through to package.json version.
-    }
+    } catch {}
   }
 
   return require(path.join(rootDir, 'package.json')).version;
@@ -45,31 +34,15 @@ function resolveVersion() {
 function updateJsonVersion(filePath, version) {
   const json = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   json.version = version;
-  fs.writeFileSync(filePath, JSON.stringify(json, null, 2) + '\n');
-}
-
-function replaceInFile(filePath, pattern, replacement) {
-  if (!fs.existsSync(filePath)) {
-    return;
+  if (json.packages && json.packages['']) {
+    json.packages[''].version = version;
   }
-
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const next = content.replace(pattern, replacement);
-  fs.writeFileSync(filePath, next);
+  fs.writeFileSync(filePath, JSON.stringify(json, null, 2) + '\n');
 }
 
 const version = resolveVersion();
 
 console.log(`Injecting version: ${version}`);
-
 updateJsonVersion(path.join(rootDir, 'package.json'), version);
-console.log('Updated package.json');
-
-replaceInFile(
-  path.join(rootDir, 'desktop', 'dashboard', 'index.html'),
-  /sidebar-brand-ver">v[\d.]+</,
-  `sidebar-brand-ver">v${version}<`
-);
-console.log('Updated desktop/dashboard/index.html');
-
-console.log('Version injection complete.');
+updateJsonVersion(path.join(rootDir, 'package-lock.json'), version);
+console.log('Updated package.json and package-lock.json');

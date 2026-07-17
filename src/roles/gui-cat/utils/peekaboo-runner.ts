@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { execFile, ExecFileOptionsWithStringEncoding } from 'child_process';
 
+export const PEEKABOO_VERSION_REQUIREMENT = '3.8.x';
 const SUPPORTED_VERSION = /^3\.8\.\d+$/;
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_MAX_BUFFER = 8 * 1024 * 1024;
@@ -35,6 +36,7 @@ export interface PeekabooRunOptions {
 export interface PeekabooStatusOptions {
   refresh?: boolean;
   abortSignal?: AbortSignal;
+  includeBridge?: boolean;
 }
 
 export interface PeekabooCommandResult {
@@ -140,7 +142,7 @@ export class DefaultPeekabooRunner implements PeekabooRunner {
         versionCompatible: false,
         permissions: emptyPermissions(),
         ready: false,
-        reason: 'Peekaboo CLI was not found. Set XIAOBA_PEEKABOO_BIN or install Peekaboo 3.8.x.',
+        reason: `Peekaboo CLI was not found. Set XIAOBA_PEEKABOO_BIN or install Peekaboo ${PEEKABOO_VERSION_REQUIREMENT}.`,
       });
     }
 
@@ -176,7 +178,7 @@ export class DefaultPeekabooRunner implements PeekabooRunner {
         versionCompatible: false,
         permissions: emptyPermissions(),
         ready: false,
-        reason: `Unsupported Peekaboo version ${version || 'unknown'}; GuiCat requires 3.8.x.`,
+        reason: `Unsupported Peekaboo version ${version || 'unknown'}; GuiCat requires ${PEEKABOO_VERSION_REQUIREMENT}.`,
       });
     }
 
@@ -192,13 +194,15 @@ export class DefaultPeekabooRunner implements PeekabooRunner {
       permissionReason = normalizeErrorMessage(error);
     }
 
-    try {
-      const bridgeResult = await this.execute(binaryPath, [
-        'bridge', 'status', '--json',
-      ], { timeoutMs: 5_000, abortSignal: options.abortSignal }, true);
-      bridge = bridgeResult.data;
-    } catch {
-      // Bridge diagnostics are useful but are not required for local execution.
+    if (options.includeBridge !== false) {
+      try {
+        const bridgeResult = await this.execute(binaryPath, [
+          'bridge', 'status', '--json',
+        ], { timeoutMs: 5_000, abortSignal: options.abortSignal }, true);
+        bridge = bridgeResult.data;
+      } catch {
+        // Bridge diagnostics are useful but are not required for local execution.
+      }
     }
 
     const ready = permissions.screenRecording && permissions.accessibility;

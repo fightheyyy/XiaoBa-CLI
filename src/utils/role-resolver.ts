@@ -17,13 +17,24 @@ export class RoleResolver {
     return ActiveRoleContext.normalizeRoleName(roleName);
   }
 
-  static activateRole(roleName?: string): void {
-    const requested = roleName?.trim()
-      || process.env.XIAOBA_ROLE?.trim()
-      || process.env.CURRENT_ROLE?.trim()
+  static getRequestedRoleName(
+    roleName?: string,
+    environment: NodeJS.ProcessEnv = process.env,
+  ): string {
+    return roleName?.trim()
+      || environment.XIAOBA_ROLE?.trim()
+      || environment.CURRENT_ROLE?.trim()
       || '';
+  }
 
-    if (DEFAULT_ROLE_NAMES.has(this.normalizeRoleName(requested))) {
+  static isBaseRoleName(roleName: string): boolean {
+    return DEFAULT_ROLE_NAMES.has(this.normalizeRoleName(roleName));
+  }
+
+  static activateRole(roleName?: string): void {
+    const requested = this.getRequestedRoleName(roleName);
+
+    if (this.isBaseRoleName(requested)) {
       this.clearActiveRole();
       return;
     }

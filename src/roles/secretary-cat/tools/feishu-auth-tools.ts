@@ -29,7 +29,7 @@ export class FeishuAuthStatusTool implements Tool {
       const raw = await runLarkCliJson(this.runner, ['auth', 'status'], context);
       return toToolJson({
         ok: true,
-        ...normalizeAuthStatus(raw),
+        ...normalizeFeishuAuthStatus(raw),
       });
     } catch (error) {
       return toErrorToolJson(error);
@@ -165,7 +165,7 @@ export class FeishuAuthLoginCompleteTool implements Tool {
   }
 }
 
-function normalizeAuthStatus(raw: unknown): Record<string, unknown> {
+export function normalizeFeishuAuthStatus(raw: unknown): Record<string, unknown> {
   const status = (raw && typeof raw === 'object') ? raw as Record<string, any> : {};
   const identities = status.identities || {};
   const user = identities.user || {};

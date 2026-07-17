@@ -1,6 +1,6 @@
 {
   "name": "xiaoba-cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "XiaoBa - 一个智能的AI对话助手CLI工具",
   "main": "desktop/electron/main.js",
   "bin": {
@@ -13,7 +13,7 @@
     "start:cli": "node dist/index.js",
     "electron:dev": "npm run build && electron .",
     "electron:build": "npm run build && electron-builder --publish never",
-    "electron:build:mac": "npm run build && electron-builder --mac --publish never",
+    "electron:build:mac": "npm run build && electron-builder --mac dmg --arm64 --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "watch": "tsc --watch",
@@ -138,21 +138,17 @@
           "**/*.json",
           "!**/.bin/**",
           "!**/test/**",
-          "!**/test/**",
           "!**/*.md",
+          "!@types/**",
           "!electron/**",
           "!electron-builder/**",
-          "@types/**",
+          "!electron-packager/**",
+          "!figlet/**",
+          "!gifenc/**",
+          "!playwright/**",
+          "!playwright-core/**",
+          "!tsx/**",
           "!typescript/**"
-        ]
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "desktop/build-resources/node",
-        "to": "node",
-        "filter": [
-          "**/*"
         ]
       }
     ],
@@ -162,7 +158,7 @@
         "dmg"
       ],
       "icon": "desktop/build-resources/icon.icns",
-      "artifactName": "${productName}-${version}-mac.${ext}",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "extraResources": [
         {
           "from": "node_modules/@steipete/peekaboo/peekaboo",

@@ -44,17 +44,23 @@ export class ConfigManager {
     }
   }
 
-  private static loadUserConfigFile(): Partial<ChatConfig> {
-    if (!fs.existsSync(CONFIG_FILE)) {
-      return {};
-    }
-
+  private static loadUserConfigFile(strict = false): Partial<ChatConfig> {
     try {
       const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
       return JSON.parse(content);
-    } catch {
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') {
+        return {};
+      }
+      if (strict) {
+        throw new Error(`Failed to read ${CONFIG_FILE}: ${error?.message || String(error)}`);
+      }
       return {};
     }
+  }
+
+  static peekConfig(): ChatConfig {
+    return this.mergeConfig(this.getDefaultConfig(), this.loadUserConfigFile(true));
   }
 
   static getConfig(): ChatConfig {

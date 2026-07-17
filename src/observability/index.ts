@@ -1,4 +1,5 @@
 import * as crypto from 'crypto';
+import { APP_VERSION } from '../version';
 
 export type ObservabilityExporter = 'none';
 export type ObservabilitySpanStatus = 'ok' | 'error' | 'unset';
@@ -161,7 +162,7 @@ export interface ObservabilityLocalSummary {
 }
 
 const DEFAULT_SERVICE_NAME = 'xiaoba-cli';
-const DEFAULT_SERVICE_VERSION = '0.1.1';
+const DEFAULT_SERVICE_VERSION = APP_VERSION;
 const DEFAULT_LOCAL_SUMMARY_LIMIT = 2000;
 const MAX_PREVIEW_CHARS = 500;
 const TRACE_FLAGS_SAMPLED = 1;

@@ -3558,7 +3558,7 @@
       <div class="sidebar-brand-icon"><img src="cat-icon.png" style="width:100%;height:100%;object-fit:contain;border-radius:inherit" alt="XiaoBa"></div>
       <div>
         <div class="sidebar-brand-text">XiaoBa Runtime</div>
-        <div class="sidebar-brand-ver">v0.1.1</div>
+        <div class="sidebar-brand-ver">v-</div>
       </div>
     </div>
     <nav class="sidebar-nav">
@@ -3582,9 +3582,9 @@
       </a>
     </nav>
     <div class="sidebar-footer">
-      <div class="sidebar-watermark" aria-label="XiaoBa CLI by fightheyyy version 2.0.0">
+      <div class="sidebar-watermark" aria-label="XiaoBa CLI by fightheyyy">
         <a class="sidebar-watermark-name" href="https://fightheyyy.github.io" target="_blank" rel="noopener noreferrer">fightheyyy</a>
-        <span class="sidebar-watermark-version"><span class="sidebar-watermark-product">XiaoBa CLI</span><span>v2.0.0</span></span>
+        <span class="sidebar-watermark-version"><span class="sidebar-watermark-product">XiaoBa CLI</span><span id="sidebar-watermark-version">v-</span></span>
       </div>
       <div class="sidebar-footer-actions">
         <button type="button" class="sidebar-lang-toggle" id="lang-toggle-btn" onclick="toggleLanguage()" aria-label="Language">中 / EN</button>
@@ -4665,7 +4665,12 @@
         const res = await fetch(API+'/api/status');
         const data = await res.json();
         latestStatus = data;
-        document.querySelector('.sidebar-brand-ver').textContent = 'v' + (data.version || '-');
+        const displayVersion = 'v' + (data.version || '-');
+        document.querySelector('.sidebar-brand-ver').textContent = displayVersion;
+        const watermarkVersion = document.getElementById('sidebar-watermark-version');
+        if (watermarkVersion) watermarkVersion.textContent = displayVersion;
+        const watermark = document.querySelector('.sidebar-watermark');
+        if (watermark) watermark.setAttribute('aria-label', 'XiaoBa CLI by fightheyyy version ' + (data.version || '-'));
         renderStatus(data);
         renderServices(data.services || []);
         renderNextActions(data);
