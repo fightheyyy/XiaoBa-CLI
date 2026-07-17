@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/readme-hero.gif" alt="XiaoBa 的工作闭环与受控进化闭环：完成工作，也让能力改进可验收" width="100%">
 
-  # XiaoBa-CLI
+  # xiaobaOS
 
   **会交付、可复盘、能受控进化的 IM-native AI 同事 Runtime。**
 
