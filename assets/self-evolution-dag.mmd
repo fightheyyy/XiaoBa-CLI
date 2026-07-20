@@ -1,28 +1,64 @@
-flowchart TB
-    subgraph Intake["1) Evidence & Diagnosis"]
+flowchart LR
+    subgraph Evidence["1) 证据采集"]
         direction LR
-        Trace["真实 Session Traces"] --> Harvest["Runtime Harvest<br/>生成 Digest"]
+        Trace["真实 Session<br/>Traces"] --> Harvest["Runtime Harvest<br/>生成 Digest"]
         Harvest --> Inspector["InspectorCat<br/>证据诊断"]
-        Inspector --> Gate{"Route Gate"}
     end
 
-    subgraph EvolutionPath["2A) evolution"]
-        direction LR
+    subgraph Routing["2) 决策路由"]
+        Gate{"Route Gate"}
+    end
+
+    subgraph Generation["3) 候选生成"]
+        direction TB
         Evolution["EvolutionCat<br/>生成 Skill / Role"] --> Candidate["隔离 Candidate"]
-        Candidate --> Arena["Arena<br/>多场景能力验收"]
-        Arena -.-> Active["Candidate → Active"]
+        Engineer["EngineerCat<br/>生成隔离 Patch Candidate"]
     end
 
-    subgraph RepairPath["2B) repair / replay"]
-        direction LR
-        Engineer["EngineerCat<br/>生成隔离 Patch Candidate"] --> Reviewer["ReviewerCat<br/>Frozen Replay"]
-        Reviewer --> ReviewEnd["closed / next_run / blocked"]
+    subgraph Verification["4) 隔离验收"]
+        direction TB
+        Arena["Arena<br/>多场景能力验收"]
+        Reviewer["ReviewerCat<br/>Frozen Replay"]
     end
 
-    NoOp["2C) no_op<br/>无需处理"]
+    subgraph Results["5) 结果"]
+        direction TB
+        Active["Candidate → Active"]
+        ReviewEnd["closed / next_run / blocked"]
+        NoOp["无需处理"]
+    end
 
-    Intake -->|evolution| EvolutionPath
-    Intake -->|repair| RepairPath
-    Intake -->|replay| RepairPath
-    Intake -->|no_op| NoOp
-    RepairPath -.->|"影响 Agent 行为时复审"| EvolutionPath
+    Inspector --> Gate
+    Gate -->|evolution| Evolution
+    Gate -->|repair| Engineer
+    Gate -->|replay| Reviewer
+    Gate -->|no_op| NoOp
+    Candidate --> Arena
+    Engineer --> Reviewer
+    Reviewer -.->|"影响 Agent 行为时复审"| Arena
+    Arena -.-> Active
+    Reviewer --> ReviewEnd
+
+    classDef evidence fill:#f7f9fc,stroke:#6f86a3,stroke-width:2.2px,color:#203248;
+    classDef route fill:#f4f0ff,stroke:#7868e6,stroke-width:2.6px,color:#322a68;
+    classDef evolution fill:#eefaf3,stroke:#3f9d70,stroke-width:2.2px,color:#245f45;
+    classDef repair fill:#fff6ea,stroke:#dc7a24,stroke-width:2.2px,color:#704117;
+    classDef verify fill:#eef6ff,stroke:#3f83d1,stroke-width:2.2px,color:#244d7d;
+    classDef result fill:#faf4ff,stroke:#9662b7,stroke-width:2.2px,color:#55336a;
+    classDef noop fill:#f7f7f7,stroke:#8b8b8b,stroke-width:2.2px,color:#4d4d4d;
+
+    class Trace,Harvest,Inspector evidence;
+    class Gate route;
+    class Evolution,Candidate evolution;
+    class Engineer repair;
+    class Arena,Reviewer verify;
+    class Active,ReviewEnd result;
+    class NoOp noop;
+
+    style Evidence fill:#fcfdff,stroke:#d9e2ec,stroke-width:1.5px
+    style Routing fill:#fcfbff,stroke:#dfdaf6,stroke-width:1.5px
+    style Generation fill:#fffdf9,stroke:#eadfd2,stroke-width:1.5px
+    style Verification fill:#fbfdff,stroke:#d9e8f7,stroke-width:1.5px
+    style Results fill:#fefbff,stroke:#e8ddef,stroke-width:1.5px
+
+    linkStyle default stroke:#59636f,stroke-width:2px;
