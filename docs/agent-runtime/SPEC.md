@@ -1,7 +1,7 @@
 # Agent Runtime SPEC
 
 状态：Active
-最后更新：2026-07-14
+最后更新：2026-07-20
 适用范围：XiaoBa 的核心 agent harness runtime，包括 `src/core`、`src/providers`、`src/tools`、`src/types/tool.ts` 和 runtime-facing harness docs。
 
 本文是顶层架构模块之一的 Agent Runtime spec。它定义 agent loop、provider transcript、tool boundary 和 session lifecycle；入口、角色策略、观测证据、评测和 Arena 分别由各自模块 spec 维护。
@@ -46,6 +46,8 @@ Current addendum：EvolutionCat 的 `remember` 是 role-scoped deterministic too
 
 Current addendum：每个 `SubAgentSession` 现在写入独立的标准 `logs/sessions/subagent/**/traces.jsonl`。terminal row 保留可信 `parent_session_id`、`subagent_id`、`role_name`、最终选择的 `skill_name`、实际 ToolResult 和 artifact manifest；测试运行显式标记 `environment=test`，使下游夜间采集可以排除 harness evidence。`EvolutionDAGRunner` 直接 `await` 同一套 SubAgentSession，按 Inspector → typed switch 执行，不创建 Base 会话、第二套 Agent loop 或通用 workflow framework。外层 CLI worker 监督整个进程组并保留 PID-owned lock 语义。
 
+Current addendum：显式配置 `allowedWriteRoot` 的窄 SubAgent workflow 现在同时约束文件写工具和 Shell。`write_file` / `edit_file` 拒绝绝对路径、`..` 与 symlink escape；macOS Shell 通过 Seatbelt 包装，允许广泛读取但只允许写 `allowedWriteRoot`，HOME/TMP 也落在该根目录。Seatbelt 不可用时该受限 Shell fail closed，普通未配置 `allowedWriteRoot` 的 SubAgent 行为不变。Scheduled Repair 还隐藏可自行选择 cwd 的嵌套 Engineer/Codex 写控制面，避免绕过 detached worktree。
+
 ```mermaid
 flowchart LR
     subgraph Inputs["Inputs"]
@@ -70,6 +72,7 @@ flowchart LR
         Observability["Observability<br/>local summary"]
         CompactEvidence["compact evidence<br/>event + after snapshot"]
         EvolutionDAG["EvolutionDAGRunner<br/>fixed route switch"]
+        WriteBoundary["SubAgent write boundary<br/>path guard + Seatbelt"]
     end
 
     subgraph Outputs["Outputs"]
@@ -83,6 +86,8 @@ flowchart LR
     EvolutionTrigger --> EvolutionDAG
     EvolutionDAG --> Subagent
     Session --> Subagent
+    Subagent --> WriteBoundary
+    WriteBoundary --> ToolManager
     RolePolicy --> PromptManager
     SurfaceContext --> PromptManager
     PromptManager --> Session
@@ -134,6 +139,7 @@ flowchart LR
         VisibleTools["provider-visible tool set"]
         Providers["provider adapters<br/>OpenAI / Anthropic / Ollama native"]
         EvolutionDAG["EvolutionDAGRunner<br/>fixed typed route gate"]
+        WriteBoundary["bounded SubAgent writes<br/>path guard + native sandbox"]
     end
 
     subgraph Facts["Structured facts"]
@@ -160,6 +166,8 @@ flowchart LR
     Session --> Trace
     Session --> Subagent
     Subagent --> Trace
+    Subagent --> WriteBoundary
+    WriteBoundary --> Tools
     Session --> Transcript
     Transcript --> Runner
     Runner --> Providers
@@ -197,6 +205,7 @@ flowchart LR
 - `ToolExecutionContext.subAgentServiceFactory` 是 deterministic eval / runtime harness 的服务注入点，用于给后台子智能体提供 scripted AIService / skill manager；production `spawn_subagent` 不依赖该字段，仍默认创建真实 runtime services。
 - `role_name=base/default/none` 表示明确清空 role，并进入 no-skill dispatch；它不再要求调用方提供 `skill_name`。子智能体内部仍隐藏主会话控制面和外发工具，例如 `spawn_subagent`、`check_subagent`、`stop_subagent`、`resume_subagent`、`send_text` 和 `send_file`。`skill` 工具只在有效 role-only dispatch 中开放，用于让目标 role 自选 skill；no-skill dispatch 不暴露 `skill` 工具。
 - `src/tools/tool-result.ts` 是 runtime ToolResult canonicalization boundary。ToolManager、AgentToolExecutor、SubAgent forbidden path 和 ConversationRunner retry/cancel path 必须通过 canonical builder/canonicalizer，保证 `status` 必填、`ok` 与 status 一致、non-success 必有 `error_code`、blocked 必有 `blocked_reason`，并且 success 结果不能携带顶层 execution `error_code`。
+- 配置 `allowedWriteRoot` 的 SubAgent 必须把显式文件写和 Shell 写都限制在该根目录；Shell 只有在原生写 sandbox 可用时才执行，否则 fail closed。可自行指定另一个 cwd 并产生写入的 role control tools 必须由调用 workflow 隐藏或增加同等 runtime 校验，不能只依赖 prompt。
 - `ToolExecutionOutput` 是工具实现返回结构化执行事实的 live 协议。新工具必须通过 `toolSuccess` / `toolFailure` / `toolBlocked` / `toolTimeout` 等共享 builder 返回 `status`、non-success `error_code`、可选 `blocked_reason` / `retryable` / retry budget facts；`toolContent` 只承载给模型看的 payload，不能作为执行状态的唯一来源。字符串前缀分类只保留给 legacy string output 和未迁移工具，并在代码中命名为 legacy path。
 - ToolManager 负责把工具执行结果归一为结构化 ToolResult；core file/search/shell/delivery tools 和 subagent/skill control tools 使用显式语义产出 status/error_code，file/delivery tools 还产出 artifact/delivery evidence 和可选 `external_delivery_receipts`；maintained role tools 可通过 `Tool.getArtifactManifest()` 产出 tool-owned `artifact_manifest`，旧 role-layer 输出才从明确的 JSON / `key=value` artifact 字段保守推断 `action=captured` 的 fallback manifest。
 - Maintained role tool artifact semantics belong to runtime/test ownership; they must not be stored under `eval/`, which is live agent eval only.

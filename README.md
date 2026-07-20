@@ -112,7 +112,7 @@ Browser、GUI 和飞书 driver 只提供确定性能力，不启动第二套 Cha
 夜间 workflow 先由 Runtime 从真实 session trace 生成只读 Digest，再以 InspectorCat 作为第一个模型角色做证据诊断，并将 finding 路由到 `evolution`、`repair`、`replay` 或 `no_op`。内部 Role 按 route 参与，不是每晚固定跑一条“八猫流水线”。
 
 <p align="center">
-  <img src="assets/self-evolution-dag.png" alt="xiaobaOS Self-Evolution DAG：真实 Session Traces 经 Runtime Harvest 生成 Digest，再由 InspectorCat 路由到 evolution、repair、replay 或 no-op" width="100%">
+  <img src="assets/self-evolution-dag.png" alt="xiaobaOS Self-Evolution DAG：证据采集、决策路由、候选生成、隔离验收与结果五个阶段" width="100%">
 </p>
 
 | Route | 执行 | 验收终点 |

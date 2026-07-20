@@ -3,6 +3,7 @@ import * as assert from 'node:assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'child_process';
 import {
   EvolutionArenaInput,
   EvolutionArenaResult,
@@ -22,6 +23,12 @@ describe('Inspector-first evolution DAG', () => {
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-evolution-dag-'));
+    fs.writeFileSync(path.join(root, '.gitignore'), 'output/\nlogs/\ndata/\nnode_modules/\n', 'utf-8');
+    git(root, ['init']);
+    git(root, ['config', 'user.email', 'evolution-test@xiaoba.local']);
+    git(root, ['config', 'user.name', 'Evolution Test']);
+    git(root, ['add', '.gitignore']);
+    git(root, ['commit', '-m', 'test base']);
   });
 
   afterEach(() => {
@@ -229,8 +236,10 @@ describe('Inspector-first evolution DAG', () => {
         calls.push(input);
         if (input.roleName === 'inspector-cat') return inspectorRepair();
         if (input.roleName === 'engineer-cat') {
-          writeLocalEvidence(root, 'src/core/retry.ts');
-          writeLocalEvidence(root, 'output/test/retry.txt');
+          assert.notEqual(input.workingDirectory, root);
+          assert.equal(input.allowedWriteRoot, input.workingDirectory);
+          writeLocalEvidence(input.workingDirectory, 'src/core/retry.ts');
+          writeLocalEvidence(input.workingDirectory, 'output/test/retry.txt');
           return JSON.stringify({
             version: 1,
             status: 'fixed',
@@ -239,21 +248,33 @@ describe('Inspector-first evolution DAG', () => {
             verification_refs: ['output/test/retry.txt'],
           });
         }
+        assert.equal(input.workingDirectory, calls[1].workingDirectory);
         const replayRef = writeReviewerEvidence(root, '2026-07-14', 'report.md');
         return JSON.stringify({
           version: 1,
           status: 'closed',
           summary: 'fresh replay passed',
           evidence_refs: [replayRef],
+          arena_review: 'not_required',
+          risk_reasons: ['deterministic retry budget fix does not change Agent policy'],
         });
       },
       runArena: unexpectedArena,
     });
 
-    assert.deepEqual(calls.map(call => call.roleName), ['inspector-cat', 'engineer-cat', 'reviewer-cat']);
+    assert.deepEqual(
+      calls.map(call => call.roleName),
+      ['inspector-cat', 'engineer-cat', 'reviewer-cat'],
+      JSON.stringify(result.terminal),
+    );
     const reviewer = calls[2];
     const engineer = calls[1];
     assert.ok(engineer.hiddenTools?.includes('ask_parent'));
+    assert.ok(engineer.hiddenTools?.includes('engineer_task_run'));
+    assert.ok(engineer.hiddenTools?.includes('engineer_codex_supervisor_status'));
+    assert.ok(engineer.hiddenTools?.includes('codex_job_start'));
+    assert.ok(engineer.hiddenTools?.includes('codex_job_status'));
+    assert.ok(!engineer.hiddenTools?.includes('execute_shell'));
     assert.ok(reviewer.hiddenTools?.includes('codex_job_start'));
     assert.ok(reviewer.hiddenTools?.includes('execute_shell'));
     assert.ok(reviewer.hiddenTools?.includes('reviewer_xiaoba_cli_e2e'));
@@ -266,6 +287,168 @@ describe('Inspector-first evolution DAG', () => {
     assert.match(reviewer.task, /output\/evolution\/sleep\/2026-07-14\/reviewer-replay\//);
     assert.equal(result.terminal?.status, 'closed');
     assert.equal(result.stages.some(stage => stage.name === 'arena'), false);
+    assert.equal(fs.existsSync(path.join(root, 'src/core/retry.ts')), false);
+    const patchManifest = JSON.parse(fs.readFileSync(
+      path.join(root, 'output/evolution/sleep/2026-07-14/patch-candidate/manifest.json'),
+      'utf-8',
+    ));
+    assert.equal(patchManifest.type, 'patch');
+    assert.match(patchManifest.base_commit, /^[0-9a-f]{40}$/);
+    assert.match(patchManifest.patch_sha256, /^[0-9a-f]{64}$/);
+    assert.deepEqual(patchManifest.changed_files, ['src/core/retry.ts']);
+    assert.equal(result.terminal?.patch_sha256, patchManifest.patch_sha256);
+    assert.match(
+      fs.readFileSync(path.join(root, 'output/evolution/sleep/2026-07-14/patch-candidate/candidate.patch'), 'utf-8'),
+      /src\/core\/retry\.ts/,
+    );
+  });
+
+  test('behavior-impacting repair runs Reviewer -> Arena repair regression', async () => {
+    const calls: string[] = [];
+    const result = await runEvolutionDag(baseOptions(root), {
+      buildDigest: options => fakeDigest(options.workingDirectory, options.targetDate),
+      runRoleStage: async input => {
+        calls.push(input.roleName);
+        if (input.roleName === 'inspector-cat') return inspectorRepair();
+        if (input.roleName === 'engineer-cat') {
+          writeLocalEvidence(input.workingDirectory, 'src/core/agent-router.ts');
+          writeLocalEvidence(input.workingDirectory, 'output/test/router.txt');
+          return JSON.stringify({
+            version: 1,
+            status: 'fixed',
+            summary: 'agent routing fixed',
+            artifact_refs: ['src/core/agent-router.ts'],
+            verification_refs: ['output/test/router.txt'],
+          });
+        }
+        const replayRef = writeReviewerEvidence(root, '2026-07-14', 'report.md');
+        return JSON.stringify({
+          version: 1,
+          status: 'closed',
+          summary: 'frozen replay passed',
+          evidence_refs: [replayRef],
+          arena_review: 'required',
+          risk_reasons: ['routing changes can affect every Agent session'],
+        });
+      },
+      runArena: unexpectedArena,
+      runPatchArena: async input => {
+        calls.push('arena');
+        assert.notEqual(input.workspace.workspaceRoot, root);
+        assert.deepEqual(input.candidate.changed_files, ['src/core/agent-router.ts']);
+        assert.match(input.candidate.patch_sha256, /^[0-9a-f]{64}$/);
+        const scorecardRef = 'output/evolution/sleep/2026-07-14/arena-regression/arena-scorecard.json';
+        writeLocalEvidence(root, scorecardRef);
+        return {
+          run_id: 'repair-regression-test',
+          decision: 'pass',
+          scorecard_ref: scorecardRef,
+        };
+      },
+    });
+
+    assert.deepEqual(
+      calls,
+      ['inspector-cat', 'engineer-cat', 'reviewer-cat', 'arena'],
+      JSON.stringify(result.terminal),
+    );
+    assert.equal(result.terminal?.status, 'closed');
+    assert.equal(result.terminal?.arena_decision, 'pass');
+    assert.equal(result.stages.some(stage => stage.name === 'arena'), true);
+    assert.equal(fs.existsSync(path.join(root, 'src/core/agent-router.ts')), false);
+  });
+
+  test('Reviewer cannot close a Patch Candidate without an Arena risk classification', async () => {
+    const calls: string[] = [];
+    const result = await runEvolutionDag(baseOptions(root), {
+      buildDigest: options => fakeDigest(options.workingDirectory, options.targetDate),
+      runRoleStage: async input => {
+        calls.push(input.roleName);
+        if (input.roleName === 'inspector-cat') return inspectorRepair();
+        if (input.roleName === 'engineer-cat') {
+          writeLocalEvidence(input.workingDirectory, 'src/core/retry.ts');
+          writeLocalEvidence(input.workingDirectory, 'output/test/retry.txt');
+          return JSON.stringify({
+            version: 1,
+            status: 'fixed',
+            summary: 'repair ready',
+            artifact_refs: ['src/core/retry.ts'],
+            verification_refs: ['output/test/retry.txt'],
+          });
+        }
+        const replayRef = writeReviewerEvidence(root, '2026-07-14', 'report.md');
+        return JSON.stringify({
+          version: 1,
+          status: 'closed',
+          summary: 'claimed closed without classification',
+          evidence_refs: [replayRef],
+        });
+      },
+      runArena: unexpectedArena,
+    });
+
+    assert.deepEqual(calls, ['inspector-cat', 'engineer-cat', 'reviewer-cat']);
+    assert.equal(result.status, 'blocked');
+    assert.match(result.terminal?.summary || '', /without arena_review risk classification/);
+  });
+
+  test('Patch Candidate cannot modify its own replay or Arena trust root', async () => {
+    const calls: string[] = [];
+    const result = await runEvolutionDag(baseOptions(root), {
+      buildDigest: options => fakeDigest(options.workingDirectory, options.targetDate),
+      runRoleStage: async input => {
+        calls.push(input.roleName);
+        if (input.roleName === 'inspector-cat') return inspectorRepair();
+        writeLocalEvidence(input.workingDirectory, 'src/replay/trace-replay-runner.ts');
+        writeLocalEvidence(input.workingDirectory, 'output/test/replay.txt');
+        return JSON.stringify({
+          version: 1,
+          status: 'fixed',
+          summary: 'attempted evaluator rewrite',
+          artifact_refs: ['src/replay/trace-replay-runner.ts'],
+          verification_refs: ['output/test/replay.txt'],
+        });
+      },
+      runArena: unexpectedArena,
+    });
+
+    assert.deepEqual(calls, ['inspector-cat', 'engineer-cat']);
+    assert.equal(result.status, 'blocked');
+    assert.match(result.terminal?.summary || '', /changes its own replay\/evaluation trust root/);
+    assert.equal(fs.existsSync(path.join(root, 'src/replay/trace-replay-runner.ts')), false);
+  });
+
+  test('Patch Candidate cannot delete its replay or Arena trust root', async () => {
+    const protectedFile = path.join(root, 'src/replay/protected-runner.ts');
+    fs.mkdirSync(path.dirname(protectedFile), { recursive: true });
+    fs.writeFileSync(protectedFile, 'export const protectedRunner = true;\n', 'utf-8');
+    git(root, ['add', 'src/replay/protected-runner.ts']);
+    git(root, ['commit', '-m', 'add protected evaluator']);
+
+    const calls: string[] = [];
+    const result = await runEvolutionDag(baseOptions(root), {
+      buildDigest: options => fakeDigest(options.workingDirectory, options.targetDate),
+      runRoleStage: async input => {
+        calls.push(input.roleName);
+        if (input.roleName === 'inspector-cat') return inspectorRepair();
+        fs.rmSync(path.join(input.workingDirectory, 'src/replay/protected-runner.ts'));
+        writeLocalEvidence(input.workingDirectory, 'output/test/deletion-note.txt');
+        writeLocalEvidence(input.workingDirectory, 'output/test/deletion-verification.txt');
+        return JSON.stringify({
+          version: 1,
+          status: 'fixed',
+          summary: 'attempted evaluator deletion',
+          artifact_refs: ['output/test/deletion-note.txt'],
+          verification_refs: ['output/test/deletion-verification.txt'],
+        });
+      },
+      runArena: unexpectedArena,
+    });
+
+    assert.deepEqual(calls, ['inspector-cat', 'engineer-cat']);
+    assert.equal(result.status, 'blocked');
+    assert.match(result.terminal?.summary || '', /changes its own replay\/evaluation trust root/);
+    assert.equal(fs.readFileSync(protectedFile, 'utf-8'), 'export const protectedRunner = true;\n');
   });
 
   test('blocked Engineer stops before Reviewer', async () => {
@@ -888,6 +1071,10 @@ function writeLocalEvidence(root: string, ref: string): void {
   const filePath = path.join(root, ref);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '{}\n', 'utf-8');
+}
+
+function git(root: string, args: string[]): void {
+  execFileSync('git', ['-C', root, ...args], { stdio: 'ignore' });
 }
 
 function fakeArenaResult(

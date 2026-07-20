@@ -27,6 +27,9 @@ max-turns: 40
 3. 有实际变更时，优先产出 `implementation.patch`
 4. `new_skill_candidate` 必须把实现证据和候选草稿交给 EvolutionCat；EngineerCat 不调用不可见的 `self-evolution`
 5. 不能 self-close，只能交给 `reviewing` 或 `blocked`
+6. 定时自进化 `repair` 必须只在 runtime 提供的隔离 Git worktree 内修改；不得定位、切换或写入 scheduler checkout
+7. `fixed` 必须存在真实代码 diff；runtime 负责从固定 `base_commit` 生成内容寻址 `candidate.patch`，EngineerCat 不得伪造 patch hash
+8. 定时自进化中的 `implementation.md`、`engineer-output.json` 与验证产物必须写入 runtime 指定的当次 `output/evolution/sleep/<date>/`，作为证据保存而不是混入源码 patch
 
 ## 分类执行
 

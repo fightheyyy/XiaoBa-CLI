@@ -1,7 +1,7 @@
 # Roles & Skills SPEC
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-20
 适用范围：`roles/`、`src/roles/`、`skills/`、`src/skills/` 和 Base Main Agent 使用的角色/技能策略。
 
 本文是 XiaoBa-CLI 六个顶层模块之一 `Roles & Skills` 的唯一架构真相源。角色实现直接由 `role.json`、prompt、role-local `SKILL.md`、`src/roles/**` 和测试表达；不再为每个角色复制 SPEC/PLAN/README。用户用法统一维护在 [`../../roles/README.md`](../../roles/README.md) 和 [`../../skills/README.md`](../../skills/README.md)。
@@ -31,7 +31,7 @@ Out of scope:
 
 ## Current Architecture
 
-当前实现使用 Base Main Agent 作为唯一面向用户的主 Agent 和普通会话 dispatcher。跨角色工作通过共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。八个默认 Role 分为四个功能型 Role 和四个内部持续改进 Role，但仍运行在同一控制平面。定时自进化不经过 Base：scheduler 启动固定 `EvolutionDAGRunner`，runtime 只 harvest 一次，随后直接等待 InspectorCat，并按类型化 route 进入 EvolutionCat、EngineerCat、ReviewerCat 或终止。EvolutionCat 只能在 run-local 目录生成 Candidate Skill / Role；固定逐行输出的 Skill 可用 `arena-output-line-prefixes` 声明一个窄的 Arena 硬合同。Arena 能直接导入隔离 candidate；ReviewerCat 不再拥有 Codex 实现控制工具。Skill / Role loader 已执行 `candidate | active | blocked` 三态，旧资产缺省为 `active`；自进化 Candidate 只有经 evidence-bound 人工 CLI Promote 才能从 Arena snapshot 进入生产目录。
+当前实现使用 Base Main Agent 作为唯一面向用户的主 Agent 和普通会话 dispatcher。跨角色工作通过共享 `SubAgentSession` / `AgentSession` loop；角色只提供策略、工具和验收边界。八个默认 Role 分为四个功能型 Role 和四个内部持续改进 Role，但仍运行在同一控制平面。定时自进化不经过 Base：scheduler 启动固定 `EvolutionDAGRunner`，runtime 只 harvest 一次，随后直接等待 InspectorCat，并按类型化 route 进入 EvolutionCat、EngineerCat、ReviewerCat 或终止。EvolutionCat 只能在 run-local 目录生成 Candidate Skill / Role；固定逐行输出的 Skill 可用 `arena-output-line-prefixes` 声明一个窄的 Arena 硬合同。Repair route 从固定 `base_commit` 建 detached worktree，runtime 禁用可另选 cwd 的嵌套 Engineer/Codex 写控制面，并用 macOS Seatbelt 把 Engineer Shell 写入限制在该 worktree；runtime 再生成内容寻址 Patch Candidate。ReviewerCat 在同一 worktree 中通过独立子进程复跑候选代码，`closed` 时必须给出 Arena 风险分类，行为型修复再进入 Arena `repair_regression`。ReviewerCat 不拥有 Codex 实现控制工具。Skill / Role loader 已执行 `candidate | active | blocked` 三态，旧资产缺省为 `active`；自进化 Candidate 只有经 evidence-bound 人工 CLI Promote 才能从 Arena snapshot 进入生产目录。
 
 ```mermaid
 flowchart LR
@@ -44,15 +44,17 @@ flowchart LR
     Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
     Evolution --> Arena["Arena<br/>multi-case evaluation"]
     Arena -.-> Promote["human Promote<br/>snapshot + receipt"]
-    Gate -->|repair| Engineer["EngineerCat<br/>fix"]
-    Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
+    Gate -->|repair| Engineer["EngineerCat<br/>isolated Patch Candidate"]
+    Engineer --> Reviewer["ReviewerCat<br/>Frozen Replay"]
+    Reviewer -. "behavior-impacting repair" .-> Arena
+    Reviewer --> ReviewEnd["closed / next_run / blocked"]
     Gate -->|replay| Reviewer
     Gate -->|no_op| NoOp["terminal no-op"]
 ```
 
 ## Target Architecture
 
-目标拓扑是 Base Main Agent 加八个默认 Role Subagents：四个功能型 Role 直接承接用户任务，四个内部持续改进 Role 按 workflow 场景参与，不引入 RouterCat、Recovery Role 或 driver-side Agent。Base 只负责用户沟通、判断和普通会话中的 role dispatch，不参与定时自进化链路，也不常驻 default base Skill。定时器直接启动一个固定、确定性的自进化 DAG：runtime 只采集 trace、验证类型化合同并按 `evolution | repair | replay | no_op` 路由；InspectorCat 是第一个模型角色。EvolutionCat 只处理 Inspector 交付的跨任务、可泛化模式，并在隔离目录生成 Candidate Skill / Role；EngineerCat 只处理工程修复；ReviewerCat 只做正式回放与关闭判断；候选能力统一交给独立 Arena 多 case 评测。`remember` 仍是 EvolutionCat 独占的确定性 role tool，`self-evolution`、`skill-publish`、`role-publish` 仍是它的 role-local Skills。BrowserCat、GuiCat 和 SecretaryCat 的 driver/Skill 权限边界保持不变。
+目标拓扑是 Base Main Agent 加八个默认 Role Subagents：四个功能型 Role 直接承接用户任务，四个内部持续改进 Role 按 workflow 场景参与，不引入 RouterCat、Recovery Role 或 driver-side Agent。Base 只负责用户沟通、判断和普通会话中的 role dispatch，不参与定时自进化链路，也不常驻 default base Skill。定时器直接启动一个固定、确定性的自进化 DAG：runtime 只采集 trace、验证类型化合同并按 `evolution | repair | replay | no_op` 路由；InspectorCat 是第一个模型角色。EvolutionCat 只处理跨任务、可泛化模式，并在隔离目录生成 Candidate Skill / Role。EngineerCat 的 `repair` 路径必须从固定 `base_commit` 建立隔离 worktree，产出内容寻址的 Patch Candidate，不能修改调度器所在 checkout；ReviewerCat 在同一候选快照上执行单次 Frozen Replay 并判断是否需要行为复审。只有影响 Agent 行为的 Patch Candidate 才追加 Arena `repair_regression` 多次复跑，普通确定性修复在 Reviewer 通过后结束。`remember` 仍是 EvolutionCat 独占的确定性 role tool，`self-evolution`、`skill-publish`、`role-publish` 仍是它的 role-local Skills。BrowserCat、GuiCat 和 SecretaryCat 的 driver/Skill 权限边界保持不变。
 
 ```mermaid
 flowchart LR
@@ -60,15 +62,18 @@ flowchart LR
     Base --> Functional["4 Functional Roles<br/>Engineer / Browser / Gui / Secretary"]
     Base --> Internal["4 Internal Improvement Roles<br/>User / Inspector / Evolution / Reviewer"]
 
-    Traces["Session Traces<br/>nightly"] --> Inspector["InspectorCat<br/>diagnose + evidence"]
+    Traces["Session Traces<br/>nightly"] --> Harvest["Runtime Harvest<br/>Digest"]
+    Harvest --> Inspector["InspectorCat<br/>diagnose + evidence"]
     Inspector --> Gate{"Route Gate"}
-    Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
-    Evolution --> Arena["Arena<br/>multi-case evaluation"]
-    Arena -.-> Promote["human Promote<br/>snapshot + receipt"]
-    Gate -->|repair| Engineer["EngineerCat<br/>fix"]
-    Engineer --> Reviewer["ReviewerCat<br/>formal replay"]
+    Gate -->|evolution| Evolution["EvolutionCat<br/>isolated Skill / Role Candidate"]
+    Evolution --> Arena["Arena<br/>multi-case acceptance"]
+    Arena -.-> Active["Candidate to Active"]
+    Gate -->|repair| Engineer["EngineerCat<br/>isolated Patch Candidate"]
+    Engineer --> Reviewer["ReviewerCat<br/>Frozen Replay"]
+    Reviewer -. "behavior-impacting repair" .-> Arena
+    Reviewer --> ReviewEnd["closed / next_run / blocked"]
     Gate -->|replay| Reviewer
-    Gate -->|no_op| NoOp["terminal no-op"]
+    Gate -->|no_op| NoOp["no action"]
 ```
 
 ## Stable Boundaries
@@ -86,7 +91,8 @@ flowchart LR
 - `evolution` 必须由至少两个独立根任务 lineage 的 source trace refs 支持。EvolutionCat 最多生成一个隔离的 callable Candidate Skill / Role，再交给 Arena，不负责 gate 或 promotion。
 - Candidate Skill 只有在确实承诺固定逐行文本输出时才声明 `arena-output-line-prefixes`；Arena 对所有被评测 turn 做唯一文本交付与逐行前缀硬验收。EvolutionCat 不执行或解释验收结果。
 - Candidate Role 的评测只从 Arena run-local snapshot 解析规范 role identity、role-local Skills 与 ToolManager policy；同名生产 Role 不得覆盖它。`role_skill` subject 与 role-local Skill 同名时必须拒绝，而不是猜加载优先级。
-- EngineerCat 接受 `repair` route 并完成工程修复；ReviewerCat 接受修复后的 replay case，或者直接接受 `replay` route，在干净 session 中输出 `closed | next_run | blocked`。同一次 DAG 不回跳。
+- EngineerCat 接受 `repair` route，只在固定 `base_commit` 的 detached worktree 中修改；显式写文件工具受 `allowedWriteRoot` 约束，Shell 写入受 macOS Seatbelt 约束，可另选 cwd 的嵌套工程控制工具在该 stage 不可见。runtime 自动生成 `candidate.patch`、`patch_sha256`、包含删除在内的 changed files 和证据快照，scheduler checkout 保持不变。ReviewerCat 在同一候选代码快照中执行 Frozen Replay，或者直接接受 `replay` route，在干净 session 中输出 `closed | next_run | blocked`。Repair `closed` 还必须给出 `arena_review=required|not_required`；行为型修复进入 Arena `repair_regression`，同一次 DAG 不回跳 EngineerCat。
+- Repair `closed` 表示 Patch Candidate 的验收链结束，不表示 scheduler checkout 已被修改；补丁和证据保留在 DAG run root，当前实现不自动 Apply/Merge。
 - 未解决的 `next_run` 在同日重跑时保持幂等，只有后续 run 的 `closed` 或新 `next_run` 才消费原 handoff。
 - `no_op` 是显式终态；非法合同、缺证据或 stage failure 必须 fail closed 为 `blocked`，不能伪装成 `no_op`。
 - Candidate / Active / Blocked 是 Skill 与 Role 的唯一资产状态；旧资产缺省为 Active，Blocked 不可调用，Candidate 只允许显式调用或 Arena 挂载。

@@ -60,6 +60,8 @@ ReviewerCat 可以从 source Trace 恢复具体输入与观察点，但不能修
 - `reviewer_xiaoba_cli_e2e` 被 runtime 硬阻止，因为它允许自定义 command、messages 和 verifier commands
 - `reviewer_module_test` 也被 runtime 硬阻止，因为自定义或项目测试命令可能修改工作区
 - `reviewer_trace_replay` 只接受空参数；不得传 cwd、路径、命令、消息或 verifier
+- 定时 DAG 的 Repair replay 必须运行在同一个隔离 Patch Candidate worktree；`closed` 时必须输出 `arena_review=required|not_required` 和具体 `risk_reasons`
+- Prompt/Skill/Role、工具可见性或权限、路由、上下文压缩、模型 retry/fallback、消息交付语义等行为型变更必须标记 `arena_review=required`；ReviewerCat 不自行启动 Arena
 - 可用 `read_file`、`grep`、`glob` 读取它生成的 fresh report/comparison
 - `closed/next_run` 的 `evidence_refs` 只能引用本轮固定 `reviewer-replay/` 下的 manifest、replay-results、comparison 或 report
 - 不能把已有 Engineer/CI 自评直接算作 fresh replay evidence

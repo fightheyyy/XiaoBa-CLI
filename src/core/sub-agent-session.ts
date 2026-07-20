@@ -16,6 +16,8 @@ import { Logger } from '../utils/logger';
 import { buildCanonicalToolResult } from '../tools/tool-result';
 import { SessionTurnLogger } from '../utils/session-turn-logger';
 import { isWritePathWithinRoot } from '../utils/safety';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ─── 类型定义 ───────────────────────────────────────────
 
@@ -128,7 +130,9 @@ export class SubAgentToolExecutor implements ToolExecutor {
     const writeBoundaryResult = this.validateWriteBoundary(toolCall, canonicalName, contextOverrides);
     if (writeBoundaryResult) return writeBoundaryResult;
 
-    return this.inner.executeTool(toolCall, conversationHistory, contextOverrides);
+    const boundedShell = this.boundShellToWriteRoot(toolCall, canonicalName, contextOverrides);
+    if ('result' in boundedShell) return boundedShell.result;
+    return this.inner.executeTool(boundedShell.toolCall, conversationHistory, contextOverrides);
   }
 
   private isHiddenTool(toolName: string): boolean {
@@ -184,9 +188,134 @@ export class SubAgentToolExecutor implements ToolExecutor {
     });
   }
 
+  private boundShellToWriteRoot(
+    toolCall: ToolCall,
+    canonicalName: string,
+    contextOverrides?: Partial<ToolExecutionContext>,
+  ): { toolCall: ToolCall } | { result: ToolResult } {
+    if (!this.options.allowedWriteRoot || canonicalName !== 'execute_shell') {
+      return { toolCall };
+    }
+    if (process.platform !== 'darwin' || !fs.existsSync('/usr/bin/sandbox-exec')) {
+      return {
+        result: blockedToolResult(
+          toolCall,
+          canonicalName,
+          'WRITE_SANDBOX_UNAVAILABLE',
+          '隔离子会话的 Shell 只允许在 macOS Seatbelt 可用时执行。',
+        ),
+      };
+    }
+
+    let args: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      if (!parsed || typeof parsed !== 'object') return { toolCall };
+      args = parsed as Record<string, unknown>;
+    } catch {
+      return { toolCall };
+    }
+    if (typeof args.command !== 'string' || !args.command.trim()) return { toolCall };
+
+    try {
+      const allowedRoot = fs.realpathSync(path.resolve(this.options.allowedWriteRoot));
+      const workingDirectory = fs.realpathSync(path.resolve(
+        contextOverrides?.workingDirectory || this.options.workingDirectory || allowedRoot,
+      ));
+      const cwdPermission = isWritePathWithinRoot('.', workingDirectory, allowedRoot);
+      if (!cwdPermission.allowed) {
+        return {
+          result: blockedToolResult(
+            toolCall,
+            canonicalName,
+            'PATH_DENIED',
+            cwdPermission.reason || 'Shell 工作目录超出隔离写入根目录。',
+          ),
+        };
+      }
+      const runtimeRoot = path.join(allowedRoot, 'output', '.xiaoba-shell-sandbox');
+      const homeRoot = path.join(runtimeRoot, 'home');
+      const tempRoot = path.join(runtimeRoot, 'tmp');
+      fs.mkdirSync(homeRoot, { recursive: true });
+      fs.mkdirSync(tempRoot, { recursive: true });
+      const profile = buildWriteRootSeatbeltProfile(allowedRoot);
+      const command = [
+        'env',
+        `HOME=${shellQuote(homeRoot)}`,
+        `TMPDIR=${shellQuote(tempRoot)}`,
+        'XIAOBA_WRITE_SANDBOXED=1',
+        '/usr/bin/sandbox-exec',
+        '-p',
+        shellQuote(profile),
+        '/bin/zsh',
+        '-lc',
+        shellQuote(args.command),
+      ].join(' ');
+      return {
+        toolCall: {
+          ...toolCall,
+          function: {
+            ...toolCall.function,
+            arguments: JSON.stringify({ ...args, command }),
+          },
+        },
+      };
+    } catch (error: any) {
+      return {
+        result: blockedToolResult(
+          toolCall,
+          canonicalName,
+          'WRITE_SANDBOX_FAILED',
+          `无法建立隔离 Shell: ${error?.message || String(error)}`,
+        ),
+      };
+    }
+  }
+
   private canonicalToolName(toolName: string): string {
     return SUB_AGENT_TOOL_ALIASES[toolName] ?? toolName;
   }
+}
+
+function blockedToolResult(
+  toolCall: ToolCall,
+  name: string,
+  errorCode: string,
+  reason: string,
+): ToolResult {
+  return buildCanonicalToolResult({
+    tool_call_id: toolCall.id,
+    name,
+    content: `执行被阻止: ${reason}`,
+    status: 'blocked',
+    errorCode,
+    blockedReason: reason,
+    retryable: false,
+  });
+}
+
+function buildWriteRootSeatbeltProfile(allowedRoot: string): string {
+  return [
+    '(version 1)',
+    '(deny default)',
+    '(allow process*)',
+    '(allow mach-lookup)',
+    '(allow sysctl*)',
+    '(allow file-map-executable)',
+    '(allow file-read-metadata)',
+    '(allow file-read*)',
+    '(allow file-write-data (subpath "/dev"))',
+    `(allow file-write* (subpath ${seatbeltString(allowedRoot)}))`,
+    '(allow network*)',
+  ].join('\n');
+}
+
+function seatbeltString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 export function createSubAgentToolManager(

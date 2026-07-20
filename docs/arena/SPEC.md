@@ -1,8 +1,8 @@
 # Arena SPEC
 
 状态：Active
-最后更新：2026-07-15
-适用范围：`Arena` 候选能力验收场，包括外部 skill 导入、本地 role 快照、三种固定 review mode、隔离评测、UserCat 低信息端到端使用、InspectorCat 取证、Arena 自有 multi-case replay / compare / scoring 和显式 promotion 边界。
+最后更新：2026-07-20
+适用范围：`Arena` 候选能力验收场，包括外部 skill 导入、本地 role 快照、三种固定 capability review mode、隔离评测、UserCat 低信息端到端使用、InspectorCat 取证、Arena 自有 multi-case replay / compare / scoring、Repair Patch regression 和显式 promotion 边界。
 
 `Arena` 的目标不是做一个更大的 skill 仓库，也不是把所有 role 都塞进 eval。它把候选能力放进 clean runtime，经低信息用户压力、原生证据、问题提取和复跑验收后生成 scorecard。Arena 给出接纳证据，但不自动安装、启用或晋升能力。
 
@@ -51,6 +51,7 @@ In scope:
   - `role_skill`：specified role + subject skill，用来测评一个 skill 加入某个 role 后是否高可用。
   - `role`：specified role alone，用来测评 role 本身。
 - Subject metadata：被验收对象统一称为 `subject`，v1 类型只包括 `skill`、`role`。
+- Repair regression 是独立的窄验收入口：它消费 Inspector 冻结用例、ReviewerCat 单次通过证据和内容寻址 Patch Candidate，在同一隔离 worktree 上执行多次只读 replay。它不是第四种 capability review mode，也不把 Patch 注册成 `skill|role` subject。
 - GitHub skill import source metadata：owner、repo、ref、commit、license、source URL。
 - Local role snapshot metadata：role id、source path、role docs、role-local skills、declared tools、last modified fingerprint。
 - 解析 `SKILL.md`、`role.json`、prompt 和 role-local skill metadata，生成单文件 subject manifest。
@@ -75,7 +76,7 @@ Out of scope:
 - 替代 role docs / role registry 的生产 role ownership。
 - 替代 Observability & Evidence 的本地 trace 事实源。
 - 做公开排行榜、远程上传或外部 marketplace。
-- 在 v1 中评测 `adapter`、`harness_recipe` 或其他 subject 类型；除非先定义第四种 review mode。
+- 把 Patch、`adapter`、`harness_recipe` 注册成 capability subject；Repair regression 只接受调度 DAG 自有的内容寻址 Patch Candidate 合同。
 
 ## Current Architecture
 
@@ -96,6 +97,7 @@ Out of scope:
 - `UserCat` 已有 `user_trace_run`，可以通过 Dashboard Chat/Pet 原生入口进行低质量终端用户式的端到端多轮使用，并输出 UserCat run package。
 - `InspectorCat` 保留 `analyze_log` 取证工具，可以从 runtime/session log 中抽取问题信号。
 - `ReviewerCat` 的 role-owned 工具仍独立存在，但它不是 Arena worker 的执行阶段；它在定时自进化 DAG 中只执行单个 Replay Case，并输出 `closed | next_run | blocked`。
+- `src/arena/patch-regression.ts` provides the narrow `repair_regression` gate: after ReviewerCat closes one frozen replay and marks the Patch behavioral, Arena reruns the same case at least twice (normally three times) against the same detached candidate code, verifies unique session/trace identity and writes `arena-scorecard.json`; mixed results are `unstable`, repeated failures `reopened`, missing evidence `blocked`, and forbidden tools `unsafe`.
 - `eval/` 当前只接受 live agent eval benchmark；Arena run 尚不能自动进入 eval。
 
 ```mermaid
@@ -112,12 +114,14 @@ flowchart LR
     Score -. "human CLI only" .-> Promote["Promote<br/>snapshot + receipt"]
     Promote --> Production["production Skill / Role"]
 
-    Dag["scheduled evolution DAG"] -.-> Reviewer["ReviewerCat<br/>single Replay Case"]
+    Patch["isolated Patch Candidate"] --> Reviewer["ReviewerCat<br/>single Frozen Replay"]
+    Reviewer -. "behavior-impacting repair" .-> Regression["Arena repair regression<br/>multi-attempt replay"]
+    Regression --> PatchScore["Patch scorecard"]
 ```
 
 ## Target Architecture
 
-目标架构把 `Arena` 做成可抽离的产品模块：导入不等于信任，评测不等于 benchmark admission，scorecard 不等于生产启用。Arena 协调现有 runtime、role、skill 和 evidence 能力，自己拥有 multi-case replay / compare / scoring，并沉淀根目录 `arena/` 下的 subject manifest / clean runtime / run index。Arena 必须能直接导入自进化 DAG 产出的隔离 Candidate Skill 或 Candidate Role，不要求先写入生产 `skills/` / `roles/`。Arena 不复制 UserCat 或 native trace 事实；它保存引用和必要摘要，但 Arena replay artifacts 与 scorecard 是它自有产物。
+目标架构把 `Arena` 做成可抽离的产品模块：导入不等于信任，评测不等于 benchmark admission，scorecard 不等于生产启用。Arena 协调现有 runtime、role、skill 和 evidence 能力，自己拥有 multi-case replay / compare / scoring，并沉淀根目录 `arena/` 下的 subject manifest / clean runtime / run index。Arena 必须能直接导入自进化 DAG 产出的隔离 Candidate Skill 或 Candidate Role，不要求先写入生产 `skills/` / `roles/`。对于 ReviewerCat 判定会影响 Agent 行为的 Patch Candidate，Arena 另以 `repair_regression` 消费固定 `base_commit + patch_sha256 + frozen replay case`，在同一隔离代码快照上执行多次只读 replay 并生成独立 scorecard；该路径不进入 capability subject store，也没有 Skill/Role promotion 语义。Arena 不复制 UserCat 或 native trace 事实；它保存引用和必要摘要，但 Arena replay artifacts 与 scorecard 是它自有产物。
 
 ```mermaid
 flowchart LR
@@ -128,6 +132,10 @@ flowchart LR
     Inspect --> Eval["Arena<br/>multi-case replay / compare / scoring"]
     Eval --> Decision["pass / unstable / reopened<br/>blocked / unsafe"]
     Decision -.-> Promote["explicit promotion<br/>snapshot + receipt"]
+
+    Patch["Patch Candidate<br/>base commit + hash"] --> Review["ReviewerCat<br/>Frozen Replay passed"]
+    Review --> Regression["Arena repair regression<br/>multi-attempt replay"]
+    Regression --> PatchDecision["pass / unstable / reopened<br/>blocked / unsafe"]
 ```
 
 ## Data Contracts
@@ -213,6 +221,29 @@ Arena consumes InspectorCat cases and produces the capability judgment:
 InspectorCat must not assign the Arena decision. Arena must not rely on intuition alone; it must run the configured replay / compare loop or explicitly return `blocked`.
 
 This is distinct from ReviewerCat formal replay: ReviewerCat handles one scheduled-DAG Replay Case after an Inspector `repair` or `replay` route. Its terminal vocabulary is `closed | next_run | blocked`; it does not emit Arena capability decisions and does not own Arena scorecards.
+
+### Repair Regression Contract
+
+Repair regression 不创建 capability subject，也不走 Skill/Role promotion。DAG 必须先保留：
+
+```text
+output/evolution/sleep/<date>/patch-candidate/
+  manifest.json
+  candidate.patch
+  evidence/
+```
+
+`manifest.json` 至少绑定 `candidate_id`、`base_commit`、`patch_ref`、`patch_sha256`、`changed_files[]` 和 Engineer artifact/verification evidence snapshots。候选不得修改 `src/arena/**`、`src/replay/**`、Reviewer replay tool 或 Patch workspace/scorecard 实现本身；涉及验收 trust root 的修复必须退出自动 Repair DAG。
+
+ReviewerCat 必须先在同一 detached worktree 中执行一次 Frozen Replay。只有 `status=closed && arena_review=required` 才进入 `repair_regression`。Arena 默认再执行三次只读 candidate-code replay，并写：
+
+```text
+output/evolution/sleep/<date>/arena-regression/
+  arena-scorecard.json
+  attempt-*/
+```
+
+Scorecard 固定记录 `review_mode=repair_regression`、Patch identity、Reviewer evidence refs、trace identity、每次 fresh replay artifact 和 `pass|unstable|reopened|blocked|unsafe`。只有全部 attempt 与 trace identity 都通过才是 `pass`；该 verdict 不自动 Apply/Merge Patch。
 
 ### Subject Contract
 

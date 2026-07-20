@@ -8,6 +8,10 @@ interface CliOptions {
   sessionKey?: string;
   maxTurns?: number;
   timeoutMs?: number;
+  source?: string;
+  readOnly?: boolean;
+  parentSessionId?: string;
+  role?: string;
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -35,6 +39,17 @@ function parseArgs(argv: string[]): CliOptions {
       index++;
     } else if (arg === '--timeout-ms') {
       options.timeoutMs = parsePositiveInt(next, '--timeout-ms');
+      index++;
+    } else if (arg === '--source') {
+      options.source = next;
+      index++;
+    } else if (arg === '--read-only') {
+      options.readOnly = true;
+    } else if (arg === '--parent-session-id') {
+      options.parentSessionId = next;
+      index++;
+    } else if (arg === '--role') {
+      options.role = next;
       index++;
     } else if (arg === '--help' || arg === '-h') {
       printHelp();
@@ -66,6 +81,10 @@ function printHelp(): void {
     '  --session-key <key>   Fresh replay session key. Defaults to pet:<pet-id>:trace-replay-...',
     '  --max-turns <n>       Replay only the first n trace inputs.',
     '  --timeout-ms <n>      Per-turn timeout. Defaults to 180000.',
+    '  --source <name>        Replay provenance source.',
+    '  --read-only            Internal mode: expose read_file/grep/glob only.',
+    '  --parent-session-id    Trusted parent id required by --read-only.',
+    '  --role <name>          Optional target role for --read-only.',
   ].join('\n'));
 }
 
@@ -76,6 +95,13 @@ async function main(): Promise<void> {
     throw new Error('--trace is required');
   }
 
+  if (options.readOnly && !options.parentSessionId) {
+    throw new Error('--read-only requires --parent-session-id');
+  }
+  const services = options.readOnly
+    ? await createReadOnlyServices(options.cwd, options.parentSessionId || '', options.role)
+    : undefined;
+
   const report = await runTraceReplay({
     tracePath: options.trace,
     outDir: options.out,
@@ -84,10 +110,17 @@ async function main(): Promise<void> {
     sessionKey: options.sessionKey,
     maxTurns: options.maxTurns,
     timeoutMs: options.timeoutMs,
+    source: options.source,
+    services,
   });
 
   console.log(renderTraceReplayReport(report));
   console.log(`Artifacts: ${report.out_dir}`);
+}
+
+async function createReadOnlyServices(cwd: string | undefined, parentSessionId: string, role?: string) {
+  const { createReadOnlyReplayServices } = await import('../src/roles/reviewer-cat/tools/trace-replay-tool');
+  return createReadOnlyReplayServices(cwd || process.cwd(), parentSessionId, role);
 }
 
 main().catch(error => {

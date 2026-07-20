@@ -1,7 +1,7 @@
 # Evaluation SPEC
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-20
 适用范围：历史 Trace Replay、Live Agent Eval、benchmark source、verifier 和 scorecard gate。
 
 本文是 XiaoBa-CLI 六个顶层模块之一 `Evaluation` 的唯一架构真相源。它同时定义 Engineering Test、Trace Replay 和 Live Agent Eval 的边界；前者验证代码，Replay 回答“同款历史输入现在会发生什么”，Live Agent Eval 回答“curated benchmark 是否通过”。
@@ -34,42 +34,27 @@ Out of scope:
 
 ## Current Architecture
 
-当前两条主线已经物理分开。Trace Replay 读取历史 `traces.jsonl`，重新驱动当前 Pet/Chat runtime 并输出 fresh trace 和轻量比较；Live Agent Eval 当前只保留 BaseRuntime 11 条 live case，通过 `surface_runtime` 产生新证据并运行 hard verifiers。
+当前两条主线已经物理分开。Trace Replay 读取历史 `traces.jsonl`，重新驱动当前 Pet/Chat runtime 并输出 fresh trace 和轻量比较；Live Agent Eval 当前只保留 BaseRuntime 11 条 live case，通过 `surface_runtime` 产生新证据并运行 hard verifiers。Scheduled Repair 的 Reviewer replay 还可把 detached Patch worktree 作为 code root，通过独立 `tsx` 子进程加载候选代码，并只暴露 `read_file / grep / glob`；其 durable replay artifact 会迁回 DAG run root，行为型修复随后由 Arena 多次调用同一隔离 replay 路径。
 
 ```mermaid
 flowchart LR
-    subgraph ReplayLane["Trace Replay：历史输入复跑"]
-        OldTrace["logs/sessions/**/traces.jsonl"]
-        Extract["extract user.text"]
-        CurrentRuntime["current Pet / Chat runtime"]
-        FreshTrace["fresh trace / visible history"]
-        Compare["lightweight comparison"]
-    end
+    OldTrace["historical trace"] --> Extract["extract user input"]
+    Extract --> CurrentRuntime["current runtime"]
+    CurrentRuntime --> FreshTrace["fresh trace"]
+    FreshTrace --> Compare["comparison"]
 
-    subgraph EvalLane["Live Agent Eval：curated benchmark"]
-        Manifest["eval/benchmarks manifest"]
-        Cases["BaseRuntime live cases"]
-        SurfaceReplay["surface_runtime replay"]
-        Evidence["fresh tool / artifact / delivery evidence"]
-        Verify["hard verifiers"]
-        Scorecard["scorecard / report"]
-    end
+    Patch["isolated Patch Candidate"] --> PatchReplay["Reviewer Frozen Replay"]
+    PatchReplay --> PatchEvidence["durable evidence"]
 
-    OldTrace --> Extract
-    Extract --> CurrentRuntime
-    CurrentRuntime --> FreshTrace
-    FreshTrace --> Compare
-
-    Manifest --> Cases
-    Cases --> SurfaceReplay
-    SurfaceReplay --> Evidence
-    Evidence --> Verify
-    Verify --> Scorecard
+    Manifest["curated benchmark"] --> SurfaceReplay["live runtime replay"]
+    SurfaceReplay --> Evidence["fresh evidence"]
+    Evidence --> Verify["hard verifiers"]
+    Verify --> Scorecard["scorecard"]
 ```
 
 ## Target Architecture
 
-目标架构保持两条窄主线，不重新引入中心化 schema/rubric/governance 平台。Replay output 只能经人工整理成为 curated case；Live Agent Eval 只接纳能重新运行当前 agent/runtime 的 case。
+目标架构保持两条窄主线，不重新引入中心化 schema/rubric/governance 平台。Replay output 只能经人工整理成为 curated case；Live Agent Eval 只接纳能重新运行当前 agent/runtime 的 case。Repair 路径的 Frozen Replay 必须把隔离 Patch Candidate 的 worktree 作为 runtime code root，而不是复跑调度器所在 checkout；它先为 ReviewerCat 提供一次关闭证据，行为型修复再由 Arena 对同一冻结用例执行多次 `repair_regression`。
 
 ```mermaid
 flowchart LR
@@ -77,6 +62,7 @@ flowchart LR
         Historical["historical local trace"]
         Curated["curated benchmark case"]
         InspectorCase["Inspector replay case"]
+        Patch["isolated Patch Candidate"]
     end
 
     subgraph Evaluation["Evaluation module"]
@@ -93,6 +79,7 @@ flowchart LR
 
     Historical --> Replay
     InspectorCase --> Replay
+    Patch --> Replay
     Replay --> ReplayReport
     ReplayReport --> ReviewerDecision
     ReplayReport -. "human curation only" .-> Curated
