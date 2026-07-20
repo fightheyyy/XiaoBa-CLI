@@ -109,17 +109,17 @@ Browser、GUI 和飞书 driver 只提供确定性能力，不启动第二套 Cha
 
 ## 受控进化
 
-夜间 workflow 从 InspectorCat 开始：它扫描真实 session trace，保留证据，并将 finding 路由到 `evolution`、`repair`、`replay` 或 `no_op`。内部 Role 按 route 参与，不是每晚固定跑一条“八猫流水线”。
+夜间 workflow 先由 Runtime 从真实 session trace 生成只读 Digest，再以 InspectorCat 作为第一个模型角色做证据诊断，并将 finding 路由到 `evolution`、`repair`、`replay` 或 `no_op`。内部 Role 按 route 参与，不是每晚固定跑一条“八猫流水线”。
 
 <p align="center">
-  <img src="assets/self-evolution-dag.png" alt="XiaoBa Self-Evolution DAG：InspectorCat 将 trace 路由到 evolution、repair、replay 或 no-op" width="100%">
+  <img src="assets/self-evolution-dag.png" alt="xiaobaOS Self-Evolution DAG：真实 Session Traces 经 Runtime Harvest 生成 Digest，再由 InspectorCat 路由到 evolution、repair、replay 或 no-op" width="100%">
 </p>
 
 | Route | 执行 | 验收终点 |
 | --- | --- | --- |
-| `evolution` | EvolutionCat 生成隔离的 Candidate Skill / Role | Arena 在 clean runtime 中做多 case、多次复跑并输出 scorecard；仍需人显式晋升 |
-| `repair` | EngineerCat 执行工程修复 | ReviewerCat 正式回放并返回 `closed / next_run / blocked` |
-| `replay` | ReviewerCat 直接复跑冻结的 Replay Case | 返回 `closed / next_run / blocked`，同一次 DAG 不回跳修复 |
+| `evolution` | EvolutionCat 生成 Skill / Role，并落入隔离 Candidate | Arena 在 clean runtime 中做多场景能力验收；通过后仍需人显式执行 Candidate → Active |
+| `repair` | EngineerCat 生成隔离 Patch Candidate | ReviewerCat 执行 Frozen Replay 并返回 `closed / next_run / blocked`；影响 Agent 行为时再进入 Arena 复审 |
+| `replay` | ReviewerCat 直接执行冻结的 Replay Case | 返回 `closed / next_run / blocked`，同一次 DAG 不回跳修复 |
 | `no_op` | 信号不足时不生成改进 | 显式终止，不伪装成进化 |
 
 ```bash

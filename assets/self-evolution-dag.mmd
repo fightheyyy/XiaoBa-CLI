@@ -1,9 +1,28 @@
-flowchart LR
-    Traces["Session Traces<br/>nightly"] --> Inspector["InspectorCat<br/>diagnose + route"]
-    Inspector --> Gate{"Route Gate"}
-    Gate -->|evolution| Evolution["EvolutionCat<br/>Candidate Skill / Role"]
-    Evolution --> Arena["Arena<br/>multi-case evaluation"]
-    Gate -->|repair| Engineer["EngineerCat<br/>Fix"]
-    Engineer --> Reviewer["ReviewerCat<br/>Formal Replay"]
-    Gate -->|replay| Reviewer
-    Gate -->|no_op| NoOp["Terminal<br/>no-op"]
+flowchart TB
+    subgraph Intake["1) Evidence & Diagnosis"]
+        direction LR
+        Trace["真实 Session Traces"] --> Harvest["Runtime Harvest<br/>生成 Digest"]
+        Harvest --> Inspector["InspectorCat<br/>证据诊断"]
+        Inspector --> Gate{"Route Gate"}
+    end
+
+    subgraph EvolutionPath["2A) evolution"]
+        direction LR
+        Evolution["EvolutionCat<br/>生成 Skill / Role"] --> Candidate["隔离 Candidate"]
+        Candidate --> Arena["Arena<br/>多场景能力验收"]
+        Arena -.-> Active["Candidate → Active"]
+    end
+
+    subgraph RepairPath["2B) repair / replay"]
+        direction LR
+        Engineer["EngineerCat<br/>生成隔离 Patch Candidate"] --> Reviewer["ReviewerCat<br/>Frozen Replay"]
+        Reviewer --> ReviewEnd["closed / next_run / blocked"]
+    end
+
+    NoOp["2C) no_op<br/>无需处理"]
+
+    Intake -->|evolution| EvolutionPath
+    Intake -->|repair| RepairPath
+    Intake -->|replay| RepairPath
+    Intake -->|no_op| NoOp
+    RepairPath -.->|"影响 Agent 行为时复审"| EvolutionPath
