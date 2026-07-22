@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Logger } from '../utils/logger';
 import { startCommandSupport, stopCommandSupport } from '../bootstrap/command-support';
 import { createPetRouter } from './channel';
+import { shutdownObservability } from '../observability';
 
 const DEFAULT_PORT = 3900;
 const DEFAULT_HOST = '127.0.0.1';
@@ -28,6 +29,7 @@ export async function startPetServer(port: number = DEFAULT_PORT, host?: string)
 
   const shutdown = async () => {
     await stopCommandSupport();
+    await shutdownObservability();
     process.exit(0);
   };
   process.on('SIGINT', () => { void shutdown(); });

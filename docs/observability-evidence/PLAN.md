@@ -1,7 +1,7 @@
 # Observability & Evidence PLAN
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-22
 Owner：Runtime / evidence maintainers
 
 ## Current Status
@@ -14,6 +14,7 @@ Owner：Runtime / evidence maintainers
 - Observability does not accept benchmark source or decide pass/fail.
 - Nightly evolution derives an atomic local digest from terminal trace rows with stable source refs; the digest is evidence projection only and never scores or promotes assets.
 - The digest is built once by runtime and handed to InspectorCat as the first model stage; Observability still owns neither diagnosis nor routing.
+- The shared session/model/tool span topology can be projected through a default-off OTLP/HTTP protobuf exporter; external strings are allowlisted, lifecycle shutdown flushes pending batches and collector failure is fail-open.
 - Retention, encryption, durable in-flight state and user-controlled deletion remain incomplete.
 
 ```mermaid
@@ -22,6 +23,8 @@ flowchart LR
     Logs --> Projection["local summary / timeline"]
     Logs --> Replay["Trace Replay"]
     Projection --> Debug["Dashboard / maintainer debug"]
+    Projection --> OTLP["optional redacted OTLP traces"]
+    OTLP --> Collector["Barena / LangWatch / OTel Collector"]
 ```
 
 ## Milestones
@@ -34,6 +37,7 @@ flowchart LR
 6. Retention/delete/encryption policy：not started。
 7. Durable in-flight task/action evidence：partial/not started。
 8. Read-only nightly evolution digest over terminal traces：completed。
+9. Optional OTLP/HTTP trace exporter：completed for session/model/tool spans；default-off、redacted、fail-open，local JSONL remains authoritative。
 
 ## Next Steps
 
@@ -57,6 +61,7 @@ flowchart LR
 - Tool, artifact and delivery evidence remain structured and locally auditable.
 - Dashboard/API projections redact sensitive preview and path/token values.
 - Observability cannot accept, patch or score benchmark source.
+- OTLP trace export is explicit opt-in, preserves parent/child topology, excludes prompt/tool/file previews and never changes Agent outcomes when the collector is unavailable.
 - Evidence architecture changes update this PLAN and [`SPEC.md`](SPEC.md) only.
 
 ## Risks / Open Questions
@@ -67,5 +72,7 @@ flowchart LR
 
 ## Recent Verification
 
+- OTel focused tests cover parent/child ids, incoming W3C ancestry, resource identity, string allowlist privacy, real loopback OTLP/HTTP protobuf delivery, header decoding, invalid endpoints and unavailable-collector fail-open behavior.
+- Full repository tests pass 625/625 across 97 suites；`npm run build` and `git diff --check` pass.
 - Deterministic harvest tests cover timestamp windows across date directories, malformed/non-terminal rows, test/replay/self-run exclusion, runtime-stamped custom replay provenance, stable observation ids and atomic reruns.
 - Real harvest for `2026-07-13` scanned 124 trace files, excluded 44 synthetic/replay rows and correctly returned 0 production observations / 0 patterns.

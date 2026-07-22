@@ -1,9 +1,9 @@
 # Observability & Evidence SPEC
 
 状态：Active
-最后更新：2026-07-13
+最后更新：2026-07-22
 
-本文是顶层架构模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现不提供外部观测导出，也不在本地 trace/log 写入前做清洗。
+本文是顶层架构模块中的 **Observability & Evidence / 观测证据层** spec。它以本地 trace JSONL、durable state 和 artifact evidence 为事实源；当前实现可显式启用一个脱敏 OTLP trace 投影，但不会在本地 trace/log 写入前做清洗。
 
 ## Problem
 
@@ -25,15 +25,15 @@ In scope:
 - 本地 span/metric summary helpers，用于 standalone runner 或测试路径。
 - 默认开启的 local in-process summary，优先从 session log 投影产生。
 - Dashboard developer API：只读 summary / review state。
+- 可选、默认关闭的 OTLP/HTTP trace exporter；它只投影脱敏 runtime span，不改变本地 evidence 写入和评测语义。
 
 Out of scope:
 
 - Benchmark admission、pass/fail、release decision。
 - Benchmark source acceptance、source edit lifecycle、signed review artifacts or queue-based curation workflow。
-- 原始 prompt、tool args、provider payload、file content、raw traceparent、raw trace/span id 的外部导出。
-- 外部 APM mirror / collector / exporter。
+- 原始 prompt、tool args、provider payload、file content 和 raw traceparent 的外部导出。
+- metrics/logs 外部导出、外部 APM 后端部署与告警体系。
 - benchmark source admission；需要进入 benchmark source 时，由对应 benchmark owner 重新整理 case。
-- 外部 APM 后端部署和告警体系。
 
 ## Current Architecture
 
@@ -59,6 +59,7 @@ flowchart LR
         Projector["session-log-projector"]
         Summary["Local summary<br/>SLO + drilldown"]
         Trace["Local trace timeline"]
+        Otel["OTLP trace exporter<br/>optional + redacted"]
     end
 
     subgraph Consumers["Consumers"]
@@ -68,6 +69,7 @@ flowchart LR
         Maintainer["Human debug"]
         SleepDigest["nightly evolution digest"]
         Inspector["InspectorCat diagnosis"]
+        Collector["Barena / LangWatch / OTel Collector"]
     end
 
     Session --> Logger
@@ -81,6 +83,8 @@ flowchart LR
     Logger --> Projector
     Projector --> Summary
     Projector --> Trace
+    Trace --> Otel
+    Otel --> Collector
     Summary --> Api
     Summary --> Review
     JSONL --> Replay
@@ -94,7 +98,9 @@ Current implementation:
 - `src/utils/session-turn-logger.ts` owns durable trace evidence, writes `logs/sessions/<surface>/<date>/<session_id>/traces.jsonl` and human runtime text to sibling `runtime.log`, and invokes `src/observability/session-log-projector.ts` after trace append.
 - Context compression is first-class evidence: `context_compaction` runtime events are embedded in the next trace row, and successful compactions append a compact-after snapshot to sibling `context-snapshots/<session_id>.jsonl`; the event's `snapshot_ref` points at the matching snapshot line by `snapshot_id`.
 - `src/observability/session-log-projector.ts` projects trace、embedded runtime_event、provider_error、delivery evidence and token facts into local summary.
-- `src/observability/index.ts` owns local summary storage and local trace/span helpers; no external exporter is configured.
+- `src/observability/index.ts` owns local summary storage and local trace/span helpers；`src/observability/otel-trace-exporter.ts` bridges the same runtime span topology into an optional OTLP/HTTP protobuf exporter.
+- Export is default-off and fail-open. The external attribute projection is allowlist-based for strings, keeps bounded scalar topology/status/count facts, and excludes prompt/tool/file previews plus free-form error messages.
+- CLI、Feishu、Weixin、Pet and Dashboard graceful shutdown paths flush the exporter；normal one-shot processes also flush it on `beforeExit`.
 - `AgentSession` records session lifecycle facts through `SessionTurnLogger`; its `ConversationRunner` is configured `mirror_only` so local summary does not double count runtime metrics.
 - Standalone `ConversationRunner` can still record local metrics directly because it has no owning session log.
 - `GET /api/observability/summary` returns aggregate and local trace facts derived from local logs, with raw prompt/tool preview attributes removed and sensitive freeform values such as paths/tokens redacted at the Dashboard API boundary.
@@ -119,6 +125,7 @@ flowchart LR
         Projector["session log projector"]
         Summary["summary"]
         TraceGraph["trace graph"]
+        Otel["OTel trace projection<br/>explicit opt-in + redacted"]
     end
 
     subgraph ProductUse["Product use"]
@@ -127,12 +134,15 @@ flowchart LR
         SleepDigest["nightly evolution digest<br/>derived refs only"]
         Inspector["InspectorCat<br/>diagnosis input"]
         LiveEval["Live Agent Eval<br/>curated source only"]
+        Collector["OTLP collector<br/>Barena / LangWatch / APM"]
     end
 
     JSONL --> Projector
     Snapshots --> Debug
     RuntimeLog -.-> Maintainer["human debug"]
     Projector --> Obs
+    TraceGraph --> Otel
+    Otel --> Collector
     Artifacts --> Obs
     JSONL --> Replay
     JSONL --> SleepDigest
@@ -154,6 +164,9 @@ Target rules:
 - Runtime harness owns runtime/contract regression decisions.
 - Roles own role-specific replay, rubric and benchmark admission.
 - Dashboard stays read-only for observability summary/review state; network-facing summary responses default to a redacted projection even when the in-process local summary retains explicit local preview facts.
+- OTLP trace export is an optional lossy projection, never a second evidence truth. It exports span topology and bounded scalar attributes only; prompt/tool/file previews, raw traceparent and free-form error text stay local.
+- Export failure is fail-open for Agent execution and must be visible through exporter health state without changing runtime outcomes.
+- Metrics and logs remain local in the first OTel milestone; expanding those signals requires a separate privacy and cardinality review.
 
 ## Contracts
 
@@ -163,6 +176,15 @@ Stable public replay/eval commands:
 - `npm run eval:base-runtime`
 - `npm run eval:gate`
 
+Stable OTel configuration:
+
+- `XIAOBA_OBSERVABILITY_ENABLED=true` explicitly enables external trace export; unset/false performs no network export.
+- `XIAOBA_OBSERVABILITY_TRACES_EXPORTER=otlp` is the only supported external signal exporter; `OTEL_TRACES_EXPORTER=otlp` is accepted as the standard fallback.
+- `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` overrides `OTEL_EXPORTER_OTLP_ENDPOINT`; the shared endpoint receives `/v1/traces` automatically.
+- `OTEL_EXPORTER_OTLP_TRACES_HEADERS` overrides duplicate shared `OTEL_EXPORTER_OTLP_HEADERS` keys. Header values use standard URL encoding.
+- `OTEL_SERVICE_NAME` and standard OTLP timeout variables are accepted; `XIAOBA_OBSERVABILITY_SERVICE_NAME` remains the XiaoBa-specific service-name override.
+- `OTEL_SDK_DISABLED=true` disables the exporter even when the XiaoBa opt-in flag is set.
+
 Stable generated roots:
 
 - `output/replay/**`
@@ -170,7 +192,9 @@ Stable generated roots:
 
 Local invariants:
 
-- External observability export is not part of the current implementation.
+- OTLP trace export must be explicitly enabled; unset configuration performs no network export.
+- `traces.jsonl` remains the authoritative evidence source even when OTLP export is enabled.
+- External spans preserve W3C trace ancestry but contain only the exporter-safe attribute projection.
 - Local summary preserves scalar local attributes, including prompt/tool previews when explicitly recorded, as local in-process evidence. Dashboard API responses redact preview attributes by default.
 - Local `traces.jsonl` keeps runtime facts as local evidence; benchmark curation rewrites raw traces into runnable eval cases.
 - `context_compaction` events and `context-snapshots/<session_id>.jsonl#<snapshot_id>` refs must agree by `event_id` / `snapshot_id`; consumers should resolve snapshot refs relative to the owning session log directory.
