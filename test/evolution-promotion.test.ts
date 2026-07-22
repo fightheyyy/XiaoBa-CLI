@@ -99,8 +99,8 @@ describe('evidence-bound evolution promotion', () => {
     });
     const profile = readJson(fixture.arenaRunPath).target_profile;
     assert.ok(profile.registered_tools.includes('write_file'));
-    assert.ok(profile.registered_tools.includes('engineer_task_run'));
-    assert.ok(profile.provider_visible_tools.includes('engineer_task_run'));
+    assert.ok(profile.registered_tools.includes('read_file'));
+    assert.ok(profile.provider_visible_tools.includes('read_file'));
     assert.ok(profile.provider_visible_tools.includes('send_text'));
     assert.ok(!profile.provider_visible_tools.includes('write_file'));
 
@@ -110,9 +110,9 @@ describe('evidence-bound evolution promotion', () => {
         target_profile: {
           ...value.target_profile,
           registered_tools: value.target_profile.registered_tools
-            .filter((tool: string) => tool !== 'engineer_task_run'),
+            .filter((tool: string) => tool !== 'read_file'),
           provider_visible_tools: value.target_profile.provider_visible_tools
-            .filter((tool: string) => tool !== 'engineer_task_run'),
+            .filter((tool: string) => tool !== 'read_file'),
         },
       }));
     }

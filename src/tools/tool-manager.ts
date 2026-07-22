@@ -717,7 +717,7 @@ export class ToolManager implements ToolExecutor {
     if (this.toolLayers.get(toolName) === 'role') {
       return true;
     }
-    return /^(engineer_|research_|reviewer_|inspector_|codex_job_|auto_research_|case_|surface_)/.test(toolName);
+    return /^(engineer_|research_|reviewer_|inspector_|auto_research_|case_|surface_)/.test(toolName);
   }
 
   private extractArtifactPathsFromStructuredContent(content: unknown): string[] {
@@ -772,7 +772,7 @@ export class ToolManager implements ToolExecutor {
   private isArtifactKey(key: string): boolean {
     const normalized = key.trim().toLowerCase();
     if (!normalized) return false;
-    if (/^(cwd|working_directory|session_id|codex_session_id|run_id|task_id|project|status|route)$/.test(normalized)) {
+    if (/^(cwd|working_directory|session_id|run_id|task_id|project|status|route)$/.test(normalized)) {
       return false;
     }
     return /(^|_)(artifact|artifacts|file|path|plan|validation|final_summary|summary|report|scorecard|manifest|handoff|aggregate|board|output|log)(_|$)/.test(normalized)

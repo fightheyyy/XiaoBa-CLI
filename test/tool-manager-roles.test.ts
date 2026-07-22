@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createRoleAwareToolManager } from '../src/bootstrap/tool-manager';
-import { CodexJobCancelTool, CodexJobResumeTool, CodexJobStartTool, CodexJobStatusTool } from '../src/roles/reviewer-cat/tools/codex-job-tools';
 import { startRoleRuntimeServices } from '../src/roles/runtime-role-registry';
 import { ToolManager } from '../src/tools/tool-manager';
 import { RoleResolver } from '../src/utils/role-resolver';
@@ -13,7 +12,6 @@ const originalCwd = process.cwd();
 const originalRole = process.env.XIAOBA_ROLE;
 const originalCurrentRole = process.env.CURRENT_ROLE;
 const originalCurrentRoleDisplayName = process.env.CURRENT_ROLE_DISPLAY_NAME;
-const originalCodexHome = process.env.CODEX_HOME;
 
 describe('ToolManager role-specific tools', () => {
   let testRoot: string;
@@ -39,7 +37,12 @@ describe('ToolManager role-specific tools', () => {
     );
     fs.writeFileSync(
       path.join(testRoot, 'roles', 'engineer-cat', 'role.json'),
-      JSON.stringify({ name: 'engineer-cat', displayName: 'EngineerCat' }, null, 2),
+      JSON.stringify({
+        name: 'engineer-cat',
+        displayName: 'EngineerCat',
+        inheritBaseTools: false,
+        baseToolAllowlist: ['read_file', 'write_file', 'edit_file', 'glob', 'grep', 'execute_shell', 'skill', 'ask_parent'],
+      }, null, 2),
       'utf-8',
     );
     fs.writeFileSync(
@@ -88,11 +91,6 @@ describe('ToolManager role-specific tools', () => {
       process.env.CURRENT_ROLE_DISPLAY_NAME = originalCurrentRoleDisplayName;
     } else {
       delete process.env.CURRENT_ROLE_DISPLAY_NAME;
-    }
-    if (originalCodexHome) {
-      process.env.CODEX_HOME = originalCodexHome;
-    } else {
-      delete process.env.CODEX_HOME;
     }
   });
 
@@ -169,22 +167,15 @@ describe('ToolManager role-specific tools', () => {
     assert.ok(!result.artifact_manifest?.some(item => item.metadata?.inferred === true));
   });
 
-  test('reviewer-cat 只注册正式回放工具，不暴露 Codex 实现控制', () => {
+  test('reviewer-cat 只注册正式回放工具，不暴露实现控制', () => {
     RoleResolver.activateRole('reviewer-cat');
     const manager = createRoleAwareToolManager();
     assert.ok(manager.getTool('reviewer_eval_prepare'));
     assert.ok(manager.getTool('reviewer_trace_replay'));
     assert.ok(manager.getTool('reviewer_xiaoba_cli_e2e'));
     assert.ok(manager.getTool('reviewer_module_test'));
-    for (const toolName of [
-      'codex_session_list',
-      'codex_job_start',
-      'codex_job_status',
-      'codex_job_resume',
-      'codex_job_cancel',
-    ]) {
-      assert.strictEqual(manager.getTool(toolName), undefined, `${toolName} must remain EngineerCat-only`);
-    }
+    assert.strictEqual(manager.getTool('engineer_task_run'), undefined);
+    assert.strictEqual(manager.getTool('codex_job_start'), undefined);
   });
 
   test('evolution DAG runtime hard-blocks Reviewer command runners', async () => {
@@ -230,90 +221,26 @@ describe('ToolManager role-specific tools', () => {
     assert.strictEqual(fs.existsSync(moduleSentinel), false);
   });
 
-  test('engineer-cat 角色通过组合层注册 Codex session 和 job 工具', () => {
+  test('engineer-cat 只开放 coding 和 skill 工具且没有调度控制面', () => {
     RoleResolver.activateRole('engineer-cat');
     const manager = createRoleAwareToolManager();
-    assert.ok(manager.getTool('engineer_codex_supervisor_start'));
-    assert.ok(manager.getTool('engineer_codex_supervisor_status'));
-    assert.ok(manager.getTool('engineer_codex_supervisor_resume'));
-    assert.ok(manager.getTool('engineer_codex_supervisor_cancel'));
-    assert.ok(manager.getTool('engineer_task_run'));
-    assert.ok(manager.getTool('engineer_task_status'));
-    assert.ok(manager.getTool('engineer_task_resume'));
-    assert.ok(manager.getTool('engineer_task_cancel'));
-    assert.ok(manager.getTool('codex_session_list'));
-    assert.ok(manager.getTool('codex_job_start'));
-    assert.ok(manager.getTool('codex_job_status'));
-    assert.ok(manager.getTool('codex_job_resume'));
-    assert.ok(manager.getTool('codex_job_cancel'));
-  });
-
-  test('codex job tools 显式声明 job 状态和事件证据', () => {
-    const context = { workingDirectory: testRoot, conversationHistory: [] };
-    const expectedBase = 'data/codex-jobs/manifest-codex-job';
-
-    const startManifest = new CodexJobStartTool().getArtifactManifest?.(
-      { job_id: 'manifest-codex-job' },
-      'codex: running=true status=running\njob_id=manifest-codex-job',
-      context,
-    ) ?? [];
-    assert.deepEqual(startManifest.map(item => item.path), [
-      `${expectedBase}/job.json`,
-      `${expectedBase}/events.jsonl`,
-      `${expectedBase}/stderr.log`,
-    ]);
-    assert.deepEqual(startManifest.map(item => item.action), ['created', 'captured', 'captured']);
-    assert.ok(startManifest.every(item => item.metadata?.source === 'tool_owned'));
-    assert.ok(startManifest.some(item => item.metadata?.artifact_role === 'job_state'));
-    assert.ok(startManifest.some(item => item.metadata?.artifact_role === 'codex_events'));
-
-    const statusManifest = new CodexJobStatusTool().getArtifactManifest?.(
-      { job_id: 'manifest-codex-job' },
-      'codex: running=true status=running\njob_id=manifest-codex-job',
-      context,
-    ) ?? [];
-    assert.deepEqual(statusManifest.map(item => item.path), [
-      `${expectedBase}/job.json`,
-      `${expectedBase}/events.jsonl`,
-      `${expectedBase}/stderr.log`,
-    ]);
-    assert.ok(statusManifest.every(item => item.action === 'captured'));
-
-    const jobDir = path.join(testRoot, 'data', 'codex-jobs', 'manifest-codex-job');
-    fs.mkdirSync(jobDir, { recursive: true });
-    fs.writeFileSync(path.join(jobDir, 'last-message.txt'), 'done\n', 'utf-8');
-    const cancelManifest = new CodexJobCancelTool().getArtifactManifest?.(
-      { job_id: 'manifest-codex-job' },
-      'codex_job_cancel 已请求取消: job_id=manifest-codex-job, pid=123',
-      context,
-    ) ?? [];
-    assert.deepEqual(cancelManifest.map(item => item.path), [
-      `${expectedBase}/job.json`,
-      `${expectedBase}/events.jsonl`,
-      `${expectedBase}/stderr.log`,
-      `${expectedBase}/last-message.txt`,
-    ]);
-    assert.strictEqual(cancelManifest.find(item => item.path.endsWith('job.json'))?.action, 'updated');
-    assert.strictEqual(cancelManifest.find(item => item.path.endsWith('last-message.txt'))?.metadata?.artifact_role, 'last_message');
-
-    const resumeManifest = new CodexJobResumeTool().getArtifactManifest?.(
-      {},
-      'codex: running=true status=running\njob_id=manifest-codex-resume\nsession=codex-session-1',
-      context,
-    ) ?? [];
-    assert.deepEqual(resumeManifest.map(item => item.path), [
-      'data/codex-jobs/manifest-codex-resume/job.json',
-      'data/codex-jobs/manifest-codex-resume/events.jsonl',
-      'data/codex-jobs/manifest-codex-resume/stderr.log',
-    ]);
-    assert.deepEqual(resumeManifest.map(item => item.action), ['created', 'captured', 'captured']);
-
-    const errorManifest = new CodexJobStatusTool().getArtifactManifest?.(
-      { job_id: 'missing-job' },
-      '错误：找不到 Codex job: missing-job',
-      context,
-    ) ?? [];
-    assert.deepEqual(errorManifest, []);
+    const visibleToolNames = manager.getToolDefinitions().map(tool => tool.name);
+    for (const toolName of ['read_file', 'write_file', 'edit_file', 'glob', 'grep', 'execute_shell']) {
+      assert.ok(visibleToolNames.includes(toolName), `${toolName} should be visible to EngineerCat`);
+    }
+    assert.ok(visibleToolNames.includes('skill'));
+    assert.ok(visibleToolNames.includes('ask_parent'));
+    for (const removedToolName of [
+      'spawn_subagent',
+      'check_subagent',
+      'stop_subagent',
+      'resume_subagent',
+      'engineer_task_run',
+      'engineer_codex_supervisor_start',
+      'codex_job_start',
+    ]) {
+      assert.strictEqual(visibleToolNames.includes(removedToolName), false);
+    }
   });
 
   test('researcher alias 通过组合层注册 auto research 和 Research Board 工具', () => {
@@ -419,59 +346,6 @@ describe('ToolManager role-specific tools', () => {
     assert.strictEqual(result.content, 'engineer-cat');
   });
 
-  test('engineer-cat 能按项目 cwd 查询 Codex sessions', async () => {
-    RoleResolver.activateRole('engineer-cat');
-    const codexHome = path.join(testRoot, '.codex-home');
-    process.env.CODEX_HOME = codexHome;
-    const projectRoot = path.join(testRoot, 'hermes-agent');
-    const otherRoot = path.join(testRoot, 'other-project');
-    fs.mkdirSync(projectRoot, { recursive: true });
-    fs.mkdirSync(otherRoot, { recursive: true });
-    fs.mkdirSync(path.join(codexHome, 'sessions', '2026', '05', '12'), { recursive: true });
-    fs.writeFileSync(
-      path.join(codexHome, 'session_index.jsonl'),
-      [
-        JSON.stringify({
-          id: '019e1710-061e-7880-b71c-a5a960978989',
-          thread_name: '了解 TDD',
-          updated_at: '2026-05-11T12:43:13.68512Z',
-        }),
-        JSON.stringify({
-          id: '019e0700-9388-7163-9c06-cfba0aa9ea31',
-          thread_name: '其他项目',
-          updated_at: '2026-05-08T09:52:41.924843Z',
-        }),
-      ].join('\n'),
-      'utf-8',
-    );
-    fs.writeFileSync(
-      path.join(codexHome, 'sessions', '2026', '05', '12', 'rollout-hermes.jsonl'),
-      `${JSON.stringify({ type: 'session_meta', payload: { id: '019e1710-061e-7880-b71c-a5a960978989', cwd: projectRoot } })}\n`,
-      'utf-8',
-    );
-    fs.writeFileSync(
-      path.join(codexHome, 'sessions', '2026', '05', '12', 'rollout-other.jsonl'),
-      `${JSON.stringify({ type: 'session_meta', payload: { id: '019e0700-9388-7163-9c06-cfba0aa9ea31', cwd: otherRoot } })}\n`,
-      'utf-8',
-    );
-
-    const manager = createRoleAwareToolManager(projectRoot);
-    const result = await manager.executeTool({
-      id: 'codex-session-list-1',
-      type: 'function',
-      function: {
-        name: 'codex_session_list',
-        arguments: JSON.stringify({ cwd: projectRoot }),
-      },
-    });
-
-    assert.strictEqual(result.ok, true);
-    const payload = JSON.parse(String(result.content));
-    assert.strictEqual(payload.count, 1);
-    assert.strictEqual(payload.sessions[0].id, '019e1710-061e-7880-b71c-a5a960978989');
-    assert.strictEqual(payload.sessions[0].thread, '了解 TDD');
-  });
-
   test('reviewer-cat eval prepare 工具能通过 ToolManager 执行并落盘评估工件', async () => {
     RoleResolver.activateRole('reviewer-cat');
     fs.writeFileSync(
@@ -542,75 +416,21 @@ describe('ToolManager role-specific tools', () => {
     assert.ok(!result.artifact_manifest?.some(item => item.metadata?.inferred === true));
   });
 
-  test('engineer-cat task status 工具显式声明 task 和 plan 证据', async () => {
-    RoleResolver.activateRole('engineer-cat');
-    const taskDir = path.join(testRoot, 'data', 'engineer-tasks', 'manifest-task');
-    fs.mkdirSync(taskDir, { recursive: true });
-    fs.writeFileSync(path.join(taskDir, 'plan.md'), '# Plan\n', 'utf-8');
-    fs.writeFileSync(path.join(taskDir, 'task.json'), JSON.stringify({
-      version: 1,
-      taskId: 'manifest-task',
-      status: 'running',
-      route: 'codex_start',
-      cwd: testRoot,
-      request: 'prove engineer tool-owned artifacts',
-      allowEdits: true,
-      createdAt: '2026-06-04T00:00:00.000Z',
-      updatedAt: '2026-06-04T00:00:00.000Z',
-      validation: {
-        status: 'not_configured',
-        commands: [],
-        source: 'not_configured',
-        reasons: [],
-        timeoutMs: 300000,
-        results: [],
-      },
-      artifacts: {
-        dir: taskDir,
-        task: path.join(taskDir, 'task.json'),
-        plan: path.join(taskDir, 'plan.md'),
-        validation: path.join(taskDir, 'validation.md'),
-        finalSummary: path.join(taskDir, 'final-summary.md'),
-      },
-    }, null, 2), 'utf-8');
-
-    const manager = createRoleAwareToolManager(testRoot);
-    const result = await manager.executeTool({
-      id: 'engineer-task-status-manifest-1',
-      type: 'function',
-      function: {
-        name: 'engineer_task_status',
-        arguments: JSON.stringify({ task_id: 'manifest-task' }),
-      },
-    });
-
-    assert.strictEqual(result.ok, true);
-    assert.match(String(result.content), /engineer_task: running=true status=running/);
-    assert.deepEqual((result.artifact_manifest ?? []).map(item => item.path), [
-      'data/engineer-tasks/manifest-task/task.json',
-      'data/engineer-tasks/manifest-task/plan.md',
-    ]);
-    assert.ok(result.artifact_manifest?.every(item => item.action === 'captured'));
-    assert.ok(result.artifact_manifest?.every(item => item.metadata?.source === 'tool_owned'));
-    assert.ok(!result.artifact_manifest?.some(item => item.metadata?.inferred === true));
-  });
-
   test('role text tool outputs produce inferred artifact manifests', async () => {
     const manager = new ToolManager(testRoot);
     manager.registerTool({
       definition: {
-        name: 'engineer_task_status',
-        description: 'fake EngineerCat task status',
+        name: 'engineer_case_result',
+        description: 'fake EngineerCat case result',
         parameters: { type: 'object', properties: {} },
       },
       async execute() {
         return [
-          'engineer_task: running=false status=completed',
+          'engineer_case: status=reviewing',
           `cwd=${path.join(testRoot, 'project')}`,
-          'task_file=data/engineer-tasks/demo/task.json',
-          'plan=data/engineer-tasks/demo/plan.md',
-          'validation=data/engineer-tasks/demo/validation.md',
-          'final_summary=data/engineer-tasks/demo/final-summary.md',
+          'implementation_file=output/evolution/sleep/demo/implementation.md',
+          'output_file=output/evolution/sleep/demo/engineer-output.json',
+          'patch_file=output/evolution/sleep/demo/implementation.patch',
         ].join('\n');
       },
     });
@@ -619,17 +439,16 @@ describe('ToolManager role-specific tools', () => {
       id: 'engineer-task-status-1',
       type: 'function',
       function: {
-        name: 'engineer_task_status',
+        name: 'engineer_case_result',
         arguments: '{}',
       },
     });
 
     assert.strictEqual(result.status, 'success');
     assert.deepEqual((result.artifact_manifest ?? []).map(item => item.path), [
-      'data/engineer-tasks/demo/task.json',
-      'data/engineer-tasks/demo/plan.md',
-      'data/engineer-tasks/demo/validation.md',
-      'data/engineer-tasks/demo/final-summary.md',
+      'output/evolution/sleep/demo/implementation.md',
+      'output/evolution/sleep/demo/engineer-output.json',
+      'output/evolution/sleep/demo/implementation.patch',
     ]);
     assert.ok(result.artifact_manifest?.every(item => item.action === 'captured'));
     assert.ok(result.artifact_manifest?.every(item => item.metadata?.inferred === true));

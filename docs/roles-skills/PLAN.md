@@ -1,7 +1,7 @@
 # Roles & Skills PLAN
 
 状态：Active
-最后更新：2026-07-20
+最后更新：2026-07-22
 Owner：Policy maintainers
 
 ## Current Status
@@ -11,7 +11,7 @@ Owner：Policy maintainers
 - UserCat、InspectorCat、EvolutionCat、ReviewerCat are the four internal continuous-improvement Roles used on demand by evaluation, self-evolution and formal replay workflows.
 - The 4 + 4 grouping expresses responsibility and activation mode only; all eight Roles remain on the same runtime and control plane.
 - EvolutionCat owns deterministic long-term memory plus candidate capability and explicit publish workflows within the internal group.
-- EngineerCat owns coding and executes Inspector/Reviewer repair work.
+- EngineerCat owns coding and executes Inspector/Reviewer repair work through the shared XiaoBa loop and an explicit coding/Skill/`ask_parent` allowlist; parent-side SubAgent controls are not inherited.
 - SecretaryCat owns Feishu workplace workflows over the official `lark-cli`; `FeishuCat` is an alias.
 - When Feishu Surface config is present, SecretaryCat resolves and uses the `lark-cli` profile with the same App ID without changing the global active profile.
 - All eight roles reuse XiaoBa AgentSession/ConversationRunner.
@@ -35,7 +35,7 @@ flowchart LR
 
 1. Base + eight-role topology：completed。
 2. Review/repair chain：completed for current role and tool paths。
-3. EngineerCat Codex/coding takeover：completed for current local runner path。
+3. EngineerCat native coding takeover：completed；the role uses eight allowlisted coding/Skill/child-uplink tools, while Base keeps parent-side SubAgent controls and the former nested Codex/task/supervisor compatibility layer is retired。
 4. BrowserCat typed browser adapter and official core Skill vendoring：completed; packaged driver remains partial。
 5. GuiCat typed desktop adapter and official Skill vendoring：completed; the exact optional npm driver、macOS resource mapping、upstream Skill and MIT LICENSE are implemented。
 6. Duplicate Router role and Base agent-browser routing Skill retirement：completed。
@@ -51,7 +51,7 @@ flowchart LR
 
 - Keep Base as the only user-facing control plane; the scheduled evolution runner remains a fixed typed switch, not another Agent or general workflow framework.
 - Finish BrowserCat packaging and broaden BrowserCat/GuiCat real-task verification.
-- Keep EngineerCat as coding owner and repair executor.
+- Keep EngineerCat as the native coding owner and repair executor; extend its explicit coding-tool allowlist deliberately when capability is missing instead of inheriting Base control tools or adding a second runtime.
 - Keep scheduled Repair worktree-only; add a real-provider Patch regression proof before claiming broad autonomous code repair.
 - Keep SecretaryCat as a thin XiaoBa policy layer over official `lark-cli`; do not add new domain wrappers when an official command/skill already supplies the capability.
 - Complete SecretaryCat user OAuth login before claiming personal calendar/mail/drive workflows are operationally ready.
@@ -74,6 +74,7 @@ flowchart LR
 - Base remains the only user-facing main agent and dispatcher.
 - The default inventory is presented as four functional Roles and four internal continuous-improvement Roles without introducing another runtime or control plane.
 - All eight roles use the shared XiaoBa Agent loop.
+- EngineerCat exposes exactly the allowlisted file/search/Shell/Skill tools plus child-side `ask_parent`, and no parent-side SubAgent controls or nested coding-agent control plane.
 - EngineerCat, BrowserCat and GuiCat exclusively own coding, browser and desktop takeover respectively.
 - UserCat, InspectorCat, EvolutionCat and ReviewerCat keep their internal continuous-improvement boundaries and participate only when their workflow stage is needed.
 - EvolutionCat alone owns `remember`, `self-evolution`, `skill-publish` and `role-publish`; Base has zero bundled default Skills.
@@ -105,6 +106,8 @@ flowchart LR
 
 ## Recent Verification
 
+- EngineerCat native-runtime contract covers the exact eight-tool allowlist, child-side `ask_parent`, absence of parent-side SubAgent controls and nested execution tools, retained case-implementation guidance and one-loop prompt assets.
+- Full repository verification passed 622/622 across 97 suites; contract sentinel passed 9/9 and `npm run build` passed after the compatibility-layer retirement.
 - BrowserCat/GuiCat/SecretaryCat focused tests：88/88 passed；the BrowserCat/GuiCat/package Skill subset passed 40/40 after adding the BrowserCat core Skill。
 - Base default Skill inventory is empty；Electron upgrade cleanup removes only exact retired XiaoBa copies of the four evolution Skills and preserves customized user Skills。
 - EvolutionCat/GuiCat/subagent focused subset：26/26 passed。

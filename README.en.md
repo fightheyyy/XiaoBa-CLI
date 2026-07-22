@@ -25,6 +25,56 @@
 
 XiaoBa connects a user-visible work loop to an internal improvement loop on one Agent Runtime, without turning “self-evolution” into unbounded automatic rewriting.
 
+```mermaid
+flowchart LR
+    subgraph SurfaceLayer["1) Surface"]
+        direction TB
+        Surface["CLI · Feishu · Weixin<br/>Desktop · Pet"]
+    end
+
+    subgraph MainAgent["2) Main Agent"]
+        direction TB
+        Base["Base Main Agent<br/>conversation · decisions · dispatch"]
+    end
+
+    subgraph FunctionalRoles["3) Functional Role Subagents"]
+        direction TB
+        Engineer["EngineerCat<br/>code implementation and repair"]
+        Browser["BrowserCat<br/>browser takeover"]
+        Gui["GuiCat<br/>desktop GUI takeover"]
+        Secretary["SecretaryCat<br/>Feishu workflows"]
+    end
+
+    subgraph Evidence["4) Trace & Evidence"]
+        direction TB
+        Trace["model · tools · failures<br/>artifacts · deliveries"]
+    end
+
+    subgraph ImprovementRoles["5) Improvement Roles"]
+        direction TB
+        User["UserCat<br/>user-side evaluation"]
+        Inspector["InspectorCat<br/>issue detection and routing"]
+        Reviewer["ReviewerCat<br/>independent replay and review"]
+        Evolution["EvolutionCat<br/>memory · Skill · Role evolution"]
+    end
+
+    Surface --> Base
+    Base --> Engineer
+    Base --> Browser
+    Base --> Gui
+    Base --> Secretary
+    Engineer --> Trace
+    Browser --> Trace
+    Gui --> Trace
+    Secretary --> Trace
+    Trace --> User
+    Trace --> Inspector
+    Trace --> Reviewer
+    Trace --> Evolution
+```
+
+This is an ownership topology, not a claim that all four improvement Roles run sequentially on every trace. The governed workflow selects participants through typed routes.
+
 | Work loop | Evolution loop |
 | --- | --- |
 | Message → Base dispatch → specialist Role takeover → tool execution → file / message delivery | Real trace → Inspector diagnosis → candidate Skill / Role → Arena replay and scorecard → explicit human promotion |
@@ -81,7 +131,7 @@ npm run dev -- doctor
 # Interactive CLI
 npm run dev -- chat -i
 
-# Start with a specific Role
+# Development / debugging: bypass Base and start with a specific Role
 npm run dev -- chat -r engineer-cat -i
 
 # Electron Dashboard
@@ -96,7 +146,7 @@ The Base Main Agent is the only user-facing conversation and dispatch layer. All
 
 | Type | Role | Responsibility |
 | --- | --- | --- |
-| Execution | EngineerCat | Code, repositories, builds, and explicitly handed-off engineering repairs |
+| Execution | EngineerCat | XiaoBa's native coding Role on the shared Agent loop; owns code, repositories, builds, and engineering repairs |
 | Execution | BrowserCat | Bounded, verifiable browser takeover |
 | Execution | GuiCat | macOS desktop GUI takeover |
 | Execution | SecretaryCat | Feishu workflows; `FeishuCat` is an alias and official `lark-cli` supplies domain capabilities |
@@ -106,6 +156,8 @@ The Base Main Agent is the only user-facing conversation and dispatch layer. All
 | Improvement | ReviewerCat | Formally replays one Replay Case in a clean session and returns a terminal decision |
 
 Browser, GUI, and Feishu drivers provide deterministic capabilities without starting a second Chat, Agent, or MCP loop. See the [Roles Guide](roles/README.md) and [Skills Guide](skills/README.md) for detailed usage.
+
+EngineerCat likewise does not wrap a second coding-agent runtime. Base owns its SubAgent lifecycle externally, while EngineerCat implements and verifies changes through a narrow coding / Skill tool boundary and the child-side `ask_parent` uplink.
 
 ## Governed Evolution
 

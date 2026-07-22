@@ -270,12 +270,7 @@ describe('Inspector-first evolution DAG', () => {
     const reviewer = calls[2];
     const engineer = calls[1];
     assert.ok(engineer.hiddenTools?.includes('ask_parent'));
-    assert.ok(engineer.hiddenTools?.includes('engineer_task_run'));
-    assert.ok(engineer.hiddenTools?.includes('engineer_codex_supervisor_status'));
-    assert.ok(engineer.hiddenTools?.includes('codex_job_start'));
-    assert.ok(engineer.hiddenTools?.includes('codex_job_status'));
     assert.ok(!engineer.hiddenTools?.includes('execute_shell'));
-    assert.ok(reviewer.hiddenTools?.includes('codex_job_start'));
     assert.ok(reviewer.hiddenTools?.includes('execute_shell'));
     assert.ok(reviewer.hiddenTools?.includes('reviewer_xiaoba_cli_e2e'));
     assert.ok(reviewer.hiddenTools?.includes('reviewer_module_test'));

@@ -338,26 +338,26 @@
     },
     {
       "case_id": "contract.role-artifact-evidence.001",
-      "name": "Role-local tool artifacts stay structured",
+      "name": "Engineer native allowlisted tool artifacts stay structured",
       "lane": "contract_sentinel",
       "target_module": "state_evidence",
       "risk_level": "release_blocking",
-      "task": "Verify that role-local tool outputs can carry durable artifact_manifest evidence for background task artifacts.",
+      "task": "Verify that EngineerCat's allowlisted native tools can carry durable artifact_manifest evidence for case artifacts.",
       "inputs": {
         "jsonl": "../fixtures/contract-sentinel/role-artifact-evidence.jsonl",
         "jsonl_schema": "session-log-v2"
       },
       "required_artifacts": [
         {
-          "path": "data/engineer-tasks/demo/validation.md",
+          "path": "output/evolution/sleep/demo/implementation.md",
           "type": "md",
-          "action": "captured",
+          "action": "created",
           "evidence": "manifest"
         },
         {
-          "path": "data/engineer-tasks/demo/final-summary.md",
-          "type": "md",
-          "action": "captured",
+          "path": "output/evolution/sleep/demo/engineer-output.json",
+          "type": "json",
+          "action": "created",
           "evidence": "manifest"
         }
       ],
@@ -464,11 +464,11 @@
     },
     {
       "case_id": "contract.role-tool-owned-artifact-evidence.001",
-      "name": "Inspector, Engineer, Reviewer, UserCat, SecretaryCat and Codex job tools own artifact manifests",
+      "name": "Inspector, Reviewer, UserCat and SecretaryCat tools own artifact manifests",
       "lane": "contract_sentinel",
       "target_module": "state_evidence",
       "risk_level": "release_blocking",
-      "task": "Verify that InspectorCat, EngineerCat, ReviewerCat, UserCat, SecretaryCat and shared Codex job maintained role tools emit explicit tool-owned artifact evidence for source logs, task state, eval preparation, module-test logs, E2E trace evidence, Feishu local file evidence, Codex job state/events, and candidate trace packages.",
+      "task": "Verify that InspectorCat, ReviewerCat, UserCat and SecretaryCat maintained role tools emit explicit tool-owned artifact evidence for source logs, eval preparation, module-test logs, E2E trace evidence, Feishu local file evidence, and candidate trace packages.",
       "inputs": {
         "jsonl": "../fixtures/contract-sentinel/role-tool-owned-artifact-evidence.jsonl",
         "jsonl_schema": "session-log-v2"
@@ -505,15 +505,6 @@
           "path": "output/user-cat/candidates/manifest-user-trace/manifest.json",
           "type": "json",
           "action": "created",
-          "evidence": "manifest",
-          "metadata": {
-            "source": "tool_owned"
-          }
-        },
-        {
-          "path": "data/engineer-tasks/manifest-task/plan.md",
-          "type": "md",
-          "action": "captured",
           "evidence": "manifest",
           "metadata": {
             "source": "tool_owned"
@@ -567,24 +558,6 @@
         {
           "path": "data/reviewer-runs/manifest-e2e/evidence/01-verifier-ok.stdout.log",
           "type": "log",
-          "action": "captured",
-          "evidence": "manifest",
-          "metadata": {
-            "source": "tool_owned"
-          }
-        },
-        {
-          "path": "data/codex-jobs/manifest-codex-job/job.json",
-          "type": "json",
-          "action": "captured",
-          "evidence": "manifest",
-          "metadata": {
-            "source": "tool_owned"
-          }
-        },
-        {
-          "path": "data/codex-jobs/manifest-codex-job/events.jsonl",
-          "type": "jsonl",
           "action": "captured",
           "evidence": "manifest",
           "metadata": {
@@ -656,7 +629,7 @@
             "required_metadata_keys": [
               "source"
             ],
-            "min_required_artifacts": 17
+            "min_required_artifacts": 14
           }
         },
         {

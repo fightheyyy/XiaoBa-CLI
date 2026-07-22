@@ -217,11 +217,14 @@ describe('SkillManager runtime base skills', () => {
     }
   });
 
-  test('sub-agents inherit role-specific runtime tools without main-session control tools', () => {
+  test('Engineer sub-agents expose coding tools without Base control tools', () => {
     const engineerTools = createSubAgentToolExecutor(process.cwd(), 'test-engineer', 'engineer-cat');
     const engineerToolNames = engineerTools.getToolDefinitions().map(tool => tool.name);
-    assert.ok(engineerToolNames.includes('engineer_task_run'));
-    assert.ok(engineerToolNames.includes('codex_job_status'));
+    for (const baseCodingTool of ['read_file', 'write_file', 'edit_file', 'glob', 'grep', 'execute_shell']) {
+      assert.ok(engineerToolNames.includes(baseCodingTool), `${baseCodingTool} should be visible`);
+    }
+    assert.strictEqual(engineerToolNames.includes('engineer_task_run'), false);
+    assert.strictEqual(engineerToolNames.includes('codex_job_status'), false);
     assert.ok(engineerToolNames.includes('ask_parent'));
     for (const hiddenTool of [
       'spawn_subagent',
@@ -248,6 +251,20 @@ describe('SkillManager runtime base skills', () => {
   });
 
   test('role-only sub-agents can use skill tool to choose role-local skills', () => {
+    const engineerTools = createSubAgentToolExecutor(
+      process.cwd(),
+      'test-engineer-role-only',
+      'engineer-cat',
+      { allowSkillTool: true },
+    );
+    const engineerToolNames = engineerTools.getToolDefinitions().map(tool => tool.name);
+    assert.ok(engineerToolNames.includes('skill'));
+    assert.ok(engineerToolNames.includes('execute_shell'));
+    assert.ok(engineerToolNames.includes('ask_parent'));
+    for (const hiddenTool of ['spawn_subagent', 'check_subagent', 'stop_subagent', 'resume_subagent']) {
+      assert.strictEqual(engineerToolNames.includes(hiddenTool), false, `${hiddenTool} should stay Base-only`);
+    }
+
     const reviewerTools = createSubAgentToolExecutor(
       process.cwd(),
       'test-reviewer-role-only',

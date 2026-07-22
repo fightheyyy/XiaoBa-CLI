@@ -1,7 +1,7 @@
 # XiaoBa-CLI PLAN
 
 状态：Active
-最后更新：2026-07-20
+最后更新：2026-07-22
 Owner：XiaoBa maintainers
 
 本文只维护仓库级当前状态和收敛顺序。历史实现流水由 Git 保存；模块细节进入六份模块 PLAN，不再创建额外计划文档。
@@ -14,7 +14,7 @@ XiaoBa-CLI 已形成一套共享 Agent Runtime，以及一个 Base Main Agent + 
 - 四个内部持续改进 Role：UserCat、InspectorCat、EvolutionCat、ReviewerCat，按需参与评测、自进化与正式回放。
 - 4 + 4 只是责任和启动方式分组；八个 Role 仍复用同一 Agent loop，不建立第二套控制平面。
 - EvolutionCat 在内部组中独占确定性 `remember` tool 和三个演化/发布 role-local Skills。
-- EngineerCat 同时承担代码接管，以及 Inspector / Reviewer 闭环里的修复执行。
+- EngineerCat 同时承担代码接管，以及 Inspector / Reviewer 闭环里的修复执行；它复用共享 Agent loop，只开放 coding/Skill 工具和子侧 `ask_parent`，父 Agent 独占 SubAgent 调度工具。
 - 八个角色全部复用 XiaoBa Agent loop；browser/GUI/Feishu drivers 只是确定性 capability adapters。
 - CLI、Feishu、Weixin、Pet、Dashboard 和 Electron 共用 AgentSession/ConversationRunner 主链。
 - 本地 trace、artifact、delivery evidence、Trace Replay、Live Agent Eval 和 Arena 已有可运行边界。
@@ -39,7 +39,7 @@ flowchart LR
 | --- | --- | --- |
 | M0 Documentation baseline | Completed | 1 repository pair + 6 module pairs; no duplicate submodule SPEC/PLAN |
 | M1 Shared runtime | Completed | AgentSession、ConversationRunner、layered ToolManager and provider adapters are active |
-| M2 Base + eight roles | Completed | Stable topology and default bundle implemented; EvolutionCat owns capability evolution; RouterCat remains retired |
+| M2 Base + eight roles | Completed | Stable topology and default bundle implemented; EngineerCat is native to the shared loop; EvolutionCat owns capability evolution; RouterCat remains retired |
 | M3 Surface integration | Partial | Maintained entrypoints share runtime; network auth/permission remains incomplete |
 | M4 Evidence system | Partial | Local trace/artifact/delivery facts exist; retention and durable recovery remain incomplete |
 | M5 Evaluation split | Completed | Test、Trace Replay and Live Agent Eval have distinct commands and meanings |
@@ -76,6 +76,7 @@ flowchart LR
 - Every maintained SPEC has truthful Current Architecture and Target Architecture Mermaid diagrams.
 - Base remains the only user-facing main agent and dispatcher.
 - Exactly eight default roles share the XiaoBa Agent loop.
+- EngineerCat exposes only its explicit coding/Skill/`ask_parent` allowlist; parent-side SubAgent controls and nested coding-agent runtimes are absent.
 - Scheduled evolution starts with InspectorCat, never Base, and accepts only `evolution | repair | replay | no_op`.
 - Evolution candidates remain isolated and `candidate` until Arena evidence plus explicit promotion; `blocked` assets are never callable.
 - ReviewerCat terminates formal replay as `closed | next_run | blocked`; the same DAG run cannot route back to EngineerCat.
@@ -102,7 +103,8 @@ flowchart LR
 
 - Documentation set check：14 architecture/plan files under `docs/`；post-change Git Markdown inventory is 61 files, consisting of 20 human docs, 38 runtime prompt/skill assets, and 3 test fixture reports。
 - Human-document local link/asset check：64/64 resolved across 20 maintained human-facing Markdown files, including README images and the `requirement.txt` links。
-- Full repository tests：654/654 passed across 100 suites；the isolated Patch Candidate, conditional Patch regression, worktree Shell write boundary, Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, source-task binding, semantic re-attestation, raw-evidence-bound promotion and subagent regressions are included。
+- Full repository tests：622/622 passed across 97 suites；the native EngineerCat tool boundary, isolated Patch Candidate, conditional Patch regression, worktree Shell write boundary, Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, source-task binding, semantic re-attestation, raw-evidence-bound promotion and subagent regressions are included。
+- Contract sentinel：9/9 cases passed after replacing retired nested Engineer job artifacts with native Base-tool case artifact evidence。
 - `npm run build` passed；benchmark preflight passed for 1 manifest / 11 cases；BrowserCat and GuiCat Skill validation passed。
 - Roles & Skills current/target Mermaid diagrams rendered successfully after the target map was simplified to the eight-role ownership boundary。
 - Repository current/target Mermaid diagrams were simplified to six module-level columns, and both repository and Surface diagram pairs rendered successfully with the ordinary AgentSession, scheduled evolution DAG and explicit Promote control lanes kept distinct。

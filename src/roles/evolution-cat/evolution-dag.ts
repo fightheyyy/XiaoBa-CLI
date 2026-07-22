@@ -193,35 +193,12 @@ interface PendingNextRunSeed {
 
 const INSPECTOR_HIDDEN_TOOLS = ['write_file', 'edit_file', 'execute_shell', 'ask_parent'];
 const EVOLUTION_HIDDEN_TOOLS = ['edit_file', 'execute_shell', 'remember', 'ask_parent'];
-const ENGINEER_HIDDEN_TOOLS = [
-  'ask_parent',
-  'engineer_task_run',
-  'engineer_task_status',
-  'engineer_task_resume',
-  'engineer_task_cancel',
-  'engineer_codex_supervisor_start',
-  'engineer_codex_supervisor_status',
-  'engineer_codex_supervisor_resume',
-  'engineer_codex_supervisor_cancel',
-  'codex_session_list',
-  'codex_job_start',
-  'codex_job_status',
-  'codex_job_resume',
-  'codex_job_cancel',
-];
+const ENGINEER_HIDDEN_TOOLS = ['ask_parent'];
 const REVIEWER_HIDDEN_TOOLS = [
   'write_file',
   'edit_file',
   'execute_shell',
   'ask_parent',
-  'codex_session_list',
-  'codex_job_start',
-  'codex_job_status',
-  'codex_job_resume',
-  'codex_job_cancel',
-  'engineer_task_run',
-  'engineer_task_resume',
-  'engineer_task_cancel',
   'reviewer_xiaoba_cli_e2e',
   'reviewer_module_test',
   'reviewer_eval_prepare',

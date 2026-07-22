@@ -7,7 +7,7 @@ import { createRoleAwareToolManager } from '../src/bootstrap/tool-manager';
 import { FeishuBot } from '../src/feishu';
 import { RoleResolver } from '../src/utils/role-resolver';
 import { Message, ChatResponse } from '../src/types';
-import { Tool, ToolDefinition, ToolExecutionContext } from '../src/types/tool';
+import { ToolDefinition } from '../src/types/tool';
 import { Skill } from '../src/types/skill';
 
 const originalRole = process.env.XIAOBA_ROLE;
@@ -88,46 +88,18 @@ class CapturingFeishuSender {
   async fetchMergeForwardTexts(): Promise<string> { return ''; }
 }
 
-class FakeEngineerTaskRunTool implements Tool {
-  calls: Array<{ args: any; context: ToolExecutionContext }> = [];
-  definition: ToolDefinition = {
-    name: 'engineer_task_run',
-    description: 'fake engineer task run',
-    parameters: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-      },
-      required: ['request'],
-    },
-  };
-
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
-    this.calls.push({ args, context });
-    return [
-      'engineer_task: running=true status=running',
-      'task_id=feishu-smoke',
-      'codex_job_id=codex-job-smoke',
-      'codex_session_id=codex-session-smoke',
-    ].join('\n');
-  }
-}
-
-function engineerTaskToolCall(): ChatResponse {
+function engineerReadToolCall(): ChatResponse {
   return {
     content: null,
     toolCalls: [
       {
-        id: 'call-engineer-task-run',
+        id: 'call-engineer-read',
         type: 'function',
         function: {
-          name: 'engineer_task_run',
+          name: 'read_file',
           arguments: JSON.stringify({
-            request: '维护 XiaoBa-CLI engineer 角色，并用 Codex 后台执行。',
-            cwd: process.cwd(),
-            allow_edits: false,
-            sandbox: 'read-only',
-            validation_commands: ['npm run build'],
+            file_path: 'package.json',
+            limit: 20,
           }),
         },
       },
@@ -195,22 +167,27 @@ describe('Feishu Engineer runtime', () => {
     fs.rmSync(sessionFile, { force: true });
   });
 
-  test('Feishu message sessions expose engineer task tools and can route a message to engineer_task_run', async () => {
+  test('Feishu Engineer sessions use allowlisted coding tools directly', async () => {
     RoleResolver.activateRole('engineer-cat');
     const feishuSource = fs.readFileSync(path.join(process.cwd(), 'src', 'feishu', 'index.ts'), 'utf-8');
     assert.match(feishuSource, /createRoleAwareToolManager\(process\.cwd\(\), \{\}, roleName\)/);
 
-    const fakeTool = new FakeEngineerTaskRunTool();
     const toolManager = createRoleAwareToolManager();
-    assert.ok(toolManager.getTool('engineer_task_run'));
-    assert.ok(toolManager.getTool('engineer_task_status'));
-    assert.ok(toolManager.getTool('codex_job_start'));
-    assert.ok(toolManager.getTool('codex_job_resume'));
-    toolManager.registerTool(fakeTool);
+    const visibleToolNames = toolManager.getToolDefinitions().map(tool => tool.name);
+    for (const toolName of ['read_file', 'write_file', 'edit_file', 'glob', 'grep', 'execute_shell']) {
+      assert.ok(visibleToolNames.includes(toolName), `${toolName} should be visible`);
+    }
+    assert.ok(visibleToolNames.includes('skill'));
+    assert.ok(visibleToolNames.includes('ask_parent'));
+    for (const baseControlTool of ['spawn_subagent', 'check_subagent', 'stop_subagent', 'resume_subagent']) {
+      assert.strictEqual(visibleToolNames.includes(baseControlTool), false);
+    }
+    assert.strictEqual(toolManager.getTool('engineer_task_run'), undefined);
+    assert.strictEqual(toolManager.getTool('codex_job_start'), undefined);
 
     const ai = new ScriptedFeishuAIService([
-      engineerTaskToolCall(),
-      sendTextToolCall('已创建 engineer 任务 feishu-smoke，正在由本机 Codex 后台执行。'),
+      engineerReadToolCall(),
+      sendTextToolCall('已直接用 XiaoBa 原生工具读取仓库并完成检查。'),
       { content: '已发送。' },
     ]);
     const manager = new MessageSessionManager({
@@ -232,17 +209,13 @@ describe('Feishu Engineer runtime', () => {
         },
       });
 
-      assert.strictEqual(fakeTool.calls.length, 1);
-      assert.strictEqual(fakeTool.calls[0].context.surface, 'feishu');
-      assert.strictEqual(fakeTool.calls[0].context.channel?.chatId, 'oc_engineer_chat');
-      assert.match(fakeTool.calls[0].args.request, /XiaoBa-CLI engineer/);
-      assert.deepStrictEqual(fakeTool.calls[0].args.validation_commands, ['npm run build']);
-      assert.strictEqual(ai.requests[0].tools.some(tool => tool.name === 'engineer_task_run'), true);
-      assert.strictEqual(ai.requests[0].tools.some(tool => tool.name === 'codex_job_start'), true);
+      assert.strictEqual(ai.requests[0].tools.some(tool => tool.name === 'read_file'), true);
+      assert.strictEqual(ai.requests[0].tools.some(tool => tool.name === 'engineer_task_run'), false);
+      assert.strictEqual(ai.requests[0].tools.some(tool => tool.name === 'codex_job_start'), false);
       assert.deepStrictEqual(replies, [
         {
           chatId: 'oc_engineer_chat',
-          text: '已创建 engineer 任务 feishu-smoke，正在由本机 Codex 后台执行。',
+          text: '已直接用 XiaoBa 原生工具读取仓库并完成检查。',
         },
       ]);
     } finally {

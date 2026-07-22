@@ -9,7 +9,7 @@ export class ReviewerEvalPrepareTool implements Tool {
     name: 'reviewer_eval_prepare',
     description: [
       '为 ReviewerCat 生成项目级 Project Eval Profile、单次 Review Eval Plan、Boundary Map 和真人端测场景矩阵。',
-      '此工具不执行测试；它先回答“这个项目怎样才算真的能用”，再给后续 E2E runner / Codex 返工使用。低层测试只作为辅助证据。'
+      '此工具不执行测试；它先回答“这个项目怎样才算真的能用”，再给后续 E2E runner / EngineerCat 返工使用。低层测试只作为辅助证据。'
     ].join('\n'),
     parameters: {
       type: 'object',
