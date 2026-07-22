@@ -9,6 +9,7 @@ import type {
   TraceReplayReport,
   TraceReplayRunOptions,
 } from '../../../replay/trace-replay-runner';
+import { runIsolatedTraceReplay } from '../../../replay/isolated-trace-replay';
 import {
   ArtifactManifestItem,
   Tool,
@@ -96,23 +97,29 @@ export class ReviewerTraceReplayTool implements Tool {
       fs.writeFileSync(replayCasePath, `${JSON.stringify({ version: 1, ...replayCase }, null, 2)}\n`, 'utf-8');
       fs.writeFileSync(frozenTracePath, `${sourceLines.map(item => item.line).join('\n')}\n`, 'utf-8');
 
-      const replay = this.dependencies.replay
-        || (await import('../../../replay/trace-replay-runner')).runTraceReplay;
-      const services = await createReadOnlyReplayServices(
-        root,
-        context.parentSessionId || '',
-        targetRole,
-      );
-      const report = await replay({
-        tracePath: frozenTracePath,
-        outDir: replayRoot,
-        cwd: root,
-        sessionKey: `pet:xiaoba:role-${targetRole || 'base'}:evolution-replay-${date.replace(/-/g, '')}-${crypto.randomUUID()}`,
-        source: 'evolution-reviewer-trace-replay',
-        maxTurns: sourceLines.length,
-        timeoutMs: 120_000,
-        services,
-      });
+      const sessionKey = `pet:xiaoba:role-${targetRole || 'base'}:evolution-replay-${date.replace(/-/g, '')}-${crypto.randomUUID()}`;
+      const report = this.dependencies.replay
+        ? await this.dependencies.replay({
+          tracePath: frozenTracePath,
+          outDir: replayRoot,
+          cwd: root,
+          sessionKey,
+          source: 'evolution-reviewer-trace-replay',
+          maxTurns: sourceLines.length,
+          timeoutMs: 120_000,
+          services: await createReadOnlyReplayServices(root, context.parentSessionId || '', targetRole),
+        })
+        : runIsolatedTraceReplay({
+          codeRoot: root,
+          tracePath: frozenTracePath,
+          outDir: replayRoot,
+          parentSessionId: context.parentSessionId || '',
+          ...(targetRole ? { targetRole } : {}),
+          sessionKey,
+          source: 'evolution-reviewer-trace-replay',
+          maxTurns: sourceLines.length,
+          timeoutMs: 120_000,
+        });
 
       const expectedReportPath = path.join(replayRoot, 'report.md');
       const expectedManifestPath = path.join(replayRoot, 'manifest.json');

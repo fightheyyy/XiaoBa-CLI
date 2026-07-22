@@ -1,7 +1,7 @@
 # Agent Runtime PLAN
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-22
 Owner：Runtime maintainers
 
 ## Current Status
@@ -12,9 +12,11 @@ Owner：Runtime maintainers
 - OpenAI-compatible、Anthropic and Ollama adapters share normalized message/tool boundaries.
 - Subagent role dispatch works through shared sessions; in-flight state remains mainly memory-backed.
 - BrowserCat/GuiCat drivers are deterministic adapters and do not run a second Agent/Chat/MCP loop.
+- EngineerCat is now a direct consumer of the shared loop with a narrow coding/Skill allowlist and child-side `ask_parent`; parent-side SubAgent controls and the nested coding-agent layer are absent.
 - EvolutionCat `remember` is a deterministic role tool over the existing session-person memory contract.
 - Terminal SubAgentSession runs persist standard child `traces.jsonl` with parent, role, selected-skill, tool-result and artifact lineage for nightly evolution and debugging.
 - A narrow, fixed `EvolutionDAGRunner` is the accepted scheduled control path; it awaits the shared SubAgentSession loop directly and never enters Base or creates a second agent loop.
+- Narrow SubAgent workflows can enforce `allowedWriteRoot` across file tools and macOS Seatbelt-confined Shell; unavailable native sandbox execution fails closed.
 - XiaoBa is a product runtime with a reusable harness core, not yet a public general-purpose Harness SDK.
 
 ```mermaid
@@ -35,6 +37,8 @@ flowchart LR
 8. Public Harness SDK extraction：not a current product milestone。
 9. Standard `traces.jsonl` for terminal SubAgentSession runs：completed。
 10. Fixed Inspector-first evolution DAG runner：completed；it directly awaits shared SubAgentSession runs and never enters Base。
+11. Bounded SubAgent write root：completed for file tools and macOS Seatbelt Shell；other platforms fail closed when a bounded workflow requests Shell。
+12. Native EngineerCat runtime：completed；coding runs inside the shared SubAgentSession/ConversationRunner loop without an inner agent runtime。
 
 ## Next Steps
 
@@ -59,7 +63,9 @@ flowchart LR
 - Provider transcript, working trace and durable session remain distinct boundaries.
 - Confirmed tools are hidden or blocked unless confirmation matches actor and payload.
 - Base and all eight roles use the same runtime loop.
+- EngineerCat coding tasks use the shared tool contract through an explicit allowlist; Base externally owns SubAgent lifecycle, EngineerCat may only use `ask_parent` as the child uplink, and it has no parent-side controls, second model loop or role-local job manager.
 - External drivers are fixed, bounded capability adapters with version, timeout and trust evidence.
+- A SubAgent with `allowedWriteRoot` cannot use file tools or Shell to write outside that root; workflows must hide any separate write control plane that can choose another cwd.
 - Runtime architecture changes update this PLAN and [`SPEC.md`](SPEC.md) only.
 
 ## Risks / Open Questions
@@ -72,6 +78,8 @@ flowchart LR
 
 ## Recent Verification
 
+- SubAgent boundary tests passed 5/5, including traversal, absolute-path and symlink rejection plus an actual Seatbelt attempt to write outside `allowedWriteRoot`; the complete repository passed 622/622 across 97 suites and `npm run build` passed.
+- EngineerCat native-runtime tests verify the exact coding/Skill/`ask_parent` allowlist, the absence of parent-side SubAgent controls and nested job/session/supervisor tools, shared-loop execution and preserved case artifact guidance.
 - Terminal child trace tests cover success, failure, stop, selected-skill, parent lineage and real tool/artifact results.
 - A real-provider nightly run produced a terminal InspectorCat child trace with parent `evolution:dag:1999-01-01`, returned typed `no_op`, created no Base trace and exited cleanly.
 - Evolution DAG focused tests cover direct role awaiting, strict contract validation, route-specific tool deny-lists, process supervision and terminal manifest persistence.

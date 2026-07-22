@@ -1,7 +1,7 @@
 # XiaoBa-CLI SPEC
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-20
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。项目只维护本文和六个模块 SPEC；角色、benchmark、desktop、test 和实验实现不再各自复制架构文档。
@@ -164,7 +164,7 @@ flowchart LR
 | `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
-| `Arena` | 管 GitHub skill 导入、本地 role 验收、三种 review mode（`base_skill`、`role_skill`、`role`）、clean runtime overlay、轻量 execution sandbox、subject manifest、sandboxed runner、arena run index、scorecard、声明式逐轮硬合同、现有 UserCat / trace / Inspector / Reviewer 证据引用和 promotion receipt 边界 | 不自动信任或晋升 subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
+| `Arena` | 管 GitHub skill 导入、本地 role 验收、三种 capability review mode、clean runtime overlay、轻量 execution sandbox、subject manifest、scorecard、声明式逐轮硬合同、内容寻址 Patch Candidate 的 `repair_regression` 多次复跑和 promotion receipt 边界 | 不自动信任或晋升 subject；不把 Patch 伪装成 Skill/Role subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
 | `test/*` | 定义代码正确性、集成测试和 deterministic runtime contract smoke | 不承载 live agent eval benchmark；不保存 eval scorecard policy |
 | `src/replay/*` | 定义历史 trace replay：从本地 `traces.jsonl` 抽用户输入，重新驱动当前 runtime，产生 fresh trace 和轻量对比 | 不打 benchmark 分；不自动接受 eval case；不上传或脱敏本地 trace |
 | `eval/*` | 只定义 live agent eval：curated benchmark input、setup、runtime replay、tool/result verifier 和 scorecard | 不保存原始私密 trace；不承载普通单测；不保存 schema/contract/rubric governance；不收静态 JSONL regression |

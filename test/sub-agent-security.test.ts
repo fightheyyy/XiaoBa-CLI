@@ -107,6 +107,33 @@ describe('SubAgent execution boundaries', () => {
     assert.equal(result.status, 'success');
     assert.equal(fs.readFileSync(path.join(root, 'ordinary.txt'), 'utf-8'), 'ordinary role behavior');
   });
+
+  test('allowedWriteRoot confines shell writes to the isolated root', async () => {
+    const runRoot = path.join(root, 'shell-run');
+    const outsideRoot = path.join(root, 'outside-shell');
+    fs.mkdirSync(runRoot, { recursive: true });
+    fs.mkdirSync(outsideRoot, { recursive: true });
+    const executor = createSubAgentToolExecutor(runRoot, 'shell-boundary', undefined, {
+      allowedWriteRoot: runRoot,
+    });
+
+    const allowed = await executor.executeTool(toolCall('execute_shell', {
+      command: 'touch shell-allowed.txt',
+    }));
+    if (process.platform !== 'darwin' || !fs.existsSync('/usr/bin/sandbox-exec')) {
+      assert.equal(allowed.status, 'blocked');
+      assert.equal(allowed.error_code, 'WRITE_SANDBOX_UNAVAILABLE');
+      return;
+    }
+    assert.equal(allowed.status, 'success');
+    assert.equal(fs.existsSync(path.join(runRoot, 'shell-allowed.txt')), true);
+
+    const escaped = await executor.executeTool(toolCall('execute_shell', {
+      command: `touch ${shellQuote(path.join(outsideRoot, 'must-not-exist.txt'))}`,
+    }));
+    assert.equal(escaped.status, 'failure');
+    assert.equal(fs.existsSync(path.join(outsideRoot, 'must-not-exist.txt')), false);
+  });
 });
 
 function toolCall(name: string, args: Record<string, unknown>): ToolCall {
@@ -118,4 +145,8 @@ function toolCall(name: string, args: Record<string, unknown>): ToolCall {
       arguments: JSON.stringify(args),
     },
   };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }

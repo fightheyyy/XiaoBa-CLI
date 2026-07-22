@@ -559,7 +559,7 @@ function isFormalEvolutionDagContext(context: ToolExecutionContext): boolean {
 function defaultScenario(targetRole: string): string {
   return [
     `你现在是被测对象 ${targetRole}。`,
-    '请按真实高级工程师方式响应这个测试需求：先复述目标、指出你需要的边界信息、说明你会如何调用 Codex runner、会跑哪些验证，并给出可交付证据清单。',
+    '请按真实高级工程师方式响应这个测试需求：先复述目标、指出你需要的边界信息、说明你会如何使用 XiaoBa 原生工具、会跑哪些验证，并给出可交付证据清单。',
     '这是一轮只读 E2E 能力探测，除非我明确要求，不要修改文件。'
   ].join('\n');
 }

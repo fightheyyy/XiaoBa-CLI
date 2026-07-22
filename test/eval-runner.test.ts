@@ -211,10 +211,10 @@ describe('eval runner', () => {
         tool_calls: [
           {
             tool_call_id: 'aggregate-status',
-            name: 'engineer_codex_supervisor_status',
+            name: 'worker_pool_status',
             arguments: { supervisor_id: 'zero-failures' },
             result: [
-              'engineer_codex_supervisor: status=running',
+              'worker_pool: status=running',
               'running=1',
               'queued=0',
               'completed=2',
@@ -280,10 +280,10 @@ describe('eval runner', () => {
         tool_calls: [
           {
             tool_call_id: 'task-status',
-            name: 'engineer_task_status',
+            name: 'case_validation_status',
             arguments: { task_id: 'task-1' },
             result: [
-              'engineer_task: running=false status=failed',
+              'case_validation: running=false status=failed',
               'validation_status=failed',
               'error=validation_failed',
             ].join('\n'),

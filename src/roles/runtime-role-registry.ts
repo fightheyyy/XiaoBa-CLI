@@ -5,24 +5,7 @@ import { ConfigManager } from '../utils/config';
 import { AIService } from '../utils/ai-service';
 import { SkillManager } from '../skills/skill-manager';
 import { ToolManager } from '../tools/tool-manager';
-import {
-  EngineerCodexSupervisorCancelTool,
-  EngineerCodexSupervisorResumeTool,
-  EngineerCodexSupervisorStartTool,
-  EngineerCodexSupervisorStatusTool,
-  EngineerTaskCancelTool,
-  EngineerTaskResumeTool,
-  EngineerTaskRunTool,
-  EngineerTaskStatusTool,
-} from './engineer-cat/tools/engineer-task-tools';
 import { AnalyzeLogTool } from './inspector-cat/tools/analyze-log-tool';
-import {
-  CodexJobCancelTool,
-  CodexJobResumeTool,
-  CodexJobStartTool,
-  CodexJobStatusTool,
-  CodexSessionListTool,
-} from './reviewer-cat/tools/codex-job-tools';
 import { GuideTpcEvalAnalysisTool } from './guide/tools/eval-analysis-tool';
 import { GuideTpcEnvBaselineTool } from './guide/tools/env-baseline-tool';
 import { GuideTpcBaselineTool } from './guide/tools/tpc-baseline-tool';
@@ -100,14 +83,6 @@ function normalizeRole(roleName?: string): string {
   const requested = roleName || RoleResolver.getActiveRoleName();
   const resolved = requested ? RoleResolver.resolveRoleDirectoryName(requested) : undefined;
   return RoleResolver.normalizeRoleName(resolved || '');
-}
-
-function isEngineerRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'engineer-cat';
-}
-
-function isReviewerRole(roleName?: string): boolean {
-  return normalizeRole(roleName) === 'reviewer-cat';
 }
 
 export function getRoleSpecificToolsForRole(roleName?: string): Tool[] {
@@ -224,23 +199,6 @@ function getRoleSpecificToolsForNormalizedRole(normalizedRole: string): Tool[] {
       new ReviewerModuleTestTool(),
     ];
   }
-  if (normalizedRole === 'engineer-cat') {
-    return [
-      new EngineerCodexSupervisorStartTool(),
-      new EngineerCodexSupervisorStatusTool(),
-      new EngineerCodexSupervisorResumeTool(),
-      new EngineerCodexSupervisorCancelTool(),
-      new EngineerTaskRunTool(),
-      new EngineerTaskStatusTool(),
-      new EngineerTaskResumeTool(),
-      new EngineerTaskCancelTool(),
-      new CodexSessionListTool(),
-      new CodexJobStartTool(),
-      new CodexJobStatusTool(),
-      new CodexJobResumeTool(),
-      new CodexJobCancelTool(),
-    ];
-  }
   return [];
 }
 
@@ -255,13 +213,5 @@ export function registerRoleSpecificApiRoutes(_router: Router): void {
 export async function startRoleRuntimeServices(
   _options: RoleRuntimeServiceOptions = {},
 ): Promise<RoleRuntimeSupport | null> {
-  if (isEngineerRole()) {
-    return null;
-  }
-
-  if (isReviewerRole()) {
-    return null;
-  }
-
   return null;
 }

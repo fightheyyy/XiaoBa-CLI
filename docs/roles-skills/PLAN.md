@@ -1,7 +1,7 @@
 # Roles & Skills PLAN
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-22
 Owner：Policy maintainers
 
 ## Current Status
@@ -11,13 +11,14 @@ Owner：Policy maintainers
 - UserCat、InspectorCat、EvolutionCat、ReviewerCat are the four internal continuous-improvement Roles used on demand by evaluation, self-evolution and formal replay workflows.
 - The 4 + 4 grouping expresses responsibility and activation mode only; all eight Roles remain on the same runtime and control plane.
 - EvolutionCat owns deterministic long-term memory plus candidate capability and explicit publish workflows within the internal group.
-- EngineerCat owns coding and executes Inspector/Reviewer repair work.
+- EngineerCat owns coding and executes Inspector/Reviewer repair work through the shared XiaoBa loop and an explicit coding/Skill/`ask_parent` allowlist; parent-side SubAgent controls are not inherited.
 - SecretaryCat owns Feishu workplace workflows over the official `lark-cli`; `FeishuCat` is an alias.
 - When Feishu Surface config is present, SecretaryCat resolves and uses the `lark-cli` profile with the same App ID without changing the global active profile.
 - All eight roles reuse XiaoBa AgentSession/ConversationRunner.
 - RouterCat is retired; browser/GUI upstream Chat/Agent/MCP loops are absent from the production boundary.
 - Default assets contain eight roles and zero base skills. EvolutionCat carries the three evolution/publish Skills and the deterministic `remember` role tool; BrowserCat and GuiCat carry the official role-local agent-browser core / Peekaboo Skills.
 - Nightly evolution is Inspector-first: deterministic harvest → InspectorCat → typed Route Gate → EvolutionCat / EngineerCat / ReviewerCat / `no_op`. It does not enter Base.
+- Scheduled Repair runs create a detached Git worktree at one `base_commit`; file writes and Seatbelt-confined Shell writes stay inside it, EngineerCat produces an immutable Patch Candidate, ReviewerCat replays that candidate code, and behavior-impacting repairs enter Arena `repair_regression`.
 - Skill and Role loaders enforce the single `candidate | active | blocked` lifecycle: legacy assets default to active, candidate assets require explicit selection or Arena mounting, and blocked assets cannot resolve.
 - Dashboard management follows the same ordered lifecycle: unblock returns Candidate, while Candidate-to-Active requires an explicit Promote action.
 - Fixed-line Candidate Skills may declare the single Arena-only `arena-output-line-prefixes` contract. EvolutionCat only writes the declaration; Arena checks every evaluated turn, and the runtime-owned explicit CLI alone may materialize a passed immutable snapshot as Active.
@@ -34,7 +35,7 @@ flowchart LR
 
 1. Base + eight-role topology：completed。
 2. Review/repair chain：completed for current role and tool paths。
-3. EngineerCat Codex/coding takeover：completed for current local runner path。
+3. EngineerCat native coding takeover：completed；the role uses eight allowlisted coding/Skill/child-uplink tools, while Base keeps parent-side SubAgent controls and the former nested Codex/task/supervisor compatibility layer is retired。
 4. BrowserCat typed browser adapter and official core Skill vendoring：completed; packaged driver remains partial。
 5. GuiCat typed desktop adapter and official Skill vendoring：completed; the exact optional npm driver、macOS resource mapping、upstream Skill and MIT LICENSE are implemented。
 6. Duplicate Router role and Base agent-browser routing Skill retirement：completed。
@@ -43,14 +44,15 @@ flowchart LR
 9. Third-party role/runtime plugin：future explicit-install work, not part of the default topology。
 10. EvolutionCat ownership and Base zero-default-Skill migration：completed；including exact-hash Electron retirement of legacy bundled Base Skills。
 11. Evolution trace harvest and worker supervision foundation：completed。
-12. Inspector-first cross-role evolution DAG：completed；Base hop removal, typed routes, isolated Candidate handoff, Reviewer terminals and Arena intake are implemented。
+12. Inspector-first cross-role evolution DAG：completed；Base hop removal, typed routes, isolated Skill/Role and Patch Candidates, Reviewer terminals/risk classification, capability Arena intake and conditional Patch regression are implemented。
 13. Candidate hard-contract and promotion boundary：completed；EvolutionCat declares but never evaluates fixed-line output, while evidence-bound promotion remains a deterministic human runtime action。
 
 ## Next Steps
 
 - Keep Base as the only user-facing control plane; the scheduled evolution runner remains a fixed typed switch, not another Agent or general workflow framework.
 - Finish BrowserCat packaging and broaden BrowserCat/GuiCat real-task verification.
-- Keep EngineerCat as coding owner and repair executor.
+- Keep EngineerCat as the native coding owner and repair executor; extend its explicit coding-tool allowlist deliberately when capability is missing instead of inheriting Base control tools or adding a second runtime.
+- Keep scheduled Repair worktree-only; add a real-provider Patch regression proof before claiming broad autonomous code repair.
 - Keep SecretaryCat as a thin XiaoBa policy layer over official `lark-cli`; do not add new domain wrappers when an official command/skill already supplies the capability.
 - Complete SecretaryCat user OAuth login before claiming personal calendar/mail/drive workflows are operationally ready.
 - Measure the existing 36 typed wrappers against official CLI skills and remove compatibility code only after equivalent confirmation, delivery and evidence behavior is verified.
@@ -72,6 +74,7 @@ flowchart LR
 - Base remains the only user-facing main agent and dispatcher.
 - The default inventory is presented as four functional Roles and four internal continuous-improvement Roles without introducing another runtime or control plane.
 - All eight roles use the shared XiaoBa Agent loop.
+- EngineerCat exposes exactly the allowlisted file/search/Shell/Skill tools plus child-side `ask_parent`, and no parent-side SubAgent controls or nested coding-agent control plane.
 - EngineerCat, BrowserCat and GuiCat exclusively own coding, browser and desktop takeover respectively.
 - UserCat, InspectorCat, EvolutionCat and ReviewerCat keep their internal continuous-improvement boundaries and participate only when their workflow stage is needed.
 - EvolutionCat alone owns `remember`, `self-evolution`, `skill-publish` and `role-publish`; Base has zero bundled default Skills.
@@ -82,6 +85,9 @@ flowchart LR
 - Candidate assets are only explicitly callable or Arena-mountable; blocked assets are never callable; old assets without `status` remain active.
 - Blocked assets cannot transition directly to Active; unblock yields Candidate. Self-evolution Candidate-to-Active promotion must use the Arena-passed immutable snapshot and leave a durable runtime receipt; it is not a role tool or Skill.
 - ReviewerCat alone executes formal replay and returns `closed | next_run | blocked`; `next_run` is persisted for a future run, survives an idempotent same-date rerun, and cannot jump back to EngineerCat in the same run.
+- Scheduled Repair pins a Git `base_commit`; EngineerCat and ReviewerCat share its detached worktree, while the runtime retains `candidate.patch`, `patch_sha256`, changed files and evidence snapshots without changing the scheduler checkout.
+- A closed Patch Candidate always carries Reviewer `arena_review` classification and risk reasons; behavior-impacting candidates require a passing Arena `repair_regression` scorecard.
+- Patch closure retains an accepted candidate and evidence only; scheduled Repair never auto-applies or merges it into the scheduler checkout.
 - SecretaryCat delegates Feishu domain capability to official `lark-cli`; FeishuCat does not become a separate role or control plane.
 - When Feishu Surface credentials are configured, SecretaryCat commands use the same App ID profile; bot/user remain actor identities under that one application.
 - No duplicate Router role or driver-side Chat/Agent/MCP is provider-visible.
@@ -96,9 +102,12 @@ flowchart LR
 - SecretaryCat's shared application profile and bot identity are ready on the verification machine, but user identity is missing; user-scoped workflows are not yet operationally available.
 - SecretaryCat still carries a large typed-wrapper compatibility layer that can drift from the official CLI; simplification must preserve XiaoBa's Owner confirmation and evidence boundary.
 - Native runtime tool extension for third-party roles remains a trusted-core change.
+- Patch regression protects its replay/Arena trust root from self-modification, but its current proof is deterministic rather than a preserved real-provider repair run.
 
 ## Recent Verification
 
+- EngineerCat native-runtime contract covers the exact eight-tool allowlist, child-side `ask_parent`, absence of parent-side SubAgent controls and nested execution tools, retained case-implementation guidance and one-loop prompt assets.
+- Full repository verification passed 622/622 across 97 suites; contract sentinel passed 9/9 and `npm run build` passed after the compatibility-layer retirement.
 - BrowserCat/GuiCat/SecretaryCat focused tests：88/88 passed；the BrowserCat/GuiCat/package Skill subset passed 40/40 after adding the BrowserCat core Skill。
 - Base default Skill inventory is empty；Electron upgrade cleanup removes only exact retired XiaoBa copies of the four evolution Skills and preserves customized user Skills。
 - EvolutionCat/GuiCat/subagent focused subset：26/26 passed。
@@ -107,6 +116,7 @@ flowchart LR
 - A real-provider `evolution` route closed from two independent failing Pet sessions through EvolutionCat Candidate generation, Arena 7/7 all-turn pass, explicit immutable-snapshot promotion receipt and two fresh passing Pet sessions; no Base hop or automatic promotion was introduced.
 - Focused lifecycle, role-tool, DAG and Arena tests verify the three asset states, Reviewer tool boundary, all four typed routes, isolated Candidate Role intake and no same-run back edge.
 - Focused DAG/replay/UserCat/eval regression tests：96/96 passed；including replay provenance, Role prompt validation and same-date `next_run` preservation。
+- Patch/DAG/Reviewer/SubAgent boundary focused tests：57/57 passed；including detached worktree identity, content-addressed Patch manifests, evaluator trust-root write/delete protection, conditional Arena routing and a real Seatbelt write-escape rejection。
 - `npm run build` passed。
 - Current and target Roles & Skills Mermaid diagrams rendered successfully; the target map was simplified to role groups and ownership boundaries。
 - `lark-cli` was found on the verification machine at `/opt/homebrew/bin/lark-cli`，version 1.0.44。

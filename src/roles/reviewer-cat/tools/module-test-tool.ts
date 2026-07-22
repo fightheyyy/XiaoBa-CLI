@@ -47,7 +47,7 @@ export class ReviewerModuleTestTool implements Tool {
     description: [
       '历史/辅助入口：运行低层模块检查并生成可供 ReviewerCat 读取的辅助证据。',
       '默认只返回低 token 的通过/失败摘要；完整 stdout/stderr 会写入 data/reviewer-module-test/<run_id>/。',
-      '它不是 ReviewerCat 默认端测步骤；失败时把摘要作为前置风险交给 EngineerCat / Codex。',
+      '它不是 ReviewerCat 默认端测步骤；失败时把摘要作为前置风险交给 EngineerCat。',
       '该工具可接收自定义命令，因此定时 evolution DAG 的 Reviewer stage 会被 runtime 硬阻止；普通 Reviewer 会话不受影响。'
     ].join('\n'),
     parameters: {
@@ -471,7 +471,7 @@ function formatCompactReport(runId: string, reportPath: string, results: TestRes
     }
   }
 
-  lines.push('codex_feedback:');
+  lines.push('engineer_feedback:');
   lines.push('模块测试失败，请根据下面失败项修复后重新运行测试。');
   for (const result of failed) {
     lines.push(`[${result.name}] ${result.command}`);

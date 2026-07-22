@@ -763,11 +763,6 @@ export class ConversationRunner {
       return;
     }
 
-    if (toolName.startsWith('codex_job_')) {
-      callbacks.onToolDisplay(toolName, content);
-      return;
-    }
-
     if (toolName === 'task_planner') {
       try {
         const args = JSON.parse(toolCall.function.arguments);

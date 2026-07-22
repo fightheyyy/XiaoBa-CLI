@@ -1,7 +1,7 @@
 # XiaoBa-CLI PLAN
 
 状态：Active
-最后更新：2026-07-15
+最后更新：2026-07-22
 Owner：XiaoBa maintainers
 
 本文只维护仓库级当前状态和收敛顺序。历史实现流水由 Git 保存；模块细节进入六份模块 PLAN，不再创建额外计划文档。
@@ -14,11 +14,12 @@ XiaoBa-CLI 已形成一套共享 Agent Runtime，以及一个 Base Main Agent + 
 - 四个内部持续改进 Role：UserCat、InspectorCat、EvolutionCat、ReviewerCat，按需参与评测、自进化与正式回放。
 - 4 + 4 只是责任和启动方式分组；八个 Role 仍复用同一 Agent loop，不建立第二套控制平面。
 - EvolutionCat 在内部组中独占确定性 `remember` tool 和三个演化/发布 role-local Skills。
-- EngineerCat 同时承担代码接管，以及 Inspector / Reviewer 闭环里的修复执行。
+- EngineerCat 同时承担代码接管，以及 Inspector / Reviewer 闭环里的修复执行；它复用共享 Agent loop，只开放 coding/Skill 工具和子侧 `ask_parent`，父 Agent 独占 SubAgent 调度工具。
 - 八个角色全部复用 XiaoBa Agent loop；browser/GUI/Feishu drivers 只是确定性 capability adapters。
 - CLI、Feishu、Weixin、Pet、Dashboard 和 Electron 共用 AgentSession/ConversationRunner 主链。
 - 本地 trace、artifact、delivery evidence、Trace Replay、Live Agent Eval 和 Arena 已有可运行边界。
 - Nightly evolution now runs a fixed Inspector-first DAG: runtime harvests once, InspectorCat emits one typed route, and the deterministic gate awaits EvolutionCat, EngineerCat, ReviewerCat or `no_op` without entering Base.
+- Repair routes now pin one `base_commit`, run EngineerCat and ReviewerCat in a detached Git worktree, confine scheduled Engineer Shell writes to that worktree with macOS Seatbelt, retain a content-addressed Patch Candidate, and send behavior-impacting repairs through Arena `repair_regression` without mutating the scheduler checkout.
 
 文档已收敛为固定 14 份：项目级 SPEC/PLAN，加六个模块 SPEC/PLAN。Prompt、`SKILL.md` 和测试 fixture 属于运行时源文件，不是架构文档。
 
@@ -38,7 +39,7 @@ flowchart LR
 | --- | --- | --- |
 | M0 Documentation baseline | Completed | 1 repository pair + 6 module pairs; no duplicate submodule SPEC/PLAN |
 | M1 Shared runtime | Completed | AgentSession、ConversationRunner、layered ToolManager and provider adapters are active |
-| M2 Base + eight roles | Completed | Stable topology and default bundle implemented; EvolutionCat owns capability evolution; RouterCat remains retired |
+| M2 Base + eight roles | Completed | Stable topology and default bundle implemented; EngineerCat is native to the shared loop; EvolutionCat owns capability evolution; RouterCat remains retired |
 | M3 Surface integration | Partial | Maintained entrypoints share runtime; network auth/permission remains incomplete |
 | M4 Evidence system | Partial | Local trace/artifact/delivery facts exist; retention and durable recovery remain incomplete |
 | M5 Evaluation split | Completed | Test、Trace Replay and Live Agent Eval have distinct commands and meanings |
@@ -46,7 +47,7 @@ flowchart LR
 | M7 Browser/GUI takeover | Partial | Typed adapters and pinned official role-local Skills exist; GuiCat's macOS driver package was built and inspected, while BrowserCat packaging, broader coverage and trusted approvals remain |
 | M8 EvolutionCat ownership | Completed | Eighth default role, zero bundled Base Skills, deterministic role-scoped `remember`, three EvolutionCat-local Skills and exact-hash desktop migration are implemented |
 | M9 Nightly evolution foundation | Completed | Structured child traces, deterministic harvest, cron management, worker supervision and PID-owned lock cleanup are implemented |
-| M10 Inspector-first evolution DAG | Completed | No-Base typed routing, isolated Candidate Skill/Role handoff, Reviewer terminal states and Arena intake are implemented |
+| M10 Inspector-first evolution DAG | Completed | No-Base typed routing, isolated Skill/Role and Patch Candidates, Reviewer risk classification, capability Arena intake and conditional Patch regression are implemented |
 
 ## Next Steps
 
@@ -56,7 +57,7 @@ flowchart LR
 4. Make Trace Replay side-effect safe before replaying arbitrary historical tasks.
 5. Keep Live Agent Eval fresh-run only; add role cases only when they have task-specific hard verifiers.
 6. Harden Arena isolation while preserving the implemented evidence-bound, explicit human promotion gate for external skills and roles.
-7. Broaden the first real-provider `evolution`-route proof across providers, seeds and time windows without weakening the deterministic contract or permitting same-run back edges.
+7. Broaden the real-provider proof across both `evolution` and isolated `repair` routes, providers, seeds and time windows without weakening the deterministic contract or permitting same-run back edges.
 8. Simplify SecretaryCat's typed-wrapper compatibility layer against official `lark-cli` skills without weakening Owner confirmation, delivery or evidence.
 
 ## Owners
@@ -75,9 +76,12 @@ flowchart LR
 - Every maintained SPEC has truthful Current Architecture and Target Architecture Mermaid diagrams.
 - Base remains the only user-facing main agent and dispatcher.
 - Exactly eight default roles share the XiaoBa Agent loop.
+- EngineerCat exposes only its explicit coding/Skill/`ask_parent` allowlist; parent-side SubAgent controls and nested coding-agent runtimes are absent.
 - Scheduled evolution starts with InspectorCat, never Base, and accepts only `evolution | repair | replay | no_op`.
 - Evolution candidates remain isolated and `candidate` until Arena evidence plus explicit promotion; `blocked` assets are never callable.
 - ReviewerCat terminates formal replay as `closed | next_run | blocked`; the same DAG run cannot route back to EngineerCat.
+- EngineerCat never edits the scheduler checkout in a scheduled Repair run; `fixed` requires a non-empty content-addressed Patch Candidate bound to one `base_commit`.
+- ReviewerCat must classify a closed Patch Candidate as `arena_review=required|not_required`; required candidates pass multi-attempt Arena repair regression before closure.
 - Browser/GUI drivers do not expose upstream Chat/Agent/MCP loops.
 - Tool, delivery, artifact and runtime failures remain structured and observable.
 - `test:*`, `replay:*`, `eval:*` and `check:*` commands keep distinct meanings.
@@ -93,12 +97,14 @@ flowchart LR
 - SecretaryCat's compatibility wrappers can drift from the official `lark-cli` command and skill surface.
 - `npm audit --omit=dev` reports 7 production-tree findings (3 moderate, 4 high) in the existing Lark SDK/transitive dependency path; Peekaboo is not among the flagged packages, but release dependency remediation remains open.
 - Arena sandbox claims must stay narrower than the actual OS isolation it enforces.
+- The isolated Repair path has deterministic coverage but still needs a preserved real-provider closed-loop proof before broad autonomous code-repair claims.
 
 ## Recent Verification
 
 - Documentation set check：14 architecture/plan files under `docs/`；post-change Git Markdown inventory is 61 files, consisting of 20 human docs, 38 runtime prompt/skill assets, and 3 test fixture reports。
 - Human-document local link/asset check：64/64 resolved across 20 maintained human-facing Markdown files, including README images and the `requirement.txt` links。
-- Full repository tests：632/632 passed across 96 suites；the Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, per-message subject mount, Inspector-rooted replay selection, source-task binding and semantic re-attestation, raw-evidence-bound promotion, Reviewer, Base-Arena alias, long Arena run-id isolation and subagent regressions are included。
+- Full repository tests：622/622 passed across 97 suites；the native EngineerCat tool boundary, isolated Patch Candidate, conditional Patch regression, worktree Shell write boundary, Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, source-task binding, semantic re-attestation, raw-evidence-bound promotion and subagent regressions are included。
+- Contract sentinel：9/9 cases passed after replacing retired nested Engineer job artifacts with native Base-tool case artifact evidence。
 - `npm run build` passed；benchmark preflight passed for 1 manifest / 11 cases；BrowserCat and GuiCat Skill validation passed。
 - Roles & Skills current/target Mermaid diagrams rendered successfully after the target map was simplified to the eight-role ownership boundary。
 - Repository current/target Mermaid diagrams were simplified to six module-level columns, and both repository and Surface diagram pairs rendered successfully with the ordinary AgentSession, scheduled evolution DAG and explicit Promote control lanes kept distinct。
@@ -109,7 +115,7 @@ flowchart LR
 - The duplicate Base `agent-browser` routing Skill and four legacy evolution Base Skills are retired; Base dispatches roles only for ordinary user conversations, and the default package contains zero Base Skills.
 - A real-provider nightly E2E ran runtime harvest → InspectorCat → `no_op` directly. Its child trace records `role_name=inspector-cat` and parent `evolution:dag:1999-01-02`; no Base session or EvolutionCat invocation was created.
 - A current-contract real-provider closed loop ran two independent failing Pet sessions (0/2) → InspectorCat `evolution` route → EvolutionCat Candidate Skill → Arena `pass` across 3 independent UserCat sessions / 7 turns (identity 3/3, contract 7/7, 0 violations) → explicit `xiaoba evolution promote` receipt with 7 exact raw-evidence hashes, including the Inspector cases and Arena runner config → two fresh Pet retests (2/2). Every Arena and post-promotion turn was bound to `evo-closeout-v2-formatter`; an earlier generated revision was correctly rejected as `unstable`, and a same-date nightly rerun preserved receipt and production hashes. The self-verifying proof is under `output/evolution/proofs/2026-07-15-evo-closeout-v3/` and remains outside tracked product assets.
-- Deterministic DAG tests cover all four routes, invalid-contract fail-closed behavior, isolated Candidate Skill/Role intake, Arena handoff, formal replay terminals and same-run back-edge rejection.
+- Deterministic DAG tests cover all four routes, invalid-contract fail-closed behavior, isolated Candidate Skill/Role/Patch intake, protected evaluator paths, Reviewer Arena risk classification, conditional Patch regression, formal replay terminals and same-run back-edge rejection.
 - `electron-builder --mac --dir` passed；产物中不再包含 Base `skills/agent-browser`，BrowserCat role-local Skill / LICENSE hashes match the source copy；Peekaboo 位于 `Contents/Resources/drivers/peekaboo/peekaboo`，版本 3.8.0，使用 packaged resources 路径复检仍为 `ready=true`。
 - `npm audit --omit=dev` found 7 existing production-tree findings；none names `@steipete/peekaboo`。
 - JSON parse checks and `git diff --check` passed。

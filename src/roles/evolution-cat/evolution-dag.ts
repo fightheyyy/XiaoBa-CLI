@@ -4,6 +4,7 @@ import * as path from 'path';
 import { ArenaManager, fingerprintArenaDirectory } from '../../arena/arena-manager';
 import { executeArenaRun } from '../../arena/arena-runner';
 import { verifyPromotionReceiptRawEvidence } from '../../arena/evolution-promotion';
+import { runPatchRegression } from '../../arena/patch-regression';
 import { SubAgentSession } from '../../core/sub-agent-session';
 import { SkillManager } from '../../skills/skill-manager';
 import { SkillParser } from '../../skills/skill-parser';
@@ -13,6 +14,16 @@ import {
   EvolutionDigest,
   buildEvolutionDigest,
 } from './evolution-observer';
+import {
+  EvolutionPatchCandidateManifest,
+  EvolutionPatchWorkspace,
+  cleanupEvolutionPatchWorkspace,
+  createEvolutionPatchWorkspace,
+  finalizeEvolutionPatchCandidate,
+  mirrorMainRunArtifact,
+  relocateReplayArtifacts,
+  snapshotEvolutionWorkspaceRefs,
+} from './evolution-patch-workspace';
 
 export type EvolutionDagRoute = 'evolution' | 'repair' | 'replay' | 'no_op';
 export type EvolutionCandidateType = 'skill' | 'role';
@@ -61,6 +72,8 @@ export interface EvolutionReviewerDecision {
   status: 'closed' | 'next_run' | 'blocked';
   summary: string;
   evidence_refs: string[];
+  arena_review?: 'required' | 'not_required';
+  risk_reasons?: string[];
   reason?: string;
 }
 
@@ -95,6 +108,20 @@ export interface EvolutionArenaResult {
   subject_fingerprint: string;
 }
 
+export interface EvolutionPatchArenaInput {
+  workingDirectory: string;
+  targetDate: string;
+  workspace: EvolutionPatchWorkspace;
+  candidate: EvolutionPatchCandidateManifest;
+  reviewerEvidenceRefs: string[];
+}
+
+export interface EvolutionPatchArenaResult {
+  run_id: string;
+  decision: EvolutionArenaResult['decision'];
+  scorecard_ref: string;
+}
+
 export interface EvolutionDagDependencies {
   buildDigest?: (options: {
     workingDirectory: string;
@@ -103,6 +130,7 @@ export interface EvolutionDagDependencies {
   }) => BuildEvolutionDigestResult;
   runRoleStage?: (input: EvolutionRoleStageInput) => Promise<string>;
   runArena?: (input: EvolutionArenaInput) => Promise<EvolutionArenaResult>;
+  runPatchArena?: (input: EvolutionPatchArenaInput) => Promise<EvolutionPatchArenaResult>;
   now?: () => Date;
 }
 
@@ -142,6 +170,8 @@ export interface EvolutionDagManifest {
     promotion_recommendation?: 'promote' | 'reject';
     promotion_ref?: string;
     next_run_seed_ref?: string;
+    patch_base_commit?: string;
+    patch_sha256?: string;
   };
   started_at: string;
   completed_at?: string;
@@ -169,12 +199,6 @@ const REVIEWER_HIDDEN_TOOLS = [
   'edit_file',
   'execute_shell',
   'ask_parent',
-  'codex_job_start',
-  'codex_job_resume',
-  'codex_job_cancel',
-  'engineer_task_run',
-  'engineer_task_resume',
-  'engineer_task_cancel',
   'reviewer_xiaoba_cli_e2e',
   'reviewer_module_test',
   'reviewer_eval_prepare',
@@ -199,6 +223,7 @@ export async function runEvolutionDag(
   const buildDigest = dependencies.buildDigest || buildEvolutionDigest;
   const runRoleStage = dependencies.runRoleStage || runDefaultEvolutionRoleStage;
   const runArena = dependencies.runArena || runDefaultEvolutionArena;
+  const runPatchArena = dependencies.runPatchArena || runDefaultPatchArena;
   const sleepRoot = path.dirname(runRoot);
   const promotedSameDateRun = readPromotedSameDateRun(root, runRoot, manifestPath);
   if (promotedSameDateRun) {
@@ -298,6 +323,7 @@ export async function runEvolutionDag(
           inspectorDecision,
           targetDate: options.targetDate,
           runRoleStage,
+          runPatchArena,
           now,
         });
         break;
@@ -428,64 +454,103 @@ async function runRepairBranch(input: {
   inspectorDecision: EvolutionInspectorDecision;
   targetDate: string;
   runRoleStage: NonNullable<EvolutionDagDependencies['runRoleStage']>;
+  runPatchArena: NonNullable<EvolutionDagDependencies['runPatchArena']>;
   now: () => Date;
 }): Promise<EvolutionDagManifest> {
-  const engineerStage = beginStage(input.manifest, input.manifestPath, {
-    name: 'engineer',
-    role: 'engineer-cat',
-    input_ref: input.manifest.inspector_ref,
+  const patchWorkspace = createEvolutionPatchWorkspace({
+    projectRoot: input.root,
+    runRoot: input.runRoot,
+    targetDate: input.targetDate,
+    evidenceRefs: input.inspectorDecision.evidence_refs,
   });
-  const raw = await input.runRoleStage({
-    stage: 'engineer',
-    roleName: 'engineer-cat',
-    skillName: 'case-implementation',
-    task: buildEngineerDagPrompt(input.manifest.inspector_ref || '', input.targetDate),
-    workingDirectory: input.root,
-    parentSessionId: `evolution:dag:${input.targetDate}`,
-    hiddenTools: ENGINEER_HIDDEN_TOOLS,
-  });
-  fs.writeFileSync(path.join(input.runRoot, 'engineer-output.txt'), raw, 'utf-8');
-  const decision = parseEngineerDecision(raw);
-  if (decision.status === 'fixed' || decision.status === 'next_run') {
-    validateLocalEvidenceRefs(
-      input.root,
-      uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
-      `Engineer ${decision.status}`,
-    );
-  }
-  const decisionPath = path.join(input.runRoot, 'engineer-result.json');
-  atomicWriteJson(decisionPath, decision);
-  completeStage(engineerStage, input.manifest, input.manifestPath, {
-    output_ref: displayPath(decisionPath, input.root),
-    summary: decision.summary,
-  });
-
-  if (decision.status !== 'fixed') {
-    if (decision.status === 'next_run') {
-      return finishWithNextRunSeed({
-        root: input.root,
-        runRoot: input.runRoot,
-        manifest: input.manifest,
-        manifestPath: input.manifestPath,
-        now: input.now,
-        source: 'engineer-cat',
-        summary: decision.summary,
-        evidenceRefs: uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
-        replayCase: input.inspectorDecision.replay_case,
-      });
+  try {
+    const engineerStage = beginStage(input.manifest, input.manifestPath, {
+      name: 'engineer',
+      role: 'engineer-cat',
+      input_ref: input.manifest.inspector_ref,
+    });
+    const raw = await input.runRoleStage({
+      stage: 'engineer',
+      roleName: 'engineer-cat',
+      skillName: 'case-implementation',
+      task: buildEngineerDagPrompt(input.manifest.inspector_ref || '', input.targetDate),
+      workingDirectory: patchWorkspace.workspaceRoot,
+      parentSessionId: `evolution:dag:${input.targetDate}`,
+      hiddenTools: ENGINEER_HIDDEN_TOOLS,
+      allowedWriteRoot: patchWorkspace.workspaceRoot,
+    });
+    fs.writeFileSync(path.join(input.runRoot, 'engineer-output.txt'), raw, 'utf-8');
+    const decision = parseEngineerDecision(raw);
+    if (decision.status === 'fixed' || decision.status === 'next_run') {
+      validateLocalEvidenceRefs(
+        patchWorkspace.workspaceRoot,
+        uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
+        `Engineer ${decision.status}`,
+      );
     }
-    return finishManifest(input.manifest, input.manifestPath, input.now, {
-      status: 'blocked',
-      summary: decision.reason || decision.summary,
-      evidence_refs: uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
-    }, 'blocked');
-  }
 
-  return runReviewerBranch({
-    ...input,
-    engineerDecision: decision,
-    engineerResultRef: displayPath(decisionPath, input.root),
-  });
+    let patchCandidate: EvolutionPatchCandidateManifest | undefined;
+    if (decision.status === 'fixed') {
+      patchCandidate = finalizeEvolutionPatchCandidate({
+        workspace: patchWorkspace,
+        artifactRefs: decision.artifact_refs,
+        verificationRefs: decision.verification_refs,
+        now: input.now(),
+      });
+      decision.artifact_refs = patchCandidate.artifact_evidence.map(item => item.snapshot_ref);
+      decision.verification_refs = patchCandidate.verification_evidence.map(item => item.snapshot_ref);
+    } else if (decision.status === 'next_run') {
+      decision.artifact_refs = snapshotEvolutionWorkspaceRefs({
+        workspace: patchWorkspace,
+        refs: decision.artifact_refs,
+        group: 'next-run-artifacts',
+      }).map(item => item.snapshot_ref);
+      decision.verification_refs = snapshotEvolutionWorkspaceRefs({
+        workspace: patchWorkspace,
+        refs: decision.verification_refs,
+        group: 'next-run-verification',
+      }).map(item => item.snapshot_ref);
+    }
+
+    const decisionPath = path.join(input.runRoot, 'engineer-result.json');
+    atomicWriteJson(decisionPath, decision);
+    completeStage(engineerStage, input.manifest, input.manifestPath, {
+      output_ref: displayPath(decisionPath, input.root),
+      summary: decision.summary,
+    });
+
+    if (decision.status !== 'fixed' || !patchCandidate) {
+      if (decision.status === 'next_run') {
+        return finishWithNextRunSeed({
+          root: input.root,
+          runRoot: input.runRoot,
+          manifest: input.manifest,
+          manifestPath: input.manifestPath,
+          now: input.now,
+          source: 'engineer-cat',
+          summary: decision.summary,
+          evidenceRefs: uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
+          replayCase: input.inspectorDecision.replay_case,
+        });
+      }
+      return finishManifest(input.manifest, input.manifestPath, input.now, {
+        status: 'blocked',
+        summary: decision.reason || decision.summary,
+        evidence_refs: uniqueStrings([...decision.artifact_refs, ...decision.verification_refs]),
+      }, 'blocked');
+    }
+
+    mirrorMainRunArtifact(patchWorkspace, 'engineer-result.json');
+    return await runReviewerBranch({
+      ...input,
+      engineerDecision: decision,
+      engineerResultRef: displayPath(decisionPath, input.root),
+      patchWorkspace,
+      patchCandidate,
+    });
+  } finally {
+    cleanupEvolutionPatchWorkspace(patchWorkspace);
+  }
 }
 
 async function runReviewerBranch(input: {
@@ -499,6 +564,9 @@ async function runReviewerBranch(input: {
   now: () => Date;
   engineerDecision?: EvolutionEngineerDecision;
   engineerResultRef?: string;
+  patchWorkspace?: EvolutionPatchWorkspace;
+  patchCandidate?: EvolutionPatchCandidateManifest;
+  runPatchArena?: NonNullable<EvolutionDagDependencies['runPatchArena']>;
 }): Promise<EvolutionDagManifest> {
   resetOwnedDirectory(
     input.runRoot,
@@ -519,12 +587,28 @@ async function runReviewerBranch(input: {
       input.targetDate,
       input.engineerResultRef,
     ),
-    workingDirectory: input.root,
+    workingDirectory: input.patchWorkspace?.workspaceRoot || input.root,
     parentSessionId: `evolution:dag:${input.targetDate}`,
     hiddenTools: REVIEWER_HIDDEN_TOOLS,
   });
   fs.writeFileSync(path.join(input.runRoot, 'reviewer-output.txt'), raw, 'utf-8');
+  if (input.patchWorkspace) {
+    const workspaceReplayRoot = path.join(input.patchWorkspace.workspaceRunRoot, 'reviewer-replay');
+    if (fs.existsSync(path.join(workspaceReplayRoot, 'manifest.json'))) {
+      relocateReplayArtifacts({
+        workspace: input.patchWorkspace,
+        sourceDirectory: workspaceReplayRoot,
+        destinationDirectory: path.join(input.runRoot, 'reviewer-replay'),
+      });
+    }
+  }
   const decision = parseReviewerDecision(raw);
+  if (input.patchCandidate && decision.status === 'closed' && !decision.arena_review) {
+    throw new Error('Reviewer closed a Patch Candidate without arena_review risk classification');
+  }
+  if (!input.patchCandidate && decision.arena_review) {
+    throw new Error('Reviewer arena_review is only valid after an isolated Patch Candidate');
+  }
   if (decision.status === 'closed' || decision.status === 'next_run') {
     validateReviewerEvidenceRefs(
       input.root,
@@ -554,6 +638,75 @@ async function runReviewerBranch(input: {
     });
   }
 
+  if (decision.status === 'closed' && input.patchCandidate) {
+    const candidateRef = displayPath(path.join(input.patchWorkspace!.candidateRoot, 'manifest.json'), input.root);
+    const patchTerminal = {
+      candidate_ref: candidateRef,
+      patch_base_commit: input.patchCandidate.base_commit,
+      patch_sha256: input.patchCandidate.patch_sha256,
+    };
+    if (decision.arena_review === 'required') {
+      if (!input.runPatchArena || !input.patchWorkspace) {
+        throw new Error('Behavior-impacting Patch Candidate requires the Arena repair regression gate');
+      }
+      const arenaStage = beginStage(input.manifest, input.manifestPath, {
+        name: 'arena',
+        input_ref: candidateRef,
+      });
+      const arena = await input.runPatchArena({
+        workingDirectory: input.root,
+        targetDate: input.targetDate,
+        workspace: input.patchWorkspace,
+        candidate: input.patchCandidate,
+        reviewerEvidenceRefs: decision.evidence_refs,
+      });
+      validateLocalEvidenceRefs(input.root, [arena.scorecard_ref], 'Arena repair regression scorecard');
+      completeStage(arenaStage, input.manifest, input.manifestPath, {
+        output_ref: arena.scorecard_ref,
+        summary: `${arena.decision}: ${arena.scorecard_ref}`,
+      });
+      const arenaTerminal = {
+        ...patchTerminal,
+        arena_run_ref: arena.scorecard_ref,
+        arena_decision: arena.decision,
+      };
+      if (arena.decision === 'pass') {
+        return finishManifest(input.manifest, input.manifestPath, input.now, {
+          status: 'closed',
+          summary: `${decision.summary}; Arena repair regression passed`,
+          evidence_refs: uniqueStrings([...decision.evidence_refs, arena.scorecard_ref]),
+          ...arenaTerminal,
+        });
+      }
+      if (arena.decision === 'unstable' || arena.decision === 'reopened') {
+        return finishWithNextRunSeed({
+          root: input.root,
+          runRoot: input.runRoot,
+          manifest: input.manifest,
+          manifestPath: input.manifestPath,
+          now: input.now,
+          source: 'reviewer-cat',
+          summary: `Arena repair regression ${arena.decision}`,
+          evidenceRefs: uniqueStrings([...decision.evidence_refs, candidateRef, arena.scorecard_ref]),
+          replayCase: input.inspectorDecision.replay_case,
+          terminalExtras: arenaTerminal,
+        });
+      }
+      return finishManifest(input.manifest, input.manifestPath, input.now, {
+        status: 'blocked',
+        summary: `Arena repair regression ${arena.decision}`,
+        evidence_refs: uniqueStrings([...decision.evidence_refs, arena.scorecard_ref]),
+        ...arenaTerminal,
+      }, 'blocked');
+    }
+    return finishManifest(input.manifest, input.manifestPath, input.now, {
+      status: 'closed',
+      summary: decision.summary,
+      evidence_refs: decision.evidence_refs,
+      ...patchTerminal,
+    });
+  }
+
   return finishManifest(input.manifest, input.manifestPath, input.now, {
     status: decision.status,
     summary: decision.reason || decision.summary,
@@ -571,6 +724,8 @@ function finishWithNextRunSeed(input: {
   summary: string;
   evidenceRefs: string[];
   replayCase?: EvolutionReplayCase;
+  terminalExtras?: Partial<Pick<NonNullable<EvolutionDagManifest['terminal']>,
+    'candidate_ref' | 'arena_run_ref' | 'arena_decision' | 'patch_base_commit' | 'patch_sha256'>>;
 }): EvolutionDagManifest {
   const seedPath = path.join(input.runRoot, 'next-run-seed.json');
   atomicWriteJson(seedPath, {
@@ -586,6 +741,7 @@ function finishWithNextRunSeed(input: {
     summary: input.summary,
     evidence_refs: input.evidenceRefs,
     next_run_seed_ref: displayPath(seedPath, input.root),
+    ...input.terminalExtras,
   });
 }
 
@@ -659,6 +815,17 @@ export async function runDefaultEvolutionArena(input: EvolutionArenaInput): Prom
   };
 }
 
+export async function runDefaultPatchArena(input: EvolutionPatchArenaInput): Promise<EvolutionPatchArenaResult> {
+  return runPatchRegression({
+    projectRoot: input.workingDirectory,
+    targetDate: input.targetDate,
+    workspace: input.workspace,
+    candidate: input.candidate,
+    reviewerEvidenceRefs: input.reviewerEvidenceRefs,
+    replayAttempts: 3,
+  });
+}
+
 export function buildInspectorDagPrompt(
   digestRef: string,
   targetDate: string,
@@ -708,7 +875,9 @@ export function buildEngineerDagPrompt(inspectorRef: string, targetDate: string)
     `Target date: ${targetDate}`,
     `Inspector replay case and evidence: ${inspectorRef}`,
     '',
-    'Implement only the diagnosed engineering repair and verify it. Do not close the case yourself.',
+    'You are running inside a detached, isolated Git worktree pinned to one base_commit. Implement only the diagnosed engineering repair and verify it; never write to the scheduler checkout. Do not close the case yourself.',
+    'A fixed result must contain a real code diff. Runtime will package the diff, base_commit, changed files and SHA-256 as an immutable Patch Candidate.',
+    `Store implementation notes, engineer-output.json and verification artifacts under output/evolution/sleep/${targetDate}/ so they remain evidence rather than entering the source patch.`,
     'If the underlying engineering job is still running when this bounded stage must end, return next_run with stable artifact/task refs; do not pretend it is fixed.',
     'Every artifact_ref and verification_ref for fixed/next_run must resolve to an existing local file or directory.',
     'Return exactly one JSON object and no prose:',
@@ -731,9 +900,16 @@ export function buildReviewerDagPrompt(
     'Call reviewer_trace_replay exactly once with {}. It derives the frozen case from this trusted DAG parent; never pass a path, cwd, command, message, or verifier.',
     'You must not edit code, start/resume coding jobs, or ask EngineerCat to repair inside this run.',
     'A failure becomes next_run, not a same-run back-edge.',
+    ...(engineerResultRef ? [
+      `Inspect output/evolution/sleep/${targetDate}/patch-candidate/manifest.json and candidate.patch after the frozen replay.`,
+      'For a closed repair, set arena_review=required when the patch changes Agent behavior or broad behavior cannot be excluded: prompts/Skills/Roles, tool visibility or permission, routing, context compression, model retry/fallback, or delivery semantics. Otherwise set arena_review=not_required.',
+      'Give concrete risk_reasons. Do not run Arena yourself; the deterministic DAG owns that gate.',
+    ] : []),
     `Every evidence_ref for closed/next_run must resolve under output/evolution/sleep/${targetDate}/reviewer-replay/. If deterministic replay is blocked, return blocked rather than claiming closure.`,
     'Return exactly one JSON object and no prose:',
-    '{"version":1,"status":"closed|next_run|blocked","summary":"...","evidence_refs":["fresh replay/verification ref"],"reason":"optional"}',
+    engineerResultRef
+      ? '{"version":1,"status":"closed|next_run|blocked","summary":"...","evidence_refs":["fresh replay/verification ref"],"arena_review":"required|not_required","risk_reasons":["..."],"reason":"optional"}'
+      : '{"version":1,"status":"closed|next_run|blocked","summary":"...","evidence_refs":["fresh replay/verification ref"],"reason":"optional"}',
   ].join('\n');
 }
 
@@ -833,6 +1009,12 @@ export function parseReviewerDecision(raw: string): EvolutionReviewerDecision {
     status,
     summary: readRequiredString(value.summary, 'Reviewer.summary'),
     evidence_refs: uniqueStrings(readStringArray(value.evidence_refs)),
+    ...(value.arena_review !== undefined
+      ? { arena_review: readEnum(value.arena_review, ['required', 'not_required'] as const, 'Reviewer.arena_review') }
+      : {}),
+    ...(value.risk_reasons !== undefined
+      ? { risk_reasons: uniqueStrings(readStringArray(value.risk_reasons)) }
+      : {}),
     ...(readOptionalString(value.reason) ? { reason: readOptionalString(value.reason) } : {}),
   };
   if ((status === 'closed' || status === 'next_run') && decision.evidence_refs.length === 0) {
@@ -840,6 +1022,9 @@ export function parseReviewerDecision(raw: string): EvolutionReviewerDecision {
   }
   if (status === 'blocked' && !decision.reason) {
     throw new Error('Reviewer blocked requires reason');
+  }
+  if (decision.arena_review && (decision.risk_reasons?.length || 0) === 0) {
+    throw new Error('Reviewer arena_review requires risk_reasons');
   }
   return decision;
 }

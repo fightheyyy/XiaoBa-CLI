@@ -325,9 +325,9 @@ describe('ArenaManager', () => {
     assert.ok(run.target_profile.loaded_skills.includes('engineer-helper'));
     assert.ok(DEFAULT_PACKAGED_BASE_SKILLS.every(skill => run.target_profile.loaded_skills.includes(skill)));
     assert.ok(run.target_profile.registered_tools.includes('write_file'));
-    assert.ok(run.target_profile.registered_tools.includes('engineer_task_run'));
+    assert.ok(run.target_profile.registered_tools.includes('execute_shell'));
     assert.ok(run.target_profile.provider_visible_tools.includes('read_file'));
-    assert.ok(run.target_profile.provider_visible_tools.includes('engineer_task_run'));
+    assert.ok(run.target_profile.provider_visible_tools.includes('execute_shell'));
     assert.ok(run.target_profile.provider_visible_tools.includes('send_text'));
     assert.ok(!run.target_profile.provider_visible_tools.includes('write_file'));
     assert.ok(run.target_profile.provider_visible_tools.every(tool => (

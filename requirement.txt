@@ -14,10 +14,8 @@ InspectorCat (inspector-cat)
   npm CLI: none
 
 EngineerCat (engineer-cat)
-  npm CLI: @openai/codex
-  command: codex
-  needed for: delegated Codex engineering jobs and session resume
-  install: npm install --global @openai/codex
+  npm CLI: none
+  runtime: shared XiaoBa Agent loop with coding/skill tools plus the child-side ask_parent channel
 
 ReviewerCat (reviewer-cat)
   npm CLI: none

@@ -1,12 +1,22 @@
 {
   "name": "engineer-cat",
   "displayName": "PochiBa",
-  "description": "实现型角色，既承接 Inspector 的问题单，也可作为基于本机 Codex runner 和多 worker supervisor 的高级工程师。",
+  "description": "XiaoBa 原生工程角色，使用共享 Agent loop 和受限 coding 工具完成代码理解、实现、修复与验证。",
   "promptFile": "engineer-system-prompt.md",
   "aliases": [
     "engineer",
-    "coder",
-    "codex-engineer"
+    "coder"
+  ],
+  "inheritBaseTools": false,
+  "baseToolAllowlist": [
+    "read_file",
+    "write_file",
+    "edit_file",
+    "glob",
+    "grep",
+    "execute_shell",
+    "skill",
+    "ask_parent"
   ],
   "inheritBaseSkills": true,
   "excludeBaseSkills": [
