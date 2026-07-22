@@ -2,6 +2,7 @@ import { Logger } from '../utils/logger';
 import { startCommandSupport, stopCommandSupport } from '../bootstrap/command-support';
 import { WeixinBot } from '../weixin';
 import { WeixinConfig } from '../weixin/types';
+import { shutdownObservability } from '../observability';
 
 export async function weixinCommand(): Promise<void> {
   const token = process.env.WEIXIN_TOKEN;
@@ -22,6 +23,8 @@ export async function weixinCommand(): Promise<void> {
     Promise.resolve(stopCommandSupport())
       .catch(() => undefined)
       .then(() => bot.destroy())
+      .catch(() => undefined)
+      .then(() => shutdownObservability())
       .catch(() => undefined)
       .finally(() => {
         process.exit(0);

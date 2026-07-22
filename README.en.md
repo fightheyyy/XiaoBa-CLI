@@ -11,12 +11,12 @@
 
   [![Release](https://img.shields.io/github/v/release/fightheyyy/XiaoBa-CLI?include_prereleases&label=release)](https://github.com/fightheyyy/XiaoBa-CLI/releases)
   [![Desktop](https://img.shields.io/badge/desktop-macOS%20Apple%20Silicon-yellow.svg)](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.2.0)
-  [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18-green.svg)](package.json)
+  [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18.19-green.svg)](package.json)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
   [Quick Start from Source](#quick-start) · [macOS v0.2.0 Preview](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.2.0) · [How It Works](#work-and-evolution) · [Governed Evolution](#governed-evolution) · [简体中文](README.md)
 
-  <sub>The v0.2.0 Preview includes the current eight-Role and governed-evolution path on Apple Silicon (arm64). It is ad-hoc signed, not Apple-notarized, and desktop child services still require system Node.js 18+.</sub>
+  <sub>The v0.2.0 Preview includes the current eight-Role and governed-evolution path on Apple Silicon (arm64). It is ad-hoc signed, not Apple-notarized, and desktop child services still require system Node.js 18.19+.</sub>
 </div>
 
 ---
@@ -104,9 +104,9 @@ Runtime state, traces, and artifact evidence stay local by default. Models can b
 
 ## Quick Start
 
-> **macOS Desktop Preview**: [XiaoBa v0.2.0](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.2.0) targets Apple Silicon (arm64) and includes the current eight-Role and governed-evolution path. It is ad-hoc signed, not notarized, and the CLI / Pet / IM child services started by the desktop app require system Node.js 18+.
+> **macOS Desktop Preview**: [XiaoBa v0.2.0](https://github.com/fightheyyy/XiaoBa-CLI/releases/tag/v0.2.0) targets Apple Silicon (arm64) and includes the current eight-Role and governed-evolution path. It is ad-hoc signed, not notarized, and the CLI / Pet / IM child services started by the desktop app require system Node.js 18.19+.
 
-Node.js 18 or newer is required to run from source:
+Node.js 18.19 or newer is required to run from source:
 
 ```bash
 git clone https://github.com/fightheyyy/XiaoBa-CLI.git
@@ -205,12 +205,20 @@ npm run eval:base-runtime
 npm run check:benchmarks
 ```
 
+XiaoBa can export the same session / model / tool span topology through OTLP/HTTP protobuf to Barena, LangWatch, or a standard OTel Collector. Export is disabled by default, local `traces.jsonl` remains authoritative, and prompts, tool arguments, file contents, and free-form error text are excluded from external spans.
+
+```bash
+XIAOBA_OBSERVABILITY_ENABLED=true \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
+xiaoba chat
+```
+
 The current claim boundary, recent results, and open risks live in the [Project PLAN](docs/PLAN.md). See the [Evaluation SPEC](docs/evaluation/SPEC.md) and [Arena SPEC](docs/arena/SPEC.md) for contract details.
 
 ## Current Boundaries
 
 - The macOS Electron DMG is an Apple Silicon arm64 Preview with an ad-hoc signature and no notarization.
-- Desktop child services do not embed Node and currently require system Node.js 18 or newer; if Finder cannot discover Homebrew / nvm Node, set `XIAOBA_NODE_EXE` to its absolute executable path.
+- Desktop child services do not embed Node and currently require system Node.js 18.19 or newer; if Finder cannot discover Homebrew / nvm Node, set `XIAOBA_NODE_EXE` to its absolute executable path.
 - BrowserCat, GuiCat, and SecretaryCat depend on their corresponding drivers / CLIs and the required installation, permissions, or login state; run `xiaoba doctor` first.
 - The Preview keeps the not-yet-verified automatic update channel disabled; install updates manually from GitHub Releases.
 - Dashboard, Pet, and Bridge primarily target local use and do not yet provide complete authentication and Owner authorization for untrusted networks.

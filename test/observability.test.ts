@@ -1,8 +1,11 @@
 import { describe, test } from 'node:test';
 import * as assert from 'node:assert';
 import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { AddressInfo } from 'node:net';
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { AgentSession } from '../src/core/agent-session';
 import { ConversationRunner } from '../src/core/conversation-runner';
 import { SubAgentSession } from '../src/core/sub-agent-session';
@@ -384,7 +387,176 @@ describe('Local observability', () => {
       resetObservabilityForTests(undefined);
     }
   });
+
+  test('exports parent/child OTel spans while keeping sensitive local attributes out of the exporter', async () => {
+    const exporter = new RetainedSpanExporter();
+    const observability = Observability.fromEnv({
+      XIAOBA_OBSERVABILITY_ENABLED: 'true',
+      XIAOBA_OBSERVABILITY_LOG_PROMPTS: 'true',
+      XIAOBA_OBSERVABILITY_LOG_TOOL_ARGS: 'true',
+      OTEL_SERVICE_NAME: 'xiaoba-otel-test',
+    } as NodeJS.ProcessEnv, exporter);
+
+    assert.equal(observability.isEnabled(), true);
+    const sessionSpan = observability.startSpan('xiaoba.session', {
+      'xiaoba.role.name': 'engineer-cat',
+      'xiaoba.session.id_hash': observability.sessionIdHash('private-session'),
+      'xiaoba.user_input.preview': 'token=secret-token-1234567890',
+    });
+    const toolSpan = observability.startSpan('xiaoba.tool.call', {
+      'xiaoba.tool.name': 'execute_shell',
+      'xiaoba.tool.arguments.chars': 42,
+      'xiaoba.tool.arguments.preview': '{"cmd":"cat /Users/guowei/.ssh/id_rsa"}',
+      'xiaoba.error.message': 'api_key=sk-abcdefghijklmnopqrstuvwxyz',
+    }, sessionSpan.context);
+    observability.endSpan(toolSpan, {
+      status: 'error',
+      message: 'must stay local',
+      attributes: {
+        'xiaoba.tool.status': 'failure',
+        'xiaoba.error_code': 'COMMAND_DENIED',
+      },
+    });
+    observability.endSpan(sessionSpan, { status: 'ok' });
+    await observability.shutdown();
+
+    const spans = exporter.finishedSpans;
+    assert.equal(spans.length, 2);
+    const exportedSession = spans.find(span => span.name === 'xiaoba.session');
+    const exportedTool = spans.find(span => span.name === 'xiaoba.tool.call');
+    assert.ok(exportedSession);
+    assert.ok(exportedTool);
+    assert.equal(exportedTool.spanContext().traceId, exportedSession.spanContext().traceId);
+    assert.equal(exportedTool.parentSpanContext?.spanId, exportedSession.spanContext().spanId);
+    assert.equal(exportedSession.resource.attributes['service.name'], 'xiaoba-otel-test');
+    assert.equal(exportedSession.attributes['xiaoba.role.name'], 'engineer-cat');
+    assert.equal(exportedTool.attributes['xiaoba.tool.name'], 'execute_shell');
+    assert.equal(exportedTool.attributes['xiaoba.tool.arguments.chars'], 42);
+    assert.equal(exportedTool.attributes['xiaoba.tool.status'], 'failure');
+    assert.equal(exportedTool.attributes['xiaoba.error_code'], 'COMMAND_DENIED');
+    assert.equal(exportedSession.attributes['xiaoba.user_input.preview'], undefined);
+    assert.equal(exportedTool.attributes['xiaoba.tool.arguments.preview'], undefined);
+    assert.equal(exportedTool.attributes['xiaoba.error.message'], undefined);
+    assert.doesNotMatch(JSON.stringify(spans.map(span => span.attributes)), /secret-token|id_rsa|sk-abcdef/);
+
+    const summary = observability.getLocalSummary();
+    assert.equal(summary.external.enabled, true);
+    assert.equal(summary.external.sdkStarted, true);
+    assert.equal(summary.external.tracesExporter, 'otlp');
+    assert.equal(summary.external.metricsExporter, 'none');
+    assert.equal(summary.external.logsExporter, 'none');
+    assert.equal(summary.external.status, 'stopped');
+    assert.equal(summary.external.exportedSpanCount, 2);
+    assert.equal(summary.external.exportErrorCount, 0);
+    assert.match(JSON.stringify(summary.traces), /secret-token-1234567890|id_rsa/);
+  });
+
+  test('preserves an incoming W3C parent in exported OTel trace topology', async () => {
+    const exporter = new RetainedSpanExporter();
+    const observability = Observability.fromEnv({
+      XIAOBA_OBSERVABILITY_ENABLED: 'true',
+    } as NodeJS.ProcessEnv, exporter);
+    const traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
+    const parentSpanId = '00f067aa0ba902b7';
+    const parent = observability.parseTraceparent(`00-${traceId}-${parentSpanId}-01`);
+    assert.ok(parent);
+
+    const sessionSpan = observability.startSpan('xiaoba.session', {
+      'xiaoba.surface': 'pet',
+    }, parent);
+    observability.endSpan(sessionSpan, { status: 'ok' });
+    await observability.shutdown();
+
+    const [exported] = exporter.finishedSpans;
+    assert.ok(exported);
+    assert.equal(exported.spanContext().traceId, traceId);
+    assert.equal(exported.parentSpanContext?.spanId, parentSpanId);
+  });
+
+  test('sends OTLP/HTTP protobuf to a collector and fails open for invalid exporter setup', async () => {
+    const requests: Array<{ url?: string; contentType?: string; authorization?: string; body: Buffer }> = [];
+    const server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', chunk => chunks.push(Buffer.from(chunk)));
+      req.on('end', () => {
+        requests.push({
+          url: req.url,
+          contentType: req.headers['content-type'],
+          authorization: req.headers.authorization,
+          body: Buffer.concat(chunks),
+        });
+        res.statusCode = 200;
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    try {
+      const address = server.address() as AddressInfo;
+      const observability = Observability.fromEnv({
+        XIAOBA_OBSERVABILITY_ENABLED: 'true',
+        OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${address.port}`,
+        OTEL_EXPORTER_OTLP_TRACES_HEADERS: 'authorization=Bearer%20collector-test',
+      } as NodeJS.ProcessEnv);
+      const span = observability.startSpan('xiaoba.session', {
+        'xiaoba.role.name': 'reviewer-cat',
+        'xiaoba.user_input.preview': 'wire-secret-must-not-export',
+      });
+      observability.endSpan(span, { status: 'ok' });
+      await observability.shutdown();
+
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].url, '/v1/traces');
+      assert.match(requests[0].contentType || '', /application\/x-protobuf/);
+      assert.equal(requests[0].authorization, 'Bearer collector-test');
+      assert.ok(requests[0].body.length > 0);
+      assert.match(requests[0].body.toString('utf8'), /xiaoba\.session/);
+      assert.match(requests[0].body.toString('utf8'), /reviewer-cat/);
+      assert.doesNotMatch(requests[0].body.toString('utf8'), /wire-secret-must-not-export/);
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+
+    const invalid = Observability.fromEnv({
+      XIAOBA_OBSERVABILITY_ENABLED: 'true',
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'ftp://collector.invalid/v1/traces',
+    } as NodeJS.ProcessEnv);
+    assert.equal(invalid.isEnabled(), false);
+    const localSpan = invalid.startSpan('xiaoba.session');
+    invalid.endSpan(localSpan, { status: 'ok' });
+    assert.equal(invalid.getLocalSummary().traces.spanCount, 1);
+    assert.equal(invalid.getLocalSummary().external.status, 'error');
+    assert.equal(invalid.getLocalSummary().external.exportErrorCount, 1);
+    await invalid.shutdown();
+
+    const unavailable = Observability.fromEnv({
+      XIAOBA_OBSERVABILITY_ENABLED: 'true',
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://127.0.0.1:1/v1/traces',
+      OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: '250',
+    } as NodeJS.ProcessEnv);
+    const unavailableSpan = unavailable.startSpan('xiaoba.session');
+    unavailable.endSpan(unavailableSpan, { status: 'ok' });
+    await assert.doesNotReject(() => unavailable.shutdown());
+    assert.equal(unavailable.getLocalSummary().external.status, 'error');
+    assert.ok(unavailable.getLocalSummary().external.exportErrorCount >= 1);
+  });
 });
+
+class RetainedSpanExporter implements SpanExporter {
+  readonly finishedSpans: ReadableSpan[] = [];
+
+  export(...args: Parameters<SpanExporter['export']>): void {
+    const [spans, resultCallback] = args;
+    this.finishedSpans.push(...spans);
+    resultCallback({ code: 0 });
+  }
+
+  async forceFlush(): Promise<void> {}
+
+  async shutdown(): Promise<void> {}
+}
 
 class ToolThenFinalAIService {
   calls = 0;

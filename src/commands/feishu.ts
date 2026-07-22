@@ -3,6 +3,7 @@ import { startCommandSupport, stopCommandSupport } from '../bootstrap/command-su
 import { ConfigManager } from '../utils/config';
 import { FeishuBot } from '../feishu';
 import { FeishuConfig } from '../feishu/types';
+import { shutdownObservability } from '../observability';
 
 /**
  * CLI 命令：xiaoba feishu
@@ -60,6 +61,7 @@ export async function feishuCommand(): Promise<void> {
   const shutdown = async () => {
     await stopCommandSupport();
     await bot.destroy();
+    await shutdownObservability();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

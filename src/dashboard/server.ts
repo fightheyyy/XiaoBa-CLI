@@ -4,6 +4,7 @@ import * as path from 'path';
 import { Logger } from '../utils/logger';
 import { createApiRouter } from './routes/api';
 import { ServiceManager } from './service-manager';
+import { shutdownObservability } from '../observability';
 
 const DEFAULT_PORT = 3800;
 const DEFAULT_HOST = '127.0.0.1';
@@ -41,21 +42,26 @@ export async function startDashboard(
 
   // 优雅退出
   let server: Server | null = null;
-  const shutdown = () => {
+  const shutdown = async () => {
     serviceManager.stopAll();
     if (!server) {
+      await shutdownObservability();
       process.exit(0);
       return;
     }
-    server.close(() => process.exit(0));
+    server.close(() => {
+      void shutdownObservability().finally(() => process.exit(0));
+    });
   };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  const onSigint = () => { void shutdown(); };
+  const onSigterm = () => { void shutdown(); };
+  process.on('SIGINT', onSigint);
+  process.on('SIGTERM', onSigterm);
 
   server = app.listen(port, listenHost);
   server.once('close', () => {
-    process.off('SIGINT', shutdown);
-    process.off('SIGTERM', shutdown);
+    process.off('SIGINT', onSigint);
+    process.off('SIGTERM', onSigterm);
   });
   await new Promise<void>((resolve, reject) => {
     server!.once('listening', resolve);

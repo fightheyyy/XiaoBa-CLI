@@ -11,12 +11,12 @@
 
   [![Release](https://img.shields.io/github/v/release/fightheyyy/xiaobaOS?include_prereleases&label=release)](https://github.com/fightheyyy/xiaobaOS/releases)
   [![Desktop](https://img.shields.io/badge/desktop-macOS%20Apple%20Silicon-yellow.svg)](https://github.com/fightheyyy/xiaobaOS/releases/tag/v0.2.0)
-  [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18-green.svg)](package.json)
+  [![Node](https://img.shields.io/badge/CLI-Node.js%20%3E%3D18.19-green.svg)](package.json)
   [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
   [源码快速开始](#快速开始) · [macOS v0.2.0 Preview](https://github.com/fightheyyy/xiaobaOS/releases/tag/v0.2.0) · [工作方式](#工作与进化) · [受控进化](#受控进化) · [English](README.en.md)
 
-  <sub>v0.2.0 Preview 包含当前八角色与受控进化主线，面向 Apple Silicon（arm64）。该包采用 ad-hoc 签名、尚未完成 Apple notarization，桌面子服务仍需要系统 Node.js 18+。</sub>
+  <sub>v0.2.0 Preview 包含当前八角色与受控进化主线，面向 Apple Silicon（arm64）。该包采用 ad-hoc 签名、尚未完成 Apple notarization，桌面子服务仍需要系统 Node.js 18.19+。</sub>
 </div>
 
 ---
@@ -104,9 +104,9 @@ flowchart LR
 
 ## 快速开始
 
-> **macOS Desktop Preview**：可下载 [XiaoBa v0.2.0](https://github.com/fightheyyy/xiaobaOS/releases/tag/v0.2.0)。该 DMG 面向 Apple Silicon（arm64），包含当前八角色与受控进化主线；它采用 ad-hoc 签名、尚未 notarize，桌面启动的 CLI / Pet / IM 子服务需要系统 Node.js 18+。
+> **macOS Desktop Preview**：可下载 [XiaoBa v0.2.0](https://github.com/fightheyyy/xiaobaOS/releases/tag/v0.2.0)。该 DMG 面向 Apple Silicon（arm64），包含当前八角色与受控进化主线；它采用 ad-hoc 签名、尚未 notarize，桌面启动的 CLI / Pet / IM 子服务需要系统 Node.js 18.19+。
 
-源码运行需要 Node.js 18 或更高版本：
+源码运行需要 Node.js 18.19 或更高版本：
 
 ```bash
 git clone https://github.com/fightheyyy/xiaobaOS.git
@@ -205,12 +205,20 @@ npm run eval:base-runtime
 npm run check:benchmarks
 ```
 
+XiaoBa 可以把同一组 session / model / tool span 通过 OTLP/HTTP protobuf 发给 Barena、LangWatch 或普通 OTel Collector。导出默认关闭，本地 `traces.jsonl` 仍是权威证据；prompt、tool args、file content 和自由文本错误不会进入外部 span。
+
+```bash
+XIAOBA_OBSERVABILITY_ENABLED=true \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
+xiaoba chat
+```
+
 可验证范围、最近结果和风险只维护在 [Project PLAN](docs/PLAN.md)；合同边界见 [Evaluation SPEC](docs/evaluation/SPEC.md) 与 [Arena SPEC](docs/arena/SPEC.md)。
 
 ## 当前边界
 
 - macOS Electron DMG 是 Apple Silicon arm64 Preview，采用 ad-hoc 签名且尚未 notarize。
-- 桌面子服务不内嵌 Node，当前需要系统 Node.js 18 或更高版本；若 Finder 无法发现 Homebrew / nvm 的 Node，请用 `XIAOBA_NODE_EXE` 指向绝对可执行路径。
+- 桌面子服务不内嵌 Node，当前需要系统 Node.js 18.19 或更高版本；若 Finder 无法发现 Homebrew / nvm 的 Node，请用 `XIAOBA_NODE_EXE` 指向绝对可执行路径。
 - BrowserCat、GuiCat 和 SecretaryCat 依赖对应 driver / CLI，以及必要的安装、权限或登录状态；可先运行 `xiaoba doctor` 检查。
 - Preview 默认关闭尚未完成端到端验证的自动更新通道，新版本通过 GitHub Release 手动安装。
 - Dashboard、Pet 和 Bridge 主要面向本机使用，尚未完成不可信网络下的完整认证与 Owner 授权。

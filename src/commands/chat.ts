@@ -10,6 +10,7 @@ import { SkillManager } from '../skills/skill-manager';
 import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
 import { RoleResolver } from '../utils/role-resolver';
 import { SubAgentManager } from '../core/sub-agent-manager';
+import { shutdownObservability } from '../observability';
 
 const DEFAULT_CLI_ONE_SHOT_SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_CLI_ONE_SHOT_POLL_INTERVAL_MS = 25;
@@ -352,6 +353,7 @@ async function interactiveChat(
         subAgentFeedback.dispose();
         await session.cleanup({ finalizeMemory: true, finalizationReason: 'session_close' });
         await stopCommandSupport();
+        await shutdownObservability();
         Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {

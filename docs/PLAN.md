@@ -48,6 +48,7 @@ flowchart LR
 | M8 EvolutionCat ownership | Completed | Eighth default role, zero bundled Base Skills, deterministic role-scoped `remember`, three EvolutionCat-local Skills and exact-hash desktop migration are implemented |
 | M9 Nightly evolution foundation | Completed | Structured child traces, deterministic harvest, cron management, worker supervision and PID-owned lock cleanup are implemented |
 | M10 Inspector-first evolution DAG | Completed | No-Base typed routing, isolated Skill/Role and Patch Candidates, Reviewer risk classification, capability Arena intake and conditional Patch regression are implemented |
+| M11 OTel trace interoperability | Completed | Default-off OTLP/HTTP protobuf trace projection preserves session/model/tool topology and W3C ancestry; local JSONL remains authoritative, unsafe content stays local and collector failure is fail-open |
 
 ## Next Steps
 
@@ -95,7 +96,7 @@ flowchart LR
 - Trace Replay can still execute current real side effects.
 - Browser release packaging and Browser/GUI trusted approval provenance remain incomplete; GuiCat's local macOS package path and artifact are verified, but signed/notarized release verification remains future release work.
 - SecretaryCat's compatibility wrappers can drift from the official `lark-cli` command and skill surface.
-- `npm audit --omit=dev` reports 7 production-tree findings (3 moderate, 4 high) in the existing Lark SDK/transitive dependency path; Peekaboo is not among the flagged packages, but release dependency remediation remains open.
+- `npm audit --omit=dev` reports 12 production-tree findings (1 low, 2 moderate, 9 high) across the existing Lark SDK and application dependency tree; the OTel packages are not named in the report, but release dependency remediation remains open.
 - Arena sandbox claims must stay narrower than the actual OS isolation it enforces.
 - The isolated Repair path has deterministic coverage but still needs a preserved real-provider closed-loop proof before broad autonomous code-repair claims.
 
@@ -103,7 +104,7 @@ flowchart LR
 
 - Documentation set check：14 architecture/plan files under `docs/`；post-change Git Markdown inventory is 61 files, consisting of 20 human docs, 38 runtime prompt/skill assets, and 3 test fixture reports。
 - Human-document local link/asset check：64/64 resolved across 20 maintained human-facing Markdown files, including README images and the `requirement.txt` links。
-- Full repository tests：622/622 passed across 97 suites；the native EngineerCat tool boundary, isolated Patch Candidate, conditional Patch regression, worktree Shell write boundary, Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, source-task binding, semantic re-attestation, raw-evidence-bound promotion and subagent regressions are included。
+- Full repository tests：625/625 passed across 97 suites；the OTel exporter, native EngineerCat tool boundary, isolated Patch Candidate, conditional Patch regression, worktree Shell write boundary, Inspector-first DAG, Arena-run-wide Trace identity gate, all-turn Arena contract, source-task binding, semantic re-attestation, raw-evidence-bound promotion and subagent regressions are included。
 - Contract sentinel：9/9 cases passed after replacing retired nested Engineer job artifacts with native Base-tool case artifact evidence。
 - `npm run build` passed；benchmark preflight passed for 1 manifest / 11 cases；BrowserCat and GuiCat Skill validation passed。
 - Roles & Skills current/target Mermaid diagrams rendered successfully after the target map was simplified to the eight-role ownership boundary。
@@ -117,5 +118,6 @@ flowchart LR
 - A current-contract real-provider closed loop ran two independent failing Pet sessions (0/2) → InspectorCat `evolution` route → EvolutionCat Candidate Skill → Arena `pass` across 3 independent UserCat sessions / 7 turns (identity 3/3, contract 7/7, 0 violations) → explicit `xiaoba evolution promote` receipt with 7 exact raw-evidence hashes, including the Inspector cases and Arena runner config → two fresh Pet retests (2/2). Every Arena and post-promotion turn was bound to `evo-closeout-v2-formatter`; an earlier generated revision was correctly rejected as `unstable`, and a same-date nightly rerun preserved receipt and production hashes. The self-verifying proof is under `output/evolution/proofs/2026-07-15-evo-closeout-v3/` and remains outside tracked product assets.
 - Deterministic DAG tests cover all four routes, invalid-contract fail-closed behavior, isolated Candidate Skill/Role/Patch intake, protected evaluator paths, Reviewer Arena risk classification, conditional Patch regression, formal replay terminals and same-run back-edge rejection.
 - `electron-builder --mac --dir` passed；产物中不再包含 Base `skills/agent-browser`，BrowserCat role-local Skill / LICENSE hashes match the source copy；Peekaboo 位于 `Contents/Resources/drivers/peekaboo/peekaboo`，版本 3.8.0，使用 packaged resources 路径复检仍为 `ready=true`。
-- `npm audit --omit=dev` found 7 existing production-tree findings；none names `@steipete/peekaboo`。
+- OTLP verification covers real loopback protobuf transport, W3C parent continuity, shared runtime span topology, sensitive-attribute exclusion and unavailable-collector fail-open shutdown；`npm run build` and `git diff --check` pass。
+- `npm audit --omit=dev` found 12 production-tree findings；none names an `@opentelemetry/*` package or `@steipete/peekaboo`。
 - JSON parse checks and `git diff --check` passed。

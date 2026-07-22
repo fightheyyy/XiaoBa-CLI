@@ -1,7 +1,10 @@
 import * as crypto from 'crypto';
+import type { Span as ApiSpan } from '@opentelemetry/api';
+import type { SpanExporter } from '@opentelemetry/sdk-trace-base';
 import { APP_VERSION } from '../version';
+import { OtelTraceBridge } from './otel-trace-exporter';
 
-export type ObservabilityExporter = 'none';
+export type ObservabilityExporter = 'none' | 'otlp';
 export type ObservabilitySpanStatus = 'ok' | 'error' | 'unset';
 export type ObservabilitySeverity = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
@@ -16,6 +19,9 @@ export interface ObservabilityConfig {
   tracesExporter: ObservabilityExporter;
   metricsExporter: ObservabilityExporter;
   logsExporter: ObservabilityExporter;
+  otlpTracesEndpoint: string;
+  otlpHeaders: Record<string, string>;
+  otlpExportTimeoutMs: number;
   localSummaryEnabled: boolean;
   localSummaryLimit: number;
   logPrompts: boolean;
@@ -120,6 +126,10 @@ export interface ObservabilityLocalSummary {
     tracesExporter: ObservabilityExporter;
     metricsExporter: ObservabilityExporter;
     logsExporter: ObservabilityExporter;
+    status: 'disabled' | 'ready' | 'ok' | 'error' | 'stopped';
+    exportedSpanCount: number;
+    exportErrorCount: number;
+    lastExportAt?: string;
   };
   totals: {
     metricEvents: number;
@@ -171,44 +181,89 @@ export class Observability {
   private readonly localMetrics: ObservabilityLocalMetric[] = [];
   private readonly localTraceSpans: ObservabilityLocalTraceSpan[] = [];
   private readonly localStartedAt = new Date().toISOString();
+  private readonly externalSpans = new WeakMap<ObservabilitySpan, ApiSpan>();
+  private readonly otelTrace?: OtelTraceBridge;
   private localLastUpdatedAt?: string;
+  private shutdownPromise?: Promise<void>;
 
-  constructor(public readonly config: ObservabilityConfig) {}
+  constructor(public readonly config: ObservabilityConfig, traceExporter?: SpanExporter) {
+    if (config.enabled && config.tracesExporter === 'otlp') {
+      this.otelTrace = new OtelTraceBridge({
+        serviceName: config.serviceName,
+        serviceVersion: config.serviceVersion,
+        environment: config.environment,
+        endpoint: config.otlpTracesEndpoint,
+        headers: config.otlpHeaders,
+        exportTimeoutMs: config.otlpExportTimeoutMs,
+      }, traceExporter);
+    }
+  }
 
-  static fromEnv(env: NodeJS.ProcessEnv = process.env): Observability {
+  static fromEnv(env: NodeJS.ProcessEnv = process.env, traceExporter?: SpanExporter): Observability {
+    const requested = parseBoolean(env.XIAOBA_OBSERVABILITY_ENABLED, false)
+      && !parseBoolean(env.OTEL_SDK_DISABLED, false);
+    const tracesExporter = requested
+      ? parseExporter(env.XIAOBA_OBSERVABILITY_TRACES_EXPORTER || env.OTEL_TRACES_EXPORTER || 'otlp')
+      : 'none';
     return new Observability({
-      enabled: false,
-      serviceName: env.XIAOBA_OBSERVABILITY_SERVICE_NAME || DEFAULT_SERVICE_NAME,
+      enabled: requested && tracesExporter === 'otlp',
+      serviceName: env.XIAOBA_OBSERVABILITY_SERVICE_NAME || env.OTEL_SERVICE_NAME || DEFAULT_SERVICE_NAME,
       serviceVersion: env.XIAOBA_VERSION || DEFAULT_SERVICE_VERSION,
       environment: env.NODE_ENV,
-      tracesExporter: 'none',
+      tracesExporter,
       metricsExporter: 'none',
       logsExporter: 'none',
+      otlpTracesEndpoint: resolveOtlpTracesEndpoint(env),
+      otlpHeaders: parseOtlpHeaders(
+        env.OTEL_EXPORTER_OTLP_HEADERS,
+        env.OTEL_EXPORTER_OTLP_TRACES_HEADERS,
+      ),
+      otlpExportTimeoutMs: parsePositiveInt(
+        env.OTEL_EXPORTER_OTLP_TRACES_TIMEOUT || env.OTEL_EXPORTER_OTLP_TIMEOUT,
+        10_000,
+      ),
       localSummaryEnabled: parseBoolean(env.XIAOBA_OBSERVABILITY_LOCAL_ENABLED, true),
       localSummaryLimit: parsePositiveInt(env.XIAOBA_OBSERVABILITY_LOCAL_LIMIT, DEFAULT_LOCAL_SUMMARY_LIMIT),
       logPrompts: parseBoolean(env.XIAOBA_OBSERVABILITY_LOG_PROMPTS, false),
       logToolArgs: parseBoolean(env.XIAOBA_OBSERVABILITY_LOG_TOOL_ARGS, false),
       logFileContent: parseBoolean(env.XIAOBA_OBSERVABILITY_LOG_FILE_CONTENT, false),
-    });
+    }, traceExporter);
   }
 
   isEnabled(): boolean {
-    return false;
+    return this.otelTrace?.health.sdkStarted === true;
   }
 
   startSpan(name: string, attributes: ObservabilityAttributes = {}, parent?: ObservabilitySpanContext): ObservabilitySpan {
-    return {
+    const startedAtMs = Date.now();
+    const externalSpan = this.otelTrace?.startSpan(name, attributes, parent, startedAtMs);
+    const span: ObservabilitySpan = {
       name,
-      context: childSpanContext(parent),
+      context: externalSpan?.context || childSpanContext(parent),
       parentContext: parent,
       attributes: normalizeAttributes(attributes),
-      startedAtMs: Date.now(),
+      startedAtMs,
     };
+    if (externalSpan) {
+      this.externalSpans.set(span, externalSpan.span);
+    }
+    return span;
   }
 
   endSpan(span: ObservabilitySpan | undefined, options: EndSpanOptions = {}): void {
     if (!span) return;
-    this.recordLocalTraceSpan(span, options, Date.now());
+    const endedAtMs = Date.now();
+    this.recordLocalTraceSpan(span, options, endedAtMs);
+    const externalSpan = this.externalSpans.get(span);
+    if (externalSpan) {
+      this.externalSpans.delete(span);
+      this.otelTrace?.endSpan(
+        externalSpan,
+        options.status || 'unset',
+        { ...span.attributes, ...(options.attributes || {}) },
+        endedAtMs,
+      );
+    }
   }
 
   recordLog(
@@ -253,6 +308,12 @@ export class Observability {
       .reverse();
     const blockedOutcomeEvents = events
       .filter(event => isLocalOutcomeEvent(event) && isLocalBlockedEvent(event));
+    const externalHealth = this.otelTrace?.health || {
+      sdkStarted: false,
+      status: 'disabled' as const,
+      exportedSpanCount: 0,
+      exportErrorCount: 0,
+    };
 
     return {
       local: {
@@ -263,11 +324,15 @@ export class Observability {
         eventLimit: this.config.localSummaryLimit,
       },
       external: {
-        enabled: false,
-        sdkStarted: false,
-        tracesExporter: 'none',
-        metricsExporter: 'none',
-        logsExporter: 'none',
+        enabled: this.config.enabled,
+        sdkStarted: externalHealth.sdkStarted,
+        tracesExporter: this.config.tracesExporter,
+        metricsExporter: this.config.metricsExporter,
+        logsExporter: this.config.logsExporter,
+        status: externalHealth.status,
+        exportedSpanCount: externalHealth.exportedSpanCount,
+        exportErrorCount: externalHealth.exportErrorCount,
+        ...(externalHealth.lastExportAt && { lastExportAt: externalHealth.lastExportAt }),
       },
       totals: {
         metricEvents: events.length,
@@ -343,7 +408,12 @@ export class Observability {
     return parseTraceparent(value);
   }
 
-  async shutdown(): Promise<void> {}
+  async shutdown(): Promise<void> {
+    if (!this.shutdownPromise) {
+      this.shutdownPromise = this.otelTrace?.shutdown() || Promise.resolve();
+    }
+    await this.shutdownPromise;
+  }
 
   private isHistogramMetric(name: string, unit: string): boolean {
     return unit === 'ms'
@@ -408,20 +478,40 @@ export class Observability {
 }
 
 let singleton: Observability | undefined;
+let beforeExitHookInstalled = false;
+const flushObservabilityBeforeExit = () => {
+  void singleton?.shutdown();
+};
 
 export function getObservability(): Observability {
   if (!singleton) {
     singleton = Observability.fromEnv();
   }
+  if (singleton.isEnabled() && !beforeExitHookInstalled) {
+    beforeExitHookInstalled = true;
+    process.once('beforeExit', flushObservabilityBeforeExit);
+  }
   return singleton;
 }
 
 export function resetObservabilityForTests(observability?: Observability): void {
+  if (beforeExitHookInstalled) {
+    process.off('beforeExit', flushObservabilityBeforeExit);
+    beforeExitHookInstalled = false;
+  }
   singleton = observability;
 }
 
-export async function shutdownObservabilityForTests(): Promise<void> {
+export async function shutdownObservability(): Promise<void> {
   await singleton?.shutdown();
+}
+
+export async function shutdownObservabilityForTests(): Promise<void> {
+  await shutdownObservability();
+  if (beforeExitHookInstalled) {
+    process.off('beforeExit', flushObservabilityBeforeExit);
+    beforeExitHookInstalled = false;
+  }
   singleton = undefined;
 }
 
@@ -637,6 +727,47 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseExporter(value: string): ObservabilityExporter {
+  const exporters = value
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+  return exporters.includes('otlp') ? 'otlp' : 'none';
+}
+
+function resolveOtlpTracesEndpoint(env: NodeJS.ProcessEnv): string {
+  const explicit = env.XIAOBA_OBSERVABILITY_OTLP_TRACES_ENDPOINT
+    || env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+  if (explicit?.trim()) return explicit.trim();
+  const shared = env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
+  if (!shared) return 'http://localhost:4318/v1/traces';
+  const base = shared.replace(/\/+$/, '');
+  return base.endsWith('/v1/traces') ? base : `${base}/v1/traces`;
+}
+
+function parseOtlpHeaders(...values: Array<string | undefined>): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const value of values) {
+    if (!value) continue;
+    for (const entry of value.split(',')) {
+      const separator = entry.indexOf('=');
+      if (separator <= 0) continue;
+      const key = decodeHeaderPart(entry.slice(0, separator)).trim();
+      const headerValue = decodeHeaderPart(entry.slice(separator + 1)).trim();
+      if (key && headerValue) headers[key] = headerValue;
+    }
+  }
+  return headers;
+}
+
+function decodeHeaderPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function childSpanContext(parent?: ObservabilitySpanContext): ObservabilitySpanContext {

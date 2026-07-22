@@ -1,7 +1,7 @@
 # XiaoBa-CLI SPEC
 
 状态：Active
-最后更新：2026-07-20
+最后更新：2026-07-22
 适用范围：`XiaoBa-CLI` 整体架构、agent harness 边界、核心状态机、运行证据和评测闭环。
 
 本文是 `XiaoBa-CLI` 的项目级架构真相源。项目只维护本文和六个模块 SPEC；角色、benchmark、desktop、test 和实验实现不再各自复制架构文档。
@@ -19,7 +19,7 @@ XiaoBa-CLI 的稳定文档结构是一个项目级大 SPEC 加六个顶层模块
 | Evaluation：trace replay + live agent eval 层 | [`evaluation/SPEC.md`](evaluation/SPEC.md) | [`evaluation/PLAN.md`](evaluation/PLAN.md) | `src/replay`、`scripts/run-trace-replay.ts`、`eval`、`eval/benchmarks`、BaseRuntime live agent eval、hard verifiers、scorecard 和工程测试 |
 | Arena：候选能力验收场 | [`arena/SPEC.md`](arena/SPEC.md) | [`arena/PLAN.md`](arena/PLAN.md) | `src/arena`、`src/commands/arena.ts`、root `arena`、subject import、clean runtime、sandboxed runner、scorecard 和显式 promotion |
 
-外部观测导出不是当前模块边界。本地 JSONL、artifact evidence 和 role/runtime scorecard 是权威事实；Observability 只输出本地 summary / trace evidence，不拥有 pass/fail，也不能自动接受生成的 benchmark candidate。
+本地 JSONL、artifact evidence 和 role/runtime scorecard 始终是权威事实。Observability 允许显式启用一个脱敏、fail-open 的 OTLP trace 投影，供 Barena、Scenario 或 APM collector 消费；该投影不拥有 pass/fail，也不能自动接受生成的 benchmark candidate。
 
 ## 1. 核心定位
 
@@ -73,6 +73,7 @@ flowchart LR
     subgraph Facts["3) Record"]
         direction TB
         Evidence["Observability & Evidence<br/>trace / artifact / memory"]
+        Otel["OTLP trace projection<br/>optional + redacted"]
     end
     subgraph Learn["4) Verify / improve"]
         direction TB
@@ -93,6 +94,7 @@ flowchart LR
     Surface --> Runtime
     Policy --> Runtime
     Runtime --> Evidence
+    Evidence --> Otel
     Evidence --> Evaluation
     Evidence --> Improve
     Runtime --> Arena
@@ -122,6 +124,7 @@ flowchart LR
         direction TB
         Drivers["Deterministic drivers<br/>browser / GUI / lark-cli"]
         Evidence["Observability & Evidence<br/>local source of truth"]
+        Otel["OTLP trace projection<br/>optional + redacted"]
     end
     subgraph Improve["4) Verify / improve"]
         direction TB
@@ -143,6 +146,7 @@ flowchart LR
     Policy --> Runtime
     Runtime --> Drivers
     Runtime --> Evidence
+    Evidence --> Otel
     Evidence --> Evaluation
     Evidence --> Workflow
     Policy --> Arena
@@ -161,7 +165,7 @@ flowchart LR
 | `ToolManager` | 管三层工具注册、可见性、参数解析、执行边界、结果归一化、错误码和 retryable 信号；工具层级包括 base tool、role tool 和 surface tool | 不参与模型推理；不维护多轮对话状态；不把平台交付工具伪装成角色工具 |
 | `ContextCompressor` | 管长上下文状态迁移，在压缩后保留任务目标、约束、artifact 状态和最近上下文 | 不做业务总结；不替代 memory |
 | `SessionTurnLogger` | 管运行证据：trace、legacy turn alias、tool call、tool result、tokens、embedded runtime events、artifact clues；`traces.jsonl` append 后投影到 observability local summary，普通 runtime 文本写入 `runtime.log` | 不做最终质量评分；不作为业务数据库 |
-| `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity 和 trace-to-case proposal evidence | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不处理外发脱敏 |
+| `Observability` | 管 session log 投影后的 local summary、本地 span/metric helper、hash-only trace continuity，以及可选的脱敏 OTLP trace 投影 | 不替代本地 JSONL、artifact evidence、scorecard；不直接拥有 runtime 事实源；不拥有 pass/fail；不接受、patch 或 apply benchmark case；不外发 prompt/tool/file 内容 |
 | `roles/*` | 定义角色身份、职责、工具注入和验收边界 | 不复制 runtime loop |
 | `skills/*` | 定义领域流程和操作策略 | 不保存 runtime 状态；不绕过工具边界 |
 | `Arena` | 管 GitHub skill 导入、本地 role 验收、三种 capability review mode、clean runtime overlay、轻量 execution sandbox、subject manifest、scorecard、声明式逐轮硬合同、内容寻址 Patch Candidate 的 `repair_regression` 多次复跑和 promotion receipt 边界 | 不自动信任或晋升 subject；不把 Patch 伪装成 Skill/Role subject；不替代生产 `SkillManager` 或 role registry；不复制 runtime trace / eval benchmark source；不自动接受 benchmark case；不要求 Docker / VM |
